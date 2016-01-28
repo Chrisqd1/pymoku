@@ -5,6 +5,7 @@ import _oscilloscope
 import _siggen
 import _phasemeter
 import _specan
+import _lockinamp
 import _frame_instrument
 
 ''' Preferred import point. Aggregates the separate instruments and helper classes
@@ -22,6 +23,7 @@ Oscilloscope = _oscilloscope.Oscilloscope
 SignalGenerator = _siggen.SignalGenerator
 PhaseMeter = _phasemeter.PhaseMeter
 SpecAn = _specan.SpecAn
+LockInAmp = _lockinamp.LockInAmp
 
 # Re-export all constants from Oscilloscope that start with OSC_
 for attr, val in _oscilloscope.__dict__.iteritems():
@@ -48,4 +50,5 @@ id_table = {
 	1: Oscilloscope,
 	3: PhaseMeter,
 	4: SignalGenerator,
+	7: LockInAmp,
 }
