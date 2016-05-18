@@ -9,16 +9,16 @@ logging.basicConfig(format='%(asctime)s:%(name)s:%(levelname)s::%(message)s')
 logging.getLogger('pymoku').setLevel(logging.DEBUG)
 
 # Use Moku.get_by_serial() or get_by_name() if you don't know the IP
-m = Moku('192.168.1.130')
+m = Moku('192.168.73.1')
 
 i = m.discover_instrument()
-
+print i
 if i is None or i.type != 'lockinamp':
 	print "No or wrong instrument deployed"
 	i = LockInAmp()
 	m.attach_instrument(i)
 else:
-	print "Attached to existing Oscilloscope"
+	print "Attached to existing Lockin Amplifier"
 
 
 
@@ -34,12 +34,14 @@ try:
 	last = 0
 	i.set_defaults()
 	i.commit()
-	# while True:
 
-
-
-		# frame = i.get_frame()
-
+	while True:
+		print "before"
+		frame = i.get_frame()
+		print "after"
+		#print type(frame)
+		#print frame
+		#print frame.trigstate
 		# plt.pause(0.001)
 		# line1.set_ydata(frame.ch1)
 		# line2.set_ydata(frame.ch2)
@@ -47,5 +49,7 @@ try:
 		# line2.set_xdata(range(1024))
 
 		# plt.draw()
+except:
+	print "bugger"
 finally:
 	m.close()

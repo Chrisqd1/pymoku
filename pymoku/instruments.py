@@ -50,5 +50,5 @@ id_table = {
 	1: Oscilloscope,
 	3: PhaseMeter,
 	4: SignalGenerator,
-	7: LockInAmp,
+	8: LockInAmp,
 }
