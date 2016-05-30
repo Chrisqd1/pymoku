@@ -503,6 +503,8 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		self.offset = 0
 		self.offset_alt = 0
 
+		self.ref_level = 0
+
 		self.render_mode = RDR_DDS
 		self.x_mode = FULL_FRAME
 

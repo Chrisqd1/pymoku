@@ -32,7 +32,7 @@ dbm = True
 windowType = i.window_type('NONE')
 
 # Set FFT frequency span (Hz)
-start_freq = 10e6
+start_freq = 0e6
 stop_freq = 250e6
 #################################
 # END Instrument Configuration
