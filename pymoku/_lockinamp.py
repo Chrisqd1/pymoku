@@ -175,7 +175,7 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		self.set_trigger(LIA_TRIG_CH1, LIA_EDGE_RISING, 0)
 
 		self.pid1_en = 1
-		self.pid2_en = 1
+		self.pid2_en = 0
 		self.pid1_int_i_en = 1
 		self.pid2_int_i_en = 0
 		self.pid1_int_dc_pole = 0
@@ -190,12 +190,12 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		self.pid2_bypass = 1
 		self.lo_reset = 0
 
-		self.pid1_int_ifb_gain = 1.0 - 2*math.pi*100/125e6
+		self.pid1_int_ifb_gain = 1.0 - 2*math.pi*1e6/125e6
 		self.pid2_int_ifb_gain = 1.0 - 2*math.pi*1e5/125e6
 
-		self.pid1_pidgain = 16000
+		self.pid1_pidgain = 2**28
 		self.pid2_pidgain = 0
-		self.pid1_int_i_gain = 100.0 / (2**15 - 1)# 2**1/(2**15-1)
+		self.pid1_int_i_gain = 20000.0 / (2**15 - 1)# 2**1/(2**15-1)
 		self.pid2_int_i_gain = 100.0 / (2**15 - 1) #1000.0/(2**15-1)
 		self.pid1_int_p_gain = 0
 		self.pid2_int_p_gain = 0
@@ -207,12 +207,12 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		self.pid2_diff_i_gain = 0
 		self.pid1_diff_ifb_gain = 0
 		self.pid2_diff_ifb_gain = 0
-		self.frequency_demod = 20e6
+		self.frequency_demod = 10e6
 		self.phase_demod = 0
 		self.decimation_bitshift = 0#7
-		self.decimation_output_select = 1
-		self.monitor_select0 = 3
-		self.monitor_select1 = 3
+		self.decimation_output_select = 0
+		self.monitor_select0 = 7
+		self.monitor_select1 = 5
 		self.trigger_level = 0
 		self.sineout_amp = 1
 		self.pid1_in_offset  = 0
@@ -301,26 +301,6 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		self._update_datalogger_params(ch1, ch2)
 		super(LockInAmp, self).datalogger_start_single(use_sd=use_sd, ch1=ch1, ch2=ch2, filetype=filetype)
 
-	def set_trigger(self, source, edge, level, hysteresis=0, hf_reject=False, mode=LIA_TRIG_AUTO):
-		""" Sets trigger source and parameters.
-
-		:type source: OSC_TRIG_CH1, OSC_TRIG_CH2, OSC_TRIG_DA1, OSC_TRIG_DA2
-		:param source: Trigger Source. May be either ADC Channel or either DAC Channel, allowing one to trigger off a synthesised waveform.
-
-		:type edge: OSC_EDGE_RISING, OSC_EDGE_FALLING, OSC_EDGE_BOTH
-		:param edge: Which edge to trigger on.
-
-		:type level: float, volts
-		:param level: Trigger level
-
-		:type hysteresis: float, volts
-		:param hysteresis: Hysteresis to apply around trigger point."""
-		self.trig_ch = source
-		self.trig_edge = edge
-		self.hysteresis = hysteresis
-		self.hf_reject = hf_reject
-		self.trig_mode = mode
-
 	def _set_render(self, t1, t2, decimation):
 		self.render_mode = RDR_CUBIC #TODO: Support other
 		self.pretrigger = self._buffer_offset(t1, t2, self.decimation_rate)
@@ -384,6 +364,26 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		:param state: Select Precision Mode
 		:type state: bool """
 
+	def set_trigger(self, source, edge, level, hysteresis=0, hf_reject=False, mode=LIA_TRIG_AUTO):
+		""" Sets trigger source and parameters.
+
+		:type source: OSC_TRIG_CH1, OSC_TRIG_CH2, OSC_TRIG_DA1, OSC_TRIG_DA2
+		:param source: Trigger Source. May be either ADC Channel or either DAC Channel, allowing one to trigger off a synthesised waveform.
+
+		:type edge: OSC_EDGE_RISING, OSC_EDGE_FALLING, OSC_EDGE_BOTH
+		:param edge: Which edge to trigger on.
+
+		:type level: float, volts
+		:param level: Trigger level
+
+		:type hysteresis: float, volts
+		:param hysteresis: Hysteresis to apply around trigger point."""
+		self.trig_ch = source
+		self.trig_edge = edge
+		self.hysteresis = hysteresis
+		self.hf_reject = hf_reject
+		self.trig_mode = mode
+
 
 _lia_reg_hdl = [
 	('source_ch1',		REG_LIA_OUTSEL,		lambda s, old: (old & ~1) | s if s in [LIA_SOURCE_ADC, LIA_SOURCE_DAC] else None,
@@ -442,13 +442,13 @@ _lia_reg_hdl = [
 											lambda rval: rval & 2 >> 15),
 	('pid2_int_dc_pole',	REG_LIA_ENABLES,lambda s, old: (old & ~2**16) | int(s) << 16,
 											lambda rval: rval & 2 >> 16),
-	('pid1_in_offset',	REG_LIA_IN_OFFSET1,	lambda s, old: (old & ~0x00FFFFFF) | _sgn(s,24),
+	('pid1_in_offset',	REG_LIA_IN_OFFSET1,	lambda s, old: (old & ~0x00FFFFFF) | _sgn(s,25),
 											lambda rval: (rval & 0x00FFFFFF)),
-	('pid1_out_offset',	REG_LIA_OUT_OFFSET1,lambda s, old: (old & ~0x00FFFFFF) | _sgn(s,24),
+	('pid1_out_offset',	REG_LIA_OUT_OFFSET1,lambda s, old: (old & ~0x00FFFFFF) | _sgn(s,25),
 											lambda rval: (rval & 0x00FFFFFF)),
-	('pid2_in_offset',	REG_LIA_IN_OFFSET2,	lambda s, old: (old & ~0x00FFFFFF) | _sgn(s,24),
+	('pid2_in_offset',	REG_LIA_IN_OFFSET2,	lambda s, old: (old & ~0x00FFFFFF) | _sgn(s,25),
 											lambda rval: (rval & 0x00FFFFFF)),
-	('pid2_out_offset',	REG_LIA_OUT_OFFSET2,lambda s, old: (old & ~0x00FFFFFF) | _sgn(s,24),
+	('pid2_out_offset',	REG_LIA_OUT_OFFSET2,lambda s, old: (old & ~0x00FFFFFF) | _sgn(s,25),
 											lambda rval: (rval & 0x00FFFFFF)),																							
 	('pid1_pidgain',	REG_LIA_PIDGAIN1,	lambda s, old: (old & ~0xFFFFFFFF) | _sgn(s,32), 
 											lambda rval: (rval & 0xFFFFFFFF)/(2**15 -1)),

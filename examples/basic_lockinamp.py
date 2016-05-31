@@ -13,21 +13,21 @@ m = Moku('192.168.73.1')
 
 i = m.discover_instrument()
 print i
-if i is None or i.type != 'lockinamp':
-	print "No or wrong instrument deployed"
-	i = LockInAmp()
-	m.attach_instrument(i)
-else:
-	print "Attached to existing Lockin Amplifier"
+# if i is None or i.type != 'lockinamp':
+	# print "No or wrong instrument deployed"
+i = LockInAmp()
+m.attach_instrument(i)
+# else:
+	# print "Attached to existing Lockin Amplifier"
 
 
 
-# line1, = plt.plot([])
+line1, = plt.plot([])
 # line2, = plt.plot([])
 # plt.ion()
 # plt.show()
 # plt.grid(b=True)
-# plt.ylim([-10, 10])
+# plt.ylim([-100, 100])
 # plt.xlim([0,1024])
 
 try:
@@ -35,13 +35,12 @@ try:
 	i.set_defaults()
 	i.commit()
 
-	while True:
-		print "before"
-		frame = i.get_frame()
-		print "after"
-		#print type(frame)
-		#print frame
-		#print frame.trigstate
+	# while True:
+
+		# frame = i.get_frame()
+
+		# print type(frame)
+
 		# plt.pause(0.001)
 		# line1.set_ydata(frame.ch1)
 		# line2.set_ydata(frame.ch2)
@@ -49,7 +48,7 @@ try:
 		# line2.set_xdata(range(1024))
 
 		# plt.draw()
-except:
-	print "bugger"
+# except:
+# 	print "bugger"
 finally:
 	m.close()
