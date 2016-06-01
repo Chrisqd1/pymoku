@@ -161,7 +161,7 @@ class Moku(object):
 		raise MokuNotFound("Couldn't find Moku: %s" % name)
 
 	def _set_timeout(self, short=True):
-		base = 1000
+		base = 2500
 
 		if not short:
 			base *= 5
