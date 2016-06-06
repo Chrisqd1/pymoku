@@ -23,32 +23,31 @@ m.attach_instrument(i)
 
 
 line1, = plt.plot([])
-# line2, = plt.plot([])
-# plt.ion()
-# plt.show()
-# plt.grid(b=True)
-# plt.ylim([-100, 100])
-# plt.xlim([0,1024])
+line2, = plt.plot([])
+plt.ion()
+plt.show()
+plt.grid(b=True)
+plt.ylim([-100, 100])
+plt.xlim([0,1024])
 
 try:
 	last = 0
 	i.set_defaults()
 	i.commit()
 
-	# while True:
+	while True:
 
-		# frame = i.get_frame()
+		frame = i.get_frame()
 
-		# print type(frame)
+		print type(frame)
 
 		# plt.pause(0.001)
-		# line1.set_ydata(frame.ch1)
-		# line2.set_ydata(frame.ch2)
-		# line1.set_xdata(range(1024))
-		# line2.set_xdata(range(1024))
+		line1.set_ydata(frame.ch1)
+		line2.set_ydata(frame.ch2)
+		line1.set_xdata(range(1024))
+		line2.set_xdata(range(1024))
 
-		# plt.draw()
-# except:
-# 	print "bugger"
+		plt.draw()
+
 finally:
 	m.close()
