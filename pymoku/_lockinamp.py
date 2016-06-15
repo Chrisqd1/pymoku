@@ -175,9 +175,9 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		self.set_trigger(LIA_TRIG_CH1, LIA_EDGE_RISING, 0)
 
 		self.pid1_en = 1
-		self.pid2_en = 0
+		self.pid2_en = 1
 		self.pid1_int_i_en = 1
-		self.pid2_int_i_en = 0
+		self.pid2_int_i_en = 1
 		self.pid1_int_dc_pole = 0
 		self.pid2_int_dc_pole = 0
 		self.pid1_int_p_en = 0
@@ -187,16 +187,16 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		self.pid1_diff_i_en = 0
 		self.pid2_diff_i_en = 0
 		self.pid1_bypass = 0
-		self.pid2_bypass = 1
+		self.pid2_bypass = 0
 		self.lo_reset = 0
 
 		self.pid1_int_ifb_gain = 1.0 - 2*math.pi*1e6/125e6
-		self.pid2_int_ifb_gain = 1.0 - 2*math.pi*1e5/125e6
+		self.pid2_int_ifb_gain = 1.0 - 2*math.pi*1e6/125e6
 
-		self.pid1_pidgain = 2**28
-		self.pid2_pidgain = 0
+		self.pid1_pidgain = 2**16
+		self.pid2_pidgain = 2**16
 		self.pid1_int_i_gain = 20000.0 / (2**15 - 1)# 2**1/(2**15-1)
-		self.pid2_int_i_gain = 100.0 / (2**15 - 1) #1000.0/(2**15-1)
+		self.pid2_int_i_gain = 20000.0 / (2**15 - 1) #1000.0/(2**15-1)
 		self.pid1_int_p_gain = 0
 		self.pid2_int_p_gain = 0
 		self.pid1_diff_d_gain = 0
@@ -210,9 +210,9 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		self.frequency_demod = 10e6
 		self.phase_demod = 0
 		self.decimation_bitshift = 0#7
-		self.decimation_output_select = 0
-		self.monitor_select0 = 7
-		self.monitor_select1 = 5
+		self.decimation_output_select = 1
+		self.monitor_select0 = 1
+		self.monitor_select1 = 1
 		self.trigger_level = 0
 		self.sineout_amp = 1
 		self.pid1_in_offset  = 0
@@ -220,6 +220,19 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		self.pid2_in_offset = 0
 		self.pid2_out_offset = 0
 
+	def set_filter_parameters(self, ReqCorner, FilterGain, Order):
+		DSPCoeff = (1-ReqCorner/self._LIA_CONTROL_FS)*(2**_LIA_COEFF_WIDTH-1)
+
+		self.pid1_int_ifb_gain = DSPCoeff
+		self.pid2_int_ifb_gain = DSPCoeff
+		
+		if Order == 1:
+			self.pid2_bypass = 1
+		elif Order == 2:
+			self.pid2_bypass = 0
+		else:
+			self.pid1_bypass = 1
+			self.pid2_bypass = 1 
 
 	# def convert_corner(self, ReqCorner):
 	# 	DSPCoeff = (1-ReqCorner/self._LIA_CONTROL_FS)*(2**_LIA_COEFF_WIDTH-1)
