@@ -93,7 +93,24 @@ class VoltsFrame(_frame_instrument.DataFrame):
 			log.error("Can't render voltage frame, haven't saved calibration data for state %d", self.stateid)
 			return
 
-		scale1, scale2, _, _ = self.scales[self.stateid]
+		g1, g2, d1, d2, s1, s2, l1, l2 = self.scales[self.stateid]
+
+		def _compute_scaling_factor(adc,dac,src,lmode):
+			# Change scaling factor depending on the source type
+			if (src == OSC_SOURCE_ADC):
+				scale = adc
+			elif (src == OSC_SOURCE_DAC):
+				if(lmode == _OSC_LB_CLIP):
+					scale = dac 
+				else: # Rounding mode
+					scale = dac * 16
+			else:
+				log.error("Invalid source type on channel.")
+				return
+			return scale
+
+		scale1 = _compute_scaling_factor(g1,d1,s1,l1)
+		scale2 = _compute_scaling_factor(g2,d2,s2,l2)
 
 		try:
 			smpls = int(len(self.raw1) / 4)
@@ -217,7 +234,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 	def _trigger_level(self, amplitude, source, scales):
 		# An amplitude in volts is scaled to an ADC level depending on the trigger input source 
 		# and its current configuration
-		[g1, g2, d1, d2] = scales
+		[g1, g2, d1, d2, s1, s2, l1, l2] = scales
 		if (source == OSC_TRIG_CH1):
 			level = amplitude/g1
 		elif (source == OSC_TRIG_CH2):
@@ -427,6 +444,11 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		dac1 = "calibration.DG-1"
 		dac2 = "calibration.DG-2"
 
+		s1 = self.source_ch1
+		s2 = self.source_ch2
+		l1 = self.loopback_mode_ch1
+		l2 = self.loopback_mode_ch2
+
 		try:
 			g1 = 1 / float(self.calibration[sect1])
 			g2 = 1 / float(self.calibration[sect2])
@@ -444,7 +466,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 			d1 /= self._deci_gain()
 			d2 /= self._deci_gain()
 
-		return (g1, g2, d1, d2)
+		return (g1, g2, d1, d2, s1, s2, l1, l2)
 
 	def _update_dependent_regs(self, scales):
 		# Trigger level must be scaled depending on the current relay settings and chosen trigger source
@@ -458,6 +480,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 
 		# Commit the register values to the device
 		super(Oscilloscope, self).commit()
+		# Associate new state ID with the scaling factors of the state
 		self.scales[self._stateid] = scales
 		# TODO: Trim scales dictionary, getting rid of old ids
 
@@ -466,11 +489,6 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 
 	def attach_moku(self, moku):
 		super(Oscilloscope, self).attach_moku(moku)
-
-		try:
-			self.calibration = dict(self._moku._get_property_section("calibration"))
-		except:
-			log.warning("Can't read calibration values.")
 
 	attach_moku.__doc__ = MokuInstrument.attach_moku.__doc__
 
