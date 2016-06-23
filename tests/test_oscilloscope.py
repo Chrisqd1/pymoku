@@ -12,14 +12,19 @@ class Test_Siggen:
 		Test the generated output waveforms are as expected
 	'''
 	@pytest.mark.parametrize("ch, vpp, freq, offset", [
-		(1, 1.0, 3.0, 0),
+		(1, 1.0, 10.0, 0),
 		(1, 0.5, 10.0, 0),
-		(1, 0.5, 10.0, 0.3),
+		(1, 0.5, 33.3, 0.3),
+		(1, 0.5, 100e3, 0.3)
 		])
 	def test_sinewave_amplitude(self, base_instr, ch, vpp, freq, offset):
 		# Generate an output sinewave and loop to input
 		# Ensure the amplitude is right
 		# Ensure the frequency seems correct as well
+
+		# Timebase should allow ~5 cycles of input wave
+		tspan = (1.0/freq) * 5.0
+		base_instr.set_timebase(0,tspan)
 		base_instr.set_source(ch,OSC_SOURCE_DAC)
 		if(ch==1):
 			base_instr.set_trigger(OSC_TRIG_DA1, OSC_EDGE_RISING, 0)
@@ -27,9 +32,6 @@ class Test_Siggen:
 			base_instr.set_trigger(OSC_TRIG_DA2, OSC_EDGE_RISING, 0)
 
 		base_instr.synth_sinewave(ch,vpp,freq,offset)
-		# Set a decent timebase that contains multiple cycles of the wave
-		# base_instr.set_timebase()
-
 		base_instr.commit()
 
 		# Get a few frames and test that the max amplitudes of the generated signals are within bounds

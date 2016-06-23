@@ -93,7 +93,17 @@ class VoltsFrame(_frame_instrument.DataFrame):
 			log.error("Can't render voltage frame, haven't saved calibration data for state %d", self.stateid)
 			return
 
-		g1, g2, d1, d2, s1, s2, l1, l2 = self.scales[self.stateid]
+		scales = self.scales[self.stateid]
+		g1 = scales['g1']
+		g2 = scales['g2']
+		d1 = scales['d1']
+		d2 = scales['d2']
+		s1 = scales['s1']
+		s2 = scales['s2']
+		l1 = scales['l1']
+		l2 = scales['l2']
+		t1 = scales['t1']
+		t2 = scales['t2']
 
 		def _compute_scaling_factor(adc,dac,src,lmode):
 			# Change scaling factor depending on the source type
@@ -134,6 +144,59 @@ class VoltsFrame(_frame_instrument.DataFrame):
 
 		return True
 
+
+	'''
+		Plotting helper functions
+	'''
+	def _get_timeScale(self, tspan):
+		# Returns a scaling factor and units for time 'T'
+		if(tspan <  1e-6):
+			scale_str = 'ns'
+			scale_const = 1e9
+		elif (tspan < 1e-3):
+			scale_str = 'us'
+			scale_const = 1e6
+		elif (tspan < 1):
+			scale_str = 'ms'
+			scale_const = 1e3
+		else:
+			scale_str = 's'
+			scale_const = 1.0
+
+		return [scale_str,scale_const]
+
+	def _get_xaxis_fmt(self,x,pos):
+		# This function returns a format string for the x-axis ticks and x-coordinates along the time scale
+		# Use this to set an x-axis format during plotting of Oscilloscope frames
+
+		if self.stateid not in self.scales:
+			log.error("Can't get x-axis format, haven't saved calibration data for state %d", self.stateid)
+			return
+
+		scales = self.scales[self.stateid]
+		t1 = scales['t1']
+		t2 = scales['t2']
+		ts = abs(t2 - t1) / _OSC_SCREEN_WIDTH
+		tscale_str, tscale_const = self._get_timeScale(abs(t2-t1))
+
+		return {'xaxis': '%.1f %s' % ((t1 + x*ts)*tscale_const, tscale_str), 'xcoord': '%.3f %s' % ((t1 + x*ts)*tscale_const, tscale_str)}
+
+	def get_xaxis_fmt(self, x, pos):
+		return self._get_xaxis_fmt(x,pos)['xaxis']
+
+	def get_xcoord_fmt(self, x):
+		return self._get_xaxis_fmt(x,None)['xcoord']
+
+	def _get_yaxis_fmt(self,y,pos):
+		return {'yaxis': '%.1f %s' % (y,'V'), 'ycoord': '%.3f %s' % (y,'V')}
+
+	def get_yaxis_fmt(self, y, pos):
+		return self._get_yaxis_fmt(y,pos)['yaxis']
+
+	def get_ycoord_fmt(self, y):
+		return self._get_yaxis_fmt(y,None)['ycoord']
+
+
 class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerator):
 	""" Oscilloscope instrument object. This should be instantiated and attached to a :any:`Moku` instance.
 
@@ -173,7 +236,8 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		self.procstr = ["*C","*C"]
 		self.timestep = 1
 
-		self.decimation_rate = 1
+		# NOTE: Register mapped properties will be overwritten in sync registers call
+		# on attach_instrument(). No point setting them here.
 
 		self.scales = {}
 
@@ -190,37 +254,38 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 
 	def _buffer_offset(self, t1, t2, decimation):
 		# Based on mercury_ipad/LISettings::OSCalculateOptimalBufferOffset
+		# Compute the number of pre-trigger samples to keep in the buffer
 		# TODO: Roll mode
 
 		buffer_smps = _OSC_ADC_SMPS / decimation
-		offset_secs = t1
+		offset_secs = -1.0 * t1 # Positive offset is negative time
 		offset = round(min(max(math.ceil(offset_secs * buffer_smps / 4.0), -2**28), 2**12))
 
 		return offset
 
 	def _render_downsample(self, t1, t2, decimation):
 		# Based on mercury_ipad/LISettings::OSCalculateRenderDownsamplingForDecimation
+		# Incoming data rate of channel buffer
 		buffer_smps = _OSC_ADC_SMPS / decimation
+
+		# The timebase/zoom must not require more than the max ADC sampling rate 
+		# based on 1024 point frame
 		screen_smps = min(_OSC_SCREEN_WIDTH / abs(t1 - t2), _OSC_ADC_SMPS)
 
+		# Render downsample up to 16 (zooming)
 		return round(min(max(buffer_smps / screen_smps, 1.0), 16.0))
 
-	def _render_offset(self, t1, t2, decimation, buffer_offset, render_decimation):
-		# Based on mercury_ipad/LISettings::OSCalculateFrameOffsetForDecimation
+
+	def _get_buffer_timespan(self, decimation, buffer_offset):
 		buffer_smps = _OSC_ADC_SMPS / decimation
-		trig_in_buf = 4 * buffer_offset # TODO: Roll Mode
-		time_buff_start = -trig_in_buf / buffer_smps
+		trig_in_buf = 4 * -buffer_offset
+		time_buff_start = trig_in_buf / buffer_smps
 		time_buff_end = time_buff_start + (_OSC_BUFLEN - 1) / buffer_smps
-		time_screen_centre = abs(t1 - t2) / 2
-		screen_span = render_decimation / buffer_smps * _OSC_SCREEN_WIDTH
+		return (time_buff_start, time_buff_end)
 
-		# Allows for scrolling past the end of the trace
-		time_left = max(min(time_screen_centre - screen_span / 2, time_buff_end - screen_span), time_buff_start)
-
-		return math.ceil(-time_left * buffer_smps)
-
+	def _render_offset(self, t1, t2, decimation, buffer_offset, render_decimation):
 		# For now, only support viewing the whole captured buffer
-		#return buffer_offset * 4
+		return buffer_offset * 4
 
 	def _deci_gain(self):
 		if self.decimation_rate == 0:
@@ -231,23 +296,42 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		else:
 			return self.decimation_rate / 2**10
 
+	def _get_timebase(self, decimation, buffer_offset, render_decimation, render_offset):
+		# Returns start/end time and timestep of the current frames
+		time_buff_start, time_buff_end = self._get_buffer_timespan(decimation, buffer_offset)
+
+		buff_smps = _OSC_ADC_SMPS / float(decimation)
+		buff_ts = 1.0 / buff_smps
+		render_smps = buff_smps/float(render_decimation)
+		render_ts = 1.0 / render_smps
+
+		start_t = (-render_offset * buff_ts)
+		end_t = start_t + (_OSC_SCREEN_WIDTH - 1)* render_ts
+
+		return (start_t,end_t)
+
 	def _trigger_level(self, amplitude, source, scales):
 		# An amplitude in volts is scaled to an ADC level depending on the trigger input source 
 		# and its current configuration
-		[g1, g2, d1, d2, s1, s2, l1, l2] = scales
 		if (source == OSC_TRIG_CH1):
-			level = amplitude/g1
+			level = amplitude/scales['g1']
 		elif (source == OSC_TRIG_CH2):
-			level = amplitude/g2
+			level = amplitude/scales['g2']
 		elif (source == OSC_TRIG_DA1):
-			level = (amplitude/d1)/16
+			level = (amplitude/scales['d1'])/16
 		elif (source == OSC_TRIG_DA2):
-			level = (amplitude/d2)/16
+			level = (amplitude/scales['d2'])/16
 
 		return level
 
 	def _update_datalogger_params(self, ch1, ch2):
-		samplerate = _OSC_ADC_SMPS / self.decimation_rate
+		if self.decimation_rate == 0:
+			log.warning("Decimation appears to be unset")
+			decimation = 1
+		else:
+			decimation = self.decimation_rate
+
+		samplerate = _OSC_ADC_SMPS / decimation
 		self.timestep = 1 / samplerate
 
 		if self.ain_mode == _OSC_AIN_DECI:
@@ -292,13 +376,15 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 
 	def _set_render(self, t1, t2, decimation):
 		self.render_mode = RDR_CUBIC #TODO: Support other
-		self.pretrigger = self._buffer_offset(t1, t2, self.decimation_rate)
-		self.render_deci = self._render_downsample(t1, t2, self.decimation_rate)
-		self.offset = self._render_offset(t1, t2, self.decimation_rate, self.pretrigger, self.render_deci)
+		self.pretrigger = self._buffer_offset(t1, t2, decimation)
+		self.render_deci = self._render_downsample(t1, t2, decimation)
+		self.offset = self._render_offset(t1, t2, decimation, self.pretrigger, self.render_deci)
 
 		# Set alternates to regular, means we get distorted frames until we get a new trigger
 		self.render_deci_alt = self.render_deci
 		self.offset_alt = self.offset
+
+		self._get_timebase(self.decimation_rate, self.pretrigger, self.render_deci, self.offset)
 
 		log.debug("Render params: Deci %f PT: %f, RDeci: %f, Off: %f", self.decimation_rate, self.pretrigger, self.render_deci, self.offset)
 
@@ -314,6 +400,9 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		:type t2: float
 		:param t2: As *t1* but to the right of screen.
 		"""
+		if(t2 <= t1):
+			raise Exception("Timebase must be non-zero, with t1 < t2. Attempted to set t1=%f and t2=%f" % (t1, t2))
+
 		self.decimation_rate = self._optimal_decimation(t1, t2)
 		self._set_render(t1, t2, self.decimation_rate)
 
@@ -332,6 +421,8 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		self.decimation_rate = _OSC_ADC_SMPS / samplerate
 
 	def get_samplerate(self):
+		if(self.decimation_rate == 0):
+			raise Exception("Decimation rate appears to be unset.")
 		return _OSC_ADC_SMPS / self.decimation_rate
 
 	def set_xmode(self, xmode):
@@ -418,16 +509,19 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		""" Reset the Oscilloscope to sane defaults. """
 		super(Oscilloscope, self).set_defaults()
 		#TODO this should reset ALL registers
+		self.set_source(1,OSC_SOURCE_ADC)
+		self.set_source(2,OSC_SOURCE_ADC)
+		self.set_trigger(OSC_TRIG_CH1, OSC_EDGE_RISING, 0)
+		self.set_precision_mode(False)
+		self.set_timebase(-1, 1)
+
 		self.framerate = _OSC_FPS
 		self.frame_length = _OSC_SCREEN_WIDTH
-
+		self.set_buffer_length(4)
 		self.set_xmode(OSC_FULL_FRAME)
-		self.set_timebase(-0.25, 0.25)
-		self.set_precision_mode(False)
-		self.trig_mode = OSC_TRIG_AUTO
-		self.set_trigger(OSC_TRIG_CH1, OSC_EDGE_RISING, 0)
-		self.set_frontend(1)
-		self.set_frontend(2)
+
+		self.set_frontend(1, fiftyr=True)
+		self.set_frontend(2, fiftyr=True)
 		self.en_in_ch1 = True
 		self.en_in_ch2 = True
 
@@ -449,6 +543,13 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		l1 = self.loopback_mode_ch1
 		l2 = self.loopback_mode_ch2
 
+		if(self.decimation_rate == 0 or self.render_deci == 0):
+			log.warning("ADCs appear to be turned off or decimation unset")
+			t1 = 0
+			t2 = 1
+		else:
+			t1,t2 = self._get_timebase(self.decimation_rate, self.pretrigger, self.render_deci, self.offset)
+
 		try:
 			g1 = 1 / float(self.calibration[sect1])
 			g2 = 1 / float(self.calibration[sect2])
@@ -466,12 +567,11 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 			d1 /= self._deci_gain()
 			d2 /= self._deci_gain()
 
-		return (g1, g2, d1, d2, s1, s2, l1, l2)
+		return {'g1':g1, 'g2':g2, 'd1':d1, 'd2':d2, 's1':s1, 's2':s2, 'l1':l1, 'l2':l2, 't1':t1, 't2':t2}
 
 	def _update_dependent_regs(self, scales):
 		# Trigger level must be scaled depending on the current relay settings and chosen trigger source
 		self.trigger_level = self._trigger_level(self.trig_volts, self.trig_ch, scales)
-		print "Set trigger level to: ", self.trigger_level
 		
 	def commit(self):
 		scales = self._calculate_scales()
