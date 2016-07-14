@@ -45,6 +45,8 @@ REG_LIA_OUT_OFFSET1 = 116
 REG_LIA_IN_OFFSET2 = 117
 REG_LIA_OUT_OFFSET2 = 118
 
+REG_LIA_SINEOUTOFF =127
+
 # REG_OSC_OUTSEL constants
 LIA_SOURCE_ADC		= 0
 LIA_SOURCE_DAC		= 1
@@ -90,10 +92,10 @@ LIA_MONITOR_INPUT	= 3
 
 _LIA_CONTROL_FS 	= 125e6
 _LIA_SINE_FS		= 1e9
-_LIA_COEFF_WIDTH	= 16
+_LIA_COEFF_WIDTH	= 24
 _LIA_FREQSCALE		= float(1e9) / 2**48
 _LIA_PHASESCALE		= 1.0 / 2**48
-_LIA_AMPSCALE		= 4.0 / (2**16)
+_LIA_AMPSCALE		= 1
 
 
 class LockInAmp(_frame_instrument.FrameBasedInstrument):
@@ -187,8 +189,9 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		self.pid1_diff_i_en = 0
 		self.pid2_diff_i_en = 0
 		self.pid1_bypass = 0
-		self.pid2_bypass = 0
+		self.pid2_bypass = 1
 		self.lo_reset = 0
+		self.slope = 1
 
 		self.pid1_int_ifb_gain = 1.0 - 2*math.pi*1e6/125e6
 		self.pid2_int_ifb_gain = 1.0 - 2*math.pi*1e6/125e6
@@ -215,24 +218,107 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		self.monitor_select1 = 1
 		self.trigger_level = 0
 		self.sineout_amp = 1
+		self.sineout_offset = 0
 		self.pid1_in_offset  = 0
 		self.pid1_out_offset = 0
 		self.pid2_in_offset = 0
 		self.pid2_out_offset = 0
 
-	def set_filter_parameters(self, ReqCorner, FilterGain, Order):
-		DSPCoeff = (1-ReqCorner/self._LIA_CONTROL_FS)*(2**_LIA_COEFF_WIDTH-1)
+	def set_filter_parameters(self, Gain_dB, ReqCorner, FilterGain, Order):
+		DSPCoeff = (1-2*math.pi*ReqCorner/self._LIA_CONTROL_FS)*(2**_LIA_COEFF_WIDTH-1)
 
 		self.pid1_int_ifb_gain = DSPCoeff
 		self.pid2_int_ifb_gain = DSPCoeff
+
+		self.pid1_int_i_gain = 2**24 - 1 - DSPCoeff
+		self.pid2_int_i_gain = 2**24 - 1 - DSPCoeff
 		
 		if Order == 1:
 			self.pid2_bypass = 1
+			self.slope = 1
 		elif Order == 2:
 			self.pid2_bypass = 0
+			self.slope = 2
 		else:
 			self.pid1_bypass = 1
-			self.pid2_bypass = 1 
+			self.pid2_bypass = 1
+
+		self._set_gain(Gain_dB)
+
+
+	def _set_gain(self, Gain_dB):
+
+		gain_factor = (10**(Gain_dB / 20)) / 16 * self._get_dac_calibration[0] / self._get_adc_calibration[0]
+		
+		if self.slope == 1:
+			self.pid1_pidgain = self.pid2_pidgain = round(gain_factor,0) / 2 * 2**16
+		else :
+			self.pid1_pidgain = self.pid2_pidgain = round(math.sqrt(gain_factor),0) / 2 * 2**16
+
+	def set_pid_offset(self, offset):
+		if self.slope == 1:
+			self.pid1_out_offset = offset * self._get_dac_calibration[0]
+			self.pid2_out_offset = 0
+		elif self.slope == 2:
+			self.pid1_out_offset = 0
+			self.pid2_out_offset = offset * self._get_dac_calibratioin[0]
+		else :
+			self.slope == 1
+			self.pid1_out_offset = offset * self._get_dac_calibration[0]
+			self.pid2_out_offset = 0
+			raise InvalidOperationException("PID slope not set : defaulted to slope = %s" % self.slope)
+
+	def set_lo_output_amp(self,amplitude):
+		# converts amplitude (V) into the bits required for the register
+		self.sineout_amp = amplitude * self._get_dac_calibration[1]
+
+	def set_lo_offset(self, offset):
+		# converts the offset in volts to the bits required for the offset register
+		self.sineout_offset = offset * self._get_dac_calibration[1] 
+			 
+	def _get_dac_calibration(self):
+		# returns the volts to bits numbers for the DAC channels in the current state
+
+		sect1 = "calibration.DG-1"
+		sect2 = "calibration.DG-2"
+
+		try:
+			g1 = float(self.calibration[sect1])
+			g2 = float(self.calibration[sect2])
+		except (KeyError, TypeError):
+			log.warning("Moku appears uncalibrated")
+			g1 = g2 = 1
+
+		return (g1, g2)
+
+	def _get_adc_calibration(self):
+		# Returns the volts to bits numbers for each channel in the current state
+
+		sect1 = "calibration.AG-%s-%s-%s-1" % ( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
+								  "L" if self.relays_ch1 & RELAY_LOWG else "H",
+								  "D" if self.relays_ch1 & RELAY_DC else "A")
+
+		sect2 = "calibration.AG-%s-%s-%s-2" % ( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
+								  "L" if self.relays_ch1 & RELAY_LOWG else "H",
+								  "D" if self.relays_ch1 & RELAY_DC else "A")
+
+		try:
+			g1 = float(self.calibration[sect1])
+			g2 = float(self.calibration[sect2])
+		except (KeyError, TypeError):
+			log.warning("Moku appears uncalibrated")
+			g1 = g2 = 1
+
+		return (g1, g2)
+
+	def attach_moku(self, moku):
+		super(Lockinamp, self).attach_moku(moku)
+
+		try:
+			self.calibration = dict(self._moku._get_property_section("calibration"))
+		except:
+			log.warning("Can't read calibration values.")
+
 
 	# def convert_corner(self, ReqCorner):
 	# 	DSPCoeff = (1-ReqCorner/self._LIA_CONTROL_FS)*(2**_LIA_COEFF_WIDTH-1)
@@ -527,6 +613,9 @@ _lia_reg_hdl = [
 											lambda rval: rval & 3),
 	('sineout_amp',			REG_LIA_SINEOUTAMP,
 											lambda s, old: (old & ~0x0000FFFF) | _usgn(s / _LIA_AMPSCALE,16),
+											lambda rval: (rval & 0x0000FFFF) * _LIA_AMPSCALE),
+	('sineout_offset',		REG_LIA_SINEOUTOFF,
+											lambda s, old: (old & ~0x0000FFFF) | _sgn(s / LIA_AMPSCALE, 16),
 											lambda rval: (rval & 0x0000FFFF) * _LIA_AMPSCALE),
 	]
 _instrument._attach_register_handlers(_lia_reg_hdl, LockInAmp)
