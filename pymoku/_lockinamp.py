@@ -124,15 +124,19 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 	"""
 	def __init__(self):
 		"""Create a new Lock-In-Amplifier instrument, ready to be attached to a Moku."""
-		self.scales = {}
+	
 
-		super(LockInAmp, self).__init__(VoltsFrame, scales=self.scales)
+		super(LockInAmp, self).__init__()
 		self._register_accessors(_lia_reg_hdl)
+
 		self.id = 8
 		self.type = "lockinamp"
 		self.calibration = None
 
+		self.scales = {}
 		self.decimation_rate = 1
+		self.set_frame_class(VoltsFrame, scales=self.scales)
+
 	def _calculate_scales(self):
 		# Returns the bits-to-volts numbers for each channel in the current state
 
@@ -214,16 +218,17 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		self.frequency_demod = 10e6
 		self.phase_demod = 0
 		self.decimation_bitshift = 0#7
-		self.decimation_output_select = 1
-		self.monitor_select0 = 1
-		self.monitor_select1 = 1
+		self.decimation_output_select = 0
+		self.monitor_select0 = 2
+		self.monitor_select1 = 2
 		self.trigger_level = 0
-		self.sineout_amp = 1
+		self.sineout_amp = 2**14
 		self.sineout_offset = 0
 		self.pid1_in_offset  = 0
 		self.pid1_out_offset = 0
 		self.pid2_in_offset = 0
 		self.pid2_out_offset = 0
+		self.sineout_offset = 0
 
 	def set_filter_parameters(self, Gain_dB, ReqCorner, FilterGain, Order):
 		DSPCoeff = (1-2*math.pi*ReqCorner/self._LIA_CONTROL_FS)*(2**_LIA_COEFF_WIDTH-1)
@@ -313,25 +318,15 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		return (g1, g2)
 
 	def attach_moku(self, moku):
-		super(Lockinamp, self).attach_moku(moku)
+		super(LockInAmp, self).attach_moku(moku)
 
 		try:
 			self.calibration = dict(self._moku._get_property_section("calibration"))
 		except:
 			log.warning("Can't read calibration values.")
 
+	attach_moku.__doc__ = MokuInstrument.attach_moku.__doc__
 
-	# def convert_corner(self, ReqCorner):
-	# 	DSPCoeff = (1-ReqCorner/self._LIA_CONTROL_FS)*(2**_LIA_COEFF_WIDTH-1)
-	# 	return DSPCoeff
-
-	# def convert_frequency(self, ReqFrequency):
-	# 	DSPFreq = 2**48*ReqFrequency/self._LIA_SINE_FS
-	# 	return DSPFreq
-
-	# def convert_gain(self, ReqGain):
-	# 	DSPGain = ReqGain/(2**(self._LIA_COEFF_WIDTH-1)-1)
-	# 	return DSPGain
 	def _optimal_decimation(self, t1, t2):
 		# Based on mercury_ipad/LISettings::OSCalculateOptimalADCDecimation
 		ts = abs(t1 - t2)
@@ -635,24 +630,24 @@ _lia_reg_hdl = {
 											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
 
 	'frequency_demod':	((REG_LIA_FREQDEMOD_H, REG_LIA_FREQDEMOD_L),	
-											to_reg_signed(0, 48, xform=lambda x: x / _LIA_FREQSCALE),
-											from_reg_signed(0, 48, xform=lambda x: x * _LIA_FREQSCALE)),
+											to_reg_unsigned(0, 48, xform=lambda x: x / _LIA_FREQSCALE),
+											from_reg_unsigned(0, 48, xform=lambda x: x * _LIA_FREQSCALE)),
 
-	'phase_demod':	((REG_LIA_FREQDEMOD_H, REG_LIA_FREQDEMOD_L),	
-											to_reg_signed(0, 48, xform=lambda x: x / _LIA_PHASESCALE),
-											from_reg_signed(0, 48, xform=lambda x: x * _LIA_PHASESCALE)),
+	'phase_demod':	((REG_LIA_PHASEDEMOD_H, REG_LIA_PHASEDEMOD_L),	
+											to_reg_unsigned(0, 48, xform=lambda x: x / _LIA_PHASESCALE),
+											from_reg_unsigned(0, 48, xform=lambda x: x * _LIA_PHASESCALE)),
 
 	'decimation_bitshift':	(REG_LIA_DECBITSHIFT,	
-											to_reg_signed(0, 4),
-											from_reg_signed(0, 4)),
+											to_reg_unsigned(0, 4),
+											from_reg_unsigned(0, 4)),
 
 	'monitor_select0':	(REG_LIA_MONSELECT0,	
-											to_reg_signed(0, 2),
-											from_reg_signed(0, 2)),
+											to_reg_unsigned(0, 3),
+											from_reg_unsigned(0, 3)),
 
 	'monitor_select1':	(REG_LIA_MONSELECT1,	
-											to_reg_signed(0, 2),
-											from_reg_signed(0, 2)),
+											to_reg_unsigned(0, 3),
+											from_reg_unsigned(0, 3)),
 
 	'sineout_amp':	(REG_LIA_SINEOUTAMP,	
 											to_reg_signed(0, 16, xform=lambda x: x / _LIA_AMPSCALE),
