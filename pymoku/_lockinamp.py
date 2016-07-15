@@ -127,6 +127,7 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		self.scales = {}
 
 		super(LockInAmp, self).__init__(VoltsFrame, scales=self.scales)
+		self._register_accessors(_lia_reg_hdl)
 		self.id = 8
 		self.type = "lockinamp"
 		self.calibration = None
@@ -484,138 +485,181 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		self.trig_mode = mode
 
 
-_lia_reg_hdl = [
-	('source_ch1',		REG_LIA_OUTSEL,		lambda s, old: (old & ~1) | s if s in [LIA_SOURCE_ADC, LIA_SOURCE_DAC] else None,
-											lambda rval: rval & 1),
-	('source_ch2',		REG_LIA_OUTSEL,		lambda s, old: (old & ~2) | s << 1 if s in [LIA_SOURCE_ADC, LIA_SOURCE_DAC] else None,
-											lambda rval: rval & 2 >> 1),
-	('trig_mode',		REG_LIA_TRIGMODE,	lambda s, old: (old & ~3) | s if s in [LIA_TRIG_AUTO, LIA_TRIG_NORMAL, LIA_TRIG_SINGLE] else None,
-											lambda rval: rval & 3),
-	('trig_edge',		REG_LIA_TRIGCTL,	lambda s, old: (old & ~3) | s if s in [LIA_EDGE_RISING, LIA_EDGE_FALLING, LIA_EDGE_BOTH] else None,
-											lambda rval: rval & 3),
-	('trig_ch',			REG_LIA_TRIGCTL,	lambda s, old: (old & ~0x7F0) | s << 4 if s in
-												[LIA_TRIG_CH1, LIA_TRIG_CH2, LIA_TRIG_DA1, LIA_TRIG_DA2] else None,
-											lambda rval: rval & 0x7F0 >> 4),
-	('hf_reject',		REG_LIA_TRIGCTL,	lambda s, old: (old & ~0x1000) | s << 12 if int(s) in [0, 1] else None,
-											lambda rval: rval & 0x1000 >> 12),
-	('hysteresis',		REG_LIA_TRIGCTL,	lambda s, old: (old & ~0xFFFF0000) | s << 16 if 0 <= s < 2**16 else None,
-											lambda rval: rval & 0xFFFF0000 >> 16),
-	('trigger_level',	REG_LIA_TRIGLVL,	lambda s, old: _sgn(s, 32),
-											lambda rval: rval),
-	('loopback_mode',	REG_LIA_ACTL,		lambda m, old: (old & ~0x01) | m if m in [_LIA_LB_CLIP, _LIA_LB_ROUND] else None,
-											lambda rval: rval & 0x01),
-	('ain_mode',		REG_LIA_ACTL,		lambda m, old: (old & ~0x30000) | (m << 16) if m in [_LIA_AIN_DDS, _LIA_AIN_DECI] else None,
-											lambda rval: (rval & 0x30000) >> 16),
-	('decimation_rate',	REG_LIA_DECIMATION,	lambda r, old: _usgn(r, 32), lambda rval: rval),
-	('pid1_en',		REG_LIA_ENABLES,		lambda s, old: (old & ~1) | int(s),
-											lambda rval: rval & 1),
-	('pid2_en',		REG_LIA_ENABLES,		lambda s, old: (old & ~2) | int(s) << 1,
-											lambda rval: rval & 2 >> 1),
-	('pid1_int_i_en',	REG_LIA_ENABLES,	lambda s, old: (old & ~2**2) | int(s) << 2,
-											lambda rval: rval & 2 >> 2),
-	('pid2_int_i_en',	REG_LIA_ENABLES,	lambda s, old: (old & ~2**3) | int(s) << 3,
-											lambda rval: rval & 2 >> 3),
-	('pid1_int_p_en',	REG_LIA_ENABLES,	lambda s, old: (old & ~2**4) | int(s) << 4,
-											lambda rval: rval & 2 >> 4),
-	('pid2_int_p_en',	REG_LIA_ENABLES,	lambda s, old: (old & ~2**5) | int(s) << 5,
-											lambda rval: rval & 2 >> 5),
-	('pid1_diff_d_en',	REG_LIA_ENABLES,	lambda s, old: (old & ~2**6) | int(s) << 6,
-											lambda rval: rval & 2 >> 6),
-	('pid2_diff_d_en',	REG_LIA_ENABLES,	lambda s, old: (old & ~2**7) | int(s) << 7,
-											lambda rval: rval & 2 >> 7),
-	('pid1_diff_p_en',	REG_LIA_ENABLES,	lambda s, old: (old & ~2**8) | int(s) << 8,
-											lambda rval: rval & 2 >> 8),
-	('pid2_diff_p_en',	REG_LIA_ENABLES,	lambda s, old: (old & ~2**9) | int(s) << 9,
-											lambda rval: rval & 2 >> 9),
-	('pid1_diff_i_en',	REG_LIA_ENABLES,	lambda s, old: (old & ~2**10) | int(s) << 10,
-											lambda rval: rval & 2 >> 10),
-	('pid2_diff_i_en',	REG_LIA_ENABLES,	lambda s, old: (old & ~2**11) | int(s) << 11,
-											lambda rval: rval & 2 >> 11),
-	('pid1_bypass',	REG_LIA_ENABLES,		lambda s, old: (old & ~2**12) | int(s) << 12,
-											lambda rval: rval & 2 >> 12),
-	('pid2_bypass',	REG_LIA_ENABLES,		lambda s, old: (old & ~2**13) | int(s) << 13,
-											lambda rval: rval & 2 >> 13),
-	('lo_reset',	REG_LIA_ENABLES,		lambda s, old: (old & ~2**14) | int(s) << 14,
-											lambda rval: rval & 2 >> 14),
-	('pid1_int_dc_pole',	REG_LIA_ENABLES,lambda s, old: (old & ~2**15) | int(s) << 15,
-											lambda rval: rval & 2 >> 15),
-	('pid2_int_dc_pole',	REG_LIA_ENABLES,lambda s, old: (old & ~2**16) | int(s) << 16,
-											lambda rval: rval & 2 >> 16),
-	('pid1_in_offset',	REG_LIA_IN_OFFSET1,	lambda s, old: (old & ~0x00FFFFFF) | _sgn(s,25),
-											lambda rval: (rval & 0x00FFFFFF)),
-	('pid1_out_offset',	REG_LIA_OUT_OFFSET1,lambda s, old: (old & ~0x00FFFFFF) | _sgn(s,25),
-											lambda rval: (rval & 0x00FFFFFF)),
-	('pid2_in_offset',	REG_LIA_IN_OFFSET2,	lambda s, old: (old & ~0x00FFFFFF) | _sgn(s,25),
-											lambda rval: (rval & 0x00FFFFFF)),
-	('pid2_out_offset',	REG_LIA_OUT_OFFSET2,lambda s, old: (old & ~0x00FFFFFF) | _sgn(s,25),
-											lambda rval: (rval & 0x00FFFFFF)),																							
-	('pid1_pidgain',	REG_LIA_PIDGAIN1,	lambda s, old: (old & ~0xFFFFFFFF) | _sgn(s,32), 
-											lambda rval: (rval & 0xFFFFFFFF)/(2**15 -1)),
-	('pid2_pidgain',	REG_LIA_PIDGAIN2,	lambda s, old: (old & ~0xFFFFFFFF) | _sgn(s,32) , 
-											lambda rval: (rval & 0xFFFFFFF)/(2**15 -1)),
-	('pid1_int_i_gain',	REG_LIA_INT_IGAIN,	lambda s, old: (old & ~0x0000FFFF) | _sgn(s * (2**15 - 1), 16), 
-											lambda rval: (rval & 0x0000FFFF)*(2**15 -1)),
-	('pid2_int_i_gain',	REG_LIA_INT_IGAIN,	lambda s, old: (old & ~0xFFFF0000) | _sgn(s * (2**15 - 1), 16) << 16, 
-											lambda rval: (rval & 0xFFFF0000)*(2**15 -1)),
-	('pid1_int_ifb_gain',	REG_LIA_INT_IFBGAIN,
-											lambda s, old: (old & ~0x0000FFFF) | _usgn(s * (2**16), 16), 
-											lambda rval: (rval & 0x0000FFFF)*(2**15 -1)),
-	('pid2_int_ifb_gain',	REG_LIA_INT_IFBGAIN,
-											lambda s, old: (old & ~0xFFFF0000) | _usgn(s * (2**16) ,16) << 16, 
-											lambda rval: (rval & 0xFFFF0000)*(2**15 -1)),
-	('pid1_int_p_gain',	REG_LIA_INT_PGAIN,
-											lambda s, old: (old & ~0x0000FFFF) | _sgn(s * (2**15 - 1), 16), 
-											lambda rval: (rval & 0x0000FFFF)*(2**15 -1)),
-	('pid2_int_p_gain',	REG_LIA_INT_PGAIN,
-											lambda s, old: (old & ~0xFFFF0000) | _sgn(s * (2**15 - 1), 16) << 16, 
-											lambda rval: (rval & 0xFFFF0000)*(2**15 -1)),
-	('pid1_diff_d_gain',	REG_LIA_DIFF_DGAIN,
-											lambda s, old: (old & ~0x0000FFFF) | _sgn(s * (2**15 - 1), 16), 
-											lambda rval: (rval & 0x0000FFFF)*(2**15 -1)),
-	('pid2_diff_d_gain',	REG_LIA_DIFF_DGAIN,
-											lambda s, old: (old & ~0xFFFF0000) | _sgn(s * (2**15 - 1), 16) << 16, 
-											lambda rval: (rval & 0xFFFF0000) * (2**15 - 1)),
-	('pid1_diff_p_gain',	REG_LIA_DIFF_PGAIN,
-											lambda s, old: (old & ~0x0000FFFF) | _sgn(s * (2**15 - 1), 16), 
-											lambda rval: (rval & 0x0000FFFF)*(2**15 -1)),
-	('pid2_diff_p_gain',	REG_LIA_DIFF_PGAIN,
-											lambda s, old: (old & ~0xFFFF0000) | _sgn(s * (2**15 - 1), 16) << 16, 
-											lambda rval: (rval & 0xFFFF0000)*(2**15 -1)),
-	('pid1_diff_i_gain',	REG_LIA_DIFF_IGAIN,
-											lambda s, old: (old & ~0x0000FFFF) | _sgn(s * (2**15 - 1), 16), 
-											lambda rval: (rval & 0x0000FFFF)*(2**15 -1)),
-	('pid2_diff_i_gain',	REG_LIA_DIFF_IGAIN,
-											lambda s, old: (old & ~0xFFFF0000) | _sgn(s * (2**15 - 1), 16) << 16, 
-											lambda rval: (rval & 0xFFFF0000) * (2**15 -1)),
-	('pid1_diff_ifb_gain',	REG_LIA_DIFF_IFBGAIN,
-											lambda s, old: (old & ~0x0000FFFF) | _sgn(s * (2**15 - 1), 16), 
-											lambda rval: (rval & 0x0000FFFF) * (2**15 -1)),
-	('pid2_diff_ifb_gain',	REG_LIA_DIFF_IFBGAIN,
-											lambda s, old: (old & ~0xFFFF0000) | _sgn(s * (2**15 - 1), 16) << 16, 
-											lambda rval: (rval & 0xFFFF0000) * (2**15 -1)),
-	('frequency_demod', 	(REG_LIA_FREQDEMOD_H, REG_LIA_FREQDEMOD_L),
-											lambda s, old: ((old[0] & ~0x0000FFFF) | _usgn(s / _LIA_FREQSCALE, 48) >> 32 , _usgn(s / _LIA_FREQSCALE, 48) & 0xFFFFFFFF),
-											lambda rval: _LIA_FREQSCALE * ((rval[0] & 0x0000FFFF) << 32 | rval[1])),
-	('phase_demod', 		(REG_LIA_PHASEDEMOD_H, REG_LIA_PHASEDEMOD_L),
-											lambda s, old: ((old[0] & ~0x0000FFFF) | _usgn(s / _LIA_PHASESCALE, 48) >> 32 , _usgn(s / _LIA_PHASESCALE, 48) & 0xFFFFFFFF),
-											lambda rval: _LIA_PHASESCALE * ((rval[0] & 0x0000FFFF) << 32 | rval[1])),
-	('decimation_bitshift',	REG_LIA_DECBITSHIFT,
-											lambda s, old: (old & ~0x0000000F) | int(s), 
-											lambda rval: rval & 0x0000000F),
-	('decimation_output_select', REG_LIA_DECOUTPUTSELECT,
-											lambda s, old: (old & ~0x0000000F) | int(s),
-											lambda rval: rval & 0x0000000F),
-	('monitor_select0', 		REG_LIA_MONSELECT0,
-											lambda s, old: (old & ~3) | int(s),
-											lambda rval: rval & 3),
-	('monitor_select1', 		REG_LIA_MONSELECT1,
-											lambda s, old: (old & ~3) | int(s),
-											lambda rval: rval & 3),
-	('sineout_amp',			REG_LIA_SINEOUTAMP,
-											lambda s, old: (old & ~0x0000FFFF) | _usgn(s / _LIA_AMPSCALE,16),
-											lambda rval: (rval & 0x0000FFFF) * _LIA_AMPSCALE),
-	('sineout_offset',		REG_LIA_SINEOUTOFF,
-											lambda s, old: (old & ~0x0000FFFF) | _sgn(s / LIA_AMPSCALE, 16),
-											lambda rval: (rval & 0x0000FFFF) * _LIA_AMPSCALE),
-	]
-_instrument._attach_register_handlers(_lia_reg_hdl, LockInAmp)
+_lia_reg_hdl = {
+	'source_ch1':		(REG_LIA_OUTSEL,	to_reg_unsigned(0, 1, allow_set=[LIA_SOURCE_ADC, LIA_SOURCE_DAC]),
+											from_reg_unsigned(0, 1)),
+
+	'source_ch2':		(REG_LIA_OUTSEL,	to_reg_unsigned(1, 1, allow_set=[LIA_SOURCE_ADC, LIA_SOURCE_DAC]),
+											from_reg_unsigned(1, 1)),
+
+	'trig_mode':		(REG_LIA_TRIGMODE,	to_reg_unsigned(0, 2, allow_set=[LIA_TRIG_AUTO, LIA_TRIG_NORMAL, LIA_TRIG_SINGLE]),
+											from_reg_unsigned(0, 2)),
+
+	'trig_edge':		(REG_LIA_TRIGCTL,	to_reg_unsigned(0, 2, allow_set=[LIA_EDGE_RISING, LIA_EDGE_FALLING, LIA_EDGE_BOTH]),
+											from_reg_unsigned(0, 2)),
+
+	'trig_ch':			(REG_LIA_TRIGCTL,	to_reg_unsigned(4, 6, allow_set=[LIA_TRIG_CH1, LIA_TRIG_CH2, LIA_TRIG_DA1, LIA_TRIG_DA2]),
+											from_reg_unsigned(4, 6)),
+
+	'hf_reject':		(REG_LIA_TRIGCTL,	to_reg_bool(12),			from_reg_bool(12)),
+	'hysteresis':		(REG_LIA_TRIGCTL,	to_reg_unsigned(16, 16),	from_reg_unsigned(16, 16)),
+	'trigger_level':	(REG_LIA_TRIGLVL,	to_reg_signed(0, 32),		to_reg_signed(0, 32)),
+
+	'loopback_mode_ch1':	(REG_LIA_ACTL,	to_reg_unsigned(0, 1, allow_set=[_LIA_LB_CLIP, _LIA_LB_ROUND]),
+											from_reg_unsigned(0, 1)),
+	'loopback_mode_ch2':	(REG_LIA_ACTL,	to_reg_unsigned(1, 1, allow_set=[_LIA_LB_CLIP, _LIA_LB_ROUND]),
+											from_reg_unsigned(1, 1)),
+
+	'ain_mode':			(REG_LIA_ACTL,		to_reg_unsigned(2, 16, allow_set=[_LIA_AIN_DDS, _LIA_AIN_DECI]),
+											from_reg_unsigned(2, 16)),
+
+	'decimation_rate':	(REG_LIA_DECIMATION,to_reg_unsigned(0, 32),	
+											from_reg_unsigned(0, 32)),
+
+	'pid1_en':		(REG_LIA_ENABLES,		to_reg_bool(0),
+											from_reg_bool(0)),
+
+	'pid2_en':		(REG_LIA_ENABLES,		to_reg_bool(1),
+											from_reg_bool(1)),
+
+	'pid1_int_i_en':	(REG_LIA_ENABLES,	to_reg_bool(2),
+											from_reg_bool(2)),
+
+	'pid2_int_i_en':	(REG_LIA_ENABLES,	to_reg_bool(3),
+											from_reg_bool(3)),
+
+	'pid1_int_p_en':	(REG_LIA_ENABLES,	to_reg_bool(4),
+											from_reg_bool(4)),
+	'pid2_int_p_en':	(REG_LIA_ENABLES,	to_reg_bool(5),
+											from_reg_bool(5)),
+
+	'pid1_diff_d_en':	(REG_LIA_ENABLES,	to_reg_bool(6),
+											from_reg_bool(6)),
+
+	'pid2_diff_d_en':	(REG_LIA_ENABLES,	to_reg_bool(7),
+											from_reg_bool(7)),
+
+	'pid1_diff_p_en':	(REG_LIA_ENABLES,	to_reg_bool(8),
+											from_reg_bool(8)),
+
+	'pid2_diff_p_en':	(REG_LIA_ENABLES,	to_reg_bool(9),
+											from_reg_bool(9)),
+
+	'pid1_diff_i_en':	(REG_LIA_ENABLES,	to_reg_bool(10),
+											from_reg_bool(10)),
+
+	'pid2_diff_i_en':	(REG_LIA_ENABLES,	to_reg_bool(11),
+											from_reg_bool(11)),
+
+	'pid1_bypass':	(REG_LIA_ENABLES,		to_reg_bool(12),
+											from_reg_bool(12)),
+
+	'pid2_bypass':	(REG_LIA_ENABLES,		to_reg_bool(13),
+											from_reg_bool(13)),
+
+	'lo_reset':		(REG_LIA_ENABLES,		to_reg_bool(14),
+											from_reg_bool(14)),
+
+	'pid1_int_dc_pole':	(REG_LIA_ENABLES,	to_reg_bool(15),
+											from_reg_bool(15)),
+
+	'pid2_int_dc_pole':	(REG_LIA_ENABLES,	to_reg_bool(16),
+											from_reg_bool(16)),
+
+	'pid1_in_offset':	(REG_LIA_IN_OFFSET1,to_reg_signed(0, 15),
+											from_reg_signed(0, 15)),
+
+	'pid2_in_offset':	(REG_LIA_IN_OFFSET2,to_reg_signed(0, 15),
+											from_reg_signed(0, 15)),
+
+	'pid1_out_offset':	(REG_LIA_OUT_OFFSET1,to_reg_signed(0, 15),
+											from_reg_signed(0, 15)),	
+
+	'pid2_out_offset':	(REG_LIA_OUT_OFFSET2,to_reg_signed(0, 15),
+											from_reg_signed(0, 15)),
+
+	'pid1_pidgain':		(REG_LIA_PIDGAIN1,	to_reg_signed(0, 32),
+											from_reg_signed(0, 32, xform=lambda x: x / 2**16)),
+
+	'pid2_pidgain':		(REG_LIA_PIDGAIN2,	to_reg_signed(0, 32),
+											from_reg_signed(0, 32, xform=lambda x: x / 2**16)),
+
+	'pid1_int_i_gain':	(REG_LIA_INT_IGAIN,	to_reg_signed(0, 16, xform=lambda x: x*(2**15 -1)),
+											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+
+	'pid2_int_i_gain':	(REG_LIA_INT_IGAIN,	to_reg_signed(16, 16, xform=lambda x: x*(2**15 -1)),
+											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+
+	'pid1_int_ifb_gain':	(REG_LIA_INT_IFBGAIN,	to_reg_signed(0, 16, xform=lambda x: x*(2**15 -1)),
+											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+
+	'pid2_int_ifb_gain':	(REG_LIA_INT_IFBGAIN,	to_reg_signed(0, 16, xform=lambda x: x*(2**15 -1)),
+											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+
+	'pid1_int_p_gain':	(REG_LIA_INT_PGAIN,	to_reg_signed(0, 16, xform=lambda x: x*(2**15 -1)),
+											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+
+	'pid2_int_p_gain':	(REG_LIA_INT_PGAIN,	to_reg_signed(16, 16, xform=lambda x: x*(2**15 -1)),
+											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+
+	'pid1_diff_d_gain':	(REG_LIA_DIFF_DGAIN,	
+											to_reg_signed(0, 16, xform=lambda x: x*(2**15 -1)),
+											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+
+	'pid2_diff_d_gain':	(REG_LIA_DIFF_DGAIN,	
+											to_reg_signed(16, 16, xform=lambda x: x*(2**15 -1)),
+											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+
+	'pid1_diff_p_gain':	(REG_LIA_DIFF_PGAIN,	
+											to_reg_signed(0, 16, xform=lambda x: x*(2**15 -1)),
+											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+
+	'pid2_diff_p_gain':	(REG_LIA_DIFF_PGAIN,	
+											to_reg_signed(16, 16, xform=lambda x: x*(2**15 -1)),
+											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+
+	'pid1_diff_i_gain':	(REG_LIA_DIFF_IGAIN,	
+											to_reg_signed(0, 16, xform=lambda x: x*(2**15 -1)),
+											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+
+	'pid2_diff_i_gain':	(REG_LIA_DIFF_IGAIN,	
+											to_reg_signed(16, 16, xform=lambda x: x*(2**15 -1)),
+											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+
+	'pid1_diff_ifb_gain':	(REG_LIA_DIFF_IFBGAIN,	
+											to_reg_signed(0, 16, xform=lambda x: x*(2**15 -1)),
+											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+
+	'pid2_diff_ifb_gain':	(REG_LIA_DIFF_IFBGAIN,	
+											to_reg_signed(16, 16, xform=lambda x: x*(2**15 -1)),
+											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+
+	'frequency_demod':	((REG_LIA_FREQDEMOD_H, REG_LIA_FREQDEMOD_L),	
+											to_reg_signed(0, 48, xform=lambda x: x / _LIA_FREQSCALE),
+											from_reg_signed(0, 48, xform=lambda x: x * _LIA_FREQSCALE)),
+
+	'phase_demod':	((REG_LIA_FREQDEMOD_H, REG_LIA_FREQDEMOD_L),	
+											to_reg_signed(0, 48, xform=lambda x: x / _LIA_PHASESCALE),
+											from_reg_signed(0, 48, xform=lambda x: x * _LIA_PHASESCALE)),
+
+	'decimation_bitshift':	(REG_LIA_DECBITSHIFT,	
+											to_reg_signed(0, 4),
+											from_reg_signed(0, 4)),
+
+	'monitor_select0':	(REG_LIA_MONSELECT0,	
+											to_reg_signed(0, 2),
+											from_reg_signed(0, 2)),
+
+	'monitor_select1':	(REG_LIA_MONSELECT1,	
+											to_reg_signed(0, 2),
+											from_reg_signed(0, 2)),
+
+	'sineout_amp':	(REG_LIA_SINEOUTAMP,	
+											to_reg_signed(0, 16, xform=lambda x: x / _LIA_AMPSCALE),
+											from_reg_signed(0, 16, xform=lambda x: x * _LIA_AMPSCALE)),
+
+	'sineout_offset':	(REG_LIA_SINEOUTOFF,	
+											to_reg_signed(0, 16, xform=lambda x: x / _LIA_AMPSCALE),
+											from_reg_signed(0, 16, xform=lambda x: x * _LIA_AMPSCALE)),
+	}
+# _instrument._attach_register_handlers(_lia_reg_hdl, LockInAmp)
