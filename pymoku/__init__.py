@@ -453,11 +453,12 @@ class Moku(object):
 		return pkt[2:]
 
 
-	def _send_file(self, mp, localname):
+	def _send_file(self, mp, localname, remotename=None):
+		if remotename is None:
+			remotename = os.path.basename(localname)
+
 		with open(localname, 'rb') as f:
 			data = f.read()
-
-		remotename = os.path.basename(localname)
 
 		fname = mp + ":" + remotename
 
@@ -533,7 +534,7 @@ class Moku(object):
 
 		return t, f
 
-	def load_bitstream(self, path):
+	def load_bitstream(self, path, remotename=None):
 		"""
 		Load a bitstream file to the Moku, ready for deployment.
 
@@ -549,7 +550,7 @@ class Moku(object):
 
 		log.debug("File already exists on target, overwriting.")
 
-		rname = self._send_file('b', path)
+		rname = self._send_file('b', path, remotename)
 
 		log.debug("Verifying upload")
 
