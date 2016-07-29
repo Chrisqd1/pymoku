@@ -45,7 +45,8 @@ REG_LIA_OUT_OFFSET1 = 116
 REG_LIA_IN_OFFSET2 = 117
 REG_LIA_OUT_OFFSET2 = 118
 
-REG_LIA_SINEOUTOFF =127
+REG_LIA_INPUT_GAIN = 126
+REG_LIA_SINEOUTOFF = 127
 
 # REG_OSC_OUTSEL constants
 LIA_SOURCE_ADC		= 0
@@ -201,8 +202,8 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		self.pid1_int_ifb_gain = 1.0 - 2*math.pi*1e6/125e6
 		self.pid2_int_ifb_gain = 1.0 - 2*math.pi*1e6/125e6
 
-		self.pid1_pidgain = 2**16
-		self.pid2_pidgain = 2**16
+		self.pid1_pidgain = 2**0
+		self.pid2_pidgain = 2**0
 		self.pid1_int_i_gain = 20000.0 / (2**15 - 1)# 2**1/(2**15-1)
 		self.pid2_int_i_gain = 20000.0 / (2**15 - 1) #1000.0/(2**15-1)
 		self.pid1_int_p_gain = 0
@@ -215,7 +216,7 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		self.pid2_diff_i_gain = 0
 		self.pid1_diff_ifb_gain = 0
 		self.pid2_diff_ifb_gain = 0
-		self.frequency_demod = 10e6
+		self.frequency_demod = 100e6
 		self.phase_demod = 0
 		self.decimation_bitshift = 0#7
 		self.decimation_output_select = 0
@@ -225,10 +226,11 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		self.sineout_amp = 2**14
 		self.sineout_offset = 0
 		self.pid1_in_offset  = 0
-		self.pid1_out_offset = 0
+		self.pid1_out_offset = 2**15-1
 		self.pid2_in_offset = 0
-		self.pid2_out_offset = 0
+		self.pid2_out_offset = 2**15-1
 		self.sineout_offset = 0
+		self.input_gain = 1
 
 	def set_filter_parameters(self, Gain_dB, ReqCorner, FilterGain, Order):
 		DSPCoeff = (1-2*math.pi*ReqCorner/self._LIA_CONTROL_FS)*(2**_LIA_COEFF_WIDTH-1)
@@ -561,22 +563,22 @@ _lia_reg_hdl = {
 	'pid2_int_dc_pole':	(REG_LIA_ENABLES,	to_reg_bool(16),
 											from_reg_bool(16)),
 
-	'pid1_in_offset':	(REG_LIA_IN_OFFSET1,to_reg_signed(0, 15),
-											from_reg_signed(0, 15)),
+	'pid1_in_offset':	(REG_LIA_IN_OFFSET1,to_reg_signed(0, 16),
+											from_reg_signed(0, 16)),
 
-	'pid2_in_offset':	(REG_LIA_IN_OFFSET2,to_reg_signed(0, 15),
-											from_reg_signed(0, 15)),
+	'pid2_in_offset':	(REG_LIA_IN_OFFSET2,to_reg_signed(0, 16),
+											from_reg_signed(0, 16)),
 
-	'pid1_out_offset':	(REG_LIA_OUT_OFFSET1,to_reg_signed(0, 15),
-											from_reg_signed(0, 15)),	
+	'pid1_out_offset':	(REG_LIA_OUT_OFFSET1,to_reg_signed(0, 16),
+											from_reg_signed(0, 16)),	
 
-	'pid2_out_offset':	(REG_LIA_OUT_OFFSET2,to_reg_signed(0, 15),
-											from_reg_signed(0, 15)),
+	'pid2_out_offset':	(REG_LIA_OUT_OFFSET2,to_reg_signed(0, 16),
+											from_reg_signed(0, 16)),
 
-	'pid1_pidgain':		(REG_LIA_PIDGAIN1,	to_reg_signed(0, 32),
+	'pid1_pidgain':		(REG_LIA_PIDGAIN1,	to_reg_signed(0, 32, xform=lambda x : x * 2**16),
 											from_reg_signed(0, 32, xform=lambda x: x / 2**16)),
 
-	'pid2_pidgain':		(REG_LIA_PIDGAIN2,	to_reg_signed(0, 32),
+	'pid2_pidgain':		(REG_LIA_PIDGAIN2,	to_reg_signed(0, 32, xform=lambda x : x * 2**16),
 											from_reg_signed(0, 32, xform=lambda x: x / 2**16)),
 
 	'pid1_int_i_gain':	(REG_LIA_INT_IGAIN,	to_reg_signed(0, 16, xform=lambda x: x*(2**15 -1)),
@@ -656,5 +658,8 @@ _lia_reg_hdl = {
 	'sineout_offset':	(REG_LIA_SINEOUTOFF,	
 											to_reg_signed(0, 16, xform=lambda x: x / _LIA_AMPSCALE),
 											from_reg_signed(0, 16, xform=lambda x: x * _LIA_AMPSCALE)),
+	'input_gain':	(REG_LIA_INPUT_GAIN,
+											to_reg_signed(0,32, xform=lambda x: x * 2**16),
+											from_reg_signed(0,32, xform=lambda x: x / 2**16)),
 	}
 # _instrument._attach_register_handlers(_lia_reg_hdl, LockInAmp)
