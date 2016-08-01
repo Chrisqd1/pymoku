@@ -21,11 +21,11 @@ m = Moku.get_by_name('example')
 i = m.discover_instrument()
 
 if i is None or i.type != 'phasemeter':
-	print "No or wrong instrument deployed"
+	print("No or wrong instrument deployed")
 	i = PhaseMeter()
 	m.attach_instrument(i)
 else:
-	print "Attached to existing Phasemeter"
+	print("Attached to existing Phasemeter")
 
 try:
 	#################################
@@ -69,7 +69,7 @@ try:
 	i.set_initfreq(2, ch2_freq)
 
 	# The sample rate must be set <=100Hz to avoid data loss so we set it to 10Hz
-	i.set_samplerate(10)
+	i.set_samplerate(PM_LOGRATE_SLOW)
 
 	# Set up signal generator for enabled channels
 	if(ch1_out_enable):
@@ -118,9 +118,9 @@ try:
 		try:
 			ch, idx, samp = i.datalogger_get_samples(timeout=5)
 		except NoDataException as e:
-			print "Data stream complete"
+			print("Data stream complete")
 			break
-		print "Ch: %d, Idx: %d, #Samples: %s" % (ch, idx, len(samp))
+		print("Ch: %d, Idx: %d, #Samples: %s" % (ch, idx, len(samp)))
 
 		# Process the retrieved samples
 		if ch1 & (ch==1):
@@ -132,7 +132,7 @@ try:
 				#
 
 				# Convert I,Q to amplitude and append to line graph
-				ydata1 = ydata1 + [math.sqrt(s[0]**2 + s[1]**2)]
+				ydata1 = ydata1 + [math.sqrt(s[4]**2 + s[5]**2)]
 
 		elif ch2 & (ch==2):
 			datalen = len(samp)
@@ -143,7 +143,7 @@ try:
 				#
 
 				# Convert I,Q to amplitude and append to line graph
-				ydata2 = ydata2 + [math.sqrt(s[0]**2 + s[1]**2)]
+				ydata2 = ydata2 + [math.sqrt(s[4]**2 + s[5]**2)]
 
 		# Must set lines for each draw loop
 		if ch1:
@@ -161,10 +161,10 @@ try:
 	e = i.datalogger_error()
 
 	if e:
-		print "Error occured: %s" % e
+		print("Error occured: %s" % e)
 
 	i.datalogger_stop()
 except Exception as e:
-	print e
+	print(e)
 finally:
 	m.close()

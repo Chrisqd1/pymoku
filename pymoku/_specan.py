@@ -1,8 +1,8 @@
 import math
 import logging
 
-from _instrument import *
-import _frame_instrument
+from ._instrument import *
+from . import _frame_instrument
 
 from bisect import bisect_right
 
@@ -500,8 +500,8 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		self.framerate = _SA_FPS
 		self.frame_length = _SA_SCREEN_WIDTH
 
-		self.offset = -4
-		self.offset_alt = -4
+		self.offset = 0
+		self.offset_alt = 0
 
 		self.render_mode = RDR_DDS
 		self.x_mode = FULL_FRAME
