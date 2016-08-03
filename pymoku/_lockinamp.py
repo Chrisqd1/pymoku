@@ -24,13 +24,20 @@ REG_LIA_DECIMATION	= 70
 REG_LIA_ENABLES		= 96
 REG_LIA_PIDGAIN1	= 97
 REG_LIA_PIDGAIN2	= 113
-REG_LIA_INT_IGAIN	= 98
-REG_LIA_INT_IFBGAIN	= 99
-REG_LIA_INT_PGAIN	= 100
-REG_LIA_DIFF_DGAIN	= 101
-REG_LIA_DIFF_PGAIN	= 102
-REG_LIA_DIFF_IGAIN	= 103
-REG_LIA_DIFF_IFBGAIN	= 104
+REG_LIA_INT_IGAIN1	= 98
+REG_LIA_INT_IGAIN2	= 99
+REG_LIA_INT_IFBGAIN1= 100
+REG_LIA_INT_IFBGAIN2= 101
+REG_LIA_INT_PGAIN1	= 102
+REG_LIA_INT_PGAIN2	= 103
+REG_LIA_DIFF_DGAIN1	= 104
+REG_LIA_DIFF_DGAIN2	= 119
+REG_LIA_DIFF_PGAIN1	= 120
+REG_LIA_DIFF_PGAIN2	= 121
+REG_LIA_DIFF_IGAIN1	= 122
+REG_LIA_DIFF_IGAIN2	= 123
+REG_LIA_DIFF_IFBGAIN1	= 124
+REG_LIA_DIFF_IFBGAIN2	= 125
 REG_LIA_FREQDEMOD_L	= 105
 REG_LIA_FREQDEMOD_H	= 106
 REG_LIA_PHASEDEMOD_L	= 107
@@ -91,12 +98,12 @@ LIA_MONITOR_Q		= 1
 LIA_MONITOR_PID		= 2
 LIA_MONITOR_INPUT	= 3
 
-_LIA_CONTROL_FS 	= 125e6
+_LIA_CONTROL_FS 	= 25e6
 _LIA_SINE_FS		= 1e9
 _LIA_COEFF_WIDTH	= 25
 _LIA_FREQSCALE		= float(1e9) / 2**48
 _LIA_PHASESCALE		= 1.0 / 2**48
-_LIA_AMPSCALE		= 1
+_LIA_AMPSCALE		= 1.0 / (2**15 - 1)
 
 
 class LockInAmp(_frame_instrument.FrameBasedInstrument):
@@ -198,26 +205,22 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		self.pid2_bypass = 1
 		self.lo_reset = 0
 		
+		self.set_filter_parameters(10, 100, 1)
 
+		self.set_pid_offset(0)
 
-
-
-		self.set_filter_parameters(0, 1000, 1)
-
-
-
-		self.pid1_int_p_gain = 0
-		self.pid2_int_p_gain = 0
-		self.pid1_diff_d_gain = 0
-		self.pid2_diff_d_gain = 0
-		self.pid1_diff_p_gain = 0
-		self.pid2_diff_p_gain = 0
-		self.pid1_diff_i_gain = 0
-		self.pid2_diff_i_gain = 0
-		self.pid1_diff_ifb_gain = 0
-		self.pid2_diff_ifb_gain = 0
-		self.frequency_demod = 30e6
-		self.phase_demod = 0
+		self.pid1_int_p_gain = 0.0
+		self.pid2_int_p_gain = 0.0
+		self.pid1_diff_d_gain = 0.0
+		self.pid2_diff_d_gain = 0.0
+		self.pid1_diff_p_gain = 0.0
+		self.pid2_diff_p_gain = 0.0
+		self.pid1_diff_i_gain = 0.0
+		self.pid2_diff_i_gain = 0.0
+		self.pid1_diff_ifb_gain = 0.0
+		self.pid2_diff_ifb_gain = 0.0
+		self.frequency_demod = 40e6
+		self.phase_demod = 0.5
 		self.decimation_bitshift = 0#7
 		self.decimation_output_select = 0
 		self.monitor_select0 = 2
@@ -225,23 +228,23 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		self.trigger_level = 0
 		
 	
-		self.pid1_in_offset  = 0
-		self.pid1_out_offset = 2**15-1
-		self.pid2_in_offset = 0
-		self.pid2_out_offset = 2**15-1
+		# self.pid1_in_offset  = 0
+		# self.pid1_out_offset = 0
+		# self.pid2_in_offset = 0
+		# self.pid2_out_offset = 0
 
 		self.input_gain = 1
-		self.set_lo_output_amp(1)
+		self.set_lo_output_amp(.5)
 		self.set_lo_offset(0)
 
 	def set_filter_parameters(self, Gain_dB, ReqCorner, Order):
-		DSPCoeff = (1-2*math.pi*ReqCorner/self._LIA_CONTROL_FS)*(2**self._LIA_COEFF_WIDTH-1)
-
+		DSPCoeff = 1-(2*math.pi*ReqCorner)/_LIA_CONTROL_FS
+		print DSPCoeff
 		self.pid1_int_ifb_gain = DSPCoeff
 		self.pid2_int_ifb_gain = DSPCoeff
 
-		self.pid1_int_i_gain = 2**24 - 1 - DSPCoeff
-		self.pid2_int_i_gain = 2**24 - 1 - DSPCoeff
+		self.pid1_int_i_gain = 1.0 - DSPCoeff
+		self.pid2_int_i_gain = 1.0 - DSPCoeff
 		
 		if Order == 1:
 			self.pid2_bypass = 1
@@ -258,12 +261,16 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 
 	def _set_gain(self, Gain_dB):
 
-		gain_factor = (10**(Gain_dB / 20)) / 16 * self._get_dac_calibration()[0] / self._get_adc_calibration()[0]
+		ImpedenceGain = 1 if (self.relays_ch1 & 2) == 2 else 2
+		AttenGain = 1 if (self.relays_ch1 & 4) == 4 else 0.1
 		
+
+		gain_factor = ImpedenceGain * AttenGain * (10**(Gain_dB / 20.0)) * self._get_dac_calibration()[0] / self._get_adc_calibration()[0]
+		log.debug("AttenGain, %f, GainFactor, %f", AttenGain, gain_factor)
 		if self.slope == 1:
-			self.pid1_pidgain = self.pid2_pidgain = round(gain_factor,0) / 2 * 2**16
+			self.pid1_pidgain = self.pid2_pidgain = gain_factor 
 		else :
-			self.pid1_pidgain = self.pid2_pidgain = round(math.sqrt(gain_factor),0) / 2 * 2**16
+			self.pid1_pidgain = self.pid2_pidgain = math.sqrt(gain_factor)
 
 	def set_pid_offset(self, offset):
 		if self.slope == 1:
@@ -299,6 +306,8 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 			log.warning("Moku appears uncalibrated")
 			g1 = g2 = 1
 
+		log.debug("gain values for dac sections %s, %s = %f, %f", sect1, sect2, g1, g2)
+
 		return (g1, g2)
 
 	def _get_adc_calibration(self):
@@ -316,9 +325,9 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 			g1 = float(self.calibration[sect1])
 			g2 = float(self.calibration[sect2])
 		except (KeyError, TypeError):
-			log.warning("Moku appears uncalibrated")
+			log.warning("Moku adc appears uncalibrated")
 			g1 = g2 = 1
-
+		log.debug("gain values for adc sections %s, %s = %f, %f", sect1, sect2, g1, g2)
 		return (g1, g2)
 
 	def attach_moku(self, moku):
@@ -583,55 +592,55 @@ _lia_reg_hdl = {
 	'pid2_pidgain':		(REG_LIA_PIDGAIN2,	to_reg_signed(0, 32, xform=lambda x : x * 2**16),
 											from_reg_signed(0, 32, xform=lambda x: x / 2**16)),
 
-	'pid1_int_i_gain':	(REG_LIA_INT_IGAIN,	to_reg_signed(0, 16, xform=lambda x: x*(2**15 -1)),
-											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+	'pid1_int_i_gain':	(REG_LIA_INT_IGAIN1,	to_reg_signed(0, 25, xform=lambda x: x*(2**24 -1)),
+											from_reg_signed(0, 25, xform=lambda x: x / (2**24-1))),
 
-	'pid2_int_i_gain':	(REG_LIA_INT_IGAIN,	to_reg_signed(16, 16, xform=lambda x: x*(2**15 -1)),
-											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+	'pid2_int_i_gain':	(REG_LIA_INT_IGAIN2,	to_reg_signed(0, 25, xform=lambda x: x*(2**24 -1)),
+											from_reg_signed(0, 25, xform=lambda x: x / (2**24-1))),
 
-	'pid1_int_ifb_gain':	(REG_LIA_INT_IFBGAIN,	to_reg_signed(0, 16, xform=lambda x: x*(2**15 -1)),
-											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+	'pid1_int_ifb_gain':	(REG_LIA_INT_IFBGAIN1,	to_reg_signed(0, 25, xform=lambda x: x*(2**24 -1)),
+											from_reg_signed(0, 25, xform=lambda x: x / (2**24-1))),
 
-	'pid2_int_ifb_gain':	(REG_LIA_INT_IFBGAIN,	to_reg_signed(0, 16, xform=lambda x: x*(2**15 -1)),
-											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+	'pid2_int_ifb_gain':	(REG_LIA_INT_IFBGAIN2,	to_reg_signed(0, 25, xform=lambda x: x*(2**24 -1)),
+											from_reg_signed(0, 25, xform=lambda x: x / (2**24-1))),
 
-	'pid1_int_p_gain':	(REG_LIA_INT_PGAIN,	to_reg_signed(0, 16, xform=lambda x: x*(2**15 -1)),
-											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+	'pid1_int_p_gain':	(REG_LIA_INT_PGAIN1,	to_reg_signed(0, 25, xform=lambda x: x*(2**24 -1)),
+											from_reg_signed(0, 25, xform=lambda x: x / (2**24-1))),
 
-	'pid2_int_p_gain':	(REG_LIA_INT_PGAIN,	to_reg_signed(16, 16, xform=lambda x: x*(2**15 -1)),
-											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+	'pid2_int_p_gain':	(REG_LIA_INT_PGAIN2,	to_reg_signed(0, 25, xform=lambda x: x*(2**24 -1)),
+											from_reg_signed(0, 25, xform=lambda x: x / (2**24-1))),
 
-	'pid1_diff_d_gain':	(REG_LIA_DIFF_DGAIN,	
-											to_reg_signed(0, 16, xform=lambda x: x*(2**15 -1)),
-											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+	'pid1_diff_d_gain':	(REG_LIA_DIFF_DGAIN1,	
+											to_reg_signed(0, 25, xform=lambda x: x*(2**24 -1)),
+											from_reg_signed(0, 25, xform=lambda x: x / (2**24-1))),
 
-	'pid2_diff_d_gain':	(REG_LIA_DIFF_DGAIN,	
-											to_reg_signed(16, 16, xform=lambda x: x*(2**15 -1)),
-											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+	'pid2_diff_d_gain':	(REG_LIA_DIFF_DGAIN2,	
+											to_reg_signed(0, 25, xform=lambda x: x*(2**24 -1)),
+											from_reg_signed(0, 25, xform=lambda x: x / (2**24-1))),
 
-	'pid1_diff_p_gain':	(REG_LIA_DIFF_PGAIN,	
-											to_reg_signed(0, 16, xform=lambda x: x*(2**15 -1)),
-											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+	'pid1_diff_p_gain':	(REG_LIA_DIFF_PGAIN1,	
+											to_reg_signed(0, 25, xform=lambda x: x*(2**24 -1)),
+											from_reg_signed(0, 25, xform=lambda x: x / (2**24-1))),
 
-	'pid2_diff_p_gain':	(REG_LIA_DIFF_PGAIN,	
-											to_reg_signed(16, 16, xform=lambda x: x*(2**15 -1)),
-											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+	'pid2_diff_p_gain':	(REG_LIA_DIFF_PGAIN2,	
+											to_reg_signed(0, 25, xform=lambda x: x*(2**24 -1)),
+											from_reg_signed(0, 25, xform=lambda x: x / (2**24-1))),
 
-	'pid1_diff_i_gain':	(REG_LIA_DIFF_IGAIN,	
-											to_reg_signed(0, 16, xform=lambda x: x*(2**15 -1)),
-											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+	'pid1_diff_i_gain':	(REG_LIA_DIFF_IGAIN1,	
+											to_reg_signed(0, 25, xform=lambda x: x*(2**24 -1)),
+											from_reg_signed(0, 25, xform=lambda x: x / (2**24-1))),
 
-	'pid2_diff_i_gain':	(REG_LIA_DIFF_IGAIN,	
-											to_reg_signed(16, 16, xform=lambda x: x*(2**15 -1)),
-											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+	'pid2_diff_i_gain':	(REG_LIA_DIFF_IGAIN2,	
+											to_reg_signed(0, 25, xform=lambda x: x*(2**24 -1)),
+											from_reg_signed(0, 25, xform=lambda x: x / (2**24-1))),
 
-	'pid1_diff_ifb_gain':	(REG_LIA_DIFF_IFBGAIN,	
-											to_reg_signed(0, 16, xform=lambda x: x*(2**15 -1)),
-											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+	'pid1_diff_ifb_gain':	(REG_LIA_DIFF_IFBGAIN1,	
+											to_reg_signed(0, 25, xform=lambda x: x*(2**24 -1)),
+											from_reg_signed(0, 25, xform=lambda x: x / (2**24-1))),
 
-	'pid2_diff_ifb_gain':	(REG_LIA_DIFF_IFBGAIN,	
-											to_reg_signed(16, 16, xform=lambda x: x*(2**15 -1)),
-											from_reg_signed(0, 16, xform=lambda x: x / (2**15-1))),
+	'pid2_diff_ifb_gain':	(REG_LIA_DIFF_IFBGAIN2,	
+											to_reg_signed(0, 25, xform=lambda x: x*(2**24 -1)),
+											from_reg_signed(0, 25, xform=lambda x: x / (2**24-1))),
 
 	'frequency_demod':	((REG_LIA_FREQDEMOD_H, REG_LIA_FREQDEMOD_L),	
 											to_reg_unsigned(0, 48, xform=lambda x: x / _LIA_FREQSCALE),
