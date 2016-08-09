@@ -461,9 +461,12 @@ class Moku(object):
 		pkt += struct.pack("<QQ", 0, len(data))
 		pkt += data
 
-		self._fs_send_generic(2, pkt)
+		self._set_timeout(short=False)
 
+		self._fs_send_generic(2, pkt)
 		self._fs_receive_generic(2)
+
+		self._set_timeout(short=True)
 
 		return remotename
 
@@ -473,10 +476,14 @@ class Moku(object):
 		pkt = chr(len(qfname)) + qfname
 		pkt += struct.pack("<QQ", 0, l)
 
+		self._set_timeout(short=True)
+
 		self._fs_send_generic(1, pkt)
 
 		reply = self._fs_receive_generic(1)
 		l = struct.unpack("<Q", reply[:8])[0]
+
+		self._set_timeout(short=False)
 
 		with open(fname, "wb") as f:
 			f.write(reply[8:])
