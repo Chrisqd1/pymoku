@@ -14,6 +14,8 @@ _usgn = _instrument._usgn
 
 log = logging.getLogger(__name__)
 
+
+# LOCKINAMP REGISTERS
 REG_LIA_OUTSEL		= 65
 REG_LIA_TRIGMODE	= 66
 REG_LIA_TRIGCTL		= 67
@@ -55,16 +57,16 @@ REG_LIA_OUT_OFFSET2 = 118
 REG_LIA_INPUT_GAIN = 126
 REG_LIA_SINEOUTOFF = 127
 
-# REG_OSC_OUTSEL constants
+# REG_LIA_OUTSEL constants
 LIA_SOURCE_ADC		= 0
 LIA_SOURCE_DAC		= 1
 
-# REG_OSC_TRIGMODE constants
+# REG_LIA_TRIGMODE constants
 LIA_TRIG_AUTO		= 0
 LIA_TRIG_NORMAL		= 1
 LIA_TRIG_SINGLE		= 2
 
-# REG_OSC_TRIGLVL constants
+# REG_LIA_TRIGLVL constants
 LIA_TRIG_CH1		= 0
 LIA_TRIG_CH2		= 1
 LIA_TRIG_DA1		= 2
@@ -77,6 +79,10 @@ LIA_EDGE_BOTH		= 2
 LIA_ROLL			= _instrument.ROLL
 LIA_SWEEP			= _instrument.SWEEP
 LIA_FULL_FRAME		= _instrument.FULL_FRAME
+
+# SIGNAL PRECISION MODES
+LIA_HIGH_PRECISION	= 1
+LIA_HIGH_RANGE		= 0
 
 _LIA_LB_ROUND		= 0
 _LIA_LB_CLIP		= 1
@@ -104,6 +110,8 @@ _LIA_COEFF_WIDTH	= 25
 _LIA_FREQSCALE		= float(1e9) / 2**48
 _LIA_PHASESCALE		= 1.0 / 2**48
 _LIA_AMPSCALE		= 1.0 / (2**15 - 1)
+
+
 
 
 class LockInAmp(_frame_instrument.FrameBasedInstrument):
@@ -205,7 +213,8 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		self.pid2_bypass = 1
 		self.lo_reset = 0
 		
-		self.set_filter_parameters(10, 100, 1)
+		self.signal_mode = LIA_HIGH_RANGE
+		self.set_filter_parameters(20, 1000, 1)
 
 		self.set_pid_offset(0)
 
@@ -262,15 +271,34 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 	def _set_gain(self, Gain_dB):
 
 		ImpedenceGain = 1 if (self.relays_ch1 & 2) == 2 else 2
-		AttenGain = 1 if (self.relays_ch1 & 4) == 4 else 0.1
+		AttenGain = 1 if (self.relays_ch1 & 4) == 4 else 10
 		
-
 		gain_factor = ImpedenceGain * AttenGain * (10**(Gain_dB / 20.0)) * self._get_dac_calibration()[0] / self._get_adc_calibration()[0]
 		log.debug("AttenGain, %f, GainFactor, %f", AttenGain, gain_factor)
-		if self.slope == 1:
-			self.pid1_pidgain = self.pid2_pidgain = gain_factor 
-		else :
-			self.pid1_pidgain = self.pid2_pidgain = math.sqrt(gain_factor)
+
+		if self.signal_mode == LIA_HIGH_PRECISION:
+			if self.slope == 1:
+				self.input_gain = gain_factor
+				self.pid1_pidgain = self.pid2_pidgain = 1.0
+			else :
+				self.input_gain = self.pid1_pidgain =  math.sqrt(gain_factor)
+				self.pid2_pidgain = 1.0
+		elif self.signal_mode == LIA_HIGH_RANGE:
+			if self.slope == 1:
+				self.pid1_pidgain =  gain_factor
+				self.input_gain = self.pid2_pidgain = 1.0
+			else :
+				self.pid1_pidgain = self.pid2_pidgain = math.sqrt(gain_factor)
+				self.input_gain = 1.0
+		else:
+			if self.slope == 1:
+				self.pid1_pidgain =  gain_factor
+				self.input_gain = self.pid2_pidgain = 1.0
+			else :
+				self.pid1_pidgain = self.pid2_pidgain = math.sqrt(gain_factor)
+				self.input_gain = 1.0
+			self.signal_mode = LIA_HIGH_RANGE
+			raise InvalidOperationException("Signal Mode not set : defaulted to HIGH RANGE MODE")
 
 	def set_pid_offset(self, offset):
 		if self.slope == 1:
@@ -492,6 +520,13 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		self.hf_reject = hf_reject
 		self.trig_mode = mode
 
+	def attach_moku(self, moku):
+		super(LockInAmp, self).attach_moku(moku)
+
+		try:
+			self.calibration = dict(self._moku._get_property_section("calibration"))
+		except:
+			log.warning("Can't read calibration values.")
 
 _lia_reg_hdl = {
 	'source_ch1':		(REG_LIA_OUTSEL,	to_reg_unsigned(0, 1, allow_set=[LIA_SOURCE_ADC, LIA_SOURCE_DAC]),
