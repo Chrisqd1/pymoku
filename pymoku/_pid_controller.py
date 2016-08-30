@@ -49,37 +49,38 @@ REG_PID_CH0_DIFF_IFBGAIN2		= 109
 REG_PID_CH0_CH0GAIN_LSB			= 108
 REG_PID_CH0_CH0GAIN_MSB			= 109
 REG_PID_CH0_CH1GAIN				= 127
-REG_PID_CH0_PID1_OFFSETS		= 110
-REG_PID_CH0_PID2_OFFESTS		= 111
+REG_PID_CH0_OFFSET1				= 110
+REG_PID_CH0_OFFSET2				= 111
 # CHANNEL 1 registers
-REG_PID_CH0_PIDGAIN1			= 112
-REG_PID_CH0_PIDGAIN2			= 113
-REG_PID_CH0_INT_IGAIN1			= 114
-REG_PID_CH0_INT_IGAIN2_LSB		= 114
-REG_PID_CH0_INT_IGAIN2_MSB		= 115
-REG_PID_CH0_INT_IFBGAIN1_LSB	= 115
-REG_PID_CH0_INT_IFBGAIN1_MSB	= 116
-REG_PID_CH0_INT_IFBGAIN2		= 117
-REG_PID_CH0_INT_PGAIN1			= 117
-REG_PID_CH0_INT_PGAIN2_LSB		= 118
-REG_PID_CH0_INT_PGAIN2_MSB		= 118
-REG_PID_CH0_DIFF_DGAIN1_LSB		= 119
-REG_PID_CH0_DIFF_DGAIN1_MSB		= 119
-REG_PID_CH0_DIFF_DGAIN2			= 120
-REG_PID_CH0_DIFF_PGAIN1			= 120
-REG_PID_CH0_DIFF_PGAIN2_LSB		= 121
-REG_PID_CH0_DIFF_PGAIN2_MSB		= 121
-REG_PID_CH0_DIFF_IGAIN1_LSB		= 122
-REG_PID_CH0_DIFF_IGAIN2_MSB		= 122
-REG_PID_CH0_DIFF_IFBGAIN1		= 123
-REG_PID_CH0_DIFF_IFBGAIN2		= 124
-REG_PID_CH0_CH0GAIN_LSB			= 123
-REG_PID_CH0_CH0GAIN_MSB			= 124
-REG_PID_CH0_PID1_OFFSETS		= 125
-REG_PID_CH0_PID2_OFFESTS		= 126
+REG_PID_CH1_PIDGAIN1			= 112
+REG_PID_CH1_PIDGAIN2			= 113
+REG_PID_CH1_INT_IGAIN1			= 114
+REG_PID_CH1_INT_IGAIN2_LSB		= 114
+REG_PID_CH1_INT_IGAIN2_MSB		= 115
+REG_PID_CH1_INT_IFBGAIN1_LSB	= 115
+REG_PID_CH1_INT_IFBGAIN1_MSB	= 116
+REG_PID_CH1_INT_IFBGAIN2		= 117
+REG_PID_CH1_INT_PGAIN1			= 117
+REG_PID_CH1_INT_PGAIN2_LSB		= 118
+REG_PID_CH1_INT_PGAIN2_MSB		= 118
+REG_PID_CH1_DIFF_DGAIN1_LSB		= 119
+REG_PID_CH1_DIFF_DGAIN1_MSB		= 119
+REG_PID_CH1_DIFF_DGAIN2			= 120
+REG_PID_CH1_DIFF_PGAIN1			= 120
+REG_PID_CH1_DIFF_PGAIN2_LSB		= 121
+REG_PID_CH1_DIFF_PGAIN2_MSB		= 121
+REG_PID_CH1_DIFF_IGAIN1_LSB		= 122
+REG_PID_CH1_DIFF_IGAIN2_MSB		= 122
+REG_PID_CH1_DIFF_IFBGAIN1		= 123
+REG_PID_CH1_DIFF_IFBGAIN2		= 124
+REG_PID_CH1_CH0GAIN_LSB			= 123
+REG_PID_CH1_CH0GAIN_MSB			= 124
+REG_PID_CH1_OFFSET1				= 125
+REG_PID_CH1_OFFSET2				= 126
 REG_PID_CH1_CH1GAIN				= 127
   
-	
+REG_PID_MONSELECT0				= 96
+REG_PID_MONSELECT1				= 96
 # REG_PID_OUTSEL constants
 PID_SOURCE_ADC		= 0
 PID_SOURCE_DAC		= 1
@@ -138,9 +139,9 @@ _PID_AMPSCALE		= 1.0 / (2**15 - 1)
 
 
 class PIDController(_frame_instrument.FrameBasedInstrument):
-	""" Oscilloscope instrument object. This should be instantiated and attached to a :any:`Moku` instance.
+	""" PIDController instrument object. This should be instantiated and attached to a :any:`Moku` instance.
 
-	.. automethod:: pymoku.instruments.Oscilloscope.__init__
+	.. automethod:: pymoku.instruments.PIDController.__init__
 
 	.. attribute:: hwver
 
@@ -156,7 +157,7 @@ class PIDController(_frame_instrument.FrameBasedInstrument):
 		Frame Rate, range 1 - 30.
 
 	.. attribute:: type
-		:annotation: = "oscilloscope"
+		:annotation: = "PIDController"
 
 		Name of this instrument.
 
@@ -168,8 +169,7 @@ class PIDController(_frame_instrument.FrameBasedInstrument):
 		super(PIDController, self).__init__()
 		self._register_accessors(_PID_reg_hdl)
 
-		self.id = 8
-		self.type = "lockinamp"
+		self.id = 5
 		self.calibration = None
 
 		self.scales = {}
@@ -202,47 +202,83 @@ class PIDController(_frame_instrument.FrameBasedInstrument):
 		return (g1, g2)	
 
 	def commit(self):
-		super(LockInAmp, self).commit()
+		super(PIDController, self).commit()
 		self.scales[self._stateid] = self._calculate_scales()
 
 	def set_defaults(self):
 		""" Reset the lockinamp to sane defaults. """
-		super(LockInAmp, self).set_defaults()
+		super(PIDController, self).set_defaults()
 		#TODO this should reset ALL registers
 		self.calibration = None
 
 		self.set_xmode(PID_FULL_FRAME)
 		self.set_timebase(-0.25, 0.25)
 		self.set_precision_mode(False)
-		self.set_frontend(1, True, True, True)
+		self.set_frontend(0, False, True, False)
+		self.set_frontend(1, False, True, False)
 		self.framerate = _PID_FPS
 		self.frame_length = _PID_SCREEN_WIDTH
 		self.trig_mode = PID_TRIG_AUTO
 		self.set_trigger(PID_TRIG_CH1, PID_EDGE_RISING, 0)
 
+		self.Ch0_Ch0_gain = 1.0
+		self.Ch0_Ch1_gain = 0.0
+
+		self.Ch1_Ch0_gain = 100.0
+		self.Ch1_Ch1_gain = 0.0
 
 		self.pid1_int_dc_pole = 0
 		self.pid2_int_dc_pole = 0
-		
-		self.set_filter_parameters(20, 1000, 1)
 
-		self.set_pid_offset(0)
+		self.Ch0_pid1_bypass = 0
+		self.Ch0_pid2_bypass = 1
+		self.Ch1_pid1_bypass = 0
+		self.Ch1_pid2_bypass = 1
 
+		self.Ch0_pid1_pidgain = 1.0
+		self.Ch0_pid2_pidgain = 1.0
+		self.Ch0_pid1_int_i_gain = 0.00001
+		self.Ch0_pid2_int_i_gain = 0.00
+		self.Ch0_pid1_int_ifb_gain = 0.99999
+		self.Ch0_pid2_int_ifb_gain = 0.0
 		self.Ch0_pid1_int_p_gain = 0.0
 		self.Ch0_pid2_int_p_gain = 0.0
-		self.Ch0_pid1_diff_d_gain = 0.0
+		self.Ch0_pid1_diff_d_gain = 1.0
 		self.Ch0_pid2_diff_d_gain = 0.0
 		self.Ch0_pid1_diff_p_gain = 0.0
 		self.Ch0_pid2_diff_p_gain = 0.0
 		self.Ch0_pid1_diff_i_gain = 0.0
 		self.Ch0_pid2_diff_i_gain = 0.0
-		self.Ch0_pid1_diff_ifb_gain = 0.0
+		self.Ch0_pid1_diff_ifb_gain = 0.999
 		self.Ch0_pid2_diff_ifb_gain = 0.0
+		self.Ch0_slope = 1
 
+		self.Ch1_pid1_pidgain = 1.0
+		self.Ch1_pid2_pidgain = 1.0
+		self.Ch1_pid1_int_i_gain = 1.0
+		self.Ch1_pid2_int_i_gain = 0
+		self.Ch1_pid1_int_ifb_gain = 1.0
+		self.Ch1_pid2_int_ifb_gain = 1.0
+		self.Ch1_pid1_int_p_gain = 0.0
+		self.Ch1_pid2_int_p_gain = 0.0
+		self.Ch1_pid1_diff_d_gain = 0.0
+		self.Ch1_pid2_diff_d_gain = 0.0
+		self.Ch1_pid1_diff_p_gain = 1.0
+		self.Ch1_pid2_diff_p_gain = 1.0
+		self.Ch1_pid1_diff_i_gain = 0.0
+		self.Ch1_pid2_diff_i_gain = 0.0
+		self.Ch1_pid1_diff_ifb_gain = 0.99
+		self.Ch1_pid2_diff_ifb_gain = 0.99
+		self.Ch1_slope = 1
 
-		self.monitor_select0 = 2
-		self.monitor_select1 = 2
-		self.trigger_level = 0
+		self.Ch0_pid1_out_offset = 0
+		self.Ch1_pid1_out_offset = 0
+		#self.set_integrator_parameters(0, 0, 100, 1)
+		# self.set_pid_offset(0,0)
+		# self.set_pid_offset(0,1)
+		# self.monitor_select0 = 2
+		# self.monitor_select1 = 2
+		# self.trigger_level = 0
 		
 	
 		# self.pid1_in_offset  = 0
@@ -250,9 +286,7 @@ class PIDController(_frame_instrument.FrameBasedInstrument):
 		# self.pid2_in_offset = 0
 		# self.pid2_out_offset = 0
 
-		self.input_gain = 1
-		self.set_lo_output_amp(.5)
-		self.set_lo_offset(0)
+
 
 	def set_integrator_parameters(self, Channel, integrator_gain_dB, max_gain_dB, Order):
 		
@@ -260,7 +294,7 @@ class PIDController(_frame_instrument.FrameBasedInstrument):
 		gain = 10**(integrator_gain_dB / 20.0)
 		DSPCoeff = 1 - gain/max_gain
 
-		if Channel = 0 :
+		if Channel == 0 :
 			self.Ch0_pid1_int_ifb_gain = DSPCoeff
 			self.Ch0_pid2_int_ifb_gain = DSPCoeff
 
@@ -276,7 +310,7 @@ class PIDController(_frame_instrument.FrameBasedInstrument):
 			else:
 				self.Ch0_pid1_bypass = 1
 				self.Ch0_pid2_bypass = 1
-		elif Channel = 1 :
+		elif Channel == 1 :
 			self.Ch1_pid1_int_ifb_gain = DSPCoeff
 			self.Ch1_pid2_int_ifb_gain = DSPCoeff
 
@@ -310,7 +344,7 @@ class PIDController(_frame_instrument.FrameBasedInstrument):
 				self.Ch0_pid1_bypass = 1
 				self.Ch0_pid2_bypass = 1
 
-	def set_differentiator_parameteters(self, Channel, integrator_gain_dB, max_gain_dB, Order):
+	# def set_differentiator_parameteters(self, Channel, integrator_gain_dB, max_gain_dB, Order):
 
 	def _set_gain(self, Gain_dB):
 
@@ -344,18 +378,31 @@ class PIDController(_frame_instrument.FrameBasedInstrument):
 			self.signal_mode = PID_HIGH_RANGE
 			raise InvalidOperationException("Signal Mode not set : defaulted to HIGH RANGE MODE")
 
-	def set_pid_offset(self, offset):
-		if self.slope == 1:
-			self.pid1_out_offset = offset * self._get_dac_calibration()[0]
-			self.pid2_out_offset = 0
-		elif self.slope == 2:
-			self.pid1_out_offset = 0
-			self.pid2_out_offset = offset * self._get_dac_calibratioin()[0]
-		else :
-			self.slope == 1
-			self.pid1_out_offset = offset * self._get_dac_calibration()[0]
-			self.pid2_out_offset = 0
-			raise InvalidOperationException("PID slope not set : defaulted to slope = %s" % self.slope)
+	def set_pid_offset(self, offset, Channel):
+		if Channel == 0 :
+			if self.Ch0_slope == 1:
+				self.pid1_out_offset = offset * self._get_dac_calibration()[0]
+				self.pid2_out_offset = 0
+			elif self.Ch0_slope == 2:
+				self.pid1_out_offset = 0
+				self.pid2_out_offset = offset * self._get_dac_calibratioin()[0]
+			else :
+				self.Ch0_slope == 1
+				self.pid1_out_offset = offset * self._get_dac_calibration()[0]
+				self.pid2_out_offset = 0
+				raise InvalidOperationException("PID slope not set : defaulted to slope = %s" % self.slope)
+		elif Channel == 1:
+			if self.Ch1_slope == 1:
+				self.pid1_out_offset = offset * self._get_dac_calibration()[0]
+				self.pid2_out_offset = 0
+			elif self.Ch1_slope == 2:
+				self.pid1_out_offset = 0
+				self.pid2_out_offset = offset * self._get_dac_calibratioin()[0]
+			else :
+				self.Ch1_slope == 1
+				self.pid1_out_offset = offset * self._get_dac_calibration()[0]
+				self.pid2_out_offset = 0
+				raise InvalidOperationException("PID slope not set : defaulted to slope = %s" % self.slope)
 
 	def set_lo_output_amp(self,amplitude):
 		# converts amplitude (V) into the bits required for the register
@@ -565,7 +612,7 @@ class PIDController(_frame_instrument.FrameBasedInstrument):
 		self.trig_mode = mode
 
 	def attach_moku(self, moku):
-		super(LockInAmp, self).attach_moku(moku)
+		super(PIDController, self).attach_moku(moku)
 
 		try:
 			self.calibration = dict(self._moku._get_property_section("calibration"))
@@ -603,11 +650,19 @@ _PID_reg_hdl = {
 	'decimation_rate':	(REG_PID_DECIMATION,to_reg_unsigned(0, 32),	
 											from_reg_unsigned(0, 32)),
 
-	'Ch0_pid1_bypass':	(REG_PID_ENABLES,		to_reg_bool(0),
+	'Ch0_pid1_bypass':	(REG_PID_ENABLES,	to_reg_bool(0),
 											from_reg_bool(0)),
 
-	'Ch0_pid2_bypass':	(REG_PID_ENABLES,		to_reg_bool(1),
+	'Ch0_pid2_bypass':	(REG_PID_ENABLES,	to_reg_bool(1),
 											from_reg_bool(1)),
+
+	'Ch0_Ch0_gain' :	((REG_PID_CH0_CH0GAIN_MSB, REG_PID_CH0_CH0GAIN_LSB), 
+											to_reg_signed(24,16, xform=lambda x : x * (2**7-1)),
+											from_reg_signed(24,16, xform=lambda x : x / (2**7 -1))),
+
+	'Ch0_Ch1_gain' :	(REG_PID_CH0_CH1GAIN, 
+											to_reg_signed(0,16, xform=lambda x : x * (2**7-1)),
+											from_reg_signed(0,16, xform=lambda x : x / (2**7 -1))),
 
 	'Ch0_pid1_int_dc_pole':	(REG_PID_ENABLES,	to_reg_bool(2),
 											from_reg_bool(2)),
@@ -633,84 +688,71 @@ _PID_reg_hdl = {
 	'Ch0_pid2_pidgain':		(REG_PID_CH0_PIDGAIN2,	to_reg_signed(0, 32, xform=lambda x : x * 2**16),
 											from_reg_signed(0, 32, xform=lambda x: x / 2**16)),
 
-	'Ch0_pid1_int_i_gain':	(REG_PID_CH0_INT_IGAIN1,	to_reg_signed(0, 24, xform=lambda x: x*(2**23 -1)),
-											from_reg_signed(0, 24, xform=lambda x: x / (2**23-1))),
+	'Ch0_pid1_int_i_gain':	(REG_PID_CH0_INT_IGAIN1,	to_reg_unsigned(0, 24, xform=lambda x: x*(2**24 -1)),
+											from_reg_unsigned(0, 24, xform=lambda x: x / (2**24-1))),
 
-	'Ch0_pid2_int_i_gain':	(REG_PID_CH0_INT_IGAIN2_LSB,	to_reg_signed(24, 8, xform=lambda x: (x*(2**23 -1)) & 0x00FF ),
-											from_reg_signed(0, 8, xform=lambda x: x / (2**23-1))),
+	'Ch0_pid2_int_i_gain':	((REG_PID_CH0_INT_IGAIN2_MSB, REG_PID_CH0_INT_IGAIN2_LSB),	to_reg_unsigned(24, 24, xform=lambda x: (x*(2**24 -1))),
+											from_reg_unsigned(24, 24, xform=lambda x: x / (2**24-1))),
 
-	'Ch0_pid2_int_i_gain':	(REG_PID_CH0_INT_IGAIN2_MSB,	to_reg_signed(0, 16, xform=lambda x: (x*(2**23 -1)) >> 8 ),
-											from_reg_signed(0, 16, xform=lambda x: x / (2**23-1))),
+	'Ch0_pid1_int_ifb_gain':	((REG_PID_CH0_INT_IFBGAIN1_MSB, REG_PID_CH0_INT_IFBGAIN1_LSB),	to_reg_unsigned(16, 24, xform=lambda x: (x*(2**24 -1))),
+											from_reg_unsigned(16, 24, xform=lambda x: x / (2**24-1))),
 
-	'Ch0_pid1_int_ifb_gain':	(REG_PID_CH0_INT_IFBGAIN1_LSB,	to_reg_signed(16, 16, xform=lambda x: (x*(2**23 -1)) & 0xFFFF ),
-											from_reg_signed(16, 16, xform=lambda x: x / (2**23-1))),
+	'Ch0_pid2_int_ifb_gain':	(REG_PID_CH0_INT_IFBGAIN2,	to_reg_unsigned(8, 24, xform=lambda x: x*(2**24 -1)),
+											from_reg_unsigned(8, 24, xform=lambda x: x / (2**24-1))),
 
-	'Ch0_pid1_int_ifb_gain':	(REG_PID_CH0_INT_IFBGAIN1_MSB,	to_reg_signed(0, 8, xform=lambda x: (x*(2**23 -1)) >> 16 ),
-											from_reg_signed(0, 8, xform=lambda x: x / (2**23-1))),
+	'Ch0_pid1_int_p_gain':	(REG_PID_CH0_INT_PGAIN1,	to_reg_unsigned(0, 24, xform=lambda x: (x*(2**24 -1))),
+											from_reg_unsigned(0, 24, xform=lambda x: x / (2**24-1))),
 
-	'Ch0_pid2_int_ifb_gain':	(REG_PID_CH0_INT_IFBGAIN2,	to_reg_signed(8, 24, xform=lambda x: x*(2**23 -1)),
-											from_reg_signed(8, 24, xform=lambda x: x / (2**23-1))),
+	'Ch0_pid2_int_p_gain':	((REG_PID_CH0_INT_PGAIN2_MSB, REG_PID_CH0_INT_PGAIN2_LSB),	to_reg_unsigned(24, 24, xform=lambda x: x*(2**24 -1)),
+											from_reg_unsigned(24, 24, xform=lambda x: x / (2**24-1))),
 
-	'Ch0_pid1_int_p_gain':	(REG_PID_CH0_INT_PGAIN1,	to_reg_signed(, 24, xform=lambda x: (x*(2**23 -1))),
-											from_reg_signed(0, 24, xform=lambda x: x / (2**23-1))),
-
-	'Ch0_pid2_int_p_gain':	(REG_PID_CH0_INT_PGAIN2_LSB,	to_reg_signed(24, 8, xform=lambda x: (x*(2**23 -1)) & 0x00FF),
-											from_reg_signed(24, 8, xform=lambda x: (x & 0x00FF) / (2**23-1))),
-
-	'Ch0_pid2_int_p_gain':	(REG_PID_CH0_INT_PGAIN2_MSB,	to_reg_signed(0, 16, xform=lambda x: (x*(2**23 -1)) >> 8 ),
-											from_reg_signed(0, 16, xform=lambda x: (x & 0x00FF) / (2**23-1))),
-
-	'Ch0_pid1_diff_d_gain':	(REG_PID_CH0_DIFF_DGAIN1_LSB,	
-											to_reg_signed(16, 16, xform=lambda x: (x*(2**23 -1)) & 0xFFFF),
-											from_reg_signed(16, 16, xform=lambda x: x / (2**23-1))),
-
-	'Ch0_pid1_diff_d_gain':	(REG_PID_CH0_DIFF_DGAIN1_MSB,	
-											to_reg_signed(0, 8, xform=lambda x: (x*(2**23 -1)) & >> 16),
-											from_reg_signed(0, 8, xform=lambda x: x / (2**23-1))),
+	'Ch0_pid1_diff_d_gain':	((REG_PID_CH0_DIFF_DGAIN1_MSB, REG_PID_CH0_DIFF_DGAIN1_LSB),	
+											to_reg_unsigned(16, 24, xform=lambda x: (x*(2**24 -1))),
+											from_reg_unsigned(16, 24, xform=lambda x: x / (2**24-1))),
 
 	'Ch0_pid2_diff_d_gain':	(REG_PID_CH0_DIFF_DGAIN2,	
-											to_reg_signed(8, 24, xform=lambda x: x*(2**23 -1)),
-											from_reg_signed(8, 24, xform=lambda x: x / (2**23-1))),
+											to_reg_unsigned(8, 24, xform=lambda x: x*(2**24 -1)),
+											from_reg_unsigned(8, 24, xform=lambda x: x / (2**24-1))),
 
 	'Ch0_pid1_diff_p_gain':	(REG_PID_CH0_DIFF_PGAIN1,	
-											to_reg_signed(0, 24, xform=lambda x: x*(2**23 -1)),
-											from_reg_signed(0, 24, xform=lambda x: x / (2**23-1))),
+											to_reg_unsigned(0, 24, xform=lambda x: x*(2**24 -1)),
+											from_reg_unsigned(0, 24, xform=lambda x: x / (2**24-1))),
 
-	'Ch0_pid2_diff_p_gain':	(REG_PID_CH0_DIFF_PGAIN2_LSB,	
-											to_reg_signed(8, 24, xform=lambda x: (x*(2**23 -1)) & 0x00FF ),
-											from_reg_signed(8, 24, xform=lambda x: x / (2**23-1))),
+	'Ch0_pid2_diff_p_gain':	((REG_PID_CH0_DIFF_PGAIN2_MSB, REG_PID_CH0_DIFF_PGAIN2_LSB),	
+											to_reg_unsigned(24, 24, xform=lambda x: (x*(2**24 -1))),
+											from_reg_unsigned(24, 24, xform=lambda x: x / (2**24-1))),
 
-	'Ch0_pid2_diff_p_gain':	(REG_PID_CH0_DIFF_PGAIN2_MSB,	
-											to_reg_signed(0, 16, xform=lambda x: (x*(2**23 -1)) & 0xFFFF ),
-											from_reg_signed(0, 16, xform=lambda x: x / (2**23-1))),
-
-	'Ch0_pid1_diff_i_gain':	(REG_PID_CH0_DIFF_IGAIN1_LSB,	
-											to_reg_signed(16, 16, xform=lambda x: (x*(2**23 -1)) & 0xFFFF ),
-											from_reg_signed(16, 16, xform=lambda x: x / (2**23-1))),
-
-	'Ch0_pid2_diff_i_gain':	(REG_PID_CH0_DIFF_IGAIN2_MSB,	
-											to_reg_signed(0, 8, xform=lambda x: x*(2**23 -1) >> 16),
-											from_reg_signed(0, 8, xform=lambda x: x / (2**23-1))),
+	'Ch0_pid1_diff_i_gain':	((REG_PID_CH0_DIFF_IGAIN2_MSB, REG_PID_CH0_DIFF_IGAIN1_LSB),	
+											to_reg_unsigned(16, 24, xform=lambda x: (x*(2**24 -1))),
+											from_reg_unsigned(16, 24, xform=lambda x: x / (2**24-1))),
 
 	'Ch0_pid1_diff_ifb_gain':	(REG_PID_CH0_DIFF_IFBGAIN1,	
-											to_reg_signed(0, 24, xform=lambda x: x*(2**23 -1)),
-											from_reg_signed(0, 24, xform=lambda x: x / (2**23-1))),
+											to_reg_unsigned(0, 24, xform=lambda x: x*(2**24 -1)),
+											from_reg_unsigned(0, 24, xform=lambda x: x / (2**24-1))),
 
 	'Ch0_pid2_diff_ifb_gain':	(REG_PID_CH0_DIFF_IFBGAIN2,	
-											to_reg_signed(0, 25, xform=lambda x: x*(2**23 -1)),
-											from_reg_signed(0, 25, xform=lambda x: x / (2**23-1))),
+											to_reg_unsigned(7, 24, xform=lambda x: x*(2**24 -1)),
+											from_reg_unsigned(7, 24, xform=lambda x: x / (2**24-1))),
 
-	'Ch1_pid1_bypass':	(REG_PID_ENABLES,		to_reg_bool(0),
-											from_reg_bool(0)),
+	'Ch1_pid1_bypass':	(REG_PID_ENABLES,		to_reg_bool(4),
+											from_reg_bool(4)),
 
-	'Ch1_pid2_bypass':	(REG_PID_ENABLES,		to_reg_bool(1),
-											from_reg_bool(1)),
+	'Ch1_pid2_bypass':	(REG_PID_ENABLES,		to_reg_bool(5),
+											from_reg_bool(5)),
 
-	'Ch1_pid1_int_dc_pole':	(REG_PID_ENABLES,	to_reg_bool(2),
-											from_reg_bool(2)),
+	'Ch1_pid1_int_dc_pole':	(REG_PID_ENABLES,	to_reg_bool(6),
+											from_reg_bool(6)),
 
-	'Ch1_pid2_int_dc_pole':	(REG_PID_ENABLES,	to_reg_bool(3),
-											from_reg_bool(3)),
+	'Ch1_pid2_int_dc_pole':	(REG_PID_ENABLES,	to_reg_bool(7),
+											from_reg_bool(7)),
+
+	'Ch1_Ch0_gain' :	((REG_PID_CH1_CH0GAIN_MSB, REG_PID_CH0_CH0GAIN_LSB), 
+											to_reg_signed(24,16, xform=lambda x : x * (2**7 -1)),
+											from_reg_signed(24,16, xform=lambda x : x / (2**7 -1))),
+
+	'Ch1_Ch1_gain' :	(REG_PID_CH1_CH1GAIN, 
+											to_reg_signed(0,16, xform=lambda x : x * (2**7 -1)),
+											from_reg_signed(0,16, xform=lambda x : x / (2**7 -1))),
 
 	'Ch1_pid1_in_offset':	(REG_PID_CH1_OFFSET1,to_reg_signed(0, 16),
 											from_reg_signed(0, 16)),
@@ -730,83 +772,57 @@ _PID_reg_hdl = {
 	'Ch1_pid2_pidgain':		(REG_PID_CH1_PIDGAIN2,	to_reg_signed(0, 32, xform=lambda x : x * 2**16),
 											from_reg_signed(0, 32, xform=lambda x: x / 2**16)),
 
-	'Ch1_pid1_int_i_gain':	(REG_PID_CH1_INT_IGAIN1,	to_reg_signed(0, 24, xform=lambda x: x*(2**23 -1)),
-											from_reg_signed(0, 24, xform=lambda x: x / (2**23-1))),
+	'Ch1_pid1_int_i_gain':	(REG_PID_CH1_INT_IGAIN1,	to_reg_unsigned(0, 24, xform=lambda x: x*(2**24 -1)),
+											from_reg_unsigned(0, 24, xform=lambda x: x / (2**24-1))),
 
-	'Ch1_pid2_int_i_gain':	(REG_PID_CH1_INT_IGAIN2_LSB,	to_reg_signed(24, 8, xform=lambda x: (x*(2**23 -1)) & 0x00FF ),
-											from_reg_signed(0, 8, xform=lambda x: x / (2**23-1))),
+	'Ch1_pid2_int_i_gain':	((REG_PID_CH1_INT_IGAIN2_MSB, REG_PID_CH1_INT_IGAIN2_LSB),	to_reg_unsigned(24, 24, xform=lambda x: (x*(2**24 -1))),
+											from_reg_unsigned(24, 24, xform=lambda x: x / (2**24-1))),
 
-	'Ch1_pid2_int_i_gain':	(REG_PID_CH1_INT_IGAIN2_MSB,	to_reg_signed(0, 16, xform=lambda x: (x*(2**23 -1)) >> 8 ),
-											from_reg_signed(0, 16, xform=lambda x: x / (2**23-1))),
+	'Ch1_pid1_int_ifb_gain':	((REG_PID_CH1_INT_IFBGAIN1_MSB, REG_PID_CH1_INT_IFBGAIN1_LSB),	to_reg_unsigned(16, 24, xform=lambda x: (x*(2**24 -1))),
+											from_reg_unsigned(16, 24, xform=lambda x: x / (2**24-1))),
 
-	'Ch1_pid1_int_ifb_gain':	(REG_PID_CH1_INT_IFBGAIN1_LSB,	to_reg_signed(16, 16, xform=lambda x: (x*(2**23 -1)) & 0xFFFF ),
-											from_reg_signed(16, 16, xform=lambda x: x / (2**23-1))),
+	'Ch1_pid2_int_ifb_gain':	(REG_PID_CH1_INT_IFBGAIN2,	to_reg_unsigned(8, 24, xform=lambda x: x*(2**24 -1)),
+											from_reg_unsigned(8, 24, xform=lambda x: x / (2**24-1))),
 
-	'Ch1_pid1_int_ifb_gain':	(REG_PID_CH1_INT_IFBGAIN1_MSB,	to_reg_signed(0, 8, xform=lambda x: (x*(2**23 -1)) >> 16 ),
-											from_reg_signed(0, 8, xform=lambda x: x / (2**23-1))),
+	'Ch1_pid1_int_p_gain':	(REG_PID_CH1_INT_PGAIN1,	to_reg_unsigned(0, 24, xform=lambda x: (x*(2**24 -1))),
+											from_reg_unsigned(0, 24, xform=lambda x: x / (2**24-1))),
 
-	'Ch1_pid2_int_ifb_gain':	(REG_PID_CH1_INT_IFBGAIN2,	to_reg_signed(8, 24, xform=lambda x: x*(2**23 -1)),
-											from_reg_signed(8, 24, xform=lambda x: x / (2**23-1))),
+	'Ch1_pid2_int_p_gain':	((REG_PID_CH1_INT_PGAIN2_MSB, REG_PID_CH1_INT_PGAIN2_LSB),	to_reg_unsigned(24, 24, xform=lambda x: x*(2**24 -1)),
+											from_reg_unsigned(24, 24, xform=lambda x: x / (2**24-1))),
 
-	'Ch1_pid1_int_p_gain':	(REG_PID_CH1_INT_PGAIN1,	to_reg_signed(, 24, xform=lambda x: (x*(2**23 -1))),
-											from_reg_signed(0, 24, xform=lambda x: x / (2**23-1))),
-
-	'Ch1_pid2_int_p_gain':	(REG_PID_CH1_INT_PGAIN2_LSB,	to_reg_signed(24, 8, xform=lambda x: (x*(2**23 -1)) & 0x00FF),
-											from_reg_signed(24, 8, xform=lambda x: (x & 0x00FF) / (2**23-1))),
-
-	'Ch1_pid2_int_p_gain':	(REG_PID_CH1_INT_PGAIN2_MSB,	to_reg_signed(0, 16, xform=lambda x: (x*(2**23 -1)) >> 8 ),
-											from_reg_signed(0, 16, xform=lambda x: (x & 0x00FF) / (2**23-1))),
-
-	'Ch1_pid1_diff_d_gain':	(REG_PID_CH1_DIFF_DGAIN1_LSB,	
-											to_reg_signed(16, 16, xform=lambda x: (x*(2**23 -1)) & 0xFFFF),
-											from_reg_signed(16, 16, xform=lambda x: x / (2**23-1))),
-
-	'Ch1_pid1_diff_d_gain':	(REG_PID_CH1_DIFF_DGAIN1_MSB,	
-											to_reg_signed(0, 8, xform=lambda x: (x*(2**23 -1)) & >> 16),
-											from_reg_signed(0, 8, xform=lambda x: x / (2**23-1))),
+	'Ch1_pid1_diff_d_gain':	((REG_PID_CH1_DIFF_DGAIN1_MSB, REG_PID_CH1_DIFF_DGAIN1_LSB),	
+											to_reg_unsigned(16, 24, xform=lambda x: (x*(2**24 -1))),
+											from_reg_unsigned(16, 24, xform=lambda x: x / (2**24-1))),
 
 	'Ch1_pid2_diff_d_gain':	(REG_PID_CH1_DIFF_DGAIN2,	
-											to_reg_signed(8, 24, xform=lambda x: x*(2**23 -1)),
-											from_reg_signed(8, 24, xform=lambda x: x / (2**23-1))),
+											to_reg_unsigned(8, 24, xform=lambda x: x*(2**24 -1)),
+											from_reg_unsigned(8, 24, xform=lambda x: x / (2**24-1))),
 
 	'Ch1_pid1_diff_p_gain':	(REG_PID_CH1_DIFF_PGAIN1,	
-											to_reg_signed(0, 24, xform=lambda x: x*(2**23 -1)),
-											from_reg_signed(0, 24, xform=lambda x: x / (2**23-1))),
+											to_reg_unsigned(0, 24, xform=lambda x: x*(2**24 -1)),
+											from_reg_unsigned(0, 24, xform=lambda x: x / (2**24-1))),
 
-	'Ch1_pid2_diff_p_gain':	(REG_PID_CH1_DIFF_PGAIN2_LSB,	
-											to_reg_signed(8, 24, xform=lambda x: (x*(2**23 -1)) & 0x00FF ),
-											from_reg_signed(8, 24, xform=lambda x: x / (2**23-1))),
+	'Ch1_pid2_diff_p_gain':	((REG_PID_CH1_DIFF_PGAIN2_MSB, REG_PID_CH1_DIFF_PGAIN2_LSB),	
+											to_reg_unsigned(24, 24, xform=lambda x: (x*(2**24 -1))),
+											from_reg_unsigned(24, 24, xform=lambda x: x / (2**24-1))),
 
-	'Ch1_pid2_diff_p_gain':	(REG_PID_CH1_DIFF_PGAIN2_MSB,	
-											to_reg_signed(0, 16, xform=lambda x: (x*(2**23 -1)) & 0xFFFF ),
-											from_reg_signed(0, 16, xform=lambda x: x / (2**23-1))),
-
-	'Ch1_pid1_diff_i_gain':	(REG_PID_CH1_DIFF_IGAIN1_LSB,	
-											to_reg_signed(16, 16, xform=lambda x: (x*(2**23 -1)) & 0xFFFF ),
-											from_reg_signed(16, 16, xform=lambda x: x / (2**23-1))),
-
-	'Ch1_pid2_diff_i_gain':	(REG_PID_CH1_DIFF_IGAIN2_MSB,	
-											to_reg_signed(0, 8, xform=lambda x: x*(2**23 -1) >> 16),
-											from_reg_signed(0, 8, xform=lambda x: x / (2**23-1))),
+	'Ch1_pid1_diff_i_gain':	((REG_PID_CH1_DIFF_IGAIN2_MSB, REG_PID_CH1_DIFF_IGAIN1_LSB),	
+											to_reg_unsigned(16, 24, xform=lambda x: (x*(2**24 -1))),
+											from_reg_unsigned(16, 24, xform=lambda x: x / (2**24-1))),
 
 	'Ch1_pid1_diff_ifb_gain':	(REG_PID_CH1_DIFF_IFBGAIN1,	
-											to_reg_signed(0, 24, xform=lambda x: x*(2**23 -1)),
-											from_reg_signed(0, 24, xform=lambda x: x / (2**23-1))),
+											to_reg_unsigned(0, 24, xform=lambda x: x*(2**24 -1)),
+											from_reg_unsigned(0, 24, xform=lambda x: x / (2**24-1))),
 
 	'Ch1_pid2_diff_ifb_gain':	(REG_PID_CH1_DIFF_IFBGAIN2,	
-											to_reg_signed(0, 25, xform=lambda x: x*(2**23 -1)),
-											from_reg_signed(0, 25, xform=lambda x: x / (2**23-1))),
-
+											to_reg_unsigned(7, 24, xform=lambda x: x*(2**24 -1)),
+											from_reg_unsigned(7, 24, xform=lambda x: x / (2**24-1))),
 	'monitor_select0':	(REG_PID_MONSELECT0,	
-											to_reg_unsigned(0, 3),
-											from_reg_unsigned(0, 3)),
+											to_reg_unsigned(18, 3),
+											from_reg_unsigned(18, 3)),
 
 	'monitor_select1':	(REG_PID_MONSELECT1,	
-											to_reg_unsigned(0, 3),
-											from_reg_unsigned(0, 3)),
-
-	'input_gain':	(REG_PID_INPUT_GAIN,
-											to_reg_signed(0,32, xform=lambda x: x * 2**16),
-											from_reg_signed(0,32, xform=lambda x: x / 2**16)),
+											to_reg_unsigned(21, 3),
+											from_reg_unsigned(21, 3)),
 	}
 # _instrument._attach_register_handlers(_lia_reg_hdl, LockInAmp)
