@@ -17,6 +17,22 @@ allowing the Moku:Lab to be scripted tightly in to your next experiment.
 For example usage, see the individual instrument pages or the **examples/** subdirectory
 of this project.
 
+Installation
+============
+
+pymoku is currently only supported on Linux platforms though is expected to work on Mac OSX as well.
+
+pymoku depends on the *pyzmq* and *future* libraries. It also packages the *pybonjour* library internally. These can be automatically installed from the requirements.txt as below.
+
+No package exists for pymoku at the time of writing, source code should be downloaded from the Liquid Instruments `github page <https://github.com/liquidinstruments/pymoku>`_ (`direct download <https://github.com/liquidinstruments/pymoku/archive/master.zip>`_).
+
+.. code-block:: shell
+
+	#: unzip pymoku-master.zip
+	#: cd pymoku-master
+	#: pip install -r requirements.txt
+	#: pip install .
+
 Contents
 ========
 
