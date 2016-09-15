@@ -8,8 +8,7 @@ import numpy
 SIGGEN_SINE 	= 0
 SIGGEN_SQUARE	= 1
 SIGGEN_RAMP 	= 2
-SIGGEN_PULSE 	= 3
-SIGGEN_DC		= 4
+SIGGEN_DC		= 3
 
 def in_bounds(v, center, err):
 	return abs(v - center) < abs(err)
@@ -108,7 +107,8 @@ class Test_Siggen:
 		(1, 1.0, 50e6, SIGGEN_RAMP),
 		(2, 1.0, 1e6, SIGGEN_RAMP),
 		(1, 1.0, 3e6, SIGGEN_RAMP),
-		(2, 0.5, 3e6, SIGGEN_RAMP)
+		(2, 0.5, 3e6, SIGGEN_RAMP),
+		(1, 1.0, 1.0, SIGGEN_DC)
 		])
 	def test_waveform_freq(self, base_instr, ch, vpp, freq, waveform):
 		# Set timebase of 5 periods
@@ -139,6 +139,9 @@ class Test_Siggen:
 			start_xs = [int(smps_per_period/3), int(3*smps_per_period/4), int(2*smps_per_period/3), int(smps_per_period/8), int(7*smps_per_period/8)]
 		elif waveform == SIGGEN_RAMP:
 			base_instr.synth_rampwave(ch, vpp, freq)
+			start_xs = [0, int(smps_per_period/2), int(smps_per_period/3), int(smps_per_period/4), int(smps_per_period/8), int(3*smps_per_period/4)]
+		elif waveform == SIGGEN_DC:
+			base_instr.synth_sinewave(ch, vpp, 0.0, 1.0)
 			start_xs = [0, int(smps_per_period/2), int(smps_per_period/3), int(smps_per_period/4), int(smps_per_period/8), int(3*smps_per_period/4)]
 		base_instr.commit()
 
@@ -173,9 +176,6 @@ class Test_Siggen:
 					print "Allowable tolerance: %.10f, Error: %.10f, Frame index: %d, Expected value: %.10f, Actual value: %.10f, Samples per period: %d, Render deci: %f" % (allowable_error, expectedv-actualv, x, expectedv, actualv, smps_per_period, base_instr.render_deci)
 					# Check actual value is within tolerance
 					assert in_bounds(actualv, expectedv, allowable_error)
-
-
-
 
 class Tes2_Trigger:
 	'''
