@@ -1,9 +1,15 @@
-import pytest
+import pytest, time
 from pymoku import Moku
 from pymoku.instruments import *
 from pymoku._oscilloscope import _OSC_SCREEN_WIDTH
 import conftest
 import numpy
+
+SIGGEN_SINE 	= 0
+SIGGEN_SQUARE	= 1
+SIGGEN_RAMP 	= 2
+SIGGEN_PULSE 	= 3
+SIGGEN_DC		= 4
 
 def in_bounds(v, center, err):
 	return abs(v - center) < abs(err)
@@ -72,19 +78,39 @@ class Test_Siggen:
 			assert in_bounds(maxval, (vpp/2.0)+offset, tolerance)
 			assert in_bounds(minval, (-1*(vpp/2.0) + offset), tolerance)
 
-	@pytest.mark.parametrize("ch, vpp, freq", [
-		(1, 1.0, 1),
-		(1, 1.0, 2),
-		(1, 1.0, 100),
-		(1, 1.0, 1e3),
-		(1, 1.0, 100e3),
-		(1, 1.0, 1e6 ),
-		(1, 1.0, 50e6),
-		(1, 1.0, 1e6),
-		(1, 1.0, 3e6),
-		(2, 0.5, 3e6)
+	@pytest.mark.parametrize("ch, vpp, freq, waveform", [
+		(1, 1.0, 1, SIGGEN_SINE),
+		(2, 1.0, 2, SIGGEN_SINE),
+		(1, 1.0, 100, SIGGEN_SINE),
+		(2, 1.0, 1e3, SIGGEN_SINE),
+		(1, 1.0, 100e3, SIGGEN_SINE),
+		(2, 1.0, 1e6, SIGGEN_SINE),
+		(1, 1.0, 50e6, SIGGEN_SINE),
+		(2, 1.0, 1e6, SIGGEN_SINE),
+		(1, 1.0, 3e6, SIGGEN_SINE),
+		(2, 0.5, 3e6, SIGGEN_SINE),
+		(1, 1.0, 1, SIGGEN_SQUARE),
+		(2, 1.0, 2, SIGGEN_SQUARE),
+		(1, 1.0, 100, SIGGEN_SQUARE),
+		(2, 1.0, 1e3, SIGGEN_SQUARE),
+		(1, 1.0, 100e3, SIGGEN_SQUARE),
+		(2, 1.0, 1e6, SIGGEN_SQUARE),
+		(1, 1.0, 50e6, SIGGEN_SQUARE),
+		(2, 1.0, 1e6, SIGGEN_SQUARE),
+		(1, 1.0, 3e6, SIGGEN_SQUARE),
+		(2, 0.5, 3e6, SIGGEN_SQUARE),
+		(1, 1.0, 1, SIGGEN_RAMP),
+		(2, 1.0, 2, SIGGEN_RAMP),
+		(1, 1.0, 100, SIGGEN_RAMP),
+		(2, 1.0, 1e3, SIGGEN_RAMP),
+		(1, 1.0, 100e3, SIGGEN_RAMP),
+		(2, 1.0, 1e6, SIGGEN_RAMP),
+		(1, 1.0, 50e6, SIGGEN_RAMP),
+		(2, 1.0, 1e6, SIGGEN_RAMP),
+		(1, 1.0, 3e6, SIGGEN_RAMP),
+		(2, 0.5, 3e6, SIGGEN_RAMP)
 		])
-	def test_sinewave_frequency(self, base_instr, ch, vpp, freq):
+	def test_waveform_freq(self, base_instr, ch, vpp, freq, waveform):
 		# Set timebase of 5 periods
 		number_periods = 5
 		period = (1.0/freq)
@@ -92,14 +118,11 @@ class Test_Siggen:
 		base_instr.set_timebase(0,tspan)
 
 		base_instr.set_source(ch,OSC_SOURCE_DAC)
+		base_instr.set_xmode(OSC_FULL_FRAME)
 		if(ch==1):
 			base_instr.set_trigger(OSC_TRIG_DA1, OSC_EDGE_RISING, 0)
 		else:
 			base_instr.set_trigger(OSC_TRIG_DA2, OSC_EDGE_RISING, 0)
-
-		# Generate the desired sinewave
-		base_instr.synth_sinewave(ch,vpp,freq,0.0)
-		base_instr.commit()
 
 		# Figure out the timebase of frames
 		(tstart, tend) = base_instr._get_timebase(base_instr.decimation_rate, base_instr.pretrigger, base_instr.render_deci, base_instr.offset)
@@ -107,11 +130,28 @@ class Test_Siggen:
 		time_per_smp = (tend-tstart)/_OSC_SCREEN_WIDTH 	# Timestep per sample
 		smps_per_period = period/time_per_smp 			# Number of samples before a period is reached
 
+		# Test all waveform types
+		if waveform == SIGGEN_SINE:
+			base_instr.synth_sinewave(ch,vpp,freq,0.0)
+			start_xs = [0, int(smps_per_period/2), int(smps_per_period/3), int(smps_per_period/4), int(smps_per_period/8), int(3*smps_per_period/4)]
+		elif waveform == SIGGEN_SQUARE:
+			base_instr.synth_squarewave(ch, vpp, freq)
+			start_xs = [int(smps_per_period/3), int(3*smps_per_period/4), int(2*smps_per_period/3), int(smps_per_period/8), int(7*smps_per_period/8)]
+		elif waveform == SIGGEN_RAMP:
+			base_instr.synth_rampwave(ch, vpp, freq)
+			start_xs = [0, int(smps_per_period/2), int(smps_per_period/3), int(smps_per_period/4), int(smps_per_period/8), int(3*smps_per_period/4)]
+		base_instr.commit()
+
 		# 2% amplitude tolerance
 		allowable_error = 0.02*vpp
 
+		# Ensure that the frame has transitioned to capturing the new waveform
+		time.sleep(3*tspan)
+		base_instr.flush()
+
 		# Test multiple frames
 		for n in range(10):
+
 			frame = base_instr.get_frame()
 			if(ch==1):
 				ch_frame = frame.ch1
@@ -119,7 +159,7 @@ class Test_Siggen:
 				ch_frame = frame.ch2
 
 			# Start checking at different points along the waveform
-			for start_x in [0, int(smps_per_period/2), int(smps_per_period/3), int(smps_per_period/4), int(smps_per_period/8)]:
+			for start_x in start_xs:
 				# Amplitude expected at multiples of periods along the waveform
 				expectedv = ch_frame[start_x]
 
@@ -131,12 +171,10 @@ class Test_Siggen:
 
 					# Debugging info
 					print "Allowable tolerance: %.10f, Error: %.10f, Frame index: %d, Expected value: %.10f, Actual value: %.10f, Samples per period: %d, Render deci: %f" % (allowable_error, expectedv-actualv, x, expectedv, actualv, smps_per_period, base_instr.render_deci)
-					
 					# Check actual value is within tolerance
 					assert in_bounds(actualv, expectedv, allowable_error)
 
 
-	#def test_squarewave_amplitude(self, base_instr)
 
 
 class Tes2_Trigger:
