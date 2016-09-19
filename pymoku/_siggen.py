@@ -95,11 +95,21 @@ class SignalGenerator(MokuInstrument):
 		self.type = "signal_generator"
 
 	def _get_calibration(self):
+
+		adc1 = "calibration.AG-%s-%s-%s-1" % ( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
+								  "L" if self.relays_ch1 & RELAY_LOWG else "H",
+								  "D" if self.relays_ch1 & RELAY_DC else "A")
+
+		adc2 = "calibration.AG-%s-%s-%s-1" % ( "50" if self.relays_ch2 & RELAY_LOWZ else "1M",
+								  "L" if self.relays_ch2 & RELAY_LOWG else "H",
+								  "D" if self.relays_ch2 & RELAY_DC else "A")
 		dac1 = "calibration.DG-1"
 		dac2 = "calibration.DG-2"
 		scale1 = self.calibration[dac1]
 		scale2 = self.calibration[dac2]
-		return (float(scale1), float(scale2))
+		scale3 = self.calibration[adc1]
+		scale4 = self.calibration[adc2]
+		return (float(scale1), float(scale2), float(scale3), float(scale4))
 
 	def set_defaults(self):
 		""" Set sane defaults.
@@ -131,7 +141,7 @@ class SignalGenerator(MokuInstrument):
 		:type offset: float, volts
 		:param offset: DC offset applied to the waveform"""
 
-		scale1, scale2 = self._get_calibration()
+		scale1, scale2, scale3, scale4 = self._get_calibration()
 
 		if ch == 1:
 			self.out1_waveform = SG_WAVE_SINE
@@ -177,7 +187,7 @@ class SignalGenerator(MokuInstrument):
 		elif duty + falltime > 1:
 			raise ValueOutOfRangeException("Duty and fall time too big")
 
-		scale1, scale2 = self._get_calibration()
+		scale1, scale2, scale3, scale4 = self._get_calibration()
 
 		if ch == 1:
 			self.out1_waveform = SG_WAVE_SQUARE
@@ -233,7 +243,7 @@ class SignalGenerator(MokuInstrument):
 			risetime = symmetry,
 			falltime = 1 - symmetry)
 
-	def synth_modulate(self, ch, type, source, depth, frequency=0):
+	def synth_modulate(self, ch, type, source, depth=0.0, frequency=0):
 		"""
 		Set up modulation on an output channel.
 
@@ -252,11 +262,32 @@ class SignalGenerator(MokuInstrument):
 		:type frequency: float
 		:param frequency: Frequency of internally-generated sine wave modulation. This parameter is ignored if the source is set to ADC or DAC.
 		"""
+		# Get the calibration coefficients of the front end and output
+		dac1, dac2, adc1, adc2 = self._get_calibration()
+
 		if ch == 1:
 			self.out1_modulation = type
 			self.out1_modsource = source
-			self.mod1_frequency = frequency
-			self.mod1_amplitude = depth * self.out1_amplitude
+			self.mod2_frequency = frequency
+
+			# Modulation depth
+			depth_parameter = 0.0
+			if(source == SG_MODSOURCE_INT):
+				depth_parameter = depth * 1.0 # No change in depth
+			elif(source == SG_MODSOURCE_DAC):
+				# Check what the DAC scaling factor is
+				depth_parameter = depth * pow(2.0,15.0) / dac2
+			elif(source == SG_MODSOURCE_ADC):
+				# The input 1 is being used as Output 2 modulation signal
+				depth_parameter = depth * pow(2.0,9.0) / adc1
+			res = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
+			print depth_parameter, res, dac1, dac2, adc1, adc2
+			self.mod1_amplitude = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
+
+		if ch == 2:
+			self.out2_modulation = type
+			self.out2_modsource = source
+			self.mod2_frequency = frequency
 
 _siggen_reg_handlers = {
 	'out1_enable':		(REG_SG_WAVEFORMS,	to_reg_bool(0),		from_reg_bool(0)),
@@ -345,11 +376,11 @@ _siggen_reg_handlers = {
 											lambda f, old: ((old[0] & 0x0000FFFF) | (_usgn(f/_SG_FREQSCALE, 48) >> 16) & 0xFFFF0000, _usgn(f/_SG_FREQSCALE, 48) & 0xFFFFFFFF),
 											lambda rval: _SG_FREQSCALE * ((rval[0] & 0xFFFF0000) << 16 | rval[1])),
 
-	'mod1_amplitude':	(REG_SG_MODA1,		to_reg_unsigned(0, 32, xform=lambda a: a / _SG_DEPTHSCALE),
-											from_reg_unsigned(0, 32, xform=lambda a: a * _SG_DEPTHSCALE)),
+	'mod1_amplitude':	(REG_SG_MODA1,		to_reg_unsigned(0, 32, xform=lambda a: a),
+											from_reg_unsigned(0, 32, xform=lambda a: a )),
 
-	'mod2_amplitude':	(REG_SG_MODA2,		to_reg_unsigned(0, 32, xform=lambda a: a / _SG_DEPTHSCALE),
-											from_reg_unsigned(0, 32, xform=lambda a: a * _SG_DEPTHSCALE)),
+	'mod2_amplitude':	(REG_SG_MODA2,		to_reg_unsigned(0, 32, xform=lambda a: a),
+											from_reg_unsigned(0, 32, xform=lambda a: a)),
 
 	'out1_modsource':	(REG_SG_MODSOURCE,	to_reg_unsigned(1, 2, allow_set=[SG_MODSOURCE_INT, SG_MODSOURCE_ADC, SG_MODSOURCE_DAC]),
 											from_reg_unsigned(1, 2)),

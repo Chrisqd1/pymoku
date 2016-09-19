@@ -1,7 +1,8 @@
 import pytest, time
 from pymoku import Moku
 from pymoku.instruments import *
-from pymoku._oscilloscope import _OSC_SCREEN_WIDTH
+from pymoku._oscilloscope import _OSC_SCREEN_WIDTH, _OSC_ADC_SMPS
+from pymoku._siggen import SG_MOD_NONE, SG_MOD_AMPL, SG_MOD_PHASE, SG_MOD_FREQ, SG_MODSOURCE_INT, SG_MODSOURCE_ADC, SG_MODSOURCE_DAC
 import conftest
 import numpy
 
@@ -30,87 +31,100 @@ class Test_Siggen:
 		base_instr.commit()
 		timebase_res = base_instr._get_timebase(base_instr.decimation_rate, base_instr.pretrigger, base_instr.render_deci, base_instr.offset)
 		print timebase_res
-		assert False
 
 	'''
 		Test the generated output waveforms are as expected
 	'''
-	@pytest.mark.parametrize("ch, vpp, freq, offset", [
-		(1, 1.0, 10.0, 0),
-		(1, 0.5, 10.0, 0),
-		(1, 0.5, 33.3, 0.3),
-		(1, 0.5, 100e3, 0.3),
-		(1, 0.1, 100e3, 0.5),
-		(2, 1.0, 100e3, 0.3),
-		#(2, 2.0, 100e3, 0) # 2.0Vpp is apparently out of range in siggen
+	@pytest.mark.parametrize("ch, vpp, freq, offset, waveform", [
+		(1, 1.0, 1.0, 0, SIGGEN_SINE),
+		(1, 0.5, 33.0, 0.3, SIGGEN_SINE),
+		(1, 0.5, 100e3, 0.3, SIGGEN_SINE),
+		(1, 0.1, 100e3, 0.5, SIGGEN_SINE),
+		(2, 1.0, 100e3, 0.3, SIGGEN_SINE),
+		(1, 0, 0, 1.0, SIGGEN_SINE), # DC 1Volt
+		(2, 0, 0, 1.0, SIGGEN_SINE), # DC
+		(1, 0, 0, 0.3, SIGGEN_SINE), # DC
+		(2, 0, 0, 0.7, SIGGEN_SINE), # DC
+		(1, 1.0, 1.0, 0, SIGGEN_SQUARE),
+		(1, 0.5, 50.0, 0.3, SIGGEN_SQUARE),
+		(2, 0.5, 100e3, 0.3, SIGGEN_SQUARE),
+		(1, 1.0, 1.0, 0, SIGGEN_RAMP),
+		(1, 0.5, 50.0, 0.3, SIGGEN_RAMP),
+		(2, 0.5, 100e3, 0.3, SIGGEN_RAMP)
 		])
-	def test_sinewave_amplitude(self, base_instr, ch, vpp, freq, offset):
+	def tes2_waveform_amp(self, base_instr, ch, vpp, freq, offset, waveform):
 		# Generate an output sinewave and loop to input
 		# Ensure the amplitude is right
 		# Ensure the frequency seems correct as well
 
 		# Timebase should allow ~5 cycles of input wave
-		tspan = (1.0/freq) * 5.0
+		if freq == 0:
+			tspan = 1.0 # a second
+		else:
+			tspan = (1.0/freq) * 5.0
 		base_instr.set_timebase(0,tspan)
+
 		# Loop back output as input source and trigger on it
 		base_instr.set_source(ch,OSC_SOURCE_DAC)
 		if(ch==1):
 			base_instr.set_trigger(OSC_TRIG_DA1, OSC_EDGE_RISING, 0)
 		else:
 			base_instr.set_trigger(OSC_TRIG_DA2, OSC_EDGE_RISING, 0)
-		# Generate the desired sinewave
-		base_instr.synth_sinewave(ch,vpp,freq,offset)
+
+		# Generate the desired waveform
+		if waveform == SIGGEN_SINE:
+			base_instr.synth_sinewave(ch, vpp, freq, offset)
+		elif waveform == SIGGEN_SQUARE:
+			base_instr.synth_squarewave(ch, vpp, freq,offset=offset)
+		elif waveform == SIGGEN_RAMP:
+			base_instr.synth_rampwave(ch, vpp, freq, offset=offset)
 		base_instr.commit()
 
-		# 2% Tolerance on max/min values
-		tolerance = 0.002 * vpp;
+		# 2mV Tolerance on max/min values
+		tolerance = 0.002
 
 		# Get a few frames and test that the max amplitudes of the generated signals are within bounds
-		for n in range(10):
-			frame = base_instr.get_frame(timeout=5)
+		for _ in range(10):
+			frame = base_instr.get_frame()
+
 			if(ch==1):
-				maxval = max(x for x in frame.ch1 if x is not None)
-				minval = min(x for x in frame.ch1 if x is not None)
+				ch_frame = frame.ch1
 			else:
-				maxval = max(x for x in frame.ch2 if x is not None)
-				minval = min(x for x in frame.ch2 if x is not None)
+				ch_frame = frame.ch2
+
+			# For debugging the received frame
+			for y in ch_frame:
+				print y
+
+			maxval = max(x for x in ch_frame if x is not None)
+			minval = min(x for x in ch_frame if x is not None)
+
 			assert in_bounds(maxval, (vpp/2.0)+offset, tolerance)
 			assert in_bounds(minval, (-1*(vpp/2.0) + offset), tolerance)
 
 	@pytest.mark.parametrize("ch, vpp, freq, waveform", [
 		(1, 1.0, 1, SIGGEN_SINE),
-		(2, 1.0, 2, SIGGEN_SINE),
 		(1, 1.0, 100, SIGGEN_SINE),
 		(2, 1.0, 1e3, SIGGEN_SINE),
 		(1, 1.0, 100e3, SIGGEN_SINE),
 		(2, 1.0, 1e6, SIGGEN_SINE),
-		(1, 1.0, 50e6, SIGGEN_SINE),
-		(2, 1.0, 1e6, SIGGEN_SINE),
-		(1, 1.0, 3e6, SIGGEN_SINE),
-		(2, 0.5, 3e6, SIGGEN_SINE),
+		(2, 1.0, 3e6, SIGGEN_SINE),
 		(1, 1.0, 1, SIGGEN_SQUARE),
-		(2, 1.0, 2, SIGGEN_SQUARE),
 		(1, 1.0, 100, SIGGEN_SQUARE),
 		(2, 1.0, 1e3, SIGGEN_SQUARE),
 		(1, 1.0, 100e3, SIGGEN_SQUARE),
 		(2, 1.0, 1e6, SIGGEN_SQUARE),
-		(1, 1.0, 50e6, SIGGEN_SQUARE),
-		(2, 1.0, 1e6, SIGGEN_SQUARE),
-		(1, 1.0, 3e6, SIGGEN_SQUARE),
-		(2, 0.5, 3e6, SIGGEN_SQUARE),
+		(2, 1.0, 3e6, SIGGEN_SQUARE),
 		(1, 1.0, 1, SIGGEN_RAMP),
-		(2, 1.0, 2, SIGGEN_RAMP),
-		(1, 1.0, 100, SIGGEN_RAMP),
-		(2, 1.0, 1e3, SIGGEN_RAMP),
-		(1, 1.0, 100e3, SIGGEN_RAMP),
-		(2, 1.0, 1e6, SIGGEN_RAMP),
-		(1, 1.0, 50e6, SIGGEN_RAMP),
-		(2, 1.0, 1e6, SIGGEN_RAMP),
-		(1, 1.0, 3e6, SIGGEN_RAMP),
-		(2, 0.5, 3e6, SIGGEN_RAMP),
-		(1, 1.0, 1.0, SIGGEN_DC)
+		(1, 1.0, 0.5, SIGGEN_RAMP),
+		(2, 1.0, 100, SIGGEN_RAMP),
+		(1, 1.0, 1e3, SIGGEN_RAMP),
+		(2, 1.0, 100e3, SIGGEN_RAMP),
+		(1, 1.0, 1e6, SIGGEN_RAMP),
+		(2, 1.0, 2.3e6, SIGGEN_RAMP),
+		(1, 1.0, 3e6, SIGGEN_RAMP)
 		])
-	def test_waveform_freq(self, base_instr, ch, vpp, freq, waveform):
+	def tes2_waveform_freq(self, base_instr, ch, vpp, freq, waveform):
 		# Set timebase of 5 periods
 		number_periods = 5
 		period = (1.0/freq)
@@ -140,20 +154,20 @@ class Test_Siggen:
 		elif waveform == SIGGEN_RAMP:
 			base_instr.synth_rampwave(ch, vpp, freq)
 			start_xs = [0, int(smps_per_period/2), int(smps_per_period/3), int(smps_per_period/4), int(smps_per_period/8), int(3*smps_per_period/4)]
-		elif waveform == SIGGEN_DC:
-			base_instr.synth_sinewave(ch, vpp, 0.0, 1.0)
-			start_xs = [0, int(smps_per_period/2), int(smps_per_period/3), int(smps_per_period/4), int(smps_per_period/8), int(3*smps_per_period/4)]
 		base_instr.commit()
 
 		# 2% amplitude tolerance
 		allowable_error = 0.02*vpp
 
-		# Ensure that the frame has transitioned to capturing the new waveform
-		time.sleep(3*tspan)
+		# Workaround for ensuring we receive a valid waveform in the frame
+		# The squarewave generator has unpredictable initial conditions currently
+		# So we want to skip the first frame
+		time.sleep(3*(tend-tstart))
 		base_instr.flush()
+		base_instr.get_frame()
 
-		# Test multiple frames
-		for n in range(10):
+		# Test multiple frames worth
+		for _ in range(5):
 
 			frame = base_instr.get_frame()
 			if(ch==1):
@@ -172,10 +186,37 @@ class Test_Siggen:
 
 					actualv = ch_frame[x]
 
+					# For debugging the received frame
+					for y in ch_frame:
+						print y
+
 					# Debugging info
 					print "Allowable tolerance: %.10f, Error: %.10f, Frame index: %d, Expected value: %.10f, Actual value: %.10f, Samples per period: %d, Render deci: %f" % (allowable_error, expectedv-actualv, x, expectedv, actualv, smps_per_period, base_instr.render_deci)
 					# Check actual value is within tolerance
 					assert in_bounds(actualv, expectedv, allowable_error)
+
+	@pytest.mark.parametrize("ch, source, depth, frequency", [
+		(1, 0, 0.5, 3)
+		])
+	def test_am_modulation(self, base_instr, ch, source, depth, frequency):
+		# Set a sampling frequency
+		base_instr.set_timebase(0,1.0) # 1 second
+		base_instr.synth_sinewave(1, 1.0, 10, 0)
+		base_instr.synth_sinewave(2, 1.0, 5, 0)
+		base_instr.synth_modulate(1, SG_MOD_AMPL, SG_MODSOURCE_INT, depth, frequency)
+		#base_instr.synth_modulate(ch, SG_MOD_AMPL, source, depth, frequency)
+		base_instr.commit()
+
+		print "Out1 amplitude: %.10f" % (base_instr.out1_amplitude)
+
+
+		# Get sampling frequency
+		fs = _OSC_ADC_SMPS / (base_instr.decimation_rate * base_instr.render_deci)
+		fstep = fs / _OSC_SCREEN_WIDTH
+
+		assert False
+		# Set up the modulated signal
+
 
 class Tes2_Trigger:
 	'''
