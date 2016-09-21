@@ -1,3 +1,4 @@
+import itertools
 import pytest, time
 from pymoku import Moku
 from pymoku.instruments import *
@@ -35,24 +36,9 @@ class Test_Siggen:
 	'''
 		Test the generated output waveforms are as expected
 	'''
-	@pytest.mark.parametrize("ch, vpp, freq, offset, waveform", [
-		(1, 1.0, 1.0, 0, SIGGEN_SINE),
-		(1, 0.5, 33.0, 0.3, SIGGEN_SINE),
-		(1, 0.5, 100e3, 0.3, SIGGEN_SINE),
-		(1, 0.1, 100e3, 0.5, SIGGEN_SINE),
-		(2, 1.0, 100e3, 0.3, SIGGEN_SINE),
-		(1, 0, 0, 1.0, SIGGEN_SINE), # DC 1Volt
-		(2, 0, 0, 1.0, SIGGEN_SINE), # DC
-		(1, 0, 0, 0.3, SIGGEN_SINE), # DC
-		(2, 0, 0, 0.7, SIGGEN_SINE), # DC
-		(1, 1.0, 1.0, 0, SIGGEN_SQUARE),
-		(1, 0.5, 50.0, 0.3, SIGGEN_SQUARE),
-		(2, 0.5, 100e3, 0.3, SIGGEN_SQUARE),
-		(1, 1.0, 1.0, 0, SIGGEN_RAMP),
-		(1, 0.5, 50.0, 0.3, SIGGEN_RAMP),
-		(2, 0.5, 100e3, 0.3, SIGGEN_RAMP)
-		])
-	def tes2_waveform_amp(self, base_instr, ch, vpp, freq, offset, waveform):
+	@pytest.mark.parametrize("ch, vpp, freq, offset, waveform", 
+		itertools.product([1,2],[0, 0.5, 1.0],[1e3], [0, 0.3, 0.5, 1.0], [SIGGEN_SINE, SIGGEN_SQUARE, SIGGEN_RAMP]))
+	def test_waveform_amp(self, base_instr, ch, vpp, freq, offset, waveform):
 		# Generate an output sinewave and loop to input
 		# Ensure the amplitude is right
 		# Ensure the frequency seems correct as well
@@ -102,29 +88,9 @@ class Test_Siggen:
 			assert in_bounds(maxval, (vpp/2.0)+offset, tolerance)
 			assert in_bounds(minval, (-1*(vpp/2.0) + offset), tolerance)
 
-	@pytest.mark.parametrize("ch, vpp, freq, waveform", [
-		(1, 1.0, 1, SIGGEN_SINE),
-		(1, 1.0, 100, SIGGEN_SINE),
-		(2, 1.0, 1e3, SIGGEN_SINE),
-		(1, 1.0, 100e3, SIGGEN_SINE),
-		(2, 1.0, 1e6, SIGGEN_SINE),
-		(2, 1.0, 3e6, SIGGEN_SINE),
-		(1, 1.0, 1, SIGGEN_SQUARE),
-		(1, 1.0, 100, SIGGEN_SQUARE),
-		(2, 1.0, 1e3, SIGGEN_SQUARE),
-		(1, 1.0, 100e3, SIGGEN_SQUARE),
-		(2, 1.0, 1e6, SIGGEN_SQUARE),
-		(2, 1.0, 3e6, SIGGEN_SQUARE),
-		(1, 1.0, 1, SIGGEN_RAMP),
-		(1, 1.0, 0.5, SIGGEN_RAMP),
-		(2, 1.0, 100, SIGGEN_RAMP),
-		(1, 1.0, 1e3, SIGGEN_RAMP),
-		(2, 1.0, 100e3, SIGGEN_RAMP),
-		(1, 1.0, 1e6, SIGGEN_RAMP),
-		(2, 1.0, 2.3e6, SIGGEN_RAMP),
-		(1, 1.0, 3e6, SIGGEN_RAMP)
-		])
-	def tes2_waveform_freq(self, base_instr, ch, vpp, freq, waveform):
+	@pytest.mark.parametrize("ch, vpp, freq, waveform", 
+		itertools.product([1,2],[1.0],[1, 100, 1e3, 100e3, 1e6, 3e6],[SIGGEN_SINE, SIGGEN_SQUARE, SIGGEN_RAMP]))
+	def test_waveform_freq(self, base_instr, ch, vpp, freq, waveform):
 		# Set timebase of 5 periods
 		number_periods = 5
 		period = (1.0/freq)
@@ -195,10 +161,13 @@ class Test_Siggen:
 					# Check actual value is within tolerance
 					assert in_bounds(actualv, expectedv, allowable_error)
 
+	
+	# NOTE: Modulation cannot be tested using the Oscilloscope instrument as it is not enabled.
+	# 		The SignalGenerator bitstream should be tested on its own with full modulation functionality enabled.
 	@pytest.mark.parametrize("ch, source, depth, frequency", [
-		(1, 0, 0.5, 3)
+		#(1, 0, 0.5, 3)
 		])
-	def test_am_modulation(self, base_instr, ch, source, depth, frequency):
+	def tes2_am_modulation(self, base_instr, ch, source, depth, frequency):
 		# Set a sampling frequency
 		base_instr.set_timebase(0,1.0) # 1 second
 		base_instr.synth_sinewave(1, 1.0, 10, 0)
@@ -207,48 +176,49 @@ class Test_Siggen:
 		#base_instr.synth_modulate(ch, SG_MOD_AMPL, source, depth, frequency)
 		base_instr.commit()
 
-		print "Out1 amplitude: %.10f" % (base_instr.out1_amplitude)
-
-
 		# Get sampling frequency
 		fs = _OSC_ADC_SMPS / (base_instr.decimation_rate * base_instr.render_deci)
 		fstep = fs / _OSC_SCREEN_WIDTH
 
 		assert False
-		# Set up the modulated signal
 
-
-class Tes2_Trigger:
+class Test_Trigger:
 	'''
 		We want this class to test everything around triggering settings for the oscilloscope
 	'''
 
-	@pytest.mark.parametrize("ch, edge, amp", [
-		(OSC_TRIG_CH1, OSC_EDGE_RISING, 0.0),
-		(OSC_TRIG_CH1, OSC_EDGE_RISING, 0.5),
-		(OSC_TRIG_CH1, OSC_EDGE_RISING, 1.0),
-		])
-	def test_triggered_amplitude(self, base_instr, ch, edge, amp):
+	@pytest.mark.parametrize("trig_ch, edge, amp", 
+		itertools.product([1,2],[OSC_EDGE_RISING, OSC_EDGE_FALLING, OSC_EDGE_BOTH],
+		[-0.1, 0.0, 0.1, 0.3]))
+	def test_triggered_amplitude(self, base_instr, trig_ch, edge, amp):
 		'''
 			Ensure that the start of the frame is the expected amplitude (within some error)
 		'''
-		i = base_instr
-		allowable_error = 0.1 # Volts
+		# Set up the trigger signal
+		if trig_ch == 1:
+			base_instr.synth_sinewave(1,1.0,100.0,0)
+			base_instr.set_timebase(0,0.01)
+			base_instr.set_source(1, OSC_SOURCE_DAC)
+			base_instr.set_trigger(OSC_TRIG_DA1, edge, amp, hysteresis=0, hf_reject=False, mode=OSC_TRIG_NORMAL)
+		if trig_ch == 2:
+			base_instr.synth_sinewave(2,1.0,100.0,0)
+			base_instr.set_timebase(0,0.01)
+			base_instr.set_source(2, OSC_SOURCE_DAC)
+			base_instr.set_trigger(OSC_TRIG_DA2, edge, amp, hysteresis=0, hf_reject=False, mode=OSC_TRIG_NORMAL)
 
-		# Enforce buffer/frame offset of zero
-		i.set_timebase(0,2e-6)
-		# Set the trigger
-		i.set_trigger(OSC_TRIG_CH1, OSC_EDGE_RISING, amp, hysteresis=0, hf_reject=False, mode=OSC_TRIG_NORMAL)
-		i.commit()
+		base_instr.commit()
 
+		allowable_error = 0.005 # Volts
 		for n in range(10):
-			frame = i.get_frame(timeout=5)
-			print "Start of frame value: %.2f" % (frame.ch1[0])
-			assert in_bounds(frame.ch1[0], amp, allowable_error)
+			frame = base_instr.get_frame(timeout=5)
+			if trig_ch == 1:
+				ch_frame = frame.ch1
+			elif trig_ch == 2:
+				ch_frame = frame.ch2
+			print "Start of frame value: %.2f" % (ch_frame[0])
+			assert in_bounds(ch_frame[0], amp, allowable_error)
 
-		assert 0
-
-	def test_triggered_edge(self, base_instr):
+	def tes2_triggered_edge(self, base_instr):
 		'''
 			Ensure the edge type looks right
 		'''

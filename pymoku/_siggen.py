@@ -268,7 +268,7 @@ class SignalGenerator(MokuInstrument):
 		if ch == 1:
 			self.out1_modulation = type
 			self.out1_modsource = source
-			self.mod2_frequency = frequency
+			self.mod1_frequency = frequency
 
 			# Modulation depth
 			depth_parameter = 0.0
@@ -281,13 +281,25 @@ class SignalGenerator(MokuInstrument):
 				# The input 1 is being used as Output 2 modulation signal
 				depth_parameter = depth * pow(2.0,9.0) / adc1
 			res = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
-			print depth_parameter, res, dac1, dac2, adc1, adc2
 			self.mod1_amplitude = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
 
-		if ch == 2:
+		if ch == 1:
 			self.out2_modulation = type
 			self.out2_modsource = source
 			self.mod2_frequency = frequency
+
+			# Modulation depth
+			depth_parameter = 0.0
+			if(source == SG_MODSOURCE_INT):
+				depth_parameter = depth * 1.0 # No change in depth
+			elif(source == SG_MODSOURCE_DAC):
+				# Check what the DAC scaling factor is
+				depth_parameter = depth * pow(2.0,15.0) / dac1
+			elif(source == SG_MODSOURCE_ADC):
+				# The input 1 is being used as Output 2 modulation signal
+				depth_parameter = depth * pow(2.0,9.0) / adc2
+			res = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
+			self.mod2_amplitude = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
 
 _siggen_reg_handlers = {
 	'out1_enable':		(REG_SG_WAVEFORMS,	to_reg_bool(0),		from_reg_bool(0)),
