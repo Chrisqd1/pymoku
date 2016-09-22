@@ -37,7 +37,7 @@ class Test_Siggen:
 		Test the generated output waveforms are as expected
 	'''
 	@pytest.mark.parametrize("ch, vpp, freq, offset, waveform", 
-		itertools.product([1,2],[0, 0.5, 1.0],[1e3], [0, 0.3, 0.5, 1.0], [SIGGEN_SINE, SIGGEN_SQUARE, SIGGEN_RAMP]))
+		itertools.product([1,2],[0, 0.5, 1.0],[1e3, 1e6], [0, 0.3, 0.5], [SIGGEN_SINE, SIGGEN_SQUARE, SIGGEN_RAMP]))
 	def test_waveform_amp(self, base_instr, ch, vpp, freq, offset, waveform):
 		# Generate an output sinewave and loop to input
 		# Ensure the amplitude is right
@@ -66,8 +66,8 @@ class Test_Siggen:
 			base_instr.synth_rampwave(ch, vpp, freq, offset=offset)
 		base_instr.commit()
 
-		# 2mV Tolerance on max/min values
-		tolerance = 0.002
+		# 5mV Tolerance on max/min values
+		tolerance = 0.005
 
 		# Get a few frames and test that the max amplitudes of the generated signals are within bounds
 		for _ in range(10):
@@ -218,12 +218,64 @@ class Test_Trigger:
 			print "Start of frame value: %.2f" % (ch_frame[0])
 			assert in_bounds(ch_frame[0], amp, allowable_error)
 
-	def tes2_triggered_edge(self, base_instr):
+	
+	@pytest.mark.parametrize("trig_ch, edge, waveform",
+		itertools.product([1,2],[OSC_EDGE_RISING, OSC_EDGE_FALLING, OSC_EDGE_BOTH], [SIGGEN_SINE, SIGGEN_SQUARE, SIGGEN_RAMP]))
+	def test_triggered_edge(self, base_instr, trig_ch, edge, waveform):
+		half_idx = (_OSC_SCREEN_WIDTH / 2) - 1
+
+		def _is_rising(p1,p2):
+			if (p2-p1) > 0:
+				return True
+			else:
+				return False
+
+		def _is_falling(p1,p2):
+			if (p2-p1) < 0:
+				return True
+			else:
+				return False
 		'''
 			Ensure the edge type looks right
 		'''
-		assert 1 == 1
+		# Test rising/falling edges
+		if waveform == SIGGEN_SINE:
+			base_instr.synth_sinewave(trig_ch, 1.0, 100, 0)
+		elif waveform == SIGGEN_SQUARE:
+			base_instr.synth_squarewave(trig_ch, 1.0, 100, 0)
+		elif waveform == SIGGEN_RAMP:
+			base_instr.synth_rampwave(trig_ch, 1.0, 100, 0)
+		else:
+			print "Invalid waveform type"
+			assert False
 
+		if trig_ch == 1:
+			base_instr.set_timebase(-0.01,0.01)
+			base_instr.set_source(1, OSC_SOURCE_DAC)
+			base_instr.set_trigger(OSC_TRIG_DA1, edge, 0.0, hysteresis=0, hf_reject=False, mode=OSC_TRIG_NORMAL)
+		if trig_ch == 2:
+			base_instr.set_timebase(-0.01,0.01)
+			print base_instr.pretrigger, base_instr.render_deci, float(base_instr.pretrigger)/float(base_instr.render_deci)
+			base_instr.set_source(2, OSC_SOURCE_DAC)
+			base_instr.set_trigger(OSC_TRIG_DA2, edge, 0.0, hysteresis=0, hf_reject=False, mode=OSC_TRIG_NORMAL)
+
+		base_instr.commit()
+
+		for _ in range(10):
+			frame = base_instr.get_frame(timeout=5)
+			if trig_ch == 1:
+				ch_frame = frame.ch1
+			elif trig_ch == 2:
+				ch_frame = frame.ch2
+
+			print "Start of frame values: %s" % (ch_frame[half_idx - 4: half_idx+4])
+
+			if(edge == OSC_EDGE_RISING):
+				assert _is_rising(ch_frame[half_idx-1],ch_frame[half_idx])
+			elif(edge == OSC_EDGE_FALLING):
+				assert _is_falling(ch_frame[half_idx-1], ch_frame[half_idx])
+			elif(edge == OSC_EDGE_BOTH):
+				assert _is_rising(ch_frame[half_idx-1],ch_frame[half_idx]) or _is_falling(ch_frame[half_idx-1],ch_frame[half_idx])
 
 class Tes2_Timebase:
 	'''
