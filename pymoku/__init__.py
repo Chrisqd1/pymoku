@@ -211,7 +211,7 @@ class Moku(object):
 			raise NetworkError()
 
 
-	def _deploy(self):
+	def _deploy(self, partial_index=0, use_external=False):
 		if self._instrument is None:
 			DeployException("No Instrument Selected")
 
@@ -219,7 +219,12 @@ class Moku(object):
 		# seconds on the device. Set an appropriately long timeout for this case.
 		self._set_timeout(short=False)
 
-		self._conn.send(bytearray([0x43, self._instrument.id, 0x00]))
+		if partial_index < 0 or partial_index > 2**7:
+			raise DeployException("Invalid partial index %d" % partial_index)
+
+		flags = partial_index << 2 | int(use_external)
+
+		self._conn.send(bytearray([0x43, self._instrument.id, flags]))
 		ack = self._conn.recv()
 
 		self._set_timeout(short=True)
@@ -681,7 +686,7 @@ class Moku(object):
 		""":return: True if the Moku currently is connected and has an instrument deployed and operating"""
 		return self._instrument is not None and self._instrument.is_active()
 
-	def attach_instrument(self, instrument, set_default=True):
+	def attach_instrument(self, instrument, set_default=True, use_external=False):
 		"""
 		Attaches a :any:`MokuInstrument` subclass to the Moku, deploying and activating an instrument.
 
@@ -690,14 +695,19 @@ class Moku(object):
 		:type instrument: :any:`MokuInstrument` subclass
 		:param instrument: The instrument instance to attach.
 		:type set_default: bool
-		:param set_default: Set the instrument to its default config upon connection, overwriting user changes before this point."""
+		:param set_default: Set the instrument to its default config upon connection, overwriting user changes before this point.
+		:type use_external: bool
+		:param use_external: Attempt to lock to an external reference clock. """
+
+		self.external_reference = use_external
+
 		if self._instrument:
 			self._instrument.set_running(False)
 
 		self._instrument = instrument
 		self._instrument.attach_moku(self)
 		self._instrument.set_running(False)
-		bsv = self._deploy()
+		bsv = self._deploy(partial_index=0, use_external=use_external)
 		log.debug("Bitstream version %d", bsv)
 		self._instrument.sync_registers()
 		self._instrument.set_running(True)
