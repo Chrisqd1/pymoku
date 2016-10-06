@@ -26,11 +26,9 @@ try:
 	i.set_source(1,OSC_SOURCE_ADC)
 	i.set_trigger(OSC_TRIG_CH1, OSC_EDGE_RISING, 0)
 	i.synth_sinewave(1,0.5,10,0)
-	i.set_timebase(1.0, 1.3)
+	i.set_timebase(1.0, 2)
 	i.commit()
 
-	line1, = plt.plot([])
-	line2, = plt.plot([])
 	plt.ion()
 	plt.show()
 	plt.grid(b=True)
@@ -39,6 +37,8 @@ try:
 
 	# Get initial frame to set up plotting parameters
 	frame=i.get_frame()
+	line1, = plt.plot([])
+	line2, = plt.plot([])
 
 	ax = plt.gca()
 	ax.xaxis.set_major_formatter(FuncFormatter(frame.get_xaxis_fmt))
@@ -54,6 +54,5 @@ try:
 		line1.set_xdata(list(range(1024)))
 		line2.set_xdata(list(range(1024)))
 
-		plt.draw()
 finally:
 	m.close()
