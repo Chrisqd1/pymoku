@@ -9,19 +9,44 @@ import numpy
 
 # Assertion helpers
 def in_bounds(v, center, err):
+	if (v is None) or (center is None):
+		return True
 	return abs(v - center) < abs(err)
 
 def _is_rising(p1,p2):
+	if (p1 is None) or (p2 is None):
+		return True
 	if (p2-p1) > 0:
 		return True
 	else:
 		return False
 
 def _is_falling(p1,p2):
+	if (p1 is None) or (p2 is None):
+		return True
 	if (p2-p1) < 0:
 		return True
 	else:
 		return False
+
+@pytest.fixture(scope="module")
+def base_instrs(conn_mokus):
+	m1 = conn_mokus[0]
+	m2 = conn_mokus[1]
+	print("Attaching instruments")
+
+	i1 = Oscilloscope()
+	i2 = Oscilloscope()
+
+	m1.attach_instrument(i1)
+	m2.attach_instrument(i2)
+
+	i1.set_defaults()
+	i2.set_defaults()
+	i1.commit()
+	i2.commit()
+
+	return (i1,i2)
 
 class Test_Siggen:
 	'''
@@ -30,10 +55,12 @@ class Test_Siggen:
 
 	@pytest.mark.parametrize("ch, vpp, freq, offset, waveform", 
 		itertools.product([1,2],[0, 0.5, 1.0],[1e3, 1e6], [0, 0.3, 0.5], [SG_WAVE_SINE, SG_WAVE_SQUARE, SG_WAVE_TRIANGLE]))
-	def test_waveform_amp(self, base_instr, ch, vpp, freq, offset, waveform):
+	def test_waveform_amp(self, base_instrs, ch, vpp, freq, offset, waveform):
 		'''
 			Test the max/min amplitude of the waveforms are correct
 		'''
+		base_instr = base_instrs[0]
+
 
 		# Set timebase to allow for 5 cycles
 		if freq == 0:
@@ -61,18 +88,19 @@ class Test_Siggen:
 		# 5mV Tolerance on max/min values
 		tolerance = 0.005
 
+
 		# Test amplitudes on a few frames worth of generated output
 		for _ in range(10):
-			frame = base_instr.get_frame()
-
+			frame = base_instr.get_frame(wait=True)
+			print frame
 			if(ch==1):
 				ch_frame = frame.ch1
 			else:
 				ch_frame = frame.ch2
 
 			# For debugging the received frame
-			# for y in ch_frame:
-			#	print y
+			for y in ch_frame:
+				print y
 
 			# Get max/min amplitudes for each frame
 			maxval = max(x for x in ch_frame if x is not None)
@@ -82,15 +110,18 @@ class Test_Siggen:
 			assert in_bounds(maxval, (vpp/2.0)+offset, tolerance)
 			assert in_bounds(minval, (-1*(vpp/2.0) + offset), tolerance)
 
+
 	@pytest.mark.parametrize("ch, vpp, freq, waveform", 
 		itertools.product([1,2],[1.0],[100, 1e3, 100e3, 1e6, 3e6],[SG_WAVE_SINE, SG_WAVE_SQUARE, SG_WAVE_TRIANGLE]))
-	def test_waveform_freq(self, base_instr, ch, vpp, freq, waveform):
+	def test_waveform_freq(self, base_instrs, ch, vpp, freq, waveform):
 		'''
 			Test the frequency of generated waveforms
 
 			This is done by checking that the amplitude of generated signals is constant as we jump across multiple cycles
 			of the waveform.
 		'''
+		base_instr = base_instrs[0]
+
 		# Set timebase to allow for 5 cycles
 		number_periods = 5
 		period = (1.0/freq)
@@ -172,7 +203,9 @@ class Test_Siggen:
 	@pytest.mark.parametrize("ch, source, depth, frequency", [
 		#(1, 0, 0.5, 3)
 		])
-	def tes2_am_modulation(self, base_instr, ch, source, depth, frequency):
+	def tes2_am_modulation(self, base_instrs, ch, source, depth, frequency):
+		base_instr = base_instrs[0]
+
 		# Set a sampling frequency
 		base_instr.set_timebase(0,1.0) # 1 second
 		base_instr.synth_sinewave(1, 1.0, 10, 0)
@@ -196,10 +229,12 @@ class Test_Trigger:
 			[OSC_EDGE_RISING, OSC_EDGE_FALLING, OSC_EDGE_BOTH], 
 			[-0.1, 0.0, 0.1, 0.3], 
 			[SG_WAVE_SINE, SG_WAVE_SQUARE, SG_WAVE_TRIANGLE]))
-	def test_triggered_edge(self, base_instr, trig_ch, edge, trig_level, waveform):
+	def test_triggered_edge(self, base_instrs, trig_ch, edge, trig_level, waveform):
 		'''
 			Test the triggered edge type and level are correct
 		'''
+		base_instr = base_instrs[0]
+
 		# Set up the source signal to test triggering on
 		source_freq = 100 #Hz
 		source_vpp = 1.0

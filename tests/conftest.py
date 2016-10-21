@@ -3,30 +3,40 @@ from pymoku.instruments import *
 import pytest
 
 def pytest_addoption(parser):
-	parser.addoption("--ip", help="Serial number of the device to test against.")
+	parser.addoption("--masterip", help="IP address of the master device to test against.")
+	parser.addoption("--slaveip", help="IP address of the slave device to test against")
 
-@pytest.fixture(scope="module")
-def conn_instr(request):
+@pytest.fixture(scope="session")
+def conn_mokus(request):
 	'''
-		Per test module setup function
+		Connects to both Mokus used throughout tests
 	'''
-	print "Connecting to Moku"
-	ip = pytest.config.getoption("--ip")
-	m = Moku(ip)
+	print "Connecting to Mokus"
+	masterip = pytest.config.getoption("--masterip")
+	slaveip = pytest.config.getoption("--slaveip")
+	m1 = Moku(masterip)
+	m2 = Moku(slaveip) #Moku(slaveip)
 
-	i = Oscilloscope()
-	m.attach_instrument(i)
+	print("Master IP: %s" % masterip)
+	print("Slave IP: %s" % slaveip)
 
-	i.set_buffer_length(4)
+	request.addfinalizer(m1.close)
+	request.addfinalizer(m2.close)
+	return (m1, m2)
 
-	request.addfinalizer(m.close)
-	return i
-
+'''
 @pytest.fixture(scope="function")
-def base_instr(conn_instr):
-	'''
+def base_instr(instruments):
+	
 		Per test setup function
-	'''
+	
+	# Extract Mokus
+	m1 = conn_mokus[0]
+	m2 = conn_mokus[1]
+
 	print "Setting defaults."
-	conn_instr.set_defaults()
-	return conn_instr
+	m1.set_defaults()
+	m2.set_defaults()
+
+	return m1
+'''
