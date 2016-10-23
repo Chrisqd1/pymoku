@@ -22,6 +22,16 @@ class NotDeployedException(MokuException): """Tried to perform an action on an I
 class FrameTimeout(MokuException): """No new :any:`DataFrame` arrived within the given timeout"""; pass
 class NoDataException(MokuException): """A request has been made for data but none will be generated """; pass
 
+# Network status codes
+_ERR_OK = 0
+_ERR_INVAL = 1
+_ERR_NOTFOUND = 2
+_ERR_NOSPC = 3
+_ERR_NOMP = 4
+_ERR_ACTION = 5
+_ERR_BUSY = 6
+_ERR_UNKOWN = 99
+
 # Chosen to trade off number of network transactions with memory usage.
 # 4MB is a little larger than a bitstream so those uploads aren't chunked.
 _FS_CHUNK_SIZE = 1024 * 1024 * 4
@@ -495,18 +505,21 @@ class Moku(object):
 
 		return remotename
 
-	def _receive_file(self, mp, fname, l):
+	def _receive_file(self, mp, fname, length, localname=None):
 		qfname = mp + ":" + fname
 		self._set_timeout(short=False)
 
+		localname = localname or fname
+
 		i = 0
-		with open(fname, "wb") as f:
-			if l == 0:
+		with open(localname, "wb") as f:
+			if length == 0:
 				# A zero length file implies transfer the entire file
 				# So we get the the file size
-				l = self._fs_size(mp, fname)
-			while i < l:
-				to_transfer = min(l, _FS_CHUNK_SIZE)
+				length = self._fs_size(mp, fname)
+
+			while i < length:
+				to_transfer = min(length, _FS_CHUNK_SIZE)
 				pkt = bytearray([len(qfname)])
 				pkt += qfname.encode('ascii')
 				pkt += struct.pack("<QQ", i, to_transfer)
@@ -605,6 +618,33 @@ class Moku(object):
 
 		return self._fs_finalise(mp, remotename, fsize)
 
+	def _fs_rename(self, smp, sname, dmp, dname, move=False):
+		sname = smp + ":" + sname
+		dname = dmp + ":" + dname
+		pkt = bytearray([len(sname)])
+		pkt += sname.encode('ascii')
+		pkt += bytearray([len(dname)])
+		pkt += dname.encode('ascii')
+
+		flags = 1 if move else 0
+		pkt += bytearray([flags])
+
+		self._fs_send_generic(8, pkt)
+
+		return self._fs_receive_generic(8)
+
+
+	def _fs_rename_status(self):
+		self._fs_send_generic(9, '')
+
+		try:
+			self._fs_receive_generic(9)
+			return _ERR_OK
+		except NetworkError:
+			return _ERR_BUSY
+
+	def _fs_rename_busy(self):
+		return self._fs_rename_status() == _ERR_BUSY
 
 	def delete_bitstream(self, path):
 		self._fs_finalise('b', path, 0)
