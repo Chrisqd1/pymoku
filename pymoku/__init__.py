@@ -461,17 +461,19 @@ class Moku(object):
 		return pkt[2:]
 
 
-	def _send_file(self, mp, localname):
+	def _send_file(self, mp, localname, remotename=None):
+		if remotename is None:
+			remotename = os.path.basename(localname)
+
 		self._set_timeout(short=False)
 		i = 0
+
 		with open(localname, 'rb') as f:
 			while True:
 				data = f.read(_FS_CHUNK_SIZE)
 
 				if not len(data):
 					break
-
-				remotename = os.path.basename(localname)
 
 				fname = mp + ":" + remotename
 
@@ -568,7 +570,6 @@ class Moku(object):
 
 		return t, f
 
-
 	def _fs_finalise(self, mp, fname, fsize):
 		fname = mp + ":" + fname
 		pkt = bytearray([len(fname)])
@@ -593,7 +594,7 @@ class Moku(object):
 	def delete_file(self, mp, path):
 		self._fs_finalise(mp, path, 0)
 
-	def load_bitstream(self, path):
+	def load_bitstream(self, path, remotename=None):
 		"""
 		Load a bitstream file to the Moku, ready for deployment.
 
@@ -602,12 +603,12 @@ class Moku(object):
 
 		:raises NetworkError: if the upload fails verification.
 		"""
-		self.load_persistent(path)
+		self.load_persistent(path, remotename)
 
-	def load_persistent(self, path):
+	def load_persistent(self, path, remotename=None):
 		import zlib
-		log.debug("Loading bitstream %s", path)
-		rname = self._send_file('b', path)
+
+		rname = self._send_file('b', path, remotename)
 
 		log.debug("Verifying upload")
 
