@@ -15,14 +15,15 @@ def conn_mokus(request):
 	masterip = pytest.config.getoption("--masterip")
 	slaveip = pytest.config.getoption("--slaveip")
 	m1 = Moku(masterip)
-	m2 = Moku(slaveip) #Moku(slaveip)
+	#m2 = Moku(slaveip) #Moku(slaveip)
 
 	print("Master IP: %s" % masterip)
 	print("Slave IP: %s" % slaveip)
 
 	request.addfinalizer(m1.close)
-	request.addfinalizer(m2.close)
-	return (m1, m2)
+	#request.addfinalizer(m2.close)
+	#return (m1, m2)
+	return (m1, None)
 
 '''
 @pytest.fixture(scope="function")
