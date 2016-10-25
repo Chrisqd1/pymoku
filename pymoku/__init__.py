@@ -603,7 +603,7 @@ class Moku(object):
 
 		:raises NetworkError: if the upload fails verification.
 		"""
-		self.load_persistent(path, remotename)
+		return self.load_persistent(path, remotename)
 
 	def load_persistent(self, path, remotename=None):
 		import zlib
@@ -619,6 +619,28 @@ class Moku(object):
 
 		if chk != chk2:
 			raise NetworkError("Bitstream upload failed checksum verification.")
+
+		return chk
+
+	def list_persistent(self):
+		fs = self._fs_list('b')
+		return list(zip(*fs))[0]
+
+	def list_bitstream(self, include_version=False):
+		fs = self._fs_list('b', calculate_checksums=include_version)
+
+		if include_version:
+			return [b.split('.')[0] + '-{:X}'.format(c) for b, c, s in fs if b.endswith('.bit')]
+		else:
+			return [b.split('.')[0] for b, c, s in fs if b.endswith('.bit')]
+
+	def list_package(self, include_version=False):
+		fs = self._fs_list('p', calculate_checksums=include_version)
+
+		if include_version:
+			return [b.split('.')[0] + '-{:X}'.format(c) for b, c, s in fs if b.endswith('.hgp')]
+		else:
+			return [b.split('.')[0] for b, c, s in fs if b.endswith('.hgp')]
 
 	def _trigger_fwload(self):
 		self._conn.send(bytearray([0x52, 0x01]))
@@ -651,6 +673,10 @@ class Moku(object):
 		""" :return: Name of connected Moku:Lab """
 		self.name = self._get_property_single('system.name')
 		return self.name
+
+	def get_version(self):
+		""" :return: Version of connected Moku:Lab """
+		return '.'.join(self._get_properties(['device.major','device.minor','device.micro']))
 
 	def set_name(self, name):
 		""" :param name: Set new name for the Moku:Lab. This can make it easier to discover the device if multiple Moku:Labs are on a network"""
