@@ -498,7 +498,7 @@ class Moku(object):
 	def _receive_file(self, mp, fname, l):
 		qfname = mp + ":" + fname
 		self._set_timeout(short=False)
-		print("Receiving file qfname %s" % qfname)
+
 		i = 0
 		with open(fname, "wb") as f:
 			if l == 0:
