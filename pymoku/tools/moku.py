@@ -110,7 +110,7 @@ parser_firmware.add_argument('file', nargs='?', default=None)
 parser_firmware.set_defaults(func=firmware)
 
 
-if __name__ == '__main__':
+def main():
 	args = parser.parse_args()
 
 	if len([ x for x in (args.serial, args.name, args.ip) if x]) != 1:
@@ -128,3 +128,7 @@ if __name__ == '__main__':
 		args.func(moku, args)
 	finally:
 		moku.close()
+
+# Compatible with direct run and distutils binary packaging
+if __name__ == '__main__':
+	main()

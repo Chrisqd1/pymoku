@@ -9,5 +9,10 @@ setup(
 	packages=['pymoku',],
 	license='Commercial',
 	long_description=open('README.md').read(),
-)
 
+	entry_points={
+		'console_scripts' : [
+			'moku=pymoku.tools.moku:main'
+		]
+	}
+)
