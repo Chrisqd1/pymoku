@@ -5,7 +5,9 @@ from pymoku.instruments import *
 from pymoku._oscilloscope import _OSC_SCREEN_WIDTH, _OSC_ADC_SMPS, OSC_TRIG_NORMAL, OSC_TRIG_SINGLE, OSC_TRIG_AUTO
 from pymoku._siggen import SG_MOD_NONE, SG_MOD_AMPL, SG_MOD_PHASE, SG_MOD_FREQ, SG_MODSOURCE_INT, SG_MODSOURCE_ADC, SG_MODSOURCE_DAC, SG_WAVE_SINE, SG_WAVE_SQUARE, SG_WAVE_TRIANGLE, SG_WAVE_DC
 import conftest
-import numpy
+import numpy, math
+from scipy.optimize import curve_fit
+import matplotlib.pyplot as plt
 
 OSC_MAX_TRIGRATE = 8e3 #Approximately 8kHz
 OSC_AUTO_TRIGRATE = 20
@@ -32,6 +34,11 @@ def _is_falling(p1,p2):
 	else:
 		return False
 
+def _sinewave(t,ampl,ph,off,freq):
+	# Taken from commissioning/calibration.py
+	return off+ampl*numpy.sin(2*numpy.pi*freq*t+ph)
+	#return numpy.array([off+ampl*math.sin(2*math.pi*freq*x+ph) for x in t])
+
 @pytest.fixture(scope="module")
 def base_instrs(conn_mokus):
 	m1 = conn_mokus[0]
@@ -42,12 +49,12 @@ def base_instrs(conn_mokus):
 	i2 = Oscilloscope()
 
 	m1.attach_instrument(i1)
-	#m2.attach_instrument(i2)
+	m2.attach_instrument(i2)
 
 	i1.set_defaults()
-	#i2.set_defaults()
+	i2.set_defaults()
 	i1.commit()
-	#i2.commit()
+	i2.commit()
 
 	return (i1,i2)
 
@@ -451,7 +458,7 @@ class Test_Trigger:
 
 		print("State ID: %s, Trigstate: %s, Waveform ID: %s, Frame ID: %s" % (frame.stateid, frame.trigstate, frame.waveformid, frame.frameid))
 
-	@pytest.mark.parametrize("ch", [OSC_TRIG_CH1, OSC_TRIG_CH2, OSC_TRIG_DA1, OSC_TRIG_DA2]):
+	@pytest.mark.parametrize("ch", ([OSC_TRIG_CH1, OSC_TRIG_CH2, OSC_TRIG_DA1, OSC_TRIG_DA2]))
 	def test_trigger_channels(self, base_instrs, ch):
 		'''
 			Tests triggering on ADC and DAC channels
@@ -459,47 +466,86 @@ class Test_Trigger:
 		master = base_instrs[0]
 		slave = base_instrs[1]
 
-		# Set up the trigger source with a trigger level exceeding the peak voltage
-		trig_source_freq = 1e3
-		trig_source_vpp = 1.0
-		trig_source_offset = 0.0
-		trig_lvl = 0.0
+		trig_source_freq = [1e3, 1e3, 0.5e3, 2e3]
+		trig_source_vpp = [1.0, 0.5, 1.0, 0.5]
+		trig_source_offset = [0.0, 0.0, 0.0, 0.0]
+		trig_lvl = [0.0,0.0,0.0,0.0]
 
 		# Make sure signals coming from slave are not amplified or attenuated
 		master.set_frontend(1, fiftyr=True, atten=False, ac=False)
 		master.set_frontend(2, fiftyr=True, atten=False, ac=False)
 
 		# Generate a different output on Channel 2 so 
-		master.synth_sinewave(1, trig_source_vpp, trig_source_freq, trig_source_offset)
-		master.synth_sinewave(2, trig_source_vpp*0.5, trig_source_freq, 0.0)
-		slave.synth_sinewave(1, trig_source_vpp, trig_source_freq/2.0, 0.0)
-		slave.synth_sinewave(2, trig_source_vpp*0.5, trig_source_freq*2.0, 0.0)
-
-		master.set_trigger(ch, OSC_EDGE_RISING, 0.0)
-		master.set_timebase(-5/trig_source_freq, 5/trig_source_freq)
+		master.synth_sinewave(1, trig_source_vpp[0], trig_source_freq[0], trig_source_offset[0])
+		master.synth_sinewave(2, trig_source_vpp[1], trig_source_freq[1], trig_source_offset[1])
+		slave.synth_sinewave(1, trig_source_vpp[2], trig_source_freq[2], trig_source_offset[2])
+		slave.synth_sinewave(2, trig_source_vpp[3], trig_source_freq[3], trig_source_offset[3])
 
 		# Check the correct frame is being received
 		if ch == OSC_TRIG_CH1:
 			master.set_source(1, OSC_SOURCE_ADC)
+			idx = 2
 		elif ch == OSC_TRIG_DA1:
 			master.set_source(1, OSC_SOURCE_DAC)
+			idx = 0
 		elif ch == OSC_TRIG_CH2:
 			master.set_source(2, OSC_SOURCE_ADC)
+			idx = 3
 		elif ch == OSC_TRIG_DA2:
 			master.set_source(2, OSC_SOURCE_DAC)
+			idx = 1
 		else:
 			print "Invalid trigger channel"
 			assert False
 
+		master.set_trigger(ch, OSC_EDGE_RISING, 0.0, mode=OSC_TRIG_NORMAL)
+		master.set_timebase(-5/trig_source_freq[idx], 5/trig_source_freq[idx])
 		master.commit()
+		slave.commit()
 
 		# Get a frame on the appropriate channel and check it is as expected
 		frame = master.get_frame(timeout = 5)
 
 		# Check the frame
-		
+		if ch == OSC_TRIG_CH1 or ch == OSC_TRIG_DA1:
+			data = frame.ch1
+		elif ch == OSC_TRIG_CH2 or ch == OSC_TRIG_DA2:
+			data = frame.ch2
+		else:
+			print "Invalid trigger channel"
+			assert False
+
+		# Generate timesteps for the current timebase
+		# Step size
+		t1, t2 = master._get_timebase(master.decimation_rate, master.pretrigger, master.render_deci, master.offset)
+		ts = numpy.cumsum([(t2 - t1) / _OSC_SCREEN_WIDTH]*len(data))
+
+		# Crop the data if there are 'None' values at the end of the frame
+		try:
+			invalid_indx = data.index(None)
+			data = data[0:data.index(None)]
+			ts = ts[0:len(data)]
+		except ValueError:
+			pass
+
+		# Curve fit the frame data to ensure correct waveform has been triggered
+		bounds = ([0, 0, -0.2, trig_source_freq[idx]/2.0], [2.0, 2*math.pi, 0.2, 2.0*trig_source_freq[idx]])
+		p0 = [trig_source_vpp[idx], 0, 0, trig_source_freq[idx]]
+		params, cov = curve_fit(_sinewave, ts, data, p0 = p0, bounds=bounds)
+		ampl = params[0]
+		phase = params[1]
+		offset = params[2]
+		freq = params[3]
+
+		plt.plot(ts,data)
+		plt.show()
+
+		print("Vpp: %f/%f, Frequency: %f/%f, Offset: %f/%f" % (trig_source_vpp[idx], ampl*2.0, trig_source_freq[idx], freq, trig_source_offset[idx], offset))
+		#assert in_bounds(params[0])
 
 
+
+		assert False
 
 
 class Tes2_Timebase:
@@ -517,7 +563,7 @@ class Tes2_Source:
 		(1, 0.2),
 		(1, 0.5),
 		(2, 0.1),
-		(2, 1.0),
+		(2, 1.0), 
 		])
 	def test_dac(self, master, ch, amp):
 		i = master
