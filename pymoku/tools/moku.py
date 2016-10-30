@@ -2,8 +2,10 @@
 
 from argparse import ArgumentParser
 import os, os.path
+import requests
 
 from pymoku import *
+import pymoku.version
 
 parser = ArgumentParser()
 subparsers = parser.add_subparsers()
@@ -13,30 +15,44 @@ parser.add_argument('--serial', default=None, help="Serial Number of the Moku to
 parser.add_argument('--name', default=None, help="Name of the Moku to connect to")
 parser.add_argument('--ip', default=None, help="IP Address of the Moku to connect to")
 
+parser.add_argument('--server', help='Override update server', default='http://updates.liquidinstruments.com:8000')
+parser.add_argument('--username', help='Update Server username, if any', default=None)
+parser.add_argument('--password', help='Update Server password, if any', default=None)
+
+
+def _hgdep_pm_updates(server, username, password):
+	params = { 'build_id__gte' : pymoku.version.build }
+	r = requests.get(server + '/versions/update/pymoku/', params=params, auth=(username, password))
+	return r.json()
+
+def _hgdep_compat_configs(server, username, password):
+	params = { 'build_id' : pymoku.version.build }
+	r = requests.get(server + '/versions/compat/pymoku/', params=params, auth=(username, password))
+	return r.json()
+
 
 # View and download updates from a remote server
 def update(moku, args):
-	if args.action == 'list':
-		print('list updates')
-	elif args.action == 'load':
-		print('load updates')
+	d = _hgdep_pm_updates(args.server, args.username, args.password)
+	if not len(d):
+		print("No Pymoku updates available")
 	else:
-		exit(1)
+		build, date = max([(d['build_id'], d['release']) for d in builds.items()])
+		print("Pymoku can be updated from {} to {}, released on {}. Please refer to the Pymoku documentation for installation procedures.".format(versions.build_id, build, date))
 
 parser_updates = subparsers.add_parser('update')
-parser_updates.add_argument('action', help='list load')
 parser_updates.set_defaults(func=update)
 
 
 # View and load new instrument bitstreams
 def instrument(moku, args):
 	if args.action == 'list':
-		instrs = moku.list_bitstream(include_version=True)
+		instrs = moku.list_bitstreams(include_version=True)
 
 		if len(instrs):
 			print("The following instruments are available on your Moku:")
 			for i in instrs:
-				print('\t{}'.format(i))
+				print('\t{}-{}'.format(i[0], i[1][:8]))
 		else:
 			print("No instruments found on your Moku.")
 	elif args.action == 'load':
@@ -47,6 +63,13 @@ def instrument(moku, args):
 		fname = os.path.basename(args.file)
 		chk = moku.load_bitstream(args.file)
 		print("Successfully loaded new instrument {} version {:X}".format(fname, chk))
+	elif args.action == 'check_compat':
+		instrs = moku.list_bitstreams(include_version=True)
+		compat_configs = _hgdep_compat_configs(args.server, args.username, args.password)
+		compat_hashes = [ c['bitstream']['hash'] for c in compat_configs.values() ]
+
+		for i, v in instrs:
+			print("\t{}: {}".format(i, "COMPATIBLE" if v in compat_hashes else "INCOMPATIBLE"))
 	else:
 		exit(1)
 
