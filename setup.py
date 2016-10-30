@@ -1,9 +1,11 @@
 from distutils.core import setup
 import subprocess, os
 
+from pymoku import version
+
 setup(
 	name='pymoku',
-	version='0.1',
+	version=version.release,
 	author='Ben Nizette',
 	author_email='ben.nizette@liquidinstruments.com',
 	packages=['pymoku',],
