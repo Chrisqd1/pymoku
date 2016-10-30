@@ -532,6 +532,15 @@ class Moku(object):
 
 		return struct.unpack("<I", self._fs_receive_generic(3))[0]
 
+	def _fs_sha(self, mp, fname):
+		fname = mp + ":" + fname
+
+		pkt = bytearray([len(fname)])
+		pkt += fname.encode('ascii')
+		self._fs_send_generic(10, pkt)
+
+		return self._fs_receive_generic(10).decode('ascii')
+
 	def _fs_size(self, mp, fname):
 		fname = mp + ":" + fname
 
@@ -541,8 +550,10 @@ class Moku(object):
 
 		return struct.unpack("<Q", self._fs_receive_generic(4))[0]
 
-	def _fs_list(self, mp, calculate_checksums=False):
-		flags = 1 if calculate_checksums else 0
+	def _fs_list(self, mp, calculate_crc=False, calculate_sha=False):
+		flags = 0
+		flags |= int(calculate_crc)
+		flags |= int(calculate_sha) << 1
 
 		data = mp.encode('ascii')
 		data += bytearray([flags])
@@ -556,10 +567,17 @@ class Moku(object):
 		names = []
 
 		for i in range(n):
-			chk, bl, fl = struct.unpack("<IQB", reply[:13])
-			names.append((reply[13 : fl + 13].decode('ascii'), chk, bl))
+			if calculate_sha:
+				chk = reply[:64].decode('ascii')
+				reply = reply[64:]
+			else:
+				chk = struct.unpack("<I", reply[:4])
+				reply = reply[4:]
 
-			reply = reply[fl + 13 :]
+			bl, fl = struct.unpack("<QB", reply[:9])
+			reply = reply[9:]
+			names.append((reply[:fl].decode('ascii'), chk, bl))
+			reply = reply[fl:]
 
 		return names
 
@@ -626,11 +644,11 @@ class Moku(object):
 		fs = self._fs_list('b')
 		return list(zip(*fs))[0]
 
-	def list_bitstream(self, include_version=False):
-		fs = self._fs_list('b', calculate_checksums=include_version)
+	def list_bitstreams(self, include_version=True):
+		fs = self._fs_list('b', calculate_sha=include_version)
 
 		if include_version:
-			return [b.split('.')[0] + '-{:X}'.format(c) for b, c, s in fs if b.endswith('.bit')]
+			return [(b.split('.')[0], c) for b, c, s in fs if b.endswith('.bit')]
 		else:
 			return [b.split('.')[0] for b, c, s in fs if b.endswith('.bit')]
 
