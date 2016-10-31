@@ -19,6 +19,7 @@ def in_bounds(v, center, err):
 	return abs(v - center) <= abs(err)
 
 def _is_rising(p1,p2):
+	print p1, p2
 	if (p1 is None) or (p2 is None):
 		return True
 	if (p2-p1) > 0:
@@ -466,7 +467,7 @@ class Test_Trigger:
 		master = base_instrs[0]
 		slave = base_instrs[1]
 
-		trig_source_freq = [1e3, 1e3, 0.5e3, 2e3]
+		trig_source_freq = [1e3, 1e3, 0.75e3, 1.75e3]
 		trig_source_vpp = [1.0, 0.5, 1.0, 0.5]
 		trig_source_offset = [0.0, 0.0, 0.0, 0.0]
 		trig_lvl = [0.0,0.0,0.0,0.0]
@@ -541,19 +542,116 @@ class Test_Trigger:
 		plt.show()
 
 		print("Vpp: %f/%f, Frequency: %f/%f, Offset: %f/%f" % (trig_source_vpp[idx], ampl*2.0, trig_source_freq[idx], freq, trig_source_offset[idx], offset))
-		#assert in_bounds(params[0])
+		assert in_bounds(ampl*2.0, trig_source_vpp[idx], trig_source_vpp[idx]*0.1)
+		assert in_bounds(freq, trig_source_freq[idx], trig_source_freq[idx]*0.1)
+		assert in_bounds(offset, trig_source_offset[idx], max(0.05, trig_source_offset[idx]*0.1))
 
-
+		# Sample number of trigger point given a symmetric timebase
+		half_idx = (_OSC_SCREEN_WIDTH / 2) - 1
+		# Assert the trigger point is the correct position
+		assert _is_rising(data[half_idx-1],data[half_idx])
 
 		assert False
 
 
-class Tes2_Timebase:
+class Test_Timebase:
 	'''
 		Ensure the timebase is correct
 	'''
+	def zero_crossings(self, a):
+		return numpy.where(numpy.diff(numpy.sign(a)))[0]
 
+	
+	# Test frames from both channels
+	# TODO: Need to more thoroughly test negative timebases as some of these are currently broken  # [-3e-3, -1e-3]
+	@pytest.mark.parametrize("timebase", [[-10e-6, -5e-6], [-2, -1], [-10e-6, 10e-6], [-2e-3,1e-3],[-1,2], [0,1],[-3e-3,0],[0,2e-3], [1e-6, 2e-3]])
+	def test_timebase_span(self, base_instrs, timebase):
 
+		master = base_instrs[0]
+		slave = base_instrs[1]
+		span = timebase[1]-timebase[0]
+		f1 = 10.0/span
+		f2 = 5.0/span
+
+		master.set_source(1, OSC_SOURCE_DAC)
+		master.set_source(2, OSC_SOURCE_DAC)
+		master.set_trigger(OSC_TRIG_DA1, OSC_EDGE_RISING, 0.0, mode=OSC_TRIG_NORMAL)
+		master.synth_sinewave(1, 1.0, f1, 0.0)
+		master.synth_sinewave(2, 1.0, f2, 0.0)
+		master.set_timebase(timebase[0],timebase[1])
+		master.commit()
+
+		startt, endt = master._get_timebase(master.decimation_rate, master.pretrigger, master.render_deci, master.offset)
+		ts = numpy.cumsum([(endt - startt)/_OSC_SCREEN_WIDTH] * _OSC_SCREEN_WIDTH)
+
+		frame = master.get_frame(timeout = 20)
+		data1 = frame.ch1
+		data2 = frame.ch2
+
+		# Clean up the frames
+		if None in data1:
+			data1 = data1[0:data1.index(None)]
+		if None in data2:
+			data2 = data2[0:data2.index(None)]
+
+		ts1 = ts[0:len(data1)]
+		ts2 = ts[0:len(data2)]
+		# Assuming a timebase, do a curve fit on both frames and check the frequency is the minimum
+		params1, cov1 = curve_fit(_sinewave, ts1, data1, p0 = [1.0, 0, 0, f1])
+		params2, cov2 = curve_fit(_sinewave, ts2, data2, p0 = [1.0, 0, 0, f2])
+
+		print("Span: %.10f/%.10f, Freq1: %f/%f, Freq: %f/%f" % (span, endt-startt, f1, params1[3], f2, params2[3]))
+
+		#plt.plot(range(1024), frame.ch1)
+		#plt.plot(range(1024), frame.ch2)
+		#plt.show()
+
+		assert params1[3] > (f1*0.98)
+		assert params2[3] > (f2*0.98)
+
+	@pytest.mark.parametrize("ch, pretrigger_time",
+		itertools.product(
+			[1,2],
+			[20e-6, 1e-6, 20e-3, 1e-3])) # TODO: 1 second
+	def test_pretrigger(self, base_instrs, ch, pretrigger_time):
+
+		master = base_instrs[0]
+		slave = base_instrs[0]
+
+		# Generate a pulse of some small width and period < frame length
+		master.synth_squarewave(ch, 1.0, 1/(3*pretrigger_time), 0, 0.1, 0, 0)
+		if ch == 1:
+			master.set_trigger(OSC_TRIG_DA1, OSC_EDGE_RISING, 0, mode=OSC_TRIG_NORMAL)
+		else:
+			master.set_trigger(OSC_TRIG_DA2, OSC_EDGE_RISING, 0, mode=OSC_TRIG_NORMAL)
+		master.set_source(ch, OSC_SOURCE_DAC)
+		master.set_timebase(-pretrigger_time, 3*pretrigger_time)
+		master.commit()
+
+		# Compute the index of which the rising edge should occur
+		if ch == 1:
+			frame = master.get_frame(timeout = 20).ch1
+		else:
+			frame = master.get_frame(timeout = 20).ch2
+		if None in frame:
+			frame = frame[0:frame.index(None)]
+
+		# Get index of the zero crossing
+		zc = self.zero_crossings(frame)
+
+		print zc
+		plt.plot(range(len(frame)), frame)
+		plt.show()
+
+		# Convert indices to timesteps
+		startt, endt = master._get_timebase(master.decimation_rate, master.pretrigger, master.render_deci, master.offset)
+		ts = (endt - startt) / _OSC_SCREEN_WIDTH
+		pretrig_time = zc[0] * ts
+
+		print("Pretrigger (s): %f/%f" % (pretrigger_time, pretrig_time))
+
+		# Within two samples of desired pretrigger time
+		assert in_bounds(pretrig_time, pretrigger_time, max(2*ts, 0.05*pretrigger_time))
 
 class Tes2_Source:
 	'''

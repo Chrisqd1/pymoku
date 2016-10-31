@@ -249,7 +249,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 
 	def _optimal_decimation(self, t1, t2):
 		# Based on mercury_ipad/LISettings::OSCalculateOptimalADCDecimation
-		ts = abs(t1 - t2)
+		ts = abs(t2-t1)
 		return math.ceil(_OSC_ADC_SMPS * ts / _OSC_BUFLEN)
 
 	def _buffer_offset(self, t1, t2, decimation):
