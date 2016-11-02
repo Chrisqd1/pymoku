@@ -251,7 +251,7 @@ class Test_Trigger:
 
 		# Set up the source signal to test triggering on
 		trig_ch = 1
-		source_freq = 100 #Hz
+		source_freq = 100.0 #Hz
 		source_vpp = 1.0
 		source_offset = 0.0
 		master.set_source(trig_ch, OSC_SOURCE_DAC)
@@ -267,7 +267,7 @@ class Test_Trigger:
 			assert False
 
 		# Set a symmetric timebase of ~10 cycles
-		master.set_timebase(-5/source_freq,5/source_freq)
+		master.set_timebase(-5.0/source_freq,5.0/source_freq)
 
 		# Sample number of trigger point given a symmetric timebase
 		half_idx = (_OSC_SCREEN_WIDTH / 2) - 1
@@ -612,14 +612,14 @@ class Test_Timebase:
 	@pytest.mark.parametrize("ch, pretrigger_time",
 		itertools.product(
 			[1,2],
-			[20e-6, 1e-6, 20e-3, 1e-3])) # TODO: 1 second
+			[20e-6, 1e-6, 20e-3, 1e-3, 100e-3, 1, 3]))
 	def test_pretrigger(self, base_instrs, ch, pretrigger_time):
 
 		master = base_instrs[0]
-		slave = base_instrs[0]
+		#slave = base_instrs[0]
 
 		# Generate a pulse of some small width and period < frame length
-		master.synth_squarewave(ch, 1.0, 1/(3*pretrigger_time), 0, 0.1, 0, 0)
+		master.synth_sinewave(ch, 1.0, 1.0/(3*pretrigger_time))
 		if ch == 1:
 			master.set_trigger(OSC_TRIG_DA1, OSC_EDGE_RISING, 0, mode=OSC_TRIG_NORMAL)
 		else:
@@ -638,10 +638,8 @@ class Test_Timebase:
 
 		# Get index of the zero crossing
 		zc = self.zero_crossings(frame)
-
-		print zc
-		plt.plot(range(len(frame)), frame)
-		plt.show()
+		#plt.plot(range(len(frame)), frame)
+		#plt.show()
 
 		# Convert indices to timesteps
 		startt, endt = master._get_timebase(master.decimation_rate, master.pretrigger, master.render_deci, master.offset)
@@ -650,8 +648,51 @@ class Test_Timebase:
 
 		print("Pretrigger (s): %f/%f" % (pretrigger_time, pretrig_time))
 
-		# Within two samples of desired pretrigger time
+		# Within two samples or 5% of desired pretrigger time
 		assert in_bounds(pretrig_time, pretrigger_time, max(2*ts, 0.05*pretrigger_time))
+
+	@pytest.mark.parametrize("ch, posttrigger_time",
+		itertools.product(
+			[1,2],
+			[20e-6, 1e-6, 20e-3, 1e-3, 100e-3, 1, 3]))
+	def test_posttrigger(self, base_instrs, ch, posttrigger_time):
+
+		master = base_instrs[0]
+
+		source_freq = 1.0/(2*posttrigger_time)
+		print "Source Freq ", source_freq
+		master.synth_squarewave(ch, 1.0, source_freq, duty=0.1)
+		if ch == 1:
+			master.set_trigger(OSC_TRIG_DA1, OSC_EDGE_RISING, 0, mode=OSC_TRIG_NORMAL)
+		else:
+			master.set_trigger(OSC_TRIG_DA2, OSC_EDGE_RISING, 0, mode=OSC_TRIG_NORMAL)
+		master.set_source(ch, OSC_SOURCE_DAC)
+		master.set_timebase(posttrigger_time, 5*posttrigger_time)
+		master.commit()
+
+		if ch == 1:
+			frame = master.get_frame().ch1
+		else:
+			frame = master.get_frame().ch2
+		if None in frame:
+			frame = frame[0:frame.index(None)]
+
+		# Get index of the zero crossing
+		zc = self.zero_crossings(frame)
+		#plt.plot(range(len(frame)), frame)
+		#plt.show()
+
+		# Convert indices to timesteps
+		startt, endt = master._get_timebase(master.decimation_rate, master.pretrigger, master.render_deci, master.offset)
+		ts = (endt - startt) / _OSC_SCREEN_WIDTH
+
+		source_period = 1.0/source_freq
+		period_tolerance = max(2*ts,source_period*0.05)
+		measured_period = (zc[0] * ts) + posttrigger_time
+		measured_period_error = abs(measured_period-source_period)/source_period
+
+		print("ZC: %f, Sum: %f, Period: %f, Tolerance: %f, Error: %f" % ((zc[0] * ts), measured_period, source_period, period_tolerance, measured_period_error))
+		assert in_bounds(measured_period, source_period, period_tolerance)
 
 class Tes2_Source:
 	'''
