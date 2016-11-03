@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from argparse import ArgumentParser
-import os, os.path
+import os, os.path, shutil, tempfile
 import requests
 
 from pymoku import *
@@ -29,6 +29,20 @@ def _hgdep_compat_configs(server, username, password):
 	params = { 'build_id' : pymoku.version.build }
 	r = requests.get(server + '/versions/compat/pymoku/', params=params, auth=(username, password))
 	return r.json()
+
+def _download_request(url, local_dir, local_fname=None, **params):
+	import rfc6266
+	request = requests.get(url, params=params)
+
+	fname = local_fname or rfc6266.parse_requests_response(request).filename_sanitized
+	fname = os.path.join(local_dir, fname)
+
+	with open(fname, 'wb') as f:
+		for chunk in request.iter_content(chunk=1024):
+			if chunk:
+				f.write(chunk)
+
+	return fname
 
 
 # View and download updates from a remote server
@@ -70,6 +84,22 @@ def instrument(moku, args):
 
 		for i, v in instrs:
 			print("\t{}: {}".format(i, "COMPATIBLE" if v in compat_hashes else "INCOMPATIBLE"))
+	elif args.action == 'update':
+		compat_configs = _hgdep_compat_configs(args.server, args.username, args.password)
+		types = set(( c['bitstream']['type'] for c in compat_configs.values()))
+		tmpdir = tempfile.mkdtemp()
+
+		for t in types:
+			newest = max((c['bitstream'] for c in compat_configs if c['bitstream']['type'] == t), key=lambda b: b['build_id'])
+			fpath = _download_request(server + '/versions/artefact/' + newest['hash'])
+			fname = os.path.basename(fpath)
+			moku.load_bitstream(fpath)
+
+			print("Loaded {:s}-t{:s}".format(fname, newest['hash'][:8]))
+
+		shutil.rmtree(tmpdir)
+
+
 	else:
 		exit(1)
 
