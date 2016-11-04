@@ -5,6 +5,7 @@ from . import _oscilloscope
 from . import _siggen
 from . import _phasemeter
 from . import _specan
+from . import _networkanalyser
 from . import _frame_instrument
 
 ''' Preferred import point. Aggregates the separate instruments and helper classes
@@ -22,6 +23,7 @@ Oscilloscope = _oscilloscope.Oscilloscope
 SignalGenerator = _siggen.SignalGenerator
 PhaseMeter = _phasemeter.PhaseMeter
 SpecAn = _specan.SpecAn
+NetAn = _networkanalyser.NetAn
 
 # Re-export all constants from Oscilloscope that start with OSC_
 for attr, val in _oscilloscope.__dict__.items():
@@ -43,9 +45,15 @@ for attr, val in _phasemeter.__dict__.items():
 	if attr.startswith('PM_'):
 		setattr(_this_module, attr, val)
 
+# Re-export all constants from Network Analyser that start with PM_
+for attr, val in _phasemeter.__dict__.items():
+	if attr.startswith('NA_'):
+		setattr(_this_module, attr, val)
+
 id_table = {
 	0: None,
 	1: Oscilloscope,
 	3: PhaseMeter,
 	4: SignalGenerator,
+	9: NetAn,
 }

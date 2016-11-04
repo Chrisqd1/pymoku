@@ -23,16 +23,16 @@ REG_NA_SWEEP_AMP_MULT		= 73
 _NA_ADC_SMPS		= 500e6
 _NA_BUFLEN			= 2**14
 _NA_SCREEN_WIDTH	= 1024
-_NA_SCREEN_STEPS	= _SA_SCREEN_WIDTH - 1
+_NA_SCREEN_STEPS	= _NA_SCREEN_WIDTH - 1
 _NA_FPS				= 2
-_NA_FREQ_SCALE		= 2**48 / _SA_ADC_SMPS
+_NA_FREQ_SCALE		= 2**48 / _NA_ADC_SMPS
 _NA_INT_VOLTS_SCALE = (1.437*pow(2.0,-8.0))
 
 
 class NetAnFrame(_frame_instrument.DataFrame):
 	"""
 	Object representing a frame of data in units of power vs frequency. This is the native output format of
-	the :any:`SpecAn` instrument and similar.
+	the :any:`NetAn` instrument and similar.
 
 	This object should not be instantiated directly, but will be returned by a supporting *get_frame*
 	implementation.
@@ -65,7 +65,7 @@ class NetAnFrame(_frame_instrument.DataFrame):
 		#: The frequency range associated with both channels
 		self.fs = []
 
-		#: Obtain all data scaling factors relevant to current SpecAn configuration
+		#: Obtain all data scaling factors relevant to current NetAn configuration
 		self.scales = scales
 
 	def __json__(self):
@@ -78,7 +78,7 @@ class NetAnFrame(_frame_instrument.DataFrame):
 	def process_complete(self):
 
 		if self.stateid not in self.scales:
-			log.error("Can't render specan frame, haven't saved calibration data for state %d", self.stateid)
+			log.error("Can't render NetAn frame, haven't saved calibration data for state %d", self.stateid)
 			return
 
 		# Get scaling/correction factors based on current instrument configuration
@@ -92,7 +92,7 @@ class NetAnFrame(_frame_instrument.DataFrame):
 
 		try:
 			# Find the starting index for the valid frame data
-			# SpecAn generally gives more than we ask for due to integer decimations
+			# NetAn generally gives more than we ask for due to integer decimations
 			start_index = bisect_right(fs,f1)
 
 			# Set the frequency range of valid data in the current frame (same for both channels)
@@ -106,7 +106,7 @@ class NetAnFrame(_frame_instrument.DataFrame):
 			dat = struct.unpack('<' + 'i' * smpls, self.raw1)
 			dat = [ x if x != -0x80000000 else None for x in dat ]
 
-			# SpecAn data is backwards because $(EXPLETIVE), also remove zeros for the sake of common
+			# NetAn data is backwards because $(EXPLETIVE), also remove zeros for the sake of common
 			# display on a log axis.
 			self.ch1_bits = [ max(float(x), 1) if x is not None else None for x in reversed(dat[:_SA_SCREEN_WIDTH]) ]
 
@@ -130,7 +130,7 @@ class NetAnFrame(_frame_instrument.DataFrame):
 
 		except (IndexError, TypeError, struct.error):
 			# If the data is bollocksed, force a reinitialisation on next packet
-			log.exception("SpecAn packet")
+			log.exception("NetAn packet")
 			self.frameid = None
 			self.complete = False
 
@@ -162,7 +162,7 @@ class NetAnFrame(_frame_instrument.DataFrame):
 
 	def _get_xaxis_fmt(self,x,pos):
 		# This function returns a format string for the x-axis ticks and x-coordinates along the frequency scale
-		# Use this to set an x-axis format during plotting of SpecAn frames
+		# Use this to set an x-axis format during plotting of NetAn frames
 
 		if self.stateid not in self.scales:
 			log.error("Can't get x-axis format, haven't saved calibration data for state %d", self.stateid)
@@ -227,7 +227,7 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		Frame Rate, range 1 - 30.
 
 	.. attribute:: type
-		:annotation: = "specan"
+		:annotation: = "NetAn"
 
 		Name of this instrument.
 
@@ -235,28 +235,28 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 	def __init__(self):
 		"""Create a new Spectrum Analyser instrument, ready to be attached to a Moku."""
 		super(NetAn, self).__init__()
-		self._register_accessors(_sa_reg_handlers)
+		self._register_accessors(_na_reg_handlers)
 
 		self.scales = {}
 		self.set_frame_class(NetAnFrame, scales=self.scales)
 
 		self.id = 9
-		self.type = "netan"
+		self.type = "NetAn"
 		self.calibration = None
 
-		self.set_dbmscale(True)
+		# self.set_dbmscale(True)
 
 
 	def commit(self):
 		# Compute remaining control register values based on window, rbw and fspan
-		self._setup_controls()
+		# self._setup_controls()
 
 		# Push the controls through to the device
-		super(SpecAn, self).commit()
+		super(NetAn, self).commit()
 
 		# Update the scaling factors for processing of incoming frames
 		# stateid allows us to track which scales correspond to which register state
-		self.scales[self._stateid] = self._calculate_scales()
+		# self.scales[self._stateid] = self._calculate_scales()
 
 		# TODO: Trim scales dictionary, getting rid of old ids
 
@@ -264,17 +264,17 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 	commit.__doc__ = MokuInstrument.commit.__doc__
 
 	def set_defaults(self):
-		super(LockInAmp, self).set_defaults()
+		super(NetAn, self).set_defaults()
 
 		self.calibration = None
 
-		self.set_frontend(0, True, True, False):
-		self.set_frontend(1, True, True, False):
+		self.set_frontend(0, True, True, False)
+		self.set_frontend(1, True, True, False)
 		self.sweep_freq_min = 1
 		self.sweep_freq_delta = 1
 		self.log_en = True
 		self.hold_off_time = 125
-		self.sweep_length = 512
+		self.sweep_length = 126
 		self.sweep_amp_bitshift = 0
 		self.sweep_amp_mult = 1
 
