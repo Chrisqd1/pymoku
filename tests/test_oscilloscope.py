@@ -40,6 +40,18 @@ def _sinewave(t,ampl,ph,off,freq):
 	return off+ampl*numpy.sin(2*numpy.pi*freq*t+ph)
 	#return numpy.array([off+ampl*math.sin(2*math.pi*freq*x+ph) for x in t])
 
+# Helper function to compute the timestep per sample of a frame
+def _get_frame_timestep(moku):
+	startt, endt = moku._get_timebase(moku.decimation_rate, moku.pretrigger, moku.render_deci, moku.offset)
+	ts = (endt - startt) / _OSC_SCREEN_WIDTH
+	return ts
+
+def _crop_frame_of_nones(frame):
+	if None in frame:
+		return frame[0:frame.index(None)]
+	return frame
+
+
 @pytest.fixture(scope="module")
 def base_instrs(conn_mokus):
 	m1 = conn_mokus[0]
@@ -588,11 +600,8 @@ class Test_Timebase:
 		data1 = frame.ch1
 		data2 = frame.ch2
 
-		# Clean up the frames
-		if None in data1:
-			data1 = data1[0:data1.index(None)]
-		if None in data2:
-			data2 = data2[0:data2.index(None)]
+		data1 = _crop_frame_of_nones(data1)
+		data2 = _crop_frame_of_nones(data2)
 
 		ts1 = ts[0:len(data1)]
 		ts2 = ts[0:len(data2)]
@@ -642,8 +651,7 @@ class Test_Timebase:
 		#plt.show()
 
 		# Convert indices to timesteps
-		startt, endt = master._get_timebase(master.decimation_rate, master.pretrigger, master.render_deci, master.offset)
-		ts = (endt - startt) / _OSC_SCREEN_WIDTH
+		ts = _get_frame_timestep(master)
 		pretrig_time = zc[0] * ts
 
 		print("Pretrigger (s): %f/%f" % (pretrigger_time, pretrig_time))
@@ -674,8 +682,7 @@ class Test_Timebase:
 			frame = master.get_frame().ch1
 		else:
 			frame = master.get_frame().ch2
-		if None in frame:
-			frame = frame[0:frame.index(None)]
+		frame = _crop_frame_of_nones(frame)
 
 		# Get index of the zero crossing
 		zc = self.zero_crossings(frame)
@@ -683,8 +690,7 @@ class Test_Timebase:
 		#plt.show()
 
 		# Convert indices to timesteps
-		startt, endt = master._get_timebase(master.decimation_rate, master.pretrigger, master.render_deci, master.offset)
-		ts = (endt - startt) / _OSC_SCREEN_WIDTH
+		ts = _get_frame_timestep(master)
 
 		source_period = 1.0/source_freq
 		period_tolerance = max(2*ts,source_period*0.05)
@@ -693,6 +699,41 @@ class Test_Timebase:
 
 		print("ZC: %f, Sum: %f, Period: %f, Tolerance: %f, Error: %f" % ((zc[0] * ts), measured_period, source_period, period_tolerance, measured_period_error))
 		assert in_bounds(measured_period, source_period, period_tolerance)
+
+class Test_Frontend:
+
+	@pytest.mark.parametrize("ch, fiftyr, atten",
+		itertools.product(
+			[1,2],
+			[True, False],
+			[True, False]))
+	def test_input_impedance(self, base_instrs, ch, fiftyr, atten):
+		master = base_instrs[0]
+
+		source_amp = 1.0
+		source_freq = 100.0
+		source_offset = 0.0
+
+		# Put in different waveforms and test they look correct in a frame
+		master.set_frontend(ch, fiftyr=fiftyr, atten=atten, ac=False)
+		master.set_source(ch, OSC_SOURCE_ADC)
+		master.synth_sinewave(ch, source_amp, source_freq, source_offset)
+		master.commit()
+
+		if ch == 1:
+			frame = master.get_frame(timeout = 5).ch1
+		if ch == 2:
+			frame = master.get_frame(timeout = 5).ch2
+		frame = _crop_frame_of_nones(frame)
+
+		# Fit 
+		ts = numpy.cumsum([_get_frame_timestep(master)]*len(frame))
+
+		p0 = [source_amp, 0, 0, source_freq]
+		params, cov = curve_fit(_sinewave, ts, frame, p0=p0)
+		print params
+		assert False
+
 
 class Tes2_Source:
 	'''
