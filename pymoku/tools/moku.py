@@ -8,7 +8,7 @@ from pymoku import *
 import pymoku.version
 
 parser = ArgumentParser()
-subparsers = parser.add_subparsers()
+subparsers = parser.add_subparsers(title="action", description="Action to take")
 
 # Global arguments
 parser.add_argument('--serial', default=None, help="Serial Number of the Moku to connect to")
@@ -54,7 +54,7 @@ def update(moku, args):
 		build, date = max([(d['build_id'], d['release']) for d in builds.items()])
 		print("Pymoku can be updated from {} to {}, released on {}. Please refer to the Pymoku documentation for installation procedures.".format(versions.build_id, build, date))
 
-parser_updates = subparsers.add_parser('update')
+parser_updates = subparsers.add_parser('update', help="Check for updates for pymoku itself.")
 parser_updates.set_defaults(func=update)
 
 
@@ -83,7 +83,7 @@ def instrument(moku, args):
 		compat_hashes = [ c['bitstream']['hash'] for c in compat_configs.values() ]
 
 		for i, v in instrs:
-			print("\t{}: {}".format(i, "COMPATIBLE" if v in compat_hashes else "INCOMPATIBLE"))
+			print("\t{:<20}{}".format(i, "COMPATIBLE" if v in compat_hashes else "INCOMPATIBLE"))
 	elif args.action == 'update':
 		compat_configs = _hgdep_compat_configs(args.server, args.username, args.password)
 		types = set(( c['bitstream']['type'] for c in compat_configs.values()))
@@ -91,7 +91,7 @@ def instrument(moku, args):
 
 		for t in types:
 			newest = max((c['bitstream'] for c in compat_configs if c['bitstream']['type'] == t), key=lambda b: b['build_id'])
-			fpath = _download_request(server + '/versions/artefact/' + newest['hash'])
+			fpath = _download_request(server + '/versions/artefact/' + newest['hash'], tmpdir)
 			fname = os.path.basename(fpath)
 			moku.load_bitstream(fpath)
 
@@ -103,9 +103,9 @@ def instrument(moku, args):
 	else:
 		exit(1)
 
-parser_instruments = subparsers.add_parser('instrument')
-parser_instruments.add_argument('action', help='list load')
-parser_instruments.add_argument('file', nargs='?', default=None)
+parser_instruments = subparsers.add_parser('instrument', help="Check and update instruments on the Moku.")
+parser_instruments.add_argument('action', help='Action to take', choices=['list', 'load', 'check_compat', 'update'])
+parser_instruments.add_argument('file', nargs='?', default=None, help="Path to local instrument file, if any")
 parser_instruments.set_defaults(func=instrument)
 
 
@@ -137,9 +137,9 @@ def package(moku, args):
 	else:
 		exit(1)
 
-parser_package = subparsers.add_parser('package')
-parser_package.add_argument('action', help='list load')
-parser_package.add_argument('file', nargs='?', default=None)
+parser_package = subparsers.add_parser('package', help="Check and update special feature packages on the Moku.")
+parser_package.add_argument('action', help='Action to perform', choices=['list', 'load'])
+parser_package.add_argument('file', nargs='?', default=None, help="Path to local package file, if any")
 parser_package.set_defaults(func=package)
 
 
@@ -154,12 +154,34 @@ def firmware(moku, args):
 
 		moku.load_firmware(args.file)
 		print("Successfully started firmware update. Your Moku will shut down automatically when complete.")
+	elif args.action == 'update':
+		build = int(moku.get_version().split('.')[-1])
+		compat_configs = _hgdep_compat_configs(args.server, args.username, args.password)
+		fws = [ c['firmware'] for c in compat_configs ]
+		newwest = max(fws, key=lambda f: int(f['build_id']))
+
+		if int(newwest['build_id']) > build:
+			print("New Firmware available, build {build_id:d}.".format(**newwest))
+		else:
+			print("No new Firmware available")
+			return
+
+		print("Downloading...")
+		tempdir = tempfile.mkdtemp()
+		fpath = _download_request(server + '/versions/artefact/' + newest['hash'], tempdir)
+		fname = os.path.basename(fpath)
+		print("Installing...")
+		moku.load_firmware(fpath)
+		print("Your Moku will shut down automatically when complete.")
+
+		shutil.rmtree(tempdir)
+
 	else:
 		exit(1)
 
-parser_firmware = subparsers.add_parser('firmware')
-parser_firmware.add_argument('action', help='version load')
-parser_firmware.add_argument('file', nargs='?', default=None)
+parser_firmware = subparsers.add_parser('firmware', help="Check and update new firmware for your Moku.")
+parser_firmware.add_argument('action', help='Action to perform', choices=['version', 'load', 'update'])
+parser_firmware.add_argument('file', nargs='?', default=None, help="Path to local firmware file, if any")
 parser_firmware.set_defaults(func=firmware)
 
 
