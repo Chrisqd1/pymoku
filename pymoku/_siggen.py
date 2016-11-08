@@ -340,11 +340,11 @@ _siggen_reg_handlers = {
 	'out2_phase':		(REG_SG_PHASE2,		to_reg_unsigned(0, 32, xform=lambda p:p / _SG_PHASESCALE),
 											from_reg_unsigned(0, 32, xform=lambda p:p * _SG_PHASESCALE)),
 
-	'out1_amplitude':	(REG_SG_AMP1,		to_reg_signed(0, 16, xform=lambda p:p),
-											from_reg_signed(0, 16, xform=lambda p:p)),
+	'out1_amplitude':	(REG_SG_AMP1,		to_reg_unsigned(0, 16, xform=lambda p:p),
+											from_reg_unsigned(0, 16, xform=lambda p:p)),
 
-	'out2_amplitude':	(REG_SG_AMP2,		to_reg_signed(0, 16, xform=lambda p:p),
-											from_reg_signed(0, 16, xform=lambda p:p)),
+	'out2_amplitude':	(REG_SG_AMP2,		to_reg_unsigned(0, 16, xform=lambda p:p),
+											from_reg_unsigned(0, 16, xform=lambda p:p)),
 
 	'mod1_frequency':	((REG_SG_MODF1_H, REG_SG_MODF1_L),
 											lambda f, old: ((old[0] & 0x0000FFFF) | (_usgn(f/_SG_FREQSCALE, 48) >> 16) & 0xFFFF0000, _usgn(f/_SG_FREQSCALE, 48) & 0xFFFFFFFF),

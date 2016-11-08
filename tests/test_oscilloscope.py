@@ -70,6 +70,7 @@ def base_instrs(conn_mokus):
 	i2.commit()
 
 	return (i1,i2)
+	#return (i1, None)
 
 class Tes2_Siggen:
 	'''
@@ -702,37 +703,64 @@ class Test_Timebase:
 
 class Test_Frontend:
 
-	@pytest.mark.parametrize("ch, fiftyr, atten",
+	@pytest.mark.parametrize("ch, fiftyr, amp, freq, offset",
 		itertools.product(
 			[1,2],
 			[True, False],
-			[True, False]))
-	def test_input_impedance(self, base_instrs, ch, fiftyr, atten):
+			[0.2, 0.5, 1.0, 1.5],
+			[100, 1e3, 20e3, 1e6],
+			[0.0, 0.2]
+			))
+	def test_input_impedance(self, base_instrs, ch, fiftyr, amp, freq, offset):
 		master = base_instrs[0]
+		slave = base_instrs[1]
 
-		source_amp = 1.0
-		source_freq = 100.0
-		source_offset = 0.0
+		source_amp = amp
+		source_freq = freq
+		source_offset = offset
+		tolerance_percent = 0.05
 
 		# Put in different waveforms and test they look correct in a frame
-		master.set_frontend(ch, fiftyr=fiftyr, atten=atten, ac=False)
+		master.set_frontend(ch, fiftyr=fiftyr, atten=True, ac=False)
 		master.set_source(ch, OSC_SOURCE_ADC)
-		master.synth_sinewave(ch, source_amp, source_freq, source_offset)
+
+		slave.synth_sinewave(ch, source_amp, source_freq, source_offset)
+		master.set_timebase(0,10.0/source_freq)
+		slave.commit()
 		master.commit()
 
+		time.sleep(10.0/source_freq) # Let a new frame come in
 		if ch == 1:
+			master.get_frame()
 			frame = master.get_frame(timeout = 5).ch1
 		if ch == 2:
+			master.get_frame()
 			frame = master.get_frame(timeout = 5).ch2
 		frame = _crop_frame_of_nones(frame)
 
-		# Fit 
+		# Fit a curve to the input waveform
 		ts = numpy.cumsum([_get_frame_timestep(master)]*len(frame))
-
-		p0 = [source_amp, 0, 0, source_freq]
+		p0 = [source_amp, 0, source_offset, source_freq]
 		params, cov = curve_fit(_sinewave, ts, frame, p0=p0)
+
 		print params
-		assert False
+		measured_amp = abs(params[0]*2.0)
+		measured_offset = params[2]
+
+		if fiftyr:
+			#if not in_bounds(measured_amp, source_amp, source_amp*tolerance_percent):
+			#	plt.plot(ts, frame)
+			#	plt.show()
+			assert in_bounds(measured_amp, source_amp, source_amp*tolerance_percent)
+			# TODO: Check the offset is within tolerance
+			# assert in_bounds(measured_offset, source_offset, source_offset*tolerance_percent)
+		else:
+			#if not in_bounds(measured_amp, source_amp*2.0, source_amp*2.0*tolerance_percent):
+			#	plt.plot(ts,frame)
+			#	plt.show()
+			assert in_bounds(measured_amp, source_amp*2.0, source_amp*2.0*tolerance_percent)
+			# TODO: Check the offset is within tolerance
+			# assert in_bounds(measured_offset, source_offset, source_offset*tolerance_percent)
 
 
 class Tes2_Source:

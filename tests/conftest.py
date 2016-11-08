@@ -23,7 +23,7 @@ def conn_mokus(request):
 	request.addfinalizer(m1.close)
 	request.addfinalizer(m2.close)
 	return (m1, m2)
-	return (m1, None)
+	#return (m1, None)
 
 '''
 @pytest.fixture(scope="function")
