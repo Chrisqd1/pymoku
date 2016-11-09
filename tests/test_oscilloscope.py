@@ -7,15 +7,27 @@ from pymoku._siggen import SG_MOD_NONE, SG_MOD_AMPL, SG_MOD_PHASE, SG_MOD_FREQ, 
 import conftest
 import numpy, math
 from scipy.optimize import curve_fit
+import scipy.signal
 import matplotlib.pyplot as plt
 
 OSC_MAX_TRIGRATE = 8e3 #Approximately 8kHz
 OSC_AUTO_TRIGRATE = 20
 
+# WAVEFORM TOLERANCES
+# _P - Percentage
+# _R - Relative
+ADC_OFF_TOL_R = 0.100 # Volts
+ADC_AMP_TOL_P = 0.1 # 10%
+DAC_DUTY_TOL_R = 0.05 # 5% Duty cycle error
+
+AC_COUPLE_CORNER_FREQ_1MO = 10*50
+AC_COUPLE_CORNER_FREQ_50O = 5e6
+
 # Assertion helpers
 def in_bounds(v, center, err):
 	if (v is None) or (center is None):
 		return True
+	print abs(v-center)
 	return abs(v - center) <= abs(err)
 
 def _is_rising(p1,p2):
@@ -40,6 +52,12 @@ def _sinewave(t,ampl,ph,off,freq):
 	return off+ampl*numpy.sin(2*numpy.pi*freq*t+ph)
 	#return numpy.array([off+ampl*math.sin(2*math.pi*freq*x+ph) for x in t])
 
+def _sawtooth(t, ampl, phase, offset, freq, width):
+	return scipy.signal.sawtooth(freq*t + phase/freq, width=width)*ampl + offset
+
+def _squarewave(t, ampl, phase, offset, freq, duty):
+	return scipy.signal.square(freq*t + phase/freq, duty=duty)*ampl + offset
+
 # Helper function to compute the timestep per sample of a frame
 def _get_frame_timestep(moku):
 	startt, endt = moku._get_timebase(moku.decimation_rate, moku.pretrigger, moku.render_deci, moku.offset)
@@ -52,7 +70,7 @@ def _crop_frame_of_nones(frame):
 	return frame
 
 
-@pytest.fixture(scope="module")
+@pytest.fixture(scope="function")
 def base_instrs(conn_mokus):
 	m1 = conn_mokus[0]
 	m2 = conn_mokus[1]
@@ -66,32 +84,114 @@ def base_instrs(conn_mokus):
 
 	i1.set_defaults()
 	i2.set_defaults()
+
+	# Set precision mode
+	i1.set_precision_mode(True)
+	i2.set_precision_mode(True)
+
 	i1.commit()
 	i2.commit()
 
 	return (i1,i2)
-	#return (i1, None)
 
-class Tes2_Siggen:
+class Test_Siggen:
 	'''
 		This class tests the correctness of the embedded signal generator 
 	'''
+	@pytest.mark.parametrize("ch, vpp, freq, offset, duty, waveform", 
+		itertools.product(
+			[1,2],
+			[1.0], #, 1.0],
+			[1e3], #, 1e6], 
+			[0], #0.3, 0.5], 
+			[0.1], #, 0.3, 0.7, 0.9, 1.0],
+			[SG_WAVE_SINE] #, SG_WAVE_SQUARE, SG_WAVE_TRIANGLE]
+			))
+	def test_output_waveform(self, base_instrs, ch, vpp, freq, offset, duty, waveform):
+		master = base_instrs[0]
+		slave = base_instrs[1]
 
-	@pytest.mark.parametrize("ch, vpp, freq, offset, waveform", 
-		itertools.product([1,2],[0, 0.5, 1.0],[1e3, 1e6], [0, 0.3, 0.5], [SG_WAVE_SINE, SG_WAVE_SQUARE, SG_WAVE_TRIANGLE]))
-	def tes2_waveform_amp(self, base_instrs, ch, vpp, freq, offset, waveform):
+		# Set the timebase to allow for ~5 cycles
+		slave.set_timebase(0, 5.0/freq)
+		slave.set_source(ch, OSC_SOURCE_ADC)
+		slave.set_frontend(1, fiftyr=True, atten=False, ac=False)
+
+		if ch == 1:
+			slave.set_trigger(OSC_TRIG_CH1, OSC_EDGE_RISING, offset, mode = OSC_TRIG_NORMAL)
+		else:
+			slave.set_trigger(OSC_TRIG_CH2, OSC_EDGE_RISING, offset, mode = OSC_TRIG_NORMAL)
+
+		slave.commit()
+
+		if waveform == SG_WAVE_SINE:
+			master.synth_sinewave(ch, vpp, freq, offset)
+			p0 = [vpp/2.0, 0.0, offset, freq]
+		elif waveform == SG_WAVE_SQUARE:
+			p0 = [vpp/2.0, 0.0, offset, freq, duty]
+			master.synth_squarewave(ch, vpp, freq,offset=offset, duty = duty)
+		elif waveform == SG_WAVE_TRIANGLE:
+			p0 = [vpp/2.0, 0.0, offset, freq, duty]
+			master.synth_rampwave(ch, vpp, freq, offset=offset, symmetry = duty)
+		else:
+			print "Invalid waveform type."
+			assert False
+
+		master.commit()
+		slave.get_frame(timeout = 5) # Throwaway
+		if ch == 1:
+			frame = slave.get_frame(timeout = 5).ch1
+		else:
+			frame = slave.get_frame(timeout = 5).ch2
+		frame = _crop_frame_of_nones(frame)
+
+		ts = numpy.cumsum([_get_frame_timestep(slave)]*len(frame))
+		params, cov = curve_fit(_sinewave if (waveform == SG_WAVE_SINE) else (_squarewave if (waveform == SG_WAVE_SQUARE) else _sawtooth), ts, frame, p0 = p0)
+		
+		print params 
+
+		measured_amp = params[0]
+		measured_offset = params[2]
+		measured_freq = params[3]
+
+		if waveform == SG_WAVE_SINE:
+			plt.plot(ts, [_sinewave(t, measured_amp, params[1], measured_offset, measured_freq) for t in ts])
+		elif waveform == SG_WAVE_SQUARE:
+			plt.plot(ts, [_squarewave(t, measured_amp, params[1], measured_offset, measured_freq, params[4]) for t in ts])
+		elif waveform == SG_WAVE_TRIANGLE:
+			plt.plot(ts, [_sawtooth(t, measured_amp, params[1], measured_offset, measured_freq, params[4]) for t in ts])
+		plt.show()
+
+		assert in_bounds(measured_amp, vpp/2.0, ADC_AMP_TOL_P*vpp/2.0)
+		assert in_bounds(measured_offset, offset, ADC_OFF_TOL_R)
+		if (waveform == SG_WAVE_SQUARE) or (waveform == SG_WAVE_TRIANGLE):
+			measured_duty = params[4]
+			assert in_bounds(measured_duty, duty, DAC_DUTY_TOL_R)
+
+		assert False
+
+
+	@pytest.mark.parametrize("ch, vpp, freq, offset, duty, waveform", 
+		itertools.product(
+			[1,2],
+			[0, 0.5, 1.0],
+			[1e3, 1e6], 
+			[0, 0.3, 0.5], 
+			[0.0, 0.1, 0.3, 0.7, 0.9, 1.0],
+			[SG_WAVE_SINE, SG_WAVE_SQUARE, SG_WAVE_TRIANGLE]
+			))
+	def test_waveform_amp(self, base_instrs, ch, vpp, freq, offset, duty, waveform):
 		'''
 			Test the max/min amplitude of the waveforms are correct
 		'''
 		master = base_instrs[0]
-
+		slave = base_instrs[1]
 
 		# Set timebase to allow for 5 cycles
 		if freq == 0:
 			tspan = 1.0 # Set DC to 1 second
 		else:
 			tspan = (1.0/freq) * 5.0
-		master.set_timebase(0,tspan)
+		slave.set_timebase(0,tspan)
 
 		# Loop DAC to input to measure the generated waveforms
 		master.set_source(ch,OSC_SOURCE_DAC)
@@ -104,9 +204,9 @@ class Tes2_Siggen:
 		if waveform == SG_WAVE_SINE:
 			master.synth_sinewave(ch, vpp, freq, offset)
 		elif waveform == SG_WAVE_SQUARE:
-			master.synth_squarewave(ch, vpp, freq,offset=offset)
+			master.synth_squarewave(ch, vpp, freq,offset=offset, duty=duty)
 		elif waveform == SG_WAVE_TRIANGLE:
-			master.synth_rampwave(ch, vpp, freq, offset=offset)
+			master.synth_rampwave(ch, vpp, freq, offset=offset, symmetry=duty)
 		master.commit()
 
 		# 5mV Tolerance on max/min values
@@ -729,12 +829,10 @@ class Test_Frontend:
 		slave.commit()
 		master.commit()
 
-		time.sleep(10.0/source_freq) # Let a new frame come in
+		master.get_frame() # throwaway
 		if ch == 1:
-			master.get_frame()
 			frame = master.get_frame(timeout = 5).ch1
 		if ch == 2:
-			master.get_frame()
 			frame = master.get_frame(timeout = 5).ch2
 		frame = _crop_frame_of_nones(frame)
 
@@ -744,23 +842,119 @@ class Test_Frontend:
 		params, cov = curve_fit(_sinewave, ts, frame, p0=p0)
 
 		print params
+		expected_amp = source_amp if fiftyr else source_amp*2.0
+		expected_offset = source_offset if fityr else source_offset*2.0
 		measured_amp = abs(params[0]*2.0)
 		measured_offset = params[2]
 
-		if fiftyr:
-			#if not in_bounds(measured_amp, source_amp, source_amp*tolerance_percent):
-			#	plt.plot(ts, frame)
-			#	plt.show()
-			assert in_bounds(measured_amp, source_amp, source_amp*tolerance_percent)
-			# TODO: Check the offset is within tolerance
-			# assert in_bounds(measured_offset, source_offset, source_offset*tolerance_percent)
+		assert in_bounds(measured_amp, expected_amp, expected_amp*tolerance_percent)
+		assert in_bounds(measured_offset, source_offset, source_offset*tolerance_percent)
+
+	@pytest.mark.parametrize("ch, atten, amp",
+		itertools.product(
+			[1,2],
+			[True, False],
+			[0.3, 0.7, 1.0, 1.3, 1.8, 2.0]
+			))
+	def test_input_attenuation(self, base_instrs, ch, atten, amp):
+		master = base_instrs[0]
+		slave = base_instrs[1]
+
+		source_amp = amp # Vpp
+		source_freq = 1e3 # Hz
+		source_offset = 0.0
+		tolerance_percent = 0.1
+		SMALL_INPUT_RANGE= 1.0 # Vpp
+		LARGE_INPUT_RANGE= 10.0 # Vpp
+		
+		# Generate a 10Vpp signal and check it doesn't clip on high attenuation
+		slave.synth_sinewave(ch, source_amp, source_freq, source_offset)
+		slave.commit()
+
+		master.set_frontend(ch, fiftyr=True, atten=atten, ac=False)
+		master.set_timebase(0,10.0/source_freq)
+		master.commit()
+
+		# Get a throwaway frame
+		master.get_frame(timeout=5)
+
+		# Get a valid frame
+		if ch == 1:
+			frame = master.get_frame(timeout = 5).ch1
 		else:
-			#if not in_bounds(measured_amp, source_amp*2.0, source_amp*2.0*tolerance_percent):
-			#	plt.plot(ts,frame)
-			#	plt.show()
-			assert in_bounds(measured_amp, source_amp*2.0, source_amp*2.0*tolerance_percent)
-			# TODO: Check the offset is within tolerance
-			# assert in_bounds(measured_offset, source_offset, source_offset*tolerance_percent)
+			frame = master.get_frame(timeout = 5).ch2
+		frame = _crop_frame_of_nones(frame)
+
+		if (atten and source_amp < LARGE_INPUT_RANGE) or ((not atten) and source_amp < SMALL_INPUT_RANGE) :
+			# Fit a curve to the input waveform (it shouldn't be clipped)
+			ts = numpy.cumsum([_get_frame_timestep(master)]*len(frame))
+			p0 = [source_amp, 0, source_offset, source_freq]
+			params, cov = curve_fit(_sinewave, ts, frame, p0=p0)
+			measured_amp = abs(params[0]*2.0)
+			assert in_bounds(measured_amp, source_amp, tolerance_percent*source_amp)
+		else:
+			# Clipping will have occurred, full range used
+			assert in_bounds(abs(max(frame)-min(frame)),SMALL_INPUT_RANGE, SMALL_INPUT_RANGE*tolerance_percent)
+
+	@pytest.mark.parametrize("ch, fiftyr, ac, amp, offset",
+		itertools.product(
+			[1,2],
+			[True, False],
+			[True, False],
+			[0.3, 0.7, 1.0],
+			[-0.5, -0.1, 0.0, 0.1, 0.5]
+			))
+	def test_acdc_coupling(self, base_instrs, ch, fiftyr, ac, amp, offset):
+
+		tolerance_percent =  ADC_AMP_TOL_P
+		tolerance_offset = ADC_OFF_TOL_R
+
+		master = base_instrs[0]
+		slave = base_instrs[1]
+
+		source_amp = amp # Vpp
+		source_offset = offset
+		# Set the source frequency "large enough" to avoid attenuation
+		if fiftyr:
+			source_freq = AC_COUPLE_CORNER_FREQ_50O*10.0
+		else:
+			source_freq = AC_COUPLE_CORNER_FREQ_1MO*10.0
+
+		# Expected offset and amplitude
+		expected_amp = source_amp if fiftyr else source_amp * 2.0
+		expected_off = 0.0 if ac else (source_offset if fiftyr else source_offset * 2.0)
+
+		slave.synth_sinewave(ch, source_amp, source_freq, source_offset)
+		slave.commit()
+
+		master.set_frontend(ch, fiftyr=fiftyr, atten=True, ac=ac)
+		master.set_timebase(0, 10.0/source_freq)
+		if ch == 1:
+			master.set_trigger(OSC_TRIG_CH1, OSC_EDGE_RISING, expected_off, mode=OSC_TRIG_NORMAL)
+		else:
+			master.set_trigger(OSC_TRIG_CH2, OSC_EDGE_RISING, expected_off, mode=OSC_TRIG_NORMAL)
+		master.commit()
+
+		# Throwaway frame
+		master.get_frame(timeout = 5)
+		if ch == 1:
+			frame = master.get_frame(timeout = 5).ch1
+		else:
+			frame = master.get_frame(timeout = 5).ch2
+		frame = _crop_frame_of_nones(frame)
+
+		# Check that the amplitude is half and that it is approximately 0V mean if AC coupling is ON
+		# OR "Offset" if DC coupling
+		# Fit a curve to the input waveform (it shouldn't be clipped)
+		ts = numpy.cumsum([_get_frame_timestep(master)]*len(frame))
+		p0 = [expected_amp, 0, expected_off, source_freq]
+		params, cov = curve_fit(_sinewave, ts, frame, p0=p0)
+		measured_amp = abs(params[0]*2.0)
+		measured_off = params[2]
+		print params
+
+		assert in_bounds(measured_amp, expected_amp, tolerance_percent*expected_amp)
+		assert in_bounds(measured_off, expected_off, tolerance_offset)
 
 
 class Tes2_Source:
