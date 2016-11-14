@@ -6,9 +6,10 @@ from pymoku._oscilloscope import _OSC_SCREEN_WIDTH, _OSC_ADC_SMPS, OSC_TRIG_NORM
 from pymoku._siggen import SG_MOD_NONE, SG_MOD_AMPL, SG_MOD_PHASE, SG_MOD_FREQ, SG_MODSOURCE_INT, SG_MODSOURCE_ADC, SG_MODSOURCE_DAC, SG_WAVE_SINE, SG_WAVE_SQUARE, SG_WAVE_TRIANGLE, SG_WAVE_DC
 import conftest
 import numpy, math
-from scipy.optimize import curve_fit
+from scipy.optimize import curve_fit, brute
 import scipy.signal
 import matplotlib.pyplot as plt
+from functools import partial
 
 OSC_MAX_TRIGRATE = 8e3 #Approximately 8kHz
 OSC_AUTO_TRIGRATE = 20
@@ -17,7 +18,8 @@ OSC_AUTO_TRIGRATE = 20
 # _P - Percentage
 # _R - Relative
 ADC_OFF_TOL_R = 0.100 # Volts
-ADC_AMP_TOL_P = 0.1 # 10%
+ADC_AMP_TOL_P = 0.05 # 5%
+ADC_AMP_TOL_R = 0.03
 DAC_DUTY_TOL_R = 0.05 # 5% Duty cycle error
 
 AC_COUPLE_CORNER_FREQ_1MO = 10*50
@@ -27,7 +29,6 @@ AC_COUPLE_CORNER_FREQ_50O = 5e6
 def in_bounds(v, center, err):
 	if (v is None) or (center is None):
 		return True
-	print abs(v-center)
 	return abs(v - center) <= abs(err)
 
 def _is_rising(p1,p2):
@@ -47,16 +48,19 @@ def _is_falling(p1,p2):
 	else:
 		return False
 
+def zero_crossings(a):
+	return numpy.where(numpy.diff(numpy.sign(a)))[0]
+
 def _sinewave(t,ampl,ph,off,freq):
 	# Taken from commissioning/calibration.py
 	return off+ampl*numpy.sin(2*numpy.pi*freq*t+ph)
 	#return numpy.array([off+ampl*math.sin(2*math.pi*freq*x+ph) for x in t])
 
 def _sawtooth(t, ampl, phase, offset, freq, width):
-	return scipy.signal.sawtooth(freq*t + phase/freq, width=width)*ampl + offset
+	return scipy.signal.sawtooth(freq*(2.0*numpy.pi)*t + phase , width=width)*ampl + offset
 
 def _squarewave(t, ampl, phase, offset, freq, duty):
-	return scipy.signal.square(freq*t + phase/freq, duty=duty)*ampl + offset
+	return scipy.signal.square(freq*(2.0*numpy.pi)*t + phase, duty=duty)*ampl + offset
 
 # Helper function to compute the timestep per sample of a frame
 def _get_frame_timestep(moku):
@@ -70,7 +74,7 @@ def _crop_frame_of_nones(frame):
 	return frame
 
 
-@pytest.fixture(scope="function")
+@pytest.fixture(scope="module")
 def base_instrs(conn_mokus):
 	m1 = conn_mokus[0]
 	m2 = conn_mokus[1]
@@ -101,43 +105,46 @@ class Test_Siggen:
 	@pytest.mark.parametrize("ch, vpp, freq, offset, duty, waveform", 
 		itertools.product(
 			[1,2],
-			[1.0], #, 1.0],
-			[1e3], #, 1e6], 
-			[0], #0.3, 0.5], 
-			[0.1], #, 0.3, 0.7, 0.9, 1.0],
-			[SG_WAVE_SINE] #, SG_WAVE_SQUARE, SG_WAVE_TRIANGLE]
+			[0.8],
+			[1e3, 900e3], 
+			[0.3, 0.5, -0.3, -0.5], 
+			[0.5],#, 0.3],#, 0.7, 0.9, 0.95],
+			[SG_WAVE_TRIANGLE, SG_WAVE_SQUARE, SG_WAVE_SINE, SG_WAVE_TRIANGLE]
 			))
 	def test_output_waveform(self, base_instrs, ch, vpp, freq, offset, duty, waveform):
+		# Check input parameters
+		assert (offset + 0.5*vpp) <= 1.0
+		assert (offset - 0.5*vpp) >= -1.0
+
 		master = base_instrs[0]
 		slave = base_instrs[1]
 
 		# Set the timebase to allow for ~5 cycles
-		slave.set_timebase(0, 5.0/freq)
+		slave.set_timebase(0, 10.0/freq)
 		slave.set_source(ch, OSC_SOURCE_ADC)
-		slave.set_frontend(1, fiftyr=True, atten=False, ac=False)
+		slave.set_frontend(ch, fiftyr=True, atten=True, ac=False)
 
 		if ch == 1:
 			slave.set_trigger(OSC_TRIG_CH1, OSC_EDGE_RISING, offset, mode = OSC_TRIG_NORMAL)
 		else:
 			slave.set_trigger(OSC_TRIG_CH2, OSC_EDGE_RISING, offset, mode = OSC_TRIG_NORMAL)
 
-		slave.commit()
-
 		if waveform == SG_WAVE_SINE:
 			master.synth_sinewave(ch, vpp, freq, offset)
-			p0 = [vpp/2.0, 0.0, offset, freq]
 		elif waveform == SG_WAVE_SQUARE:
-			p0 = [vpp/2.0, 0.0, offset, freq, duty]
-			master.synth_squarewave(ch, vpp, freq,offset=offset, duty = duty)
+			master.synth_squarewave(ch, vpp, freq, offset=offset, duty = duty)
 		elif waveform == SG_WAVE_TRIANGLE:
-			p0 = [vpp/2.0, 0.0, offset, freq, duty]
 			master.synth_rampwave(ch, vpp, freq, offset=offset, symmetry = duty)
 		else:
 			print "Invalid waveform type."
 			assert False
 
 		master.commit()
+		# Wait until the state
+		#time.sleep(0.5)
+		slave.commit()
 		slave.get_frame(timeout = 5) # Throwaway
+		slave.get_frame(timeout = 5)
 		if ch == 1:
 			frame = slave.get_frame(timeout = 5).ch1
 		else:
@@ -145,30 +152,112 @@ class Test_Siggen:
 		frame = _crop_frame_of_nones(frame)
 
 		ts = numpy.cumsum([_get_frame_timestep(slave)]*len(frame))
-		params, cov = curve_fit(_sinewave if (waveform == SG_WAVE_SINE) else (_squarewave if (waveform == SG_WAVE_SQUARE) else _sawtooth), ts, frame, p0 = p0)
+
+
+		# Find the best curve fit for the captured waveform
+		if waveform == SG_WAVE_SQUARE:
+			# The optimize.curve_fit function does not behave well with square wave fitting
+			# So we manually calculate the waveform parameters
+			# Frequency approximation
+			zcs = zero_crossings(numpy.array(frame)-offset)
+			zc_ts = []
+			for zc in zcs:
+				zc_ts = zc_ts + [ts[zc]]
+			diff_ts = numpy.diff(zc_ts)
+			off_time = numpy.mean(diff_ts[0::2])
+			on_time = numpy.mean(diff_ts[1::2])
+			approx_freq = 1.0/(on_time + off_time)
+
+			# Duty cycle
+			approx_duty = on_time/(on_time+off_time)
+
+			# Returns the range of the peak bin
+			def _get_hist_peak_range(histogram):
+				peak_idx = numpy.argmax(histogram[0])
+				return (histogram[1][peak_idx], histogram[1][peak_idx+1])
+
+			# Amplitude approximation
+			# Get amplitude histogram
+			_dac_vpp = 3.0 # Volts
+			_volts_per_bin_coarse = 0.05
+			_volts_per_bin_fine = 0.002
+
+			# Split frame into two voltage ranges (HIGH/LOW)
+			# And get a histogram of both ranges to extract peaks
+			_maxx, _minx = max(frame), min(frame)
+			_split = ((_maxx - _minx) / 2.0) + _minx
+
+			hist_coarse_top = numpy.histogram(frame, bins = math.ceil(abs(_split - _dac_vpp/2.0) / _volts_per_bin_coarse), range = (_split, _dac_vpp/2.0))
+			hist_coarse_bottom = numpy.histogram(frame, bins = math.ceil(abs((-_dac_vpp/2.0) - _split) / _volts_per_bin_coarse), range = (-_dac_vpp/2.0, _split))
+
+			# Generate the ranges for the fine histogram
+			hist_fine_top_low, hist_fine_top_high = _get_hist_peak_range(hist_coarse_top)
+			hist_fine_bottom_low, hist_fine_bottom_high = _get_hist_peak_range(hist_coarse_bottom)
+
+			hist_fine_top = numpy.histogram(frame, bins= math.ceil(abs(hist_fine_top_low - hist_fine_top_high)/_volts_per_bin_fine), range=(hist_fine_top_low, hist_fine_top_high))
+			hist_fine_bottom = numpy.histogram(frame, bins= math.ceil(abs(hist_fine_bottom_low - hist_fine_bottom_high)/_volts_per_bin_fine), range=(hist_fine_bottom_low, hist_fine_bottom_high))
+
+			# Bins containing the HIGH and LOW amplitudes of the square wave
+			top_peak_low, top_peak_high = _get_hist_peak_range(hist_fine_top)
+			bottom_peak_low, bottom_peak_high = _get_hist_peak_range(hist_fine_bottom)
+
+			# Use peak bin ranges to estimate waveform amplitude
+			# and offset
+			approx_amp = (top_peak_low - bottom_peak_high)/2.0
+			approx_offset = bottom_peak_high + approx_amp
+
+			# Curve fit using approximate frequency as an initial value
+			measured_amp = approx_amp
+			measured_phase = 0.0 # Don't care
+			measured_offset = approx_offset
+			measured_freq = approx_freq
+			measured_duty = approx_duty
+
+			print ("Amplitude: %f/%f, Phase: %f, Offset: %f/%f, Frequency: %f/%f, Duty: %f/%f" % (vpp/2.0, measured_amp, measured_phase, offset, measured_offset, freq, measured_freq, duty, measured_duty))
+			plt.plot(ts, frame)
+			plt.plot(ts, [_squarewave(t, measured_amp, measured_phase, measured_offset, measured_freq, measured_duty) for t in ts])
+		elif waveform == SG_WAVE_SINE:
+			p0 = [vpp/2.0, 0.0, offset, freq]
+			bounds = [(vpp/4.0, 0.0, offset - 0.2, freq/2.0),(vpp, 2.0* numpy.pi, offset + 0.2, freq*2.0)]
+			params, cov = curve_fit(_sinewave, ts, frame, p0 = p0, bounds = bounds)
+
+			measured_amp = params[0]
+			measured_phase = params[1]
+			measured_offset = params[2]
+			measured_freq = params[3]
+			measured_duty = None
+
+			print ("Amplitude: %f/%f, Phase: %f, Offset: %f/%f, Frequency: %f/%f" % (vpp/2.0, measured_amp, measured_phase, offset, measured_offset, freq, measured_freq))
+			plt.plot(ts, frame)
+			plt.plot(ts, [_sinewave(t, measured_amp, measured_phase, measured_offset, measured_freq) for t in ts])
 		
-		print params 
-
-		measured_amp = params[0]
-		measured_offset = params[2]
-		measured_freq = params[3]
-
-		if waveform == SG_WAVE_SINE:
-			plt.plot(ts, [_sinewave(t, measured_amp, params[1], measured_offset, measured_freq) for t in ts])
-		elif waveform == SG_WAVE_SQUARE:
-			plt.plot(ts, [_squarewave(t, measured_amp, params[1], measured_offset, measured_freq, params[4]) for t in ts])
 		elif waveform == SG_WAVE_TRIANGLE:
-			plt.plot(ts, [_sawtooth(t, measured_amp, params[1], measured_offset, measured_freq, params[4]) for t in ts])
-		plt.show()
-
-		assert in_bounds(measured_amp, vpp/2.0, ADC_AMP_TOL_P*vpp/2.0)
-		assert in_bounds(measured_offset, offset, ADC_OFF_TOL_R)
-		if (waveform == SG_WAVE_SQUARE) or (waveform == SG_WAVE_TRIANGLE):
+			p0 = [vpp/2.0, numpy.pi*0.5, offset, freq, duty]
+			bounds = [(vpp/3.0, 0.0, offset - 0.2, freq/1.5, 0.01),(vpp, 2.0* numpy.pi, offset + 0.2, freq*1.5, 1.0)]
+			params, cov = curve_fit(_sawtooth, ts, frame, p0 = p0, bounds = bounds)
+			
+			measured_amp = params[0]
+			measured_phase = params[1]
+			measured_offset = params[2]
+			measured_freq = params[3]
 			measured_duty = params[4]
+
+			print ("Amplitude: %f/%f, Phase: %f, Offset: %f/%f, Frequency: %f/%f, Duty: %f/%f" % (vpp/2.0, measured_amp, measured_phase, offset, measured_offset, freq, measured_freq, duty, measured_duty))
+			plt.plot(ts, frame)
+			plt.plot(ts, [_sawtooth(t, measured_amp, measured_phase, measured_offset, measured_freq, measured_duty) for t in ts])
+		
+		else:
+			print "Invalid waveform type."
+			assert False
+
+		assert in_bounds(measured_amp, vpp/2.0, max(ADC_AMP_TOL_P*vpp/2.0, 0.02))
+		assert in_bounds(measured_offset, offset, ADC_OFF_TOL_R)
+		if measured_duty:
 			assert in_bounds(measured_duty, duty, DAC_DUTY_TOL_R)
 
-		assert False
-
+		#plt.plot(ts, frame)
+		#plt.show()
+		#assert False
 
 	@pytest.mark.parametrize("ch, vpp, freq, offset, duty, waveform", 
 		itertools.product(
@@ -237,7 +326,7 @@ class Test_Siggen:
 
 	@pytest.mark.parametrize("ch, vpp, freq, waveform", 
 		itertools.product([1,2],[1.0],[100, 1e3, 100e3, 1e6, 3e6],[SG_WAVE_SINE, SG_WAVE_SQUARE, SG_WAVE_TRIANGLE]))
-	def tes2_waveform_freq(self, base_instrs, ch, vpp, freq, waveform):
+	def test_waveform_freq(self, base_instrs, ch, vpp, freq, waveform):
 		'''
 			Test the frequency of generated waveforms
 
@@ -671,9 +760,6 @@ class Test_Timebase:
 	'''
 		Ensure the timebase is correct
 	'''
-	def zero_crossings(self, a):
-		return numpy.where(numpy.diff(numpy.sign(a)))[0]
-
 	
 	# Test frames from both channels
 	# TODO: Need to more thoroughly test negative timebases as some of these are currently broken  # [-3e-3, -1e-3]
@@ -747,7 +833,7 @@ class Test_Timebase:
 			frame = frame[0:frame.index(None)]
 
 		# Get index of the zero crossing
-		zc = self.zero_crossings(frame)
+		zc = zero_crossings(frame)
 		#plt.plot(range(len(frame)), frame)
 		#plt.show()
 
@@ -786,7 +872,7 @@ class Test_Timebase:
 		frame = _crop_frame_of_nones(frame)
 
 		# Get index of the zero crossing
-		zc = self.zero_crossings(frame)
+		zc = zero_crossings(frame)
 		#plt.plot(range(len(frame)), frame)
 		#plt.show()
 
@@ -819,6 +905,7 @@ class Test_Frontend:
 		source_freq = freq
 		source_offset = offset
 		tolerance_percent = 0.05
+
 
 		# Put in different waveforms and test they look correct in a frame
 		master.set_frontend(ch, fiftyr=fiftyr, atten=True, ac=False)
