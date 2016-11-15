@@ -21,7 +21,7 @@ REG_NA_SWEEP_AMP_MULT		= 73
 
 
 _NA_ADC_SMPS		= 500e6
-_NA_DAC_SMPS		= 1e9
+_NA_DAC_SMPS 		= 1e9
 _NA_BUFLEN			= 2**14
 _NA_SCREEN_WIDTH	= 1024
 _NA_SCREEN_STEPS	= _NA_SCREEN_WIDTH - 1
@@ -80,25 +80,31 @@ class NetAnFrame(_frame_instrument.DataFrame):
 
 		if self.stateid not in self.scales:
 			log.error("Can't render NetAn frame, haven't saved calibration data for state %d", self.stateid)
+
+			smpls = int(len(self.raw1) / 4)
+			dat = struct.unpack('<' + 'i' * smpls, self.raw1)
+			dat = [ x if x != -0x80000000 else None for x in dat ]
+
+			print dat
 			return
 
 		# Get scaling/correction factors based on current instrument configuration
 		scales = self.scales[self.stateid]
 		scale1 = scales['g1']
 		scale2 = scales['g2']
-		fs = scales['fs']
-		f1, f2 = scales['fspan']
-		fcorrs = scales['fcorrs']
-		dbmscale = scales['dbmscale']
+		# fs = scales['fs']
+		# f1, f2 = scales['fspan']
+		# fcorrs = scales['fcorrs']
+		# dbmscale = scales['dbmscale']
 
 		try:
 			# Find the starting index for the valid frame data
 			# NetAn generally gives more than we ask for due to integer decimations
-			start_index = bisect_right(fs,f1)
+			# start_index = bisect_right(fs,f1)
 
 			# Set the frequency range of valid data in the current frame (same for both channels)
-			self.ch1_fs = fs[start_index:-1]
-			self.ch2_fs = fs[start_index:-1]
+			# self.ch1_fs = fs[start_index:-1]
+			# self.ch2_fs = fs[start_index:-1]
 
 			##################################
 			# Process Ch1 Data
@@ -109,13 +115,15 @@ class NetAnFrame(_frame_instrument.DataFrame):
 
 			# NetAn data is backwards because $(EXPLETIVE), also remove zeros for the sake of common
 			# display on a log axis.
-			self.ch1_bits = [ max(float(x), 1) if x is not None else None for x in reversed(dat[:_SA_SCREEN_WIDTH]) ]
+			self.ch1_bits = [ float(x) if x is not None else None for x in dat[:1024] ]
 
+			#self.ch1 = self.ch1_bits
+			print self.ch1_bits
 			# Apply frequency dependent corrections
-			self.ch1 = [ self._vrms_to_dbm(a*c*scale1) if dbmscale else a*c*scale1 if a is not None else None for a,c in zip(self.ch1_bits, fcorrs)]
+			# self.ch1 = [ self._vrms_to_dbm(a*c*scale1) if dbmscale else a*c*scale1 if a is not None else None for a,c in zip(self.ch1_bits, fcorrs)]
 
 			# Trim invalid part of frame
-			self.ch1 = self.ch1[start_index:-1]
+			# self.ch1 = self.ch1[start_index:-1]
 
 			##################################
 			# Process Ch2 Data
@@ -124,10 +132,12 @@ class NetAnFrame(_frame_instrument.DataFrame):
 			dat = struct.unpack('<' + 'i' * smpls, self.raw2)
 			dat = [ x if x != -0x80000000 else None for x in dat ]
 
-			self.ch2_bits = [ max(float(x), 1) if x is not None else None for x in reversed(dat[:_SA_SCREEN_WIDTH]) ]
+			self.ch2_bits = [ float(x) if x is not None else None for x in dat[:1024] ]
 
-			self.ch2 = [ self._vrms_to_dbm(a*c*scale2) if dbmscale else a*c*scale2 if a is not None else None for a,c in zip(self.ch2_bits, fcorrs)]
-			self.ch2 = self.ch2[start_index:-1]
+			#self.ch2 = self.ch2_bits
+
+			# self.ch2 = [ self._vrms_to_dbm(a*c*scale2) if dbmscale else a*c*scale2 if a is not None else None for a,c in zip(self.ch2_bits, fcorrs)]
+			# self.ch2 = self.ch2[start_index:-1]
 
 		except (IndexError, TypeError, struct.error):
 			# If the data is bollocksed, force a reinitialisation on next packet
@@ -250,37 +260,80 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 	def commit(self):
 		# Compute remaining control register values based on window, rbw and fspan
-		# self._setup_controls()
+		#self._setup_controls()
 
 		# Push the controls through to the device
 		super(NetAn, self).commit()
 
 		# Update the scaling factors for processing of incoming frames
 		# stateid allows us to track which scales correspond to which register state
-		# self.scales[self._stateid] = self._calculate_scales()
+		self.scales[self._stateid] = self._calculate_scales()
 
 		# TODO: Trim scales dictionary, getting rid of old ids
 
 	# Bring in the docstring from the superclass for our docco.
 	commit.__doc__ = MokuInstrument.commit.__doc__
 
+
+	def set_xmode(self, xmode):
+		self.x_mode = xmode
+
 	def set_defaults(self):
 		super(NetAn, self).set_defaults()
 
+		self.framerate = _NA_FPS
+		self.frame_length = _NA_SCREEN_WIDTH
+
+		self.set_frontend(1,fiftyr=False, atten=True, ac=False)
+		self.set_frontend(2,fiftyr=False, atten=True, ac=False)
+		self.en_in_ch1 = True
+		self.en_in_ch2 = True
+
+
 		self.calibration = None
+		self.set_xmode(FULL_FRAME)
+
 
 		self.set_frontend(0, True, True, False)
 		self.set_frontend(1, True, True, False)
-		self.sweep_freq_min = 1
-		self.sweep_freq_delta = 1
-		self.log_en = True
+		self.sweep_freq_min = 100
+		self.sweep_freq_delta = 100
+		self.log_en = False
 		self.hold_off_time = 125
-		self.sweep_length = 126
+		self.sweep_length = 512
 		self.sweep_amp_bitshift = 0
 		self.sweep_amp_mult = 1
+		self.offset = 0
+		self.render_mode = RDR_DDS
 
+	def _calculate_scales(self):
+		"""
+			Returns per-channel correction and scaling parameters required for interpretation of incoming bit frames
+			Parameters are based on current instrument state
+		"""
+		# Returns the bits-to-volts numbers for each channel in the current state
 
+		# TODO: Centralise the calibration parsing, shared with Oscilloscope
 
+		sect1 = "calibration.AG-%s-%s-%s-1" % ( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
+								  "L" if self.relays_ch1 & RELAY_LOWG else "H",
+								  "D" if self.relays_ch1 & RELAY_DC else "A")
+
+		sect2 = "calibration.AG-%s-%s-%s-1" % ( "50" if self.relays_ch2 & RELAY_LOWZ else "1M",
+								  "L" if self.relays_ch2 & RELAY_LOWG else "H",
+								  "D" if self.relays_ch2 & RELAY_DC else "A")
+
+		# Compute per-channel constant scaling factors
+		try:
+			g1 = 1 #/ float(self.calibration[sect1])
+			g2 = 1 #/ float(self.calibration[sect2])
+		except KeyError:
+			log.warning("Moku appears uncalibrated")
+			g1 = g2 = 1
+
+		return {'g1': g1, 'g2': g2}
+
+	
 	def attach_moku(self, moku):
 		super(NetAn, self).attach_moku(moku)
 
