@@ -18,18 +18,26 @@ OSC_AUTO_TRIGRATE = 20
 # _P - Percentage
 # _R - Relative
 ADC_OFF_TOL_R = 0.100 # Volts
-ADC_AMP_TOL_P = 0.05 # 5%
+ADC_AMP_TOL_P = 0.05 # 3%
 ADC_AMP_TOL_R = 0.03
 DAC_DUTY_TOL_R = 0.05 # 5% Duty cycle error
 
+# Threshold bounds
+MAX_RMS_ERROR = 0.05
+
 AC_COUPLE_CORNER_FREQ_1MO = 10*50
 AC_COUPLE_CORNER_FREQ_50O = 5e6
+
+FRAME_TIMEOUT = 5 # seconds
 
 # Assertion helpers
 def in_bounds(v, center, err):
 	if (v is None) or (center is None):
 		return True
 	return abs(v - center) <= abs(err)
+
+def _calculate_rms_error(frame1, frame2):
+	return numpy.sqrt(numpy.sum((numpy.array(frame1-frame2)**2))/len(frame1))
 
 def _is_rising(p1,p2):
 	print p1, p2
@@ -105,11 +113,11 @@ class Test_Siggen:
 	@pytest.mark.parametrize("ch, vpp, freq, offset, duty, waveform", 
 		itertools.product(
 			[1,2],
-			[0.8],
-			[1e3, 900e3], 
-			[0.3, 0.5, -0.3, -0.5], 
-			[0.5],#, 0.3],#, 0.7, 0.9, 0.95],
-			[SG_WAVE_TRIANGLE, SG_WAVE_SQUARE, SG_WAVE_SINE, SG_WAVE_TRIANGLE]
+			[0.3, 0.7],
+			[50, 1e3, 900e3], 
+			[0.1, 0.0, -0.1], 
+			[0.2, 0.5, 0.95],
+			[SG_WAVE_SINE]
 			))
 	def test_output_waveform(self, base_instrs, ch, vpp, freq, offset, duty, waveform):
 		# Check input parameters
@@ -120,14 +128,14 @@ class Test_Siggen:
 		slave = base_instrs[1]
 
 		# Set the timebase to allow for ~5 cycles
-		slave.set_timebase(0, 10.0/freq)
+		slave.set_timebase(0, 30.0/freq)
 		slave.set_source(ch, OSC_SOURCE_ADC)
-		slave.set_frontend(ch, fiftyr=True, atten=True, ac=False)
+		slave.set_frontend(ch, fiftyr=True, atten=False, ac=False)
 
 		if ch == 1:
-			slave.set_trigger(OSC_TRIG_CH1, OSC_EDGE_RISING, offset, mode = OSC_TRIG_NORMAL)
+			slave.set_trigger(OSC_TRIG_CH1, OSC_EDGE_RISING, offset, mode = OSC_TRIG_NORMAL, hysteresis = 100)
 		else:
-			slave.set_trigger(OSC_TRIG_CH2, OSC_EDGE_RISING, offset, mode = OSC_TRIG_NORMAL)
+			slave.set_trigger(OSC_TRIG_CH2, OSC_EDGE_RISING, offset, mode = OSC_TRIG_NORMAL, hysteresis = 100)
 
 		if waveform == SG_WAVE_SINE:
 			master.synth_sinewave(ch, vpp, freq, offset)
@@ -140,8 +148,6 @@ class Test_Siggen:
 			assert False
 
 		master.commit()
-		# Wait until the state
-		#time.sleep(0.5)
 		slave.commit()
 		slave.get_frame(timeout = 5) # Throwaway
 		slave.get_frame(timeout = 5)
@@ -153,298 +159,53 @@ class Test_Siggen:
 
 		ts = numpy.cumsum([_get_frame_timestep(slave)]*len(frame))
 
+		if waveform == SG_WAVE_SINE:
+			# Generate the frame that minimises the error
+			expected_phase = 0.0
+			gen_frame = _sinewave(ts,vpp/2.0,expected_phase,offset,freq)
 
-		# Find the best curve fit for the captured waveform
-		if waveform == SG_WAVE_SQUARE:
-			# The optimize.curve_fit function does not behave well with square wave fitting
-			# So we manually calculate the waveform parameters
-			# Frequency approximation
-			zcs = zero_crossings(numpy.array(frame)-offset)
-			zc_ts = []
-			for zc in zcs:
-				zc_ts = zc_ts + [ts[zc]]
-			diff_ts = numpy.diff(zc_ts)
-			off_time = numpy.mean(diff_ts[0::2])
-			on_time = numpy.mean(diff_ts[1::2])
-			approx_freq = 1.0/(on_time + off_time)
-
-			# Duty cycle
-			approx_duty = on_time/(on_time+off_time)
-
-			# Returns the range of the peak bin
-			def _get_hist_peak_range(histogram):
-				peak_idx = numpy.argmax(histogram[0])
-				return (histogram[1][peak_idx], histogram[1][peak_idx+1])
-
-			# Amplitude approximation
-			# Get amplitude histogram
-			_dac_vpp = 3.0 # Volts
-			_volts_per_bin_coarse = 0.05
-			_volts_per_bin_fine = 0.002
-
-			# Split frame into two voltage ranges (HIGH/LOW)
-			# And get a histogram of both ranges to extract peaks
-			_maxx, _minx = max(frame), min(frame)
-			_split = ((_maxx - _minx) / 2.0) + _minx
-
-			hist_coarse_top = numpy.histogram(frame, bins = math.ceil(abs(_split - _dac_vpp/2.0) / _volts_per_bin_coarse), range = (_split, _dac_vpp/2.0))
-			hist_coarse_bottom = numpy.histogram(frame, bins = math.ceil(abs((-_dac_vpp/2.0) - _split) / _volts_per_bin_coarse), range = (-_dac_vpp/2.0, _split))
-
-			# Generate the ranges for the fine histogram
-			hist_fine_top_low, hist_fine_top_high = _get_hist_peak_range(hist_coarse_top)
-			hist_fine_bottom_low, hist_fine_bottom_high = _get_hist_peak_range(hist_coarse_bottom)
-
-			hist_fine_top = numpy.histogram(frame, bins= math.ceil(abs(hist_fine_top_low - hist_fine_top_high)/_volts_per_bin_fine), range=(hist_fine_top_low, hist_fine_top_high))
-			hist_fine_bottom = numpy.histogram(frame, bins= math.ceil(abs(hist_fine_bottom_low - hist_fine_bottom_high)/_volts_per_bin_fine), range=(hist_fine_bottom_low, hist_fine_bottom_high))
-
-			# Bins containing the HIGH and LOW amplitudes of the square wave
-			top_peak_low, top_peak_high = _get_hist_peak_range(hist_fine_top)
-			bottom_peak_low, bottom_peak_high = _get_hist_peak_range(hist_fine_bottom)
-
-			# Use peak bin ranges to estimate waveform amplitude
-			# and offset
-			approx_amp = (top_peak_low - bottom_peak_high)/2.0
-			approx_offset = bottom_peak_high + approx_amp
-
-			# Curve fit using approximate frequency as an initial value
-			measured_amp = approx_amp
-			measured_phase = 0.0 # Don't care
-			measured_offset = approx_offset
-			measured_freq = approx_freq
-			measured_duty = approx_duty
-
-			print ("Amplitude: %f/%f, Phase: %f, Offset: %f/%f, Frequency: %f/%f, Duty: %f/%f" % (vpp/2.0, measured_amp, measured_phase, offset, measured_offset, freq, measured_freq, duty, measured_duty))
-			plt.plot(ts, frame)
-			plt.plot(ts, [_squarewave(t, measured_amp, measured_phase, measured_offset, measured_freq, measured_duty) for t in ts])
-		elif waveform == SG_WAVE_SINE:
-			p0 = [vpp/2.0, 0.0, offset, freq]
-			bounds = [(vpp/4.0, 0.0, offset - 0.2, freq/2.0),(vpp, 2.0* numpy.pi, offset + 0.2, freq*2.0)]
-			params, cov = curve_fit(_sinewave, ts, frame, p0 = p0, bounds = bounds)
-
-			measured_amp = params[0]
-			measured_phase = params[1]
-			measured_offset = params[2]
-			measured_freq = params[3]
-			measured_duty = None
-
-			print ("Amplitude: %f/%f, Phase: %f, Offset: %f/%f, Frequency: %f/%f" % (vpp/2.0, measured_amp, measured_phase, offset, measured_offset, freq, measured_freq))
-			plt.plot(ts, frame)
-			plt.plot(ts, [_sinewave(t, measured_amp, measured_phase, measured_offset, measured_freq) for t in ts])
-		
 		elif waveform == SG_WAVE_TRIANGLE:
-			p0 = [vpp/2.0, numpy.pi*0.5, offset, freq, duty]
-			bounds = [(vpp/3.0, 0.0, offset - 0.2, freq/1.5, 0.01),(vpp, 2.0* numpy.pi, offset + 0.2, freq*1.5, 1.0)]
-			params, cov = curve_fit(_sawtooth, ts, frame, p0 = p0, bounds = bounds)
-			
-			measured_amp = params[0]
-			measured_phase = params[1]
-			measured_offset = params[2]
-			measured_freq = params[3]
-			measured_duty = params[4]
 
-			print ("Amplitude: %f/%f, Phase: %f, Offset: %f/%f, Frequency: %f/%f, Duty: %f/%f" % (vpp/2.0, measured_amp, measured_phase, offset, measured_offset, freq, measured_freq, duty, measured_duty))
-			plt.plot(ts, frame)
-			plt.plot(ts, [_sawtooth(t, measured_amp, measured_phase, measured_offset, measured_freq, measured_duty) for t in ts])
-		
+			def _calculate_triangle_phase(symmetry):
+				return symmetry * numpy.pi
+			# Generate the frame that minimises the error
+			expected_phase = _calculate_triangle_phase(duty)
+			gen_frame = _sawtooth(ts, vpp/2.0, expected_phase, offset, freq, duty)
+
+		elif waveform == SG_WAVE_SQUARE:
+			# Generate the frame that minimises the error
+			expected_phase = 0.0
+			gen_frame = _squarewave(ts, vpp/2.0, expected_phase, offset, freq, duty)
+
 		else:
-			print "Invalid waveform type."
+			print "Invalid waveform"
 			assert False
 
-		assert in_bounds(measured_amp, vpp/2.0, max(ADC_AMP_TOL_P*vpp/2.0, 0.02))
-		assert in_bounds(measured_offset, offset, ADC_OFF_TOL_R)
-		if measured_duty:
-			assert in_bounds(measured_duty, duty, DAC_DUTY_TOL_R)
-
-		#plt.plot(ts, frame)
-		#plt.show()
-		#assert False
-
-	@pytest.mark.parametrize("ch, vpp, freq, offset, duty, waveform", 
-		itertools.product(
-			[1,2],
-			[0, 0.5, 1.0],
-			[1e3, 1e6], 
-			[0, 0.3, 0.5], 
-			[0.0, 0.1, 0.3, 0.7, 0.9, 1.0],
-			[SG_WAVE_SINE, SG_WAVE_SQUARE, SG_WAVE_TRIANGLE]
-			))
-	def test_waveform_amp(self, base_instrs, ch, vpp, freq, offset, duty, waveform):
-		'''
-			Test the max/min amplitude of the waveforms are correct
-		'''
-		master = base_instrs[0]
-		slave = base_instrs[1]
-
-		# Set timebase to allow for 5 cycles
-		if freq == 0:
-			tspan = 1.0 # Set DC to 1 second
-		else:
-			tspan = (1.0/freq) * 5.0
-		slave.set_timebase(0,tspan)
-
-		# Loop DAC to input to measure the generated waveforms
-		master.set_source(ch,OSC_SOURCE_DAC)
-		if(ch==1):
-			master.set_trigger(OSC_TRIG_DA1, OSC_EDGE_RISING, 0)
-		else:
-			master.set_trigger(OSC_TRIG_DA2, OSC_EDGE_RISING, 0)
-
-		# Generate the desired waveform
-		if waveform == SG_WAVE_SINE:
-			master.synth_sinewave(ch, vpp, freq, offset)
-		elif waveform == SG_WAVE_SQUARE:
-			master.synth_squarewave(ch, vpp, freq,offset=offset, duty=duty)
-		elif waveform == SG_WAVE_TRIANGLE:
-			master.synth_rampwave(ch, vpp, freq, offset=offset, symmetry=duty)
-		master.commit()
-
-		# 5mV Tolerance on max/min values
-		tolerance = 0.005
-
-
-		# Test amplitudes on a few frames worth of generated output
-		for _ in range(10):
-			frame = master.get_frame(wait=True)
-			print frame
-			if(ch==1):
-				ch_frame = frame.ch1
-			else:
-				ch_frame = frame.ch2
-
-			# For debugging the received frame
-			for y in ch_frame:
-				print y
-
-			# Get max/min amplitudes for each frame
-			maxval = max(x for x in ch_frame if x is not None)
-			minval = min(x for x in ch_frame if x is not None)
-
-			# Check max/min values are within tolerance bounds
-			assert in_bounds(maxval, (vpp/2.0)+offset, tolerance)
-			assert in_bounds(minval, (-1*(vpp/2.0) + offset), tolerance)
-
-
-	@pytest.mark.parametrize("ch, vpp, freq, waveform", 
-		itertools.product([1,2],[1.0],[100, 1e3, 100e3, 1e6, 3e6],[SG_WAVE_SINE, SG_WAVE_SQUARE, SG_WAVE_TRIANGLE]))
-	def test_waveform_freq(self, base_instrs, ch, vpp, freq, waveform):
-		'''
-			Test the frequency of generated waveforms
-
-			This is done by checking that the amplitude of generated signals is constant as we jump across multiple cycles
-			of the waveform.
-		'''
-		master = base_instrs[0]
-
-		# Set timebase to allow for 5 cycles
-		number_periods = 5
-		period = (1.0/freq)
-		tspan = period * number_periods
-		master.set_timebase(0,tspan)
-
-		# Loop DAC output to input for measurement
-		master.set_source(ch,OSC_SOURCE_DAC)
-		master.set_xmode(OSC_FULL_FRAME)
-		if(ch==1):
-			master.set_trigger(OSC_TRIG_DA1, OSC_EDGE_RISING, 0)
-		else:
-			master.set_trigger(OSC_TRIG_DA2, OSC_EDGE_RISING, 0)
-
-		# Get back actual timebase (this will not be precisely 5 cycles due to rounding)
-		(tstart, tend) = master._get_timebase(master.decimation_rate, master.pretrigger, master.render_deci, master.offset)
-
-		# Compute the approximate number of samples per waveform period
-		time_per_smp = (tend-tstart)/_OSC_SCREEN_WIDTH
-		smps_per_period = period/time_per_smp
-
-		# Generate the waveform type to be tested
-		# Define the offset into each frame that we should start measuring amplitudes from
-		if waveform == SG_WAVE_SINE:
-			master.synth_sinewave(ch,vpp,freq,0.0)
-			start_xs = [0, int(smps_per_period/2), int(smps_per_period/3), int(smps_per_period/4), int(smps_per_period/8), int(3*smps_per_period/4)]
-		elif waveform == SG_WAVE_SQUARE:
-			master.synth_squarewave(ch, vpp, freq)
-			# Don't start on a squarewave edge
-			start_xs = [int(smps_per_period/3), int(3*smps_per_period/4), int(2*smps_per_period/3), int(smps_per_period/8), int(7*smps_per_period/8)]
-		elif waveform == SG_WAVE_TRIANGLE:
-			master.synth_rampwave(ch, vpp, freq)
-			start_xs = [0, int(smps_per_period/2), int(smps_per_period/3), int(smps_per_period/4), int(smps_per_period/8), int(3*smps_per_period/4)]
-		master.commit()
-
-		# Allow 2% variation in amplitude
-		allowable_error = 0.02*vpp
-
-		# Workaround for ensuring we receive a valid waveform in the frame
-		# The squarewave generator has unpredictable initial conditions currently
-		# So we want to skip the first frame
-		time.sleep(3*(tend-tstart))
-		master.flush()
-		master.get_frame()
-
-		# Test multiple frames worth
-		for _ in range(5):
-
-			frame = master.get_frame()
-			if(ch==1):
-				ch_frame = frame.ch1
-			if(ch==2):
-				ch_frame = frame.ch2
-
-			for start_x in start_xs:
-				# First amplitude measurement of the waveform
-				expectedv = ch_frame[start_x]
-
-				# Skip along the waveform, 1 cycle at a time and check
-				# the amplitude matches the expected value.
-				for i in range(number_periods-1):
-					x = start_x + int(round(i*smps_per_period))
-
-					actualv = ch_frame[x]
-
-					# For debugging the received frame
-					#for y in ch_frame:
-					#	print y
-
-					# Debugging info
-					# print "Allowable tolerance: %.10f, Error: %.10f, Frame index: %d, Expected value: %.10f, Actual value: %.10f, Samples per period: %d, Render deci: %f" % (allowable_error, expectedv-actualv, x, expectedv, actualv, smps_per_period, master.render_deci)
-					
-					# Check actual value is within tolerance
-					assert in_bounds(actualv, expectedv, allowable_error)
-
-	
-	# NOTE: Modulation cannot be tested using the Oscilloscope instrument as it is not enabled.
-	# 		The SignalGenerator bitstream should be tested on its own with full modulation functionality enabled.
-	@pytest.mark.parametrize("ch, source, depth, frequency", [
-		#(1, 0, 0.5, 3)
-		])
-	def tes2_am_modulation(self, base_instrs, ch, source, depth, frequency):
-		master = base_instrs[0]
-
-		# Set a sampling frequency
-		master.set_timebase(0,1.0) # 1 second
-		master.synth_sinewave(1, 1.0, 10, 0)
-		master.synth_sinewave(2, 1.0, 5, 0)
-		master.synth_modulate(1, SG_MOD_AMPL, SG_MODSOURCE_INT, depth, frequency)
-		master.commit()
-
-		# Get sampling frequency
-		fs = _OSC_ADC_SMPS / (master.decimation_rate * master.render_deci)
-		fstep = fs / _OSC_SCREEN_WIDTH
-
+		# Normalise the frames before checking the RMS error
+		frame_norm = numpy.array(frame)/vpp
+		gen_frame_norm = numpy.array(gen_frame)/vpp
+		rms_error = _calculate_rms_error(frame_norm, gen_frame_norm)
+		print rms_error
+		#if rms_error > MAX_RMS_ERROR:
+		plt.plot(ts,frame_norm - gen_frame_norm)
+		plt.plot(ts, frame_norm)
+		plt.plot(ts, gen_frame_norm)
+			#plt.plot(ts, gen_frame_norm)			
+		plt.show()
+		assert rms_error < MAX_RMS_ERROR
 		assert False
 
 class Test_Trigger:
 	'''
 		This class tests Trigger modes of the Oscilloscope
 	'''
-	
 
-
-	@pytest.mark.parametrize("edge, trig_level, waveform",
+	@pytest.mark.parametrize("ch, edge, trig_lvl",
 		itertools.product(
+			[1,2],
 			[OSC_EDGE_RISING, OSC_EDGE_FALLING, OSC_EDGE_BOTH], 
-			[-0.1, 0.0, 0.1, 0.3], 
-			[SG_WAVE_SINE, SG_WAVE_SQUARE, SG_WAVE_TRIANGLE]))
-	def test_triggered_edge(self, base_instrs, edge, trig_level, waveform):
+			[-0.1, 0.0, 0.1, 0.3]))
+	def test_triggered_edge(self, base_instrs, ch, edge, trig_lvl):
 		'''
 			Test the triggered edge type and level are correct
 		'''
@@ -452,21 +213,12 @@ class Test_Trigger:
 		master = base_instrs[0]
 
 		# Set up the source signal to test triggering on
-		trig_ch = 1
+		source_ch = ch # Channel to trigger on
 		source_freq = 100.0 #Hz
 		source_vpp = 1.0
 		source_offset = 0.0
-		master.set_source(trig_ch, OSC_SOURCE_DAC)
-
-		if waveform == SG_WAVE_SINE:
-			master.synth_sinewave(trig_ch, source_vpp, source_freq, source_offset)
-		elif waveform == SG_WAVE_SQUARE:
-			master.synth_squarewave(trig_ch, source_vpp, source_freq, source_offset)
-		elif waveform == SG_WAVE_TRIANGLE:
-			master.synth_rampwave(trig_ch, source_vpp, source_freq, source_offset)
-		else:
-			print "Invalid waveform type"
-			assert False
+		master.set_source(source_ch, OSC_SOURCE_DAC)
+		master.synth_sinewave(source_ch, source_vpp, source_freq, source_offset)
 
 		# Set a symmetric timebase of ~10 cycles
 		master.set_timebase(-5.0/source_freq,5.0/source_freq)
@@ -475,24 +227,26 @@ class Test_Trigger:
 		half_idx = (_OSC_SCREEN_WIDTH / 2) - 1
 
 		# Trigger on correct DAC channel
-		if trig_ch == 1:
-			master.set_trigger(OSC_TRIG_DA1, edge, trig_level, hysteresis=0, hf_reject=False, mode=OSC_TRIG_NORMAL)
-		if trig_ch == 2:
-			master.set_trigger(OSC_TRIG_DA2, edge, trig_level, hysteresis=0, hf_reject=False, mode=OSC_TRIG_NORMAL)
+		if source_ch == 1:
+			master.set_trigger(OSC_TRIG_DA1, edge, trig_lvl, hysteresis=0, hf_reject=False, mode=OSC_TRIG_NORMAL)
+		if source_ch == 2:
+			master.set_trigger(OSC_TRIG_DA2, edge, trig_lvl, hysteresis=0, hf_reject=False, mode=OSC_TRIG_NORMAL)
 
 		master.commit()
 
-		for _ in range(5):
+		# Test multiple triggers
+		num_trigger_tests = 10
+		for _ in range(num_trigger_tests):
 			frame = master.get_frame(timeout=5)
-			if trig_ch == 1:
+			if source_ch == 1:
 				ch_frame = frame.ch1
-			elif trig_ch == 2:
+			elif source_ch == 2:
 				ch_frame = frame.ch2
 
-			# Check for correct level unless we are on a square edge
-			if not (waveform == SG_WAVE_SQUARE):
-				assert in_bounds(trig_level,ch_frame[half_idx], 0.005)
+			# Check correct amplitude
+			assert in_bounds(ch_frame[half_idx], trig_lvl, max(ADC_AMP_TOL_P*source_vpp, 0.01))
 
+			# Check the correct edge type
 			if(edge == OSC_EDGE_RISING):
 				assert _is_rising(ch_frame[half_idx-1],ch_frame[half_idx])
 			elif(edge == OSC_EDGE_FALLING):
@@ -501,84 +255,83 @@ class Test_Trigger:
 				assert _is_rising(ch_frame[half_idx-1],ch_frame[half_idx]) or _is_falling(ch_frame[half_idx-1],ch_frame[half_idx])
 
 
-	def _setup_trigger_mode_test(self, master, trig_mode, trig_lvl, source_vpp, source_offset, source_freq):
-		# Set up the triggering and a DAC source to trigger on
-		trig_ch = 1
-		trig_level = trig_lvl
-		trig_edge = OSC_EDGE_RISING
-
-		trig_source_freq = source_freq
-		trig_source_vpp = source_vpp
-		trig_source_offset = source_offset
-
-		timebase_cyc = 10.0
-
-		master.set_source(trig_ch, OSC_SOURCE_DAC)
-		master.set_timebase(0, (timebase_cyc/trig_source_freq))
-		if trig_ch == 1:
-			master.set_trigger(OSC_TRIG_DA1, trig_edge, trig_level, hysteresis = 0, hf_reject = False, mode = trig_mode)
-		if trig_ch == 2:
-			master.set_trigger(OSC_TRIG_DA2, trig_edge, trig_level, hysteresis = 0, hf_reject = False, mode = trig_mode)
+	def _setup_trigger_mode_test(self, master, trig_ch, trig_lvl, trig_edge, trig_mode, source_vpp, source_offset, source_freq):
+		# Set up a DAC trigger source
+		# And turn on triggering
 
 		# Generate waveform to trigger off
-		master.synth_sinewave(trig_ch, trig_source_vpp, trig_source_freq, trig_source_offset)
-		master.commit()
+		master.synth_sinewave(trig_ch, source_vpp, source_freq, source_offset)
 
-		return timebase_cyc
+		master.set_source(trig_ch, OSC_SOURCE_DAC)
+		if trig_ch == 1:
+			master.set_trigger(OSC_TRIG_DA1, trig_edge, trig_lvl, hysteresis = 0, hf_reject = False, mode = trig_mode)
+		if trig_ch == 2:
+			master.set_trigger(OSC_TRIG_DA2, trig_edge, trig_lvl, hysteresis = 0, hf_reject = False, mode = trig_mode)
 
-	@pytest.mark.parametrize("freq",([20, 30, 40, 1e3, 10e3, 1e6, 10e6]))
+	@pytest.mark.parametrize("freq",
+		itertools.product(
+			[20, 30, 40, 1e3, 10e3, 1e6, 10e6]
+			))
 	def test_trigger_mode_normal(self, base_instrs, freq):
 		'''
 			Tests 'Normal' trigger mode
 		'''
 		master = base_instrs[0]
-		timebase_cyc = self._setup_trigger_mode_test(master, OSC_TRIG_NORMAL, 0.0, 1.0, 0.0, freq)
-		# Sample number of trigger point given a symmetric timebase
-		half_idx = (_OSC_SCREEN_WIDTH / 2) - 1
 
-		frame_timeout = max(5,(1/freq) * 20)
+		timebase_cyc = 10.0
+
+		trig_ch = 1
+		trig_lvl = 0.0
+		trig_edge = OSC_EDGE_RISING
+		trig_mode = OSC_TRIG_NORMAL
+		trig_source_vpp = 1.0
+		trig_source_offset = 0.0
+		trig_source_freq = freq
+		self._setup_trigger_mode_test(master, trig_ch, trig_lvl, trig_edge, trig_mode, trig_source_vpp, trig_source_offset, trig_source_freq)
+		
+		master.set_timebase(0, timebase_cyc/freq)
+		master.commit()
+
 		triggers_per_frame = min((freq/timebase_cyc)/master.framerate, OSC_MAX_TRIGRATE/master.framerate)
+		triggers_per_frame_tolerance = 0.2 #20%
 
 		# Case when trigger rate is greater than frame rate
 		if triggers_per_frame > 2:
 			waveformid = None
 
-			for _ in range(20):
-				frame = master.get_frame(timeout = frame_timeout)
+			for _ in range(10):
+				frame = master.get_frame(timeout = FRAME_TIMEOUT)
 
-				if waveformid is None: # Get the first ID
-					waveformid = frame.waveformid
-				else: 
+				if waveformid:
 					# Waveform ID has increased since last frame
 					assert frame.waveformid > waveformid
 
 					# The change in waveform ID is approximately the expected number of triggers per frame
 					delta_id = frame.waveformid - waveformid
-					assert in_bounds(triggers_per_frame, delta_id, max(triggers_per_frame*0.2, 1))
-
+					assert in_bounds(triggers_per_frame, delta_id, max(triggers_per_frame*triggers_per_frame_tolerance, 1))
+					# Debug print
+					print("Delta ID: %f, Triggers Per Frame: %f" % (delta_id, triggers_per_frame))
+				
 				waveformid = frame.waveformid
-				# Debug print
-				print("Waveform ID: %s, Frame ID: %s" % (waveformid, frame.frameid))
-		
+
 		# Case when trigger rate is slower than frame rate
 		else:
 			frames_per_trigger = 1.0/triggers_per_frame
 
 			for _ in range(10):
-				frame = master.get_frame(timeout = frame_timeout)
+				frame = master.get_frame(timeout = 30)
 				waveformid = frame.waveformid
 				frame_ctr = 0
 
 				while (frame.waveformid == waveformid):
 					frame_ctr = frame_ctr + 1
-					frame = master.get_frame(timeout = frame_timeout)
+					frame = master.get_frame(timeout = 30)
 
-				# The number of frames per trigger is approximately as expected (within 1 frame)
-				assert in_bounds(frames_per_trigger, frame_ctr, max(frames_per_trigger+1,1))
+				# The number of frames per trigger is approximately as expected
+				assert in_bounds(frames_per_trigger, frame_ctr, 2)
 
 				# Debug print
-				print("Waveform ID: %s, Frame ID: %s, Frame Counter: %s" % (waveformid, frame.frameid, frame_ctr))
-
+				print("Frame Ctr: %f, Frames Per Trigger: %f" % (frame_ctr, frames_per_trigger))
 
 	def test_trigger_mode_normal_notrigger(self, base_instrs):
 		'''
@@ -586,65 +339,71 @@ class Test_Trigger:
 		'''
 		master = base_instrs[0]
 
-		# Set up the trigger source with a trigger level exceeding the peak voltage
-		source_freq = 1e3
-		source_vpp = 1.0
-		source_offset = 0.0
-		trig_lvl = 1.5
-		timebase_cyc = self._setup_trigger_mode_test(master, OSC_TRIG_NORMAL, trig_lvl, source_vpp, source_offset, source_freq)
+		timebase_cyc = 10.0
 
+		trig_ch = 1
+		trig_lvl = 1.5
+		trig_edge = OSC_EDGE_RISING
+		trig_mode = OSC_TRIG_NORMAL
+		trig_source_vpp = 1.0
+		trig_source_offset = 0.0
+		trig_source_freq = 1e3
+		self._setup_trigger_mode_test(master, trig_ch, trig_lvl, trig_edge, trig_mode, trig_source_vpp, trig_source_offset, trig_source_freq)
+		master.set_timebase(0, timebase_cyc/trig_source_freq)
+		master.commit()
 		# There should be no trigger events
 		with pytest.raises(FrameTimeout):
 			frame = master.get_frame(timeout = 5)
  
-
 	def test_trigger_mode_auto_notrigger(self, base_instrs):
 		'''
 			Tests 'Auto' trigger mode
 		'''
 		master = base_instrs[0]
 
-		# Set up the trigger source with a trigger level exceeding the peak voltage
-		source_freq = 1e3
-		source_vpp = 1.0
-		source_offset = 0.0
+		timebase_cyc = 10.0
+
+		trig_ch = 1
 		trig_lvl = 1.5
-		timebase_cyc = self._setup_trigger_mode_test(master, OSC_TRIG_AUTO, trig_lvl, source_vpp, source_offset, source_freq)
+		trig_edge = OSC_EDGE_RISING
+		trig_mode = OSC_TRIG_AUTO
+		trig_source_vpp = 1.0
+		trig_source_offset = 0.0
+		trig_source_freq = 1e3
+		self._setup_trigger_mode_test(master, trig_ch, trig_lvl, trig_edge, trig_mode, trig_source_vpp, trig_source_offset, trig_source_freq)
+		master.set_timebase(0, timebase_cyc/trig_source_freq)
+		master.commit()
 
 		# Auto mode test - every frame should have maximum number of triggers
-		waveformid = None
-		delta_ids = []
+		ids = []
 		for _ in range(20):
 			frame = master.get_frame(timeout = 5)
-			if waveformid == None:
-				waveformid = frame.waveformid
-			else:
-				delta_ids = delta_ids + [frame.waveformid - waveformid]
-				waveformid = frame.waveformid
+			ids = ids + [frame.waveformid]
 
-			# Debug print
-			print("Waveform ID: %s, Frame ID: %s" % (frame.waveformid, frame.frameid))
-
-
+		delta_ids = numpy.diff(ids)
 		avg = sum(delta_ids)/float(len(delta_ids))
-		assert in_bounds(avg, OSC_AUTO_TRIGRATE/master.framerate, 0.2)
 		print("Delta IDs: %s, Avg: %f" % (delta_ids, avg))
-
+		assert in_bounds(avg, OSC_AUTO_TRIGRATE/master.framerate, 0.2)
 
 	def test_trigger_mode_single(self, base_instrs):
 		'''
-			Tests 'Auto' trigger mode
+			Tests 'Single' trigger mode
 		'''
 		master = base_instrs[0]
 
-		# Set up the trigger source with a trigger level exceeding the peak voltage
-		trig_source_freq = 1e3
+		# Set up a trigger source
+		trig_ch = 1
+		trig_lvl = 0.0
+		trig_edge = OSC_EDGE_RISING
+		trig_mode = OSC_TRIG_SINGLE
 		trig_source_vpp = 1.0
 		trig_source_offset = 0.0
-		trig_lvl = 0.0
-		timebase_cyc = self._setup_trigger_mode_test(master, OSC_TRIG_SINGLE, trig_lvl, trig_source_vpp, trig_source_offset, trig_source_freq)
+		trig_source_freq = 1e3
+		self._setup_trigger_mode_test(master, trig_ch, trig_lvl, trig_edge, trig_mode, trig_source_vpp, trig_source_offset, trig_source_freq)
+		master.set_timebase(0, 5.0/trig_source_freq)
+		master.commit()
 
-		frame = master.get_frame(timeout=5)
+		frame = master.get_frame(timeout=FRAME_TIMEOUT)
 		init_state_id = frame.stateid
 		init_waveform_id = frame.waveformid
 		init_trig_id = frame.trigstate
@@ -661,13 +420,18 @@ class Test_Trigger:
 
 		print("State ID: %s, Trigstate: %s, Waveform ID: %s, Frame ID: %s" % (frame.stateid, frame.trigstate, frame.waveformid, frame.frameid))
 
-	@pytest.mark.parametrize("ch", ([OSC_TRIG_CH1, OSC_TRIG_CH2, OSC_TRIG_DA1, OSC_TRIG_DA2]))
+	@pytest.mark.parametrize("ch", 
+		itertools.product(
+			[OSC_TRIG_CH1, OSC_TRIG_CH2, OSC_TRIG_DA1, OSC_TRIG_DA2]
+			))
 	def test_trigger_channels(self, base_instrs, ch):
 		'''
 			Tests triggering on ADC and DAC channels
 		'''
 		master = base_instrs[0]
 		slave = base_instrs[1]
+
+		timebase_cyc = 10.0 
 
 		trig_source_freq = [1e3, 1e3, 0.75e3, 1.75e3]
 		trig_source_vpp = [1.0, 0.5, 1.0, 0.5]
@@ -702,140 +466,119 @@ class Test_Trigger:
 			assert False
 
 		master.set_trigger(ch, OSC_EDGE_RISING, 0.0, mode=OSC_TRIG_NORMAL)
-		master.set_timebase(-5/trig_source_freq[idx], 5/trig_source_freq[idx])
+		master.set_timebase(0,timebase_cyc/trig_source_freq[idx])
 		master.commit()
 		slave.commit()
 
+		master.get_frame(timeout = FRAME_TIMEOUT)
+		master.get_frame(timeout = FRAME_TIMEOUT)
 		# Get a frame on the appropriate channel and check it is as expected
-		frame = master.get_frame(timeout = 5)
+		frame = master.get_frame(timeout = FRAME_TIMEOUT)
 
 		# Check the frame
 		if ch == OSC_TRIG_CH1 or ch == OSC_TRIG_DA1:
-			data = frame.ch1
+			frame = frame.ch1
 		elif ch == OSC_TRIG_CH2 or ch == OSC_TRIG_DA2:
-			data = frame.ch2
+			frame = frame.ch2
 		else:
 			print "Invalid trigger channel"
 			assert False
+		frame = _crop_frame_of_nones(frame)
 
-		# Generate timesteps for the current timebase
-		# Step size
-		t1, t2 = master._get_timebase(master.decimation_rate, master.pretrigger, master.render_deci, master.offset)
-		ts = numpy.cumsum([(t2 - t1) / _OSC_SCREEN_WIDTH]*len(data))
-
-		# Crop the data if there are 'None' values at the end of the frame
-		try:
-			invalid_indx = data.index(None)
-			data = data[0:data.index(None)]
-			ts = ts[0:len(data)]
-		except ValueError:
-			pass
+		ts = numpy.cumsum([_get_frame_timestep(master)]*len(frame))
 
 		# Curve fit the frame data to ensure correct waveform has been triggered
-		bounds = ([0, 0, -0.2, trig_source_freq[idx]/2.0], [2.0, 2*math.pi, 0.2, 2.0*trig_source_freq[idx]])
-		p0 = [trig_source_vpp[idx], 0, 0, trig_source_freq[idx]]
-		params, cov = curve_fit(_sinewave, ts, data, p0 = p0, bounds=bounds)
-		ampl = params[0]
-		phase = params[1]
-		offset = params[2]
-		freq = params[3]
-
-		plt.plot(ts,data)
+		# Generate the expected waveform and compare difference (should be same)
+		expected_waveform = _sinewave(ts, trig_source_vpp[idx]/2.0, 0.0, trig_source_offset[idx], trig_source_freq[idx])
+		plt.plot(ts,expected_waveform)
+		plt.plot(ts,frame)
 		plt.show()
 
-		print("Vpp: %f/%f, Frequency: %f/%f, Offset: %f/%f" % (trig_source_vpp[idx], ampl*2.0, trig_source_freq[idx], freq, trig_source_offset[idx], offset))
-		assert in_bounds(ampl*2.0, trig_source_vpp[idx], trig_source_vpp[idx]*0.1)
-		assert in_bounds(freq, trig_source_freq[idx], trig_source_freq[idx]*0.1)
-		assert in_bounds(offset, trig_source_offset[idx], max(0.05, trig_source_offset[idx]*0.1))
-
-		# Sample number of trigger point given a symmetric timebase
-		half_idx = (_OSC_SCREEN_WIDTH / 2) - 1
-		# Assert the trigger point is the correct position
-		assert _is_rising(data[half_idx-1],data[half_idx])
-
-		assert False
-
+		print "RMS Error", _calculate_rms_error(expected_waveform, frame) < MAX_RMS_ERROR
+		# Should have a phase of 0.0
+		assert _calculate_rms_error(expected_waveform, frame) < MAX_RMS_ERROR
 
 class Test_Timebase:
 	'''
 		Ensure the timebase is correct
+		TODO: Does it make sense to test timebase only for a single channel
 	'''
-	
-	# Test frames from both channels
-	# TODO: Need to more thoroughly test negative timebases as some of these are currently broken  # [-3e-3, -1e-3]
-	@pytest.mark.parametrize("timebase", [[-10e-6, -5e-6], [-2, -1], [-10e-6, 10e-6], [-2e-3,1e-3],[-1,2], [0,1],[-3e-3,0],[0,2e-3], [1e-6, 2e-3]])
-	def test_timebase_span(self, base_instrs, timebase):
 
+	@pytest.mark.parametrize("ch, span", 
+		itertools.product([1,2], [5e-6, 1e-3, 2]))
+	def test_timebase_span(self, base_instrs, ch, span):
+		'''
+			Test that the frame's timebase is consistent with the captured waveform frequency
+		'''
 		master = base_instrs[0]
-		slave = base_instrs[1]
-		span = timebase[1]-timebase[0]
-		f1 = 10.0/span
-		f2 = 5.0/span
 
-		master.set_source(1, OSC_SOURCE_DAC)
-		master.set_source(2, OSC_SOURCE_DAC)
-		master.set_trigger(OSC_TRIG_DA1, OSC_EDGE_RISING, 0.0, mode=OSC_TRIG_NORMAL)
-		master.synth_sinewave(1, 1.0, f1, 0.0)
-		master.synth_sinewave(2, 1.0, f2, 0.0)
-		master.set_timebase(timebase[0],timebase[1])
+		timebase_cycles = 10.0
+		source_freq = timebase_cycles/span
+		source_vpp = 1.0
+		source_offset = 0.0
+		source_phase = 0.0
+
+		master.set_source(ch, OSC_SOURCE_DAC)
+		if ch == 1:
+			master.set_trigger(OSC_TRIG_DA1, OSC_EDGE_RISING, 0.0, mode=OSC_TRIG_NORMAL)
+		else:
+			master.set_trigger(OSC_TRIG_DA2, OSC_EDGE_RISING, 0.0, mode=OSC_TRIG_NORMAL)
+		master.synth_sinewave(ch, source_vpp, source_freq, source_offset)
+		master.set_timebase(0,span)
 		master.commit()
 
-		startt, endt = master._get_timebase(master.decimation_rate, master.pretrigger, master.render_deci, master.offset)
-		ts = numpy.cumsum([(endt - startt)/_OSC_SCREEN_WIDTH] * _OSC_SCREEN_WIDTH)
+		frame = master.get_frame(timeout = FRAME_TIMEOUT)
+		if ch==1:
+			data = _crop_frame_of_nones(frame.ch1)
+		else:
+			data = _crop_frame_of_nones(frame.ch2)
 
-		frame = master.get_frame(timeout = 20)
-		data1 = frame.ch1
-		data2 = frame.ch2
+		ts = numpy.cumsum([_get_frame_timestep(master)]*len(frame))
 
-		data1 = _crop_frame_of_nones(data1)
-		data2 = _crop_frame_of_nones(data2)
+		# Assume the expected waveform and do an RMS fit
+		expected_waveform = _sinewave(ts, source_vpp/2.0, source_phase, source_offset, source_freq)
 
-		ts1 = ts[0:len(data1)]
-		ts2 = ts[0:len(data2)]
-		# Assuming a timebase, do a curve fit on both frames and check the frequency is the minimum
-		params1, cov1 = curve_fit(_sinewave, ts1, data1, p0 = [1.0, 0, 0, f1])
-		params2, cov2 = curve_fit(_sinewave, ts2, data2, p0 = [1.0, 0, 0, f2])
+		plt.plot(ts, expected_waveform)
+		plt.plot(ts, data)
+		plt.show()
 
-		print("Span: %.10f/%.10f, Freq1: %f/%f, Freq: %f/%f" % (span, endt-startt, f1, params1[3], f2, params2[3]))
-
-		#plt.plot(range(1024), frame.ch1)
-		#plt.plot(range(1024), frame.ch2)
-		#plt.show()
-
-		assert params1[3] > (f1*0.98)
-		assert params2[3] > (f2*0.98)
+		assert _calculate_rms_error(expected_waveform, data) < MAX_RMS_ERROR
 
 	@pytest.mark.parametrize("ch, pretrigger_time",
 		itertools.product(
 			[1,2],
-			[20e-6, 1e-6, 20e-3, 1e-3, 100e-3, 1, 3]))
+			[20e-6, 1e-6, 20e-3, 1e-3, 100e-3, 1]))
 	def test_pretrigger(self, base_instrs, ch, pretrigger_time):
-
+		'''
+			Test that the captured waveform is offset by the correct amount of time (pretrigger)
+		'''
 		master = base_instrs[0]
-		#slave = base_instrs[0]
+
+		source_freq = 1.0/(3*pretrigger_time)
+		source_vpp = 1.0
+		source_offset = 0.0
+		trig_lvl = source_offset
 
 		# Generate a pulse of some small width and period < frame length
-		master.synth_sinewave(ch, 1.0, 1.0/(3*pretrigger_time))
+		master.synth_sinewave(ch, source_vpp, source_freq, source_offset)
 		if ch == 1:
-			master.set_trigger(OSC_TRIG_DA1, OSC_EDGE_RISING, 0, mode=OSC_TRIG_NORMAL)
+			master.set_trigger(OSC_TRIG_DA1, OSC_EDGE_RISING, trig_lvl, mode=OSC_TRIG_NORMAL)
 		else:
-			master.set_trigger(OSC_TRIG_DA2, OSC_EDGE_RISING, 0, mode=OSC_TRIG_NORMAL)
+			master.set_trigger(OSC_TRIG_DA2, OSC_EDGE_RISING, trig_lvl, mode=OSC_TRIG_NORMAL)
 		master.set_source(ch, OSC_SOURCE_DAC)
-		master.set_timebase(-pretrigger_time, 3*pretrigger_time)
+		master.set_timebase(-pretrigger_time, 3*pretrigger_time) # Ensures trigger is first zero crossing
 		master.commit()
 
 		# Compute the index of which the rising edge should occur
 		if ch == 1:
-			frame = master.get_frame(timeout = 20).ch1
+			frame = master.get_frame(timeout = FRAME_TIMEOUT*2.0).ch1
 		else:
-			frame = master.get_frame(timeout = 20).ch2
-		if None in frame:
-			frame = frame[0:frame.index(None)]
+			frame = master.get_frame(timeout = FRAME_TIMEOUT*2.0).ch2
+		frame = _crop_frame_of_nones(frame)
+		ts = numpy.cumsum([_get_frame_timestep(master)]*len(frame))
 
 		# Get index of the zero crossing
 		zc = zero_crossings(frame)
-		#plt.plot(range(len(frame)), frame)
-		#plt.show()
 
 		# Convert indices to timesteps
 		ts = _get_frame_timestep(master)
@@ -849,14 +592,17 @@ class Test_Timebase:
 	@pytest.mark.parametrize("ch, posttrigger_time",
 		itertools.product(
 			[1,2],
-			[20e-6, 1e-6, 20e-3, 1e-3, 100e-3, 1, 3]))
+			[20e-6, 1e-6, 20e-3, 1e-3, 100e-3, 1]))
 	def test_posttrigger(self, base_instrs, ch, posttrigger_time):
 
 		master = base_instrs[0]
 
 		source_freq = 1.0/(2*posttrigger_time)
-		print "Source Freq ", source_freq
-		master.synth_squarewave(ch, 1.0, source_freq, duty=0.1)
+		source_vpp = 1.0
+		source_offset = 0.0
+		trig_lvl = source_offset
+
+		master.synth_sinewave(ch, source_vpp, source_freq, duty=0.1)
 		if ch == 1:
 			master.set_trigger(OSC_TRIG_DA1, OSC_EDGE_RISING, 0, mode=OSC_TRIG_NORMAL)
 		else:
@@ -873,11 +619,11 @@ class Test_Timebase:
 
 		# Get index of the zero crossing
 		zc = zero_crossings(frame)
-		#plt.plot(range(len(frame)), frame)
-		#plt.show()
 
 		# Convert indices to timesteps
 		ts = _get_frame_timestep(master)
+		plt.plot(ts, frame)
+		plt.show()
 
 		source_period = 1.0/source_freq
 		period_tolerance = max(2*ts,source_period*0.05)
@@ -901,18 +647,19 @@ class Test_Frontend:
 		master = base_instrs[0]
 		slave = base_instrs[1]
 
+		timebase_cyc = 10.0
 		source_amp = amp
 		source_freq = freq
 		source_offset = offset
 		tolerance_percent = 0.05
 
-
 		# Put in different waveforms and test they look correct in a frame
 		master.set_frontend(ch, fiftyr=fiftyr, atten=True, ac=False)
 		master.set_source(ch, OSC_SOURCE_ADC)
+		master.set_trigger(OSC_TRIG_CH1, OSC_EDGE_RISING, source_offset, mode=OSC_TRIG_NORMAL)
+		master.set_timebase(0,timebase_cyc/source_freq)
 
 		slave.synth_sinewave(ch, source_amp, source_freq, source_offset)
-		master.set_timebase(0,10.0/source_freq)
 		slave.commit()
 		master.commit()
 
@@ -925,17 +672,9 @@ class Test_Frontend:
 
 		# Fit a curve to the input waveform
 		ts = numpy.cumsum([_get_frame_timestep(master)]*len(frame))
-		p0 = [source_amp, 0, source_offset, source_freq]
-		params, cov = curve_fit(_sinewave, ts, frame, p0=p0)
+		expected_waveform = sinewave(ts, source_amp/2.0 if fiftyr else source_amp, 0.0, source_offset, source_freq)
 
-		print params
-		expected_amp = source_amp if fiftyr else source_amp*2.0
-		expected_offset = source_offset if fityr else source_offset*2.0
-		measured_amp = abs(params[0]*2.0)
-		measured_offset = params[2]
-
-		assert in_bounds(measured_amp, expected_amp, expected_amp*tolerance_percent)
-		assert in_bounds(measured_offset, source_offset, source_offset*tolerance_percent)
+		assert _calculate_rms_error(expected_waveform, frame) < MAX_RMS_ERROR
 
 	@pytest.mark.parametrize("ch, atten, amp",
 		itertools.product(
@@ -946,6 +685,8 @@ class Test_Frontend:
 	def test_input_attenuation(self, base_instrs, ch, atten, amp):
 		master = base_instrs[0]
 		slave = base_instrs[1]
+
+		timebase_cyc = 10.0
 
 		source_amp = amp # Vpp
 		source_freq = 1e3 # Hz
@@ -959,11 +700,11 @@ class Test_Frontend:
 		slave.commit()
 
 		master.set_frontend(ch, fiftyr=True, atten=atten, ac=False)
-		master.set_timebase(0,10.0/source_freq)
+		master.set_timebase(0,timebase_cyc/source_freq)
 		master.commit()
 
 		# Get a throwaway frame
-		master.get_frame(timeout=5)
+		master.get_frame(timeout= FRAME_TIMEOUT)
 
 		# Get a valid frame
 		if ch == 1:
@@ -971,14 +712,11 @@ class Test_Frontend:
 		else:
 			frame = master.get_frame(timeout = 5).ch2
 		frame = _crop_frame_of_nones(frame)
+		ts = numpy.cumsum([_get_frame_timestep(master)]*len(frame))
 
 		if (atten and source_amp < LARGE_INPUT_RANGE) or ((not atten) and source_amp < SMALL_INPUT_RANGE) :
-			# Fit a curve to the input waveform (it shouldn't be clipped)
-			ts = numpy.cumsum([_get_frame_timestep(master)]*len(frame))
-			p0 = [source_amp, 0, source_offset, source_freq]
-			params, cov = curve_fit(_sinewave, ts, frame, p0=p0)
-			measured_amp = abs(params[0]*2.0)
-			assert in_bounds(measured_amp, source_amp, tolerance_percent*source_amp)
+			expected_waveform = sinewave(ts, source_amp/2.0 if fiftyr else source_amp, 0.0, source_offset, source_freq)
+			assert _calculate_rms_error(expected_waveform, frame) < MAX_RMS_ERROR
 		else:
 			# Clipping will have occurred, full range used
 			assert in_bounds(abs(max(frame)-min(frame)),SMALL_INPUT_RANGE, SMALL_INPUT_RANGE*tolerance_percent)
@@ -986,10 +724,10 @@ class Test_Frontend:
 	@pytest.mark.parametrize("ch, fiftyr, ac, amp, offset",
 		itertools.product(
 			[1,2],
-			[True, False],
-			[True, False],
-			[0.3, 0.7, 1.0],
-			[-0.5, -0.1, 0.0, 0.1, 0.5]
+			[True], #, False],
+			[True], #, False],
+			[0.3], #, 0.7, 1.0],
+			[-0.5]#, -0.1, 0.0, 0.1, 0.5]
 			))
 	def test_acdc_coupling(self, base_instrs, ch, fiftyr, ac, amp, offset):
 
@@ -999,30 +737,33 @@ class Test_Frontend:
 		master = base_instrs[0]
 		slave = base_instrs[1]
 
+		timebase_cyc = 5.0
+
 		source_amp = amp # Vpp
 		source_offset = offset
 		# Set the source frequency "large enough" to avoid attenuation
 		if fiftyr:
-			source_freq = AC_COUPLE_CORNER_FREQ_50O*10.0
+			source_freq = AC_COUPLE_CORNER_FREQ_50O*2.0
 		else:
-			source_freq = AC_COUPLE_CORNER_FREQ_1MO*10.0
+			source_freq = AC_COUPLE_CORNER_FREQ_1MO*2.0
 
 		# Expected offset and amplitude
 		expected_amp = source_amp if fiftyr else source_amp * 2.0
-		expected_off = 0.0 if ac else (source_offset if fiftyr else source_offset * 2.0)
+		expected_offset = 0.0 if ac else (source_offset if fiftyr else source_offset * 2.0)
 
 		slave.synth_sinewave(ch, source_amp, source_freq, source_offset)
 		slave.commit()
 
 		master.set_frontend(ch, fiftyr=fiftyr, atten=True, ac=ac)
-		master.set_timebase(0, 10.0/source_freq)
+		master.set_timebase(0, timebase_cyc/source_freq)
 		if ch == 1:
-			master.set_trigger(OSC_TRIG_CH1, OSC_EDGE_RISING, expected_off, mode=OSC_TRIG_NORMAL)
+			master.set_trigger(OSC_TRIG_CH1, OSC_EDGE_RISING, expected_offset, mode=OSC_TRIG_NORMAL)
 		else:
-			master.set_trigger(OSC_TRIG_CH2, OSC_EDGE_RISING, expected_off, mode=OSC_TRIG_NORMAL)
+			master.set_trigger(OSC_TRIG_CH2, OSC_EDGE_RISING, expected_offset, mode=OSC_TRIG_NORMAL)
 		master.commit()
 
 		# Throwaway frame
+		time.sleep(1)
 		master.get_frame(timeout = 5)
 		if ch == 1:
 			frame = master.get_frame(timeout = 5).ch1
@@ -1034,15 +775,17 @@ class Test_Frontend:
 		# OR "Offset" if DC coupling
 		# Fit a curve to the input waveform (it shouldn't be clipped)
 		ts = numpy.cumsum([_get_frame_timestep(master)]*len(frame))
-		p0 = [expected_amp, 0, expected_off, source_freq]
-		params, cov = curve_fit(_sinewave, ts, frame, p0=p0)
-		measured_amp = abs(params[0]*2.0)
-		measured_off = params[2]
-		print params
 
-		assert in_bounds(measured_amp, expected_amp, tolerance_percent*expected_amp)
-		assert in_bounds(measured_off, expected_off, tolerance_offset)
+		expected_waveform = _sinewave(ts, expected_amp, 0.0, expected_offset, source_freq)
 
+
+		plt.plot(ts, numpy.array(expected_waveform)/expected_amp)
+		plt.plot(ts, numpy.array(frame)/expected_amp)
+		plt.show()
+		rms_error = _calculate_rms_error(expected_waveform, frame)
+		print rms_error
+		assert _calculate_rms_error(numpy.array(expected_waveform)/expected_amp, numpy.array(frame)/expected_amp) < MAX_RMS_ERROR
+		assert False
 
 class Tes2_Source:
 	'''
