@@ -337,7 +337,7 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		if ch2:
 			self.nch += 1
 
-		fname = datetime.now().strftime(self.logname+"_%Y%m%d_%H%M")
+		fname = datetime.now().strftime(self.logname + "_%Y%m%d_%H%M%S")
 
 		if not all([ len(s) for s in [self.binstr, self.procstr, self.fmtstr, self.hdrstr]]):
 			raise InvalidOperationException("Instrument currently doesn't support data logging")
