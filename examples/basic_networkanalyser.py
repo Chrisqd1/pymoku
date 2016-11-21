@@ -32,7 +32,7 @@ m.attach_instrument(i)
 # 
 # i.set_frontend(0, fiftyr=True, atten=True, ac=False)
 # i.set_frontend(1, fiftyr=True, atten=True, ac=False)
-
+i.set_dbscale(False)
 # i.calibration = None
 i.set_defaults()
 # i.sweep_freq_min = 1
@@ -50,7 +50,17 @@ i.set_defaults()
 #i.set_xmode(FULL_FRAME)
 
 # Push all new configuration to the Moku device
-#i.commit()
+
+
+# i.sweep_freq_min = 100
+# i.sweep_freq_delta = 100
+# i.hold_off_time = 125
+
+i.set_dbscale(True)
+
+i.set_sweep_parameters(1e3, 100e3, 512, False)
+
+i.commit()
 
 #frame = i.get_frame()
 # i.sweep_freq_min = 10
@@ -59,15 +69,15 @@ i.set_defaults()
 # i.commit()
 #print frame[0]
 # Set up basic plot configurations
-# line1, = plt.plot([])
-# line2, = plt.plot([])
-# plt.ion()
-# plt.show()
-# plt.grid(b=True)
+line1, = plt.plot([])
+line2, = plt.plot([])
+plt.ion()
+plt.show()
+plt.grid(b=True)
 # if(dbm):
 # plt.ylim([-200, 100])
 # else:
-# plt.ylim([-100,100])
+#plt.ylim([-100,100])
 # plt.autoscale(axis='x',tight=True)
 
 try:
@@ -75,31 +85,41 @@ try:
 	print "hello"
 	frame = i.get_frame()
 	print "frame", frame
-	print "channel 1", frame.ch1
+	print "channel 1 mag", frame.ch1.magnitude
+	print "channel 1 phase", frame.ch1.phase
 
 	# Format the x-axis as a frequency scale 
-	# ax = plt.gca()
+	ax = plt.gca()
 	# ax.xaxis.set_major_formatter(FuncFormatter(frame.get_xaxis_fmt))
 	# ax.yaxis.set_major_formatter(FuncFormatter(frame.get_yaxis_fmt))
 	# ax.fmt_xdata = frame.get_xcoord_fmt
 	# ax.fmt_ydata = frame.get_ycoord_fmt
 
+
 	# Start drawing new frames
-	# while True:
-		# frame = i.get_frame()
-		# plt.pause(0.001)
+	while True:
+		frame = i.get_frame()
+		plt.pause(0.001)
 
-		# # Set the frame data for each channel plot
-		# line1.set_ydata(frame.ch1)
-		# line2.set_ydata(frame.ch2)
-		# # Frequency axis shouldn't change, but to be sure
-		# line1.set_xdata(frame.ch1_fs)
-		# line2.set_xdata(frame.ch2_fs)
-		# # Ensure the frequency axis is a tight fit
-		# ax.relim()
-		# ax.autoscale_view()
+		# Set the frame data for each channel plot
+		line1.set_ydata(frame.ch1.magnitude)
+		print frame.ch1.magnitude
+		line2.set_ydata(frame.ch1.phase)
+		print frame.ch1.phase
+		# Frequency axis shouldn't change, but to be sure
+		line1.set_xdata(frame.ch1_fs)
+		line2.set_xdata(frame.ch2_fs)
+		print "ch1_axis", frame.ch1_fs
+		print "start freq", i.sweep_freq_min
+		print "freq step", i.sweep_freq_delta
+		#line1.set_xdata(range(len(frame.ch1.magnitude)))
+		#line2.set_xdata(range(len(frame.ch1.phase)))
+		# Ensure the frequency axis is a tight fit
+		ax.relim()
+		ax.autoscale_view()
 
-		# # Redraw the lines
-		# plt.draw()
+		# Redraw the lines
+		plt.draw()
+
 finally:
 	m.close()

@@ -53,15 +53,52 @@ class NetAnFrame(_frame_instrument.DataFrame):
 	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumFrame.waveformid
 		:annotation: = n
 	"""
+	class _NetAnChannel():
+		# convert an RMS voltage to a power level (assuming 50Ohm load)
+		def _mag_to_db(self, v):
+			if v == None :
+				return None
+			else :
+				return 20.0*math.log(v/20.0,10)
+
+		def _calculate_magnitude(self, i_signal, q_signal, dbscale):
+			if i_signal == None or q_signal == None:
+				return None
+			elif dbscale:
+				return self._mag_to_db(math.sqrt(i_signal**2 + q_signal**2))
+			else:
+				return math.sqrt(i_signal**2 + q_signal**2)
+
+		def _calculate_phase(self, i_signal, q_signal):
+			if i_signal == None or q_signal == None:
+				return None
+			else:
+				return math.atan2(i_signal, q_signal)
+
+		def _generate_signals(self, input_signal, dbscale):
+			self.i_sig = [ input_signal[x] for x in range(0,len(input_signal ), 2 ) ]
+			self.q_sig = [ input_signal[x] for x in range(1,len(input_signal ), 2 ) ]
+	
+			self.magnitude =  [ self._calculate_magnitude(self.i_sig[x], self.q_sig[x], dbscale) for x in range(len(self.q_sig)) ] #self._calculate_magnitude( self.i_sig[x], self.q_sig[x] )
+			self.phase = [ self._calculate_phase(self.i_sig[x], self.q_sig[x]) for x in range(len(self.q_sig)) ]
+
+
+		i_sig = []
+		q_sig = []
+		magnitude = []
+		phase = []
+
+
+
 	def __init__(self, scales):
 		super(NetAnFrame, self).__init__()
 
 		#: Channel 1 data array in units of power. Present whether or not the channel is enabled, but the
 		#: contents are undefined in the latter case.
-		self.ch1 = []
+		self.ch1 = self._NetAnChannel()
 
 		#: Channel 2 data array in units of power.
-		self.ch2 = []
+		self.ch2 = self._NetAnChannel()
 
 		#: The frequency range associated with both channels
 		self.fs = []
@@ -72,9 +109,7 @@ class NetAnFrame(_frame_instrument.DataFrame):
 	def __json__(self):
 		return { 'ch1' : self.ch1, 'ch2' : self.ch2, 'fs' : self.fs }
 
-	# convert an RMS voltage to a power level (assuming 50Ohm load)
-	def _vrms_to_dbm(self, v):
-		return 10.0*math.log(v*v/50.0,10) + 30.0
+
 
 	def process_complete(self):
 
@@ -85,7 +120,7 @@ class NetAnFrame(_frame_instrument.DataFrame):
 			dat = struct.unpack('<' + 'i' * smpls, self.raw1)
 			dat = [ x if x != -0x80000000 else None for x in dat ]
 
-			print dat
+			# print dat
 			return
 
 		# Get scaling/correction factors based on current instrument configuration
@@ -95,7 +130,7 @@ class NetAnFrame(_frame_instrument.DataFrame):
 		# fs = scales['fs']
 		# f1, f2 = scales['fspan']
 		# fcorrs = scales['fcorrs']
-		# dbmscale = scales['dbmscale']
+		dbscale = scales['dbscale']
 
 		try:
 			# Find the starting index for the valid frame data
@@ -103,8 +138,8 @@ class NetAnFrame(_frame_instrument.DataFrame):
 			# start_index = bisect_right(fs,f1)
 
 			# Set the frequency range of valid data in the current frame (same for both channels)
-			# self.ch1_fs = fs[start_index:-1]
-			# self.ch2_fs = fs[start_index:-1]
+			self.ch1_fs = self.calculate_freq_axis( scales['sweep_freq_min'], scales['sweep_freq_delta'], scales['sweep_length'], scales['log_en'] )
+			self.ch2_fs = self.calculate_freq_axis( scales['sweep_freq_min'], scales['sweep_freq_delta'], scales['sweep_length'], scales['log_en'] )
 
 			##################################
 			# Process Ch1 Data
@@ -116,9 +151,14 @@ class NetAnFrame(_frame_instrument.DataFrame):
 			# NetAn data is backwards because $(EXPLETIVE), also remove zeros for the sake of common
 			# display on a log axis.
 			self.ch1_bits = [ float(x) if x is not None else None for x in dat[:1024] ]
+			print self.ch1_bits[100]
+			#self.ch1.i_sig = [ self.ch1_bits[x] for x in range(0,len(self.ch1_bits ), 2 ) ]
+			#self.ch1.q_sig = [ self.ch1_bits[x] for x in range(1,len(self.ch1_bits ), 2 ) ]
+			#self.ch1.magnitude = [ self.ch1._calculate_magnitude(self.ch1.i_sig[x], self.ch1.q_sig[x]) for x in range(len(self.ch1.i_sig)) ] #[ math.sqrt(self.ch1.i_sig[x]**2 + self.ch1.q_sig[x]**2) for x in range(len(self.ch1.i_sig))]
+			self.ch1._generate_signals(self.ch1_bits, dbscale)
 
-			#self.ch1 = self.ch1_bits
-			print self.ch1_bits
+
+			# print self.ch1_bits
 			# Apply frequency dependent corrections
 			# self.ch1 = [ self._vrms_to_dbm(a*c*scale1) if dbmscale else a*c*scale1 if a is not None else None for a,c in zip(self.ch1_bits, fcorrs)]
 
@@ -134,7 +174,7 @@ class NetAnFrame(_frame_instrument.DataFrame):
 
 			self.ch2_bits = [ float(x) if x is not None else None for x in dat[:1024] ]
 
-			#self.ch2 = self.ch2_bits
+			# self.ch2._generate_signals(self.ch2_bits)
 
 			# self.ch2 = [ self._vrms_to_dbm(a*c*scale2) if dbmscale else a*c*scale2 if a is not None else None for a,c in zip(self.ch2_bits, fcorrs)]
 			# self.ch2 = self.ch2[start_index:-1]
@@ -146,11 +186,25 @@ class NetAnFrame(_frame_instrument.DataFrame):
 			self.complete = False
 
 		# A valid frame is there's at least one valid sample in each channel
-		return any(self.ch1) and any(self.ch2)
+		return self.ch1 and self.ch2
 
 	'''
 		Plotting helper functions
 	'''
+	def calculate_freq_axis(self, start_freq, freq_step, sweep_length, log_scale):
+		# generates the frequency vector for plotting
+
+		freq_axis = [start_freq]
+
+		for k in range(1,sweep_length) :
+			if log_scale:
+				freq_axis.append(freq_axis[k-1] * freq_step)
+			else :
+				freq_axis.append(freq_axis[k-1] + freq_step)
+
+		return freq_axis
+
+
 	def _get_freqScale(self, f):
 		# Returns a scaling factor and units for frequency 'X'
 		if(f > 1e6):
@@ -199,7 +253,7 @@ class NetAnFrame(_frame_instrument.DataFrame):
 			return
 
 		scales = self.scales[self.stateid]
-		dbm = scales['dbmscale']
+		dbm = scales['dbscale']
 
 		yfmt = {
 			'linear' : '%.1f %s' % (y,'V'),
@@ -255,7 +309,7 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		self.type = "NetAn"
 		self.calibration = None
 
-		# self.set_dbmscale(True)
+		self.set_dbscale(True)
 
 
 	def commit(self):
@@ -273,6 +327,21 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 	# Bring in the docstring from the superclass for our docco.
 	commit.__doc__ = MokuInstrument.commit.__doc__
+
+	def calculate_freq_step(self, start_freq, stop_freq, sweep_length, log_scale):
+		# calculates the frequency step required to obtain data at evenly spaced intervals between the start stop frequency
+		if log_scale :
+			freq_step = ( stop_freq / start_freq ) ** ( 1 / sweep_length)
+		else :
+			freq_step = ( stop_freq - start_freq ) / sweep_length
+
+		return freq_step
+
+
+	def set_sweep_parameters(self, start_freq, stop_freq, sweep_length, log_scale):
+		self.sweep_freq_min = start_freq
+		self.sweep_length = sweep_length
+		self.sweep_freq_delta = self.calculate_freq_step(start_freq, stop_freq, sweep_length, log_scale)
 
 
 	def set_xmode(self, xmode):
@@ -296,15 +365,25 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 		self.set_frontend(0, True, True, False)
 		self.set_frontend(1, True, True, False)
-		self.sweep_freq_min = 100
-		self.sweep_freq_delta = 100
+		self.sweep_freq_min = 1000.0
+		self.sweep_freq_delta = 1000.0
 		self.log_en = False
 		self.hold_off_time = 125
 		self.sweep_length = 512
 		self.sweep_amp_bitshift = 0
 		self.sweep_amp_mult = 1
 		self.offset = 0
+		# self.render_dds = 1
 		self.render_mode = RDR_DDS
+
+	def set_start_freq(self, start_freq):
+		self.sweep_freq_min = start_freq
+
+	def set_stop_freq(self, stop_freq):
+		self.stop_freq = stop_freq
+
+	def set_sweep_length(self, sweep_length):
+		self.sweep_length = sweep_length
 
 	def _calculate_scales(self):
 		"""
@@ -331,9 +410,11 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 			log.warning("Moku appears uncalibrated")
 			g1 = g2 = 1
 
-		return {'g1': g1, 'g2': g2}
+		return {'g1': g1, 'g2': g2, 'dbscale': self.dbscale, 'sweep_freq_min': self.sweep_freq_min, 'sweep_freq_delta': self.sweep_freq_delta, 'sweep_length': self.sweep_length, 'log_en': self.log_en}
 
-	
+	def set_dbscale(self,dbm=True):
+		self.dbscale = dbm
+
 	def attach_moku(self, moku):
 		super(NetAn, self).attach_moku(moku)
 
@@ -348,7 +429,7 @@ _na_reg_handlers = {
 											from_reg_unsigned(0, 48, xform=lambda f: f / _NA_FREQ_SCALE)),
 	'sweep_freq_delta':			((REG_NA_SWEEP_FREQ_DELTA_H, REG_NA_SWEEP_FREQ_DELTA_L),		
 											to_reg_unsigned(0, 48, xform=lambda f : f * _NA_FREQ_SCALE),
-											from_reg_unsigned(0, 48, xform=lambda f : f * _NA_FREQ_SCALE)),
+											from_reg_unsigned(0, 48, xform=lambda f : f / _NA_FREQ_SCALE)),
 	'log_en':					(REG_NA_LOG_EN,
 											to_reg_bool(0),		
 											from_reg_bool(0)),
