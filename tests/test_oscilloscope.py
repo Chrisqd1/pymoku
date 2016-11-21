@@ -18,17 +18,21 @@ OSC_AUTO_TRIGRATE = 20
 # _P - Percentage
 # _R - Relative
 ADC_OFF_TOL_R = 0.100 # Volts
-ADC_AMP_TOL_P = 0.05 # 3%
+ADC_AMP_TOL_P = 0.05
 ADC_AMP_TOL_R = 0.03
 DAC_DUTY_TOL_R = 0.05 # 5% Duty cycle error
 
 # Threshold bounds
-MAX_RMS_ERROR = 0.05
+MAX_RMS_ERROR_SQUARE = 0.15
+MAX_RMS_ERROR_SINE = 0.05
+MAX_RMS_ERROR_TRIANGLE = 0.13
 
 AC_COUPLE_CORNER_FREQ_1MO = 10*50
 AC_COUPLE_CORNER_FREQ_50O = 5e6
 
 FRAME_TIMEOUT = 5 # seconds
+
+DEBUG_TESTS = False
 
 # Assertion helpers
 def in_bounds(v, center, err):
@@ -39,8 +43,23 @@ def in_bounds(v, center, err):
 def _calculate_rms_error(frame1, frame2):
 	return numpy.sqrt(numpy.sum((numpy.array(frame1-frame2)**2))/len(frame1))
 
+def in_rms_bounds(frame1, frame2, waveform):
+	rms_error = _calculate_rms_error(frame1, frame2)
+
+	if waveform == SG_WAVE_SINE:
+		print "RMS Error (SINE): %f/%f" % (rms_error,MAX_RMS_ERROR_SINE)
+		return rms_error < MAX_RMS_ERROR_SINE
+	elif waveform == SG_WAVE_TRIANGLE:
+		print "RMS Error (TRIANGLE): %f/%f" % (rms_error,MAX_RMS_ERROR_TRIANGLE)
+		return rms_error < MAX_RMS_ERROR_TRIANGLE
+	elif waveform == SG_WAVE_SQUARE:
+		print "RMS Error (SQUARE): %f/%f" % (rms_error,MAX_RMS_ERROR_SQUARE)
+		return rms_error < MAX_RMS_ERROR_SQUARE
+	else:
+		print "Invalid waveform type"
+		return False
+
 def _is_rising(p1,p2):
-	print p1, p2
 	if (p1 is None) or (p2 is None):
 		return True
 	if (p2-p1) > 0:
@@ -91,8 +110,8 @@ def base_instrs(conn_mokus):
 	i1 = Oscilloscope()
 	i2 = Oscilloscope()
 
-	m1.attach_instrument(i1)
-	m2.attach_instrument(i2)
+	m1.attach_instrument(i1, external_ref=False) # Master is 10MHz reference clock
+	m2.attach_instrument(i2, external_ref=False)
 
 	i1.set_defaults()
 	i2.set_defaults()
@@ -117,7 +136,7 @@ class Test_Siggen:
 			[50, 1e3, 900e3], 
 			[0.1, 0.0, -0.1], 
 			[0.2, 0.5, 0.95],
-			[SG_WAVE_SINE]
+			[SG_WAVE_SINE, SG_WAVE_SQUARE, SG_WAVE_TRIANGLE]
 			))
 	def test_output_waveform(self, base_instrs, ch, vpp, freq, offset, duty, waveform):
 		# Check input parameters
@@ -127,15 +146,15 @@ class Test_Siggen:
 		master = base_instrs[0]
 		slave = base_instrs[1]
 
-		# Set the timebase to allow for ~5 cycles
-		slave.set_timebase(0, 30.0/freq)
+		timebase_cyc = 10.0
+		slave.set_timebase(0, timebase_cyc/freq)
 		slave.set_source(ch, OSC_SOURCE_ADC)
 		slave.set_frontend(ch, fiftyr=True, atten=False, ac=False)
 
 		if ch == 1:
-			slave.set_trigger(OSC_TRIG_CH1, OSC_EDGE_RISING, offset, mode = OSC_TRIG_NORMAL, hysteresis = 100)
+			slave.set_trigger(OSC_TRIG_CH1, OSC_EDGE_RISING, offset, mode = OSC_TRIG_NORMAL, hysteresis = 100,)
 		else:
-			slave.set_trigger(OSC_TRIG_CH2, OSC_EDGE_RISING, offset, mode = OSC_TRIG_NORMAL, hysteresis = 100)
+			slave.set_trigger(OSC_TRIG_CH2, OSC_EDGE_RISING, offset, mode = OSC_TRIG_NORMAL, hysteresis = 100, )
 
 		if waveform == SG_WAVE_SINE:
 			master.synth_sinewave(ch, vpp, freq, offset)
@@ -184,76 +203,94 @@ class Test_Siggen:
 		# Normalise the frames before checking the RMS error
 		frame_norm = numpy.array(frame)/vpp
 		gen_frame_norm = numpy.array(gen_frame)/vpp
-		rms_error = _calculate_rms_error(frame_norm, gen_frame_norm)
-		print rms_error
-		#if rms_error > MAX_RMS_ERROR:
-		plt.plot(ts,frame_norm - gen_frame_norm)
-		plt.plot(ts, frame_norm)
-		plt.plot(ts, gen_frame_norm)
-			#plt.plot(ts, gen_frame_norm)			
-		plt.show()
-		assert rms_error < MAX_RMS_ERROR
-		assert False
+
+		if DEBUG_TESTS:
+			if not in_rms_bounds(frame_norm, gen_frame_norm, waveform):
+				plt.plot(ts,frame - gen_frame)
+				plt.plot(ts, frame)
+				plt.plot(ts, gen_frame)	
+				plt.show()
+
+		assert in_rms_bounds(frame_norm, gen_frame_norm, waveform)
 
 class Test_Trigger:
 	'''
 		This class tests Trigger modes of the Oscilloscope
 	'''
 
-	@pytest.mark.parametrize("ch, edge, trig_lvl",
+	@pytest.mark.parametrize("trig_ch, freq, edge, trig_lvl",
 		itertools.product(
-			[1,2],
-			[OSC_EDGE_RISING, OSC_EDGE_FALLING, OSC_EDGE_BOTH], 
+			[OSC_TRIG_CH1], #OSC_TRIG_DA1, OSC_TRIG_CH2, OSC_TRIG_DA2],
+			[5e3, 1e6],
+			[OSC_EDGE_RISING], #, OSC_EDGE_FALLING, OSC_EDGE_BOTH], 
 			[-0.1, 0.0, 0.1, 0.3]))
-	def test_triggered_edge(self, base_instrs, ch, edge, trig_lvl):
+	def test_triggered_edge(self, base_instrs, trig_ch, freq, edge, trig_lvl):
 		'''
 			Test the triggered edge type and level are correct
 		'''
 		# Get the Master Moku
 		master = base_instrs[0]
+		slave = base_instrs[1]
+
+		master.set_frontend(1, fiftyr=True, atten=False, ac=False)
+		master.set_frontend(2, fiftyr=True, atten=False, ac=False)
+
+		timebase_cyc = 10.0
 
 		# Set up the source signal to test triggering on
-		source_ch = ch # Channel to trigger on
-		source_freq = 100.0 #Hz
+		source_freq = freq #Hz
 		source_vpp = 1.0
 		source_offset = 0.0
-		master.set_source(source_ch, OSC_SOURCE_DAC)
-		master.synth_sinewave(source_ch, source_vpp, source_freq, source_offset)
 
-		# Set a symmetric timebase of ~10 cycles
-		master.set_timebase(-5.0/source_freq,5.0/source_freq)
+		if trig_ch == OSC_TRIG_DA1:
+			master.set_source(1, OSC_SOURCE_DAC)
+			master.synth_sinewave(1, source_vpp, source_freq, source_offset)
+		elif trig_ch == OSC_TRIG_CH1:
+			master.set_source(1, OSC_SOURCE_ADC)
+			slave.synth_sinewave(1, source_vpp, source_freq, source_offset)
+		elif trig_ch == OSC_TRIG_DA2:
+			master.set_source(2, OSC_SOURCE_DAC)
+			master.synth_sinewave(2, source_vpp, source_freq, source_offset)
+		elif trig_ch == OSC_TRIG_CH2:
+			master.set_source(2, OSC_SOURCE_ADC)
+			slave.synth_sinewave(2, source_vpp, source_freq, source_offset)
+		else:
+			print "Invalid trigger channel"
+			assert False
 
-		# Sample number of trigger point given a symmetric timebase
-		half_idx = (_OSC_SCREEN_WIDTH / 2) - 1
+		master.set_timebase(0,timebase_cyc/source_freq)
 
-		# Trigger on correct DAC channel
-		if source_ch == 1:
-			master.set_trigger(OSC_TRIG_DA1, edge, trig_lvl, hysteresis=0, hf_reject=False, mode=OSC_TRIG_NORMAL)
-		if source_ch == 2:
-			master.set_trigger(OSC_TRIG_DA2, edge, trig_lvl, hysteresis=0, hf_reject=False, mode=OSC_TRIG_NORMAL)
-
+		slave.commit()
+		master.set_trigger(trig_ch, edge, trig_lvl, hysteresis=25, hf_reject=False, mode=OSC_TRIG_NORMAL)
 		master.commit()
 
+		master.get_frame(timeout = FRAME_TIMEOUT, wait=True) # Throwaway
+		master.get_frame(timeout = FRAME_TIMEOUT)
+
 		# Test multiple triggers
-		num_trigger_tests = 10
+		num_trigger_tests = 1
 		for _ in range(num_trigger_tests):
 			frame = master.get_frame(timeout=5)
-			if source_ch == 1:
+			if (trig_ch == OSC_TRIG_DA1) or (trig_ch == OSC_TRIG_CH1):
 				ch_frame = frame.ch1
-			elif source_ch == 2:
+			else:
 				ch_frame = frame.ch2
 
+			plt.plot(range(len(ch_frame)), ch_frame)
+			plt.show()
 			# Check correct amplitude
-			assert in_bounds(ch_frame[half_idx], trig_lvl, max(ADC_AMP_TOL_P*source_vpp, 0.01))
 
-			# Check the correct edge type
+			assert master.pretrigger == 0
+			print master.trig_volts, master.trig_mode
+			assert in_bounds(ch_frame[0], trig_lvl, max(ADC_AMP_TOL_P*source_vpp, 0.01))
+
+			# Check the correct edge type near start of frame
 			if(edge == OSC_EDGE_RISING):
-				assert _is_rising(ch_frame[half_idx-1],ch_frame[half_idx])
+				assert _is_rising(ch_frame[0],ch_frame[1])
 			elif(edge == OSC_EDGE_FALLING):
-				assert _is_falling(ch_frame[half_idx-1], ch_frame[half_idx])
+				assert _is_falling(ch_frame[0], ch_frame[1])
 			elif(edge == OSC_EDGE_BOTH):
-				assert _is_rising(ch_frame[half_idx-1],ch_frame[half_idx]) or _is_falling(ch_frame[half_idx-1],ch_frame[half_idx])
-
+				assert _is_rising(ch_frame[0],ch_frame[1]) or _is_falling(ch_frame[0],ch_frame[1])
 
 	def _setup_trigger_mode_test(self, master, trig_ch, trig_lvl, trig_edge, trig_mode, source_vpp, source_offset, source_freq):
 		# Set up a DAC trigger source
@@ -420,10 +457,7 @@ class Test_Trigger:
 
 		print("State ID: %s, Trigstate: %s, Waveform ID: %s, Frame ID: %s" % (frame.stateid, frame.trigstate, frame.waveformid, frame.frameid))
 
-	@pytest.mark.parametrize("ch", 
-		itertools.product(
-			[OSC_TRIG_CH1, OSC_TRIG_CH2, OSC_TRIG_DA1, OSC_TRIG_DA2]
-			))
+	@pytest.mark.parametrize("ch", [OSC_TRIG_CH1, OSC_TRIG_CH2, OSC_TRIG_DA1, OSC_TRIG_DA2])
 	def test_trigger_channels(self, base_instrs, ch):
 		'''
 			Tests triggering on ADC and DAC channels
@@ -490,13 +524,10 @@ class Test_Trigger:
 		# Curve fit the frame data to ensure correct waveform has been triggered
 		# Generate the expected waveform and compare difference (should be same)
 		expected_waveform = _sinewave(ts, trig_source_vpp[idx]/2.0, 0.0, trig_source_offset[idx], trig_source_freq[idx])
-		plt.plot(ts,expected_waveform)
-		plt.plot(ts,frame)
-		plt.show()
+		expected_waveform = numpy.array(expected_waveform)/trig_source_vpp[idx]
+		frame = numpy.array(frame)/trig_source_vpp[idx]
 
-		print "RMS Error", _calculate_rms_error(expected_waveform, frame) < MAX_RMS_ERROR
-		# Should have a phase of 0.0
-		assert _calculate_rms_error(expected_waveform, frame) < MAX_RMS_ERROR
+		assert in_rms_bounds(expected_waveform, frame, SG_WAVE_SINE)
 
 class Test_Timebase:
 	'''
@@ -537,12 +568,14 @@ class Test_Timebase:
 
 		# Assume the expected waveform and do an RMS fit
 		expected_waveform = _sinewave(ts, source_vpp/2.0, source_phase, source_offset, source_freq)
+		expected_waveform = numpy.array(expected_waveform)/source_vpp
+		data = numpy.array(data)/source_vpp
 
 		plt.plot(ts, expected_waveform)
 		plt.plot(ts, data)
 		plt.show()
 
-		assert _calculate_rms_error(expected_waveform, data) < MAX_RMS_ERROR
+		assert in_rms_bounds(expected_waveform, data, SG_WAVE_SINE)
 
 	@pytest.mark.parametrize("ch, pretrigger_time",
 		itertools.product(
@@ -674,7 +707,10 @@ class Test_Frontend:
 		ts = numpy.cumsum([_get_frame_timestep(master)]*len(frame))
 		expected_waveform = sinewave(ts, source_amp/2.0 if fiftyr else source_amp, 0.0, source_offset, source_freq)
 
-		assert _calculate_rms_error(expected_waveform, frame) < MAX_RMS_ERROR
+		expected_waveform = numpy.array(expected_waveform)/source_amp
+		frame = numpy.array(frame)/source_amp
+
+		assert in_rms_bounds(expected_waveform, frame, SG_WAVE_SINE)
 
 	@pytest.mark.parametrize("ch, atten, amp",
 		itertools.product(
@@ -716,7 +752,10 @@ class Test_Frontend:
 
 		if (atten and source_amp < LARGE_INPUT_RANGE) or ((not atten) and source_amp < SMALL_INPUT_RANGE) :
 			expected_waveform = sinewave(ts, source_amp/2.0 if fiftyr else source_amp, 0.0, source_offset, source_freq)
-			assert _calculate_rms_error(expected_waveform, frame) < MAX_RMS_ERROR
+			expected_waveform = numpy.array(expected_waveform)/source_amp
+			frame = numpy.array(frame)/source_amp
+
+			assert in_rms_bounds(expected_waveform, frame, SG_WAVE_SINE)
 		else:
 			# Clipping will have occurred, full range used
 			assert in_bounds(abs(max(frame)-min(frame)),SMALL_INPUT_RANGE, SMALL_INPUT_RANGE*tolerance_percent)
@@ -778,14 +817,13 @@ class Test_Frontend:
 
 		expected_waveform = _sinewave(ts, expected_amp, 0.0, expected_offset, source_freq)
 
-
 		plt.plot(ts, numpy.array(expected_waveform)/expected_amp)
 		plt.plot(ts, numpy.array(frame)/expected_amp)
 		plt.show()
-		rms_error = _calculate_rms_error(expected_waveform, frame)
-		print rms_error
-		assert _calculate_rms_error(numpy.array(expected_waveform)/expected_amp, numpy.array(frame)/expected_amp) < MAX_RMS_ERROR
-		assert False
+
+		expected_waveform = numpy.array(expected_waveform)/expected_amp
+		frame = numpy.array(frame)/expected_amp
+		assert in_rms_bounds(expected_waveform, frame, SG_WAVE_SINE)
 
 class Tes2_Source:
 	'''
