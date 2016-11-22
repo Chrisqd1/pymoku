@@ -89,7 +89,7 @@ def _upsgn(i, width):
 	return i - 2**width
 
 
-def to_reg_signed(_offset, _len, allow_set=None, allow_range=None, xform=lambda x: x):
+def to_reg_signed(_offset, _len, allow_set=None, allow_range=None, xform=lambda obj, x: x):
 	""" Returns a callable that will pack a new signed data value in to a register.
 	Designed as shorthand for common use in instrument register accessor lists. Supports
 	single and compound registers (i.e. data values that span more than one register).
@@ -100,8 +100,8 @@ def to_reg_signed(_offset, _len, allow_set=None, allow_range=None, xform=lambda 
 	:param allow_range: a two-tuple specifying the bounds of the data value.
 	:param xform: a callable that translates the user value written to the attribute to the register value"""
 	# TODO: This signed and the below unsigned share all but one line of code, should consolidate
-	def __ss(val, old):
-		val = xform(val)
+	def __ss(obj, val, old):
+		val = xform(obj, val)
 		mask = ((1 << _len) - 1) << _offset
 
 		if allow_set and allow_range:
@@ -130,7 +130,7 @@ def to_reg_signed(_offset, _len, allow_set=None, allow_range=None, xform=lambda 
 	return __ss
 
 
-def to_reg_unsigned(_offset, _len, allow_set=None, allow_range=None, xform=lambda x: x):
+def to_reg_unsigned(_offset, _len, allow_set=None, allow_range=None, xform=lambda obj, x: x):
 	""" Returns a callable that will pack a new unsigned data value or bitfield in to a register.
 	Designed as shorthand for common use in instrument register accessor lists. Supports
 	single and compound registers (i.e. data values that span more than one register).
@@ -141,8 +141,8 @@ def to_reg_unsigned(_offset, _len, allow_set=None, allow_range=None, xform=lambd
 	:param allow_range: a two-tuple specifying the bounds of the data value.
 	:param xform: a callable that translates the user value written to the attribute to the register value"""
 
-	def __us(val, old):
-		val = xform(val)
+	def __us(obj, val, old):
+		val = xform(obj, val)
 		mask = ((1 << _len) - 1) << _offset
 
 		if allow_set and allow_range:
@@ -176,10 +176,10 @@ def to_reg_bool(_offset):
 	:any:`to_reg_unsigned(_offset, 1, allow_set=[0, 1], xform=int)`
 
 	:param _offset: Offset of bit in the register (set)"""
-	return to_reg_unsigned(_offset, 1, allow_set=[0,1], xform=int)
+	return to_reg_unsigned(_offset, 1, allow_set=[0,1], xform=lambda obj, x: int(x))
 
 
-def from_reg_signed(_offset, _len, xform=lambda x: x):
+def from_reg_signed(_offset, _len, xform=lambda obj, x: x):
 	""" Returns a callable that will unpack a signed data value from a register bitfield.
 	Designed as shorthand for common use in instrument register accessor lists. Supports
 	single and compound registers (i.e. data values that span more than one register).
@@ -190,21 +190,21 @@ def from_reg_signed(_offset, _len, xform=lambda x: x):
 	# TODO: As above, this and the unsigned version share all but one line of code, should consolidate.
 	mask = ((1 << _len) - 1) << _offset
 
-	def __sg(reg):
+	def __sg(obj, reg):
 		try:
-			return xform(_upsgn((reg & mask) >> _offset, _len))
+			return xform(obj, _upsgn((reg & mask) >> _offset, _len))
 		except TypeError:
 			v = 0
 			for r in reg:
 				v |= r
 				v <<= 32
 
-			return xform(_upsgn((v & mask) >> _offset, _len))
+			return xform(obj, _upsgn((v & mask) >> _offset, _len))
 
 	return __sg
 
 
-def from_reg_unsigned(_offset, _len, xform=lambda x: x):
+def from_reg_unsigned(_offset, _len, xform=lambda obj, x: x):
 	""" Returns a callable that will unpack an unsigned data value from a register bitfield.
 	Designed as shorthand for common use in instrument register accessor lists. Supports
 	single and compound registers (i.e. data values that span more than one register).
@@ -214,16 +214,16 @@ def from_reg_unsigned(_offset, _len, xform=lambda x: x):
 	:param xform: a callable that translates the register value to the user attribute's natural units"""
 	mask = ((1 << _len) - 1) << _offset
 
-	def __ug(reg):
+	def __ug(obj, reg):
 		try:
-			return xform((reg & mask) >> _offset)
+			return xform(obj, (reg & mask) >> _offset)
 		except TypeError:
 			v = 0
 			for r in reg:
 				v <<= 32
 				v |= r
 
-			return xform((v & mask) >> _offset)
+			return xform(obj, (v & mask) >> _offset)
 
 	return __ug
 
@@ -234,7 +234,7 @@ def from_reg_bool(_offset):
 	Equivalent to :any:`from_reg_unsigned(_offset, 1, xform=bool)`.
 
 	:param _offset: Offset of data field in the register (set)"""
-	return from_reg_unsigned(_offset, 1, xform=bool)
+	return from_reg_unsigned(_offset, 1, xform=lambda obj, x: bool(x))
 
 
 
@@ -265,10 +265,10 @@ class MokuInstrument(object):
 		# Return local if present. Support a single register or a tuple of registers
 		try:
 			c = [ self._localregs[r] if self._localregs[r] is not None else self._remoteregs[r] or 0 for r in reg ]
-			if all(i is not None for i in c): return get_xform(c)
+			if all(i is not None for i in c): return get_xform(self, c)
 		except TypeError:
 			c = self._localregs[reg] if self._localregs[reg] is not None else self._remoteregs[reg] or 0
-			if c is not None: return get_xform(c)
+			if c is not None: return get_xform(self, c)
 
 	def _accessor_set(self, reg, set_xform, data):
 		# Support a single register or a tuple of registers
@@ -277,7 +277,7 @@ class MokuInstrument(object):
 		except TypeError:
 			old = self._localregs[reg] if self._localregs[reg] is not None else self._remoteregs[reg] or 0
 
-		new = set_xform(data, old)
+		new = set_xform(self, data, old)
 		if new is None:
 			raise ValueOutOfRangeException("Reg %d Data %d" % (reg, data))
 
@@ -494,22 +494,22 @@ _instr_reg_handlers = {
 
 	'waveform_avg':		(REG_FILT,		to_reg_unsigned(2, 7),		from_reg_unsigned(2, 7)),
 
-	'framerate':		(REG_FRATE,		to_reg_unsigned(0, 8, xform=lambda f: f * 256.0 / 477.0),
-										from_reg_unsigned(0, 8, xform=lambda f: f / 256.0 * 477.0)),
+	'framerate':		(REG_FRATE,		to_reg_unsigned(0, 8, xform=lambda obj, f: f * 256.0 / 477.0),
+										from_reg_unsigned(0, 8, xform=lambda obj, f: f / 256.0 * 477.0)),
 
 	# Cubic Downsampling accessors
-	'render_deci':		(REG_SCALE,		to_reg_unsigned(0, 16, xform=lambda x: 128 * (x - 1)),
-										from_reg_unsigned(0, 16, xform=lambda x: (x / 128.0) + 1)),
+	'render_deci':		(REG_SCALE,		to_reg_unsigned(0, 16, xform=lambda obj, x: 128 * (x - 1)),
+										from_reg_unsigned(0, 16, xform=lambda obj, x: (x / 128.0) + 1)),
 
-	'render_deci_alt':	(REG_SCALE,		to_reg_unsigned(16, 16, xform=lambda x: 128 * (x - 1)),
-										from_reg_unsigned(16, 16, xform=lambda x: (x / 128.0) + 1)),
+	'render_deci_alt':	(REG_SCALE,		to_reg_unsigned(16, 16, xform=lambda obj, x: 128 * (x - 1)),
+										from_reg_unsigned(16, 16, xform=lambda obj, x: (x / 128.0) + 1)),
 
 	# Direct Downsampling accessors
-	'render_dds':		(REG_SCALE,		to_reg_unsigned(0, 16, xform=lambda x: x - 1),
-										from_reg_unsigned(0, 16, xform=lambda x: x + 1)),
+	'render_dds':		(REG_SCALE,		to_reg_unsigned(0, 16, xform=lambda obj, x: x - 1),
+										from_reg_unsigned(0, 16, xform=lambda obj, x: x + 1)),
 
-	'render_dds_alt':	(REG_SCALE,		to_reg_unsigned(16, 16, xform=lambda x: x - 1),
-										from_reg_unsigned(16, 16, xform=lambda x: x + 1)),
+	'render_dds_alt':	(REG_SCALE,		to_reg_unsigned(16, 16, xform=lambda obj, x: x - 1),
+										from_reg_unsigned(16, 16, xform=lambda obj, x: x + 1)),
 
 	'offset':			(REG_OFFSET, 	to_reg_signed(0, 32),		from_reg_signed(0, 32)),
 
