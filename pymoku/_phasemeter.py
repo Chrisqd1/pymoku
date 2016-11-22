@@ -43,9 +43,14 @@ _PM_FREQ_MIN = 2e6
 _PM_FREQ_MAX = 200e6
 _PM_UPDATE_RATE = 1e6
 
+_PM_CYCLE_SCALE = 2.0 * 2.0**16 / 2.0**48 * _PM_ADC_SMPS / _PM_UPDATE_RATE
+_PM_HERTZ_SCALE = 2.0 * _PM_ADC_SMPS / 2**48
+_PM_VOLTS_SCALE = 2.0 / (_PM_ADC_SMPS * _PM_ADC_SMPS / _PM_UPDATE_RATE / _PM_UPDATE_RATE)
+
 # Phasemeter signal generator constants
 _PM_SG_AMPSCALE = 2**16 / 4.0
 _PM_SG_FREQSCALE = _PM_FREQSCALE
+
 
 PM_LOGRATE_FAST = 200
 PM_LOGRATE_SLOW = 15
@@ -138,18 +143,10 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 		self.logname = "MokuPhaseMeterData"
 
 		self.binstr = "<p32,0xAAAAAAAA:u48:u48:s15:p1,0:s48:s32:s32"
-		self.procstr = ["*{:.16e} : *{:.16e} : : *{:.16e} : *C*{:.16e} : *C*{:.16e} ".format(self._intToHertz(1.0), self._intToHertz(1.0),  self._intToCycles(1.0), self._intToVolts(1.0,1.0), self._intToVolts(1.0,1.0)),
-						"*{:.16e} : *{:.16e} : : *{:.16e} : *C*{:.16e} : *C*{:.16e} ".format(self._intToHertz(1.0), self._intToHertz(1.0),  self._intToCycles(1.0), self._intToVolts(1.0,1.0), self._intToVolts(1.0,1.0))]
+		self.procstr = ["*{:.16e} : *{:.16e} : : *{:.16e} : *C*{:.16e} : *C*{:.16e} ".format(_PM_HERTZ_SCALE, _PM_HERTZ_SCALE,  _PM_CYCLE_SCALE, _PM_VOLTS_SCALE, _PM_VOLTS_SCALE),
+						"*{:.16e} : *{:.16e} : : *{:.16e} : *C*{:.16e} : *C*{:.16e} ".format(_PM_HERTZ_SCALE, _PM_HERTZ_SCALE,  _PM_CYCLE_SCALE, _PM_VOLTS_SCALE, _PM_VOLTS_SCALE)]
 		print self.procstr
 
-	def _intToCycles(self, rawValue):
-	    return 2.0 * pow(2.0, 16.0) * rawValue / pow(2.0, 48.0) * _PM_ADC_SMPS / _PM_UPDATE_RATE
-	
-	def _intToHertz(self, rawValue):
-	    return 2.0 * _PM_ADC_SMPS * rawValue / pow(2.0, 48.0)
-
-	def _intToVolts(self, rawValue, scaleFactor):
-	    return 2.0 / (_PM_ADC_SMPS * _PM_ADC_SMPS / _PM_UPDATE_RATE / _PM_UPDATE_RATE) * rawValue * scaleFactor
 
 	def _update_datalogger_params(self, ch1, ch2):
 		self.timestep = 1.0/self.get_samplerate()
