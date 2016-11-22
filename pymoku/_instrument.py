@@ -303,9 +303,16 @@ class MokuInstrument(object):
 
 	def set_defaults(self):
 		""" Can be extended in implementations to set initial state """
+		pass
 
 	def attach_moku(self, moku):
 		self._moku = moku
+
+		try:
+			self.calibration = dict(self._moku._get_property_section("calibration"))
+		except:
+			log.warning("Can't read calibration values.")
+
 
 	def commit(self):
 		"""
@@ -405,6 +412,41 @@ class MokuInstrument(object):
 			r = self.relays_ch2
 
 		return [bool(r & RELAY_LOWZ), bool(r & RELAY_LOWG), not bool(r & RELAY_DC)]
+
+	def dac_gains(self):
+		sect1 = "calibration.DG-1"
+		sect2 = "calibration.DG-2"
+
+		try:
+			g1 = 1 / float(self.calibration[sect1])
+			g2 = 1 / float(self.calibration[sect2])
+		except (KeyError, TypeError):
+			log.warning("Moku appears uncalibrated")
+			g1 = g2 = 1
+
+		log.debug("gain values for sections %s, %s = %f, %f", sect1, sect2, g1, g2)
+
+		return g1, g2
+
+
+	def adc_gains(self):
+		sect1 = "calibration.AG-%s-%s-%s-1" % ( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
+								  "L" if self.relays_ch1 & RELAY_LOWG else "H",
+								  "D" if self.relays_ch1 & RELAY_DC else "A")
+
+		sect2 = "calibration.AG-%s-%s-%s-2" % ( "50" if self.relays_ch2 & RELAY_LOWZ else "1M",
+								  "L" if self.relays_ch2 & RELAY_LOWG else "H",
+								  "D" if self.relays_ch2 & RELAY_DC else "A")
+		try:
+			g1 = 1 / float(self.calibration[sect1])
+			g2 = 1 / float(self.calibration[sect2])
+		except (KeyError, TypeError):
+			log.warning("Moku appears uncalibrated")
+			g1 = g2 = 1
+
+		log.debug("gain values for sections %s, %s = %f, %f", sect1, sect2, g1, g2)
+
+		return g1, g2
 
 	def set_pause(self, pause):
 		"""
