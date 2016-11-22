@@ -219,10 +219,6 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 	def get_controlgain(self):
 		return self.control_gain
 
-	def set_frontend(self, channel, fiftyr, atten, ac):
-		#TODO update the _instrument class to automatically run an update callback on instrument summary
-		super(PhaseMeter, self).set_frontend(channel, fiftyr, atten, ac)
-
 	def get_hdrstr(self, ch1, ch2):
 		chs = [ch1, ch2]
 
