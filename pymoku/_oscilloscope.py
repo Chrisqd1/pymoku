@@ -376,22 +376,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 
 	def _calculate_scales(self):
 		# Returns the bits-to-volts numbers for each channel in the current state
-
-		sect1 = "calibration.AG-%s-%s-%s-1" % ( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
-								  "L" if self.relays_ch1 & RELAY_LOWG else "H",
-								  "D" if self.relays_ch1 & RELAY_DC else "A")
-
-		sect2 = "calibration.AG-%s-%s-%s-1" % ( "50" if self.relays_ch2 & RELAY_LOWZ else "1M",
-								  "L" if self.relays_ch2 & RELAY_LOWG else "H",
-								  "D" if self.relays_ch2 & RELAY_DC else "A")
-		try:
-			g1 = 1 / float(self.calibration[sect1])
-			g2 = 1 / float(self.calibration[sect2])
-		except (KeyError, TypeError):
-			log.warning("Moku appears uncalibrated")
-			g1 = g2 = 1
-
-		log.debug("gain values for sections %s, %s = %f, %f; deci %f", sect1, sect2, g1, g2, self._deci_gain())
+		g1, g2 = self.adc_gains()
 
 		if self.ain_mode == _OSC_AIN_DECI:
 			g1 /= self._deci_gain()
@@ -408,15 +393,6 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 	# Bring in the docstring from the superclass for our docco.
 	commit.__doc__ = MokuInstrument.commit.__doc__
 
-	def attach_moku(self, moku):
-		super(Oscilloscope, self).attach_moku(moku)
-
-		try:
-			self.calibration = dict(self._moku._get_property_section("calibration"))
-		except:
-			log.warning("Can't read calibration values.")
-
-	attach_moku.__doc__ = MokuInstrument.attach_moku.__doc__
 
 _osc_reg_handlers = {
 	'source_ch1':		(REG_OSC_OUTSEL,	to_reg_unsigned(0, 1, allow_set=[OSC_SOURCE_ADC, OSC_SOURCE_DAC]),
