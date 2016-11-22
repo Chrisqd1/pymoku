@@ -11,7 +11,7 @@ logging.getLogger('pymoku').setLevel(logging.DEBUG)
 
 # Use Moku.get_by_serial() or get_by_name() if you don't know the IP
 # m = Moku.get_by_name('example')
-m = Moku('192.168.69.217')
+m = Moku('192.168.69.170')
 # i = m.discover_instrument()
 # if i is None or i.type != 'netan':
 # 	print("No or wrong instrument deployed")
@@ -26,6 +26,12 @@ m.attach_instrument(i)
 # Set these parameters
 	# i.set_defaults()
 
+start_frequency = 100.0e5
+end_frequency = 1.0e5
+sweep_points = 25
+logarithmic = True
+
+i.set_sweep(start_frequency, end_frequency, sweep_points, logarithmic)
 
 ch1 = True
 ch2 = False
@@ -35,11 +41,7 @@ i.set_frontend(1, fiftyr=True, atten=True, ac=False)
 
 i.calibration = None
 
-i.sweep_freq_min = 2e6
-i.sweep_freq_delta = 2e3
-i.log_en = False
-i.hold_off_time = 125
-i.sweep_length = 1000
+i.hold_off_time = 0
 i.sweep_amp_bitshift = 0
 i.sweep_amp_mult = 1
 

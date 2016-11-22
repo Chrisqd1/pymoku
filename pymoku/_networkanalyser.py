@@ -28,6 +28,7 @@ _NA_SCREEN_STEPS	= _NA_SCREEN_WIDTH - 1
 _NA_FPS				= 2
 _NA_FREQ_SCALE		= 2**48 / _NA_DAC_SMPS
 _NA_INT_VOLTS_SCALE = (1.437*pow(2.0,-8.0))
+_NA_FXP_SCALE 		= 2**31
 
 
 class NetAnFrame(_frame_instrument.DataFrame):
@@ -248,21 +249,17 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		# self.set_dbmscale(True)
 
 
-	def commit(self):
-		# Compute remaining control register values based on window, rbw and fspan
-		# self._setup_controls()
+	def set_sweep(self, start_frequency=1.0e5, end_frequency=10.0e6, sweep_points=512, logarithmic=False):
+		self.sweep_freq_min = start_frequency
+		self.sweep_length = sweep_points
+		self.log_en = logarithmic
 
-		# Push the controls through to the device
-		super(NetAn, self).commit()
-
-		# Update the scaling factors for processing of incoming frames
-		# stateid allows us to track which scales correspond to which register state
-		# self.scales[self._stateid] = self._calculate_scales()
-
-		# TODO: Trim scales dictionary, getting rid of old ids
-
-	# Bring in the docstring from the superclass for our docco.
-	commit.__doc__ = MokuInstrument.commit.__doc__
+		if logarithmic:
+			print ((float(end_frequency) / float(start_frequency))**(1.0/(sweep_points-1)) - 1)
+			self.sweep_freq_delta = round(((float(end_frequency) / float(start_frequency))**(1.0/(sweep_points-1)) - 1) * _NA_FXP_SCALE)
+		else:
+			self.sweep_freq_delta = ((end_frequency - start_frequency)/sweep_points) * _NA_FREQ_SCALE
+		
 
 	def set_defaults(self):
 		super(NetAn, self).set_defaults()
@@ -271,11 +268,8 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 		self.set_frontend(0, True, True, False)
 		self.set_frontend(1, True, True, False)
-		self.sweep_freq_min = 1
-		self.sweep_freq_delta = 1
-		self.log_en = True
+
 		self.hold_off_time = 125
-		self.sweep_length = 126
 		self.sweep_amp_bitshift = 0
 		self.sweep_amp_mult = 1
 
@@ -291,13 +285,13 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 _na_reg_handlers = {
 	'sweep_freq_min':			((REG_NA_SWEEP_FREQ_MIN_H, REG_NA_SWEEP_FREQ_MIN_L),
-											to_reg_unsigned(0, 48, xform=lambda f: f * _NA_FREQ_SCALE),
-											from_reg_unsigned(0, 48, xform=lambda f: f / _NA_FREQ_SCALE)),
-	'sweep_freq_delta':			((REG_NA_SWEEP_FREQ_DELTA_H, REG_NA_SWEEP_FREQ_DELTA_L),		
-											to_reg_unsigned(0, 48, xform=lambda f : f * _NA_FREQ_SCALE),
-											from_reg_unsigned(0, 48, xform=lambda f : f * _NA_FREQ_SCALE)),
+											to_reg_signed(0, 48, xform=lambda f: f * _NA_FREQ_SCALE),
+											from_reg_signed(0, 48, xform=lambda f: f / _NA_FREQ_SCALE)),
+	'sweep_freq_delta':			((REG_NA_SWEEP_FREQ_DELTA_H, REG_NA_SWEEP_FREQ_DELTA_L),
+											to_reg_signed(0, 48),
+											from_reg_signed(0, 48)),
 	'log_en':					(REG_NA_LOG_EN,
-											to_reg_bool(0),		
+											to_reg_bool(0),
 											from_reg_bool(0)),
 	'hold_off_time':			((REG_NA_HOLD_OFF_H, REG_NA_HOLD_OFF_L),
 											to_reg_unsigned(0, 48),
