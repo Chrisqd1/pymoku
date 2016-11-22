@@ -247,45 +247,55 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		# as a commit is called when the instrument is set running
 		self.trig_volts = 0
 
-	def _optimal_decimation(self, t1, t2):
-		# Based on mercury_ipad/LISettings::OSCalculateOptimalADCDecimation
-		ts = abs(t2-t1)
-		return math.ceil(_OSC_ADC_SMPS * ts / _OSC_BUFLEN)
+	def _calculate_decimation(self, tspan):
 
-	def _buffer_offset(self, t1, t2, decimation):
-		# Based on mercury_ipad/LISettings::OSCalculateOptimalBufferOffset
-		# Compute the number of pre-trigger samples to keep in the buffer
-		# TODO: Roll mode
+		# Calculate time the buffer should contain
+		# Want one frame to be approximately 1/3 of a buffer (RD ~ 5)
+		# or the full buffer if it would take longer than 100ms
 
-		buffer_smps = _OSC_ADC_SMPS / decimation
-		offset_secs = -1.0 * t1 # Positive offset is negative time
-		offset = round(min(max(math.ceil(offset_secs * buffer_smps / 4.0), -2**28), 2**12))
+		# TODO: Put some limits on what the span/decimation can be
+		buffer_span = float(tspan) 
 
-		return offset
-
-	def _render_downsample(self, t1, t2, decimation):
-		# Based on mercury_ipad/LISettings::OSCalculateRenderDownsamplingForDecimation
-		# Incoming data rate of channel buffer
-		buffer_smps = _OSC_ADC_SMPS / decimation
-
-		# The timebase/zoom must not require more than the max ADC sampling rate 
-		# based on 1024 point frame
-		screen_smps = min(_OSC_SCREEN_WIDTH / abs(t1 - t2), _OSC_ADC_SMPS)
-
-		# Render downsample up to 16 (zooming)
-		return round(min(max(buffer_smps / screen_smps, 1.0), 16.0))
+		return math.ceil(ADC_SMP_RATE * buffer_span / _OSC_BUFLEN)
 
 
-	def _get_buffer_timespan(self, decimation, buffer_offset):
-		buffer_smps = _OSC_ADC_SMPS / decimation
-		trig_in_buf = 4 * -buffer_offset
-		time_buff_start = trig_in_buf / buffer_smps
-		time_buff_end = time_buff_start + (_OSC_BUFLEN - 1) / buffer_smps
-		return (time_buff_start, time_buff_end)
+	def _calculate_render_downsample(self, t1, t2, decimation):
+		# Calculate how much to render downsample
+		tspan = float(t2) - float(t1)
+		buffer_smp_rate = ADC_SMP_RATE/float(decimation)
+		buffer_time_span = _OSC_BUFLEN/buffer_smp_rate
 
-	def _render_offset(self, t1, t2, decimation, buffer_offset, render_decimation):
-		# For now, only support viewing the whole captured buffer
-		return buffer_offset * 4
+		def _cubic_int_to_scale(integer):
+			# Integer to cubic scaling ratio (see Wiki)
+			return float(integer/(2**7)) + 1
+
+		# Enforce a maximum ADC sampling rate
+		screen_smp_rate = min(_OSC_SCREEN_WIDTH/tspan, ADC_SMP_RATE)
+		# Clamp the render downsampling ratio between 1.0 and ~16.0
+		render_downsample = min(max(buffer_smp_rate/screen_smp_rate, 1.0), _cubic_int_to_scale(0x077E))
+		return render_downsample
+
+	def _calculate_buffer_offset(self, t1, decimation):
+		# Calculate the number of pretrigger samples and offset it by an additional (CubicRatio) samples
+		buffer_smp_rate = ADC_SMP_RATE/decimation
+		buffer_offset_secs = -1.0 * t1
+		buffer_offset = math.ceil(min(max(math.ceil(buffer_offset_secs * buffer_smp_rate / 4.0), -2**28), (2**12)-1))
+
+		# Apply a correction in pretrigger because of the way cubic interpolation occurs when rendering
+		return buffer_offset
+
+	def _calculate_render_offset(self, t1, decimation):
+		# TODO: Render offset should be unique to buffer offset
+		# 		For now they are the same thing.
+		buffer_offset = self._calculate_buffer_offset(t1, decimation)
+
+		return buffer_offset * 4.0
+
+	def _calculate_frame_start_time(self, decimation, render_decimation, frame_offset):
+		return (render_decimation - frame_offset) * decimation/ADC_SMP_RATE
+
+	def _calculate_frame_timestep(self, decimation, render_decimation):
+		return decimation*render_decimation/ADC_SMP_RATE
 
 	def _deci_gain(self):
 		if self.decimation_rate == 0:
@@ -296,19 +306,32 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		else:
 			return self.decimation_rate / 2**10
 
-	def _get_timebase(self, decimation, buffer_offset, render_decimation, render_offset):
-		# Returns start/end time and timestep of the current frames
-		time_buff_start, time_buff_end = self._get_buffer_timespan(decimation, buffer_offset)
 
-		buff_smps = _OSC_ADC_SMPS / float(decimation)
-		buff_ts = 1.0 / buff_smps
-		render_smps = buff_smps/float(render_decimation)
-		render_ts = 1.0 / render_smps
+	def set_timebase(self, t1, t2):
+		""" Set the left- and right-hand span for the time axis.
+		Units are seconds relative to the trigger point.
 
-		start_t = (-render_offset * buff_ts)
-		end_t = start_t + (_OSC_SCREEN_WIDTH - 1)* render_ts
+		:type t1: float
+		:param t1:
+			Time, in seconds, from the trigger point to the left of screen. This may be negative (trigger on-screen)
+			or positive (trigger off the left of screen).
 
-		return (start_t,end_t)
+		:type t2: float
+		:param t2: As *t1* but to the right of screen.
+		"""
+		if(t2 <= t1):
+			raise Exception("Timebase must be non-zero, with t1 < t2. Attempted to set t1=%f and t2=%f" % (t1, t2))
+
+		decimation = self._calculate_decimation(t2-t1)
+		render_decimation = self._calculate_render_downsample(t1, t2, decimation)
+		buffer_offset = self._calculate_buffer_offset(t1, decimation)
+		frame_offset = self._calculate_render_offset(t1, decimation)
+
+		self.decimation_rate = decimation
+		self.render_deci = render_decimation
+		self.pretrigger = buffer_offset
+		self.offset = frame_offset
+
 
 	def _trigger_level(self, amplitude, source, scales):
 		# An amplitude in volts is scaled to an ADC level depending on the trigger input source 
@@ -371,40 +394,6 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 	def datalogger_start_single(self, use_sd=True, ch1=True, ch2=False, filetype='csv'):
 		self._update_datalogger_params(ch1, ch2)
 		super(Oscilloscope, self).datalogger_start_single(use_sd=use_sd, ch1=ch1, ch2=ch2, filetype=filetype)
-
-	datalogger_start_single.__doc__ = _frame_instrument.FrameBasedInstrument.datalogger_start_single.__doc__
-
-	def _set_render(self, t1, t2, decimation):
-		self.render_mode = RDR_CUBIC #TODO: Support other
-		self.pretrigger = self._buffer_offset(t1, t2, decimation)
-		self.render_deci = self._render_downsample(t1, t2, decimation)
-		self.offset = self._render_offset(t1, t2, decimation, self.pretrigger, self.render_deci)
-
-		# Set alternates to regular, means we get distorted frames until we get a new trigger
-		self.render_deci_alt = self.render_deci
-		self.offset_alt = self.offset
-
-		self._get_timebase(self.decimation_rate, self.pretrigger, self.render_deci, self.offset)
-
-		log.debug("Render params: Deci %f PT: %f, RDeci: %f, Off: %f", self.decimation_rate, self.pretrigger, self.render_deci, self.offset)
-
-	def set_timebase(self, t1, t2):
-		""" Set the left- and right-hand span for the time axis.
-		Units are seconds relative to the trigger point.
-
-		:type t1: float
-		:param t1:
-			Time, in seconds, from the trigger point to the left of screen. This may be negative (trigger on-screen)
-			or positive (trigger off the left of screen).
-
-		:type t2: float
-		:param t2: As *t1* but to the right of screen.
-		"""
-		if(t2 <= t1):
-			raise Exception("Timebase must be non-zero, with t1 < t2. Attempted to set t1=%f and t2=%f" % (t1, t2))
-
-		self.decimation_rate = self._optimal_decimation(t1, t2)
-		self._set_render(t1, t2, self.decimation_rate)
 
 	def set_samplerate(self, samplerate):
 		""" Manually set the sample rate of the instrument.
@@ -548,7 +537,9 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 			t1 = 0
 			t2 = 1
 		else:
-			t1,t2 = self._get_timebase(self.decimation_rate, self.pretrigger, self.render_deci, self.offset)
+
+			t1 = self._calculate_frame_start_time(self.decimation_rate, self.render_deci, self.offset)
+			t2 = t1 + self._calculate_frame_timestep(self.decimation_rate, self.render_deci) * (_OSC_SCREEN_WIDTH - 1)
 
 		try:
 			g1 = 1 / float(self.calibration[sect1])

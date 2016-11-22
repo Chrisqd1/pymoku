@@ -460,10 +460,10 @@ _instr_reg_handlers = {
 										from_reg_unsigned(0, 8, xform=lambda f: f / 256.0 * 477.0)),
 
 	# Cubic Downsampling accessors
-	'render_deci':		(REG_SCALE,		to_reg_unsigned(0, 16, xform=lambda x: 128 * (x - 1)),
+	'render_deci':		(REG_SCALE,		to_reg_unsigned(0, 16, xform=lambda x: 128 * (x - 1), allow_range=(0,0x077E)),
 										from_reg_unsigned(0, 16, xform=lambda x: (x / 128.0) + 1)),
 
-	'render_deci_alt':	(REG_SCALE,		to_reg_unsigned(16, 16, xform=lambda x: 128 * (x - 1)),
+	'render_deci_alt':	(REG_SCALE,		to_reg_unsigned(16, 16, xform=lambda x: 128 * (x - 1), allow_range=(0,0x077E)),
 										from_reg_unsigned(16, 16, xform=lambda x: (x / 128.0) + 1)),
 
 	# Direct Downsampling accessors
