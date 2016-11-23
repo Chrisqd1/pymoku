@@ -16,9 +16,15 @@ REG_NA_LOG_EN				= 68
 REG_NA_HOLD_OFF_L			= 69
 REG_NA_HOLD_OFF_H			= 70
 REG_NA_SWEEP_LENGTH			= 71
-REG_NA_SWEEP_AMP_BITSHIFT	= 72
+# REG_NA_SWEEP_AMP_BITSHIFT	= 72
 REG_NA_SWEEP_AMP_MULT		= 73
 
+
+_NA_DAC_BITDEPTH 	= 16
+_NA_DAC_VOLTRANGE 	= 2.0
+
+_NA_ADC_BITDEPTH 	= 12
+_NA_ADC_VOLTRANGE 	= 10.0
 
 _NA_ADC_SMPS		= 500e6
 _NA_DAC_SMPS 		= 1e9
@@ -27,7 +33,9 @@ _NA_SCREEN_WIDTH	= 1024
 _NA_SCREEN_STEPS	= _NA_SCREEN_WIDTH - 1
 _NA_FPS				= 2
 _NA_FREQ_SCALE		= 2**48 / _NA_DAC_SMPS
-_NA_INT_VOLTS_SCALE = (1.437*pow(2.0,-8.0))
+# _NA_INT_VOLTS_SCALE = (1.437*pow(2.0,-8.0))
+_NA_DAC_V2COUNTS 	= 2**_NA_DAC_BITDEPTH / _NA_DAC_VOLTRANGE
+_NA_FXP_SCALE 		= 2**31
 
 
 class NetAnFrame(_frame_instrument.DataFrame):
@@ -196,7 +204,7 @@ class NetAnFrame(_frame_instrument.DataFrame):
 
 		freq_axis = [start_freq]
 
-		for k in range(1,sweep_length) :
+		for k in range(1,sweep_length-1) :
 			if log_scale:
 				freq_axis.append(freq_axis[k-1] * freq_step)
 			else :
@@ -328,24 +336,44 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 	# Bring in the docstring from the superclass for our docco.
 	commit.__doc__ = MokuInstrument.commit.__doc__
 
-	def calculate_freq_step(self, start_freq, stop_freq, sweep_length, log_scale):
-		# calculates the frequency step required to obtain data at evenly spaced intervals between the start stop frequency
-		if log_scale :
-			freq_step = ( stop_freq / start_freq ) ** ( 1 / sweep_length)
-		else :
-			freq_step = ( stop_freq - start_freq ) / sweep_length
-
-		return freq_step
 
 
-	def set_sweep_parameters(self, start_freq, stop_freq, sweep_length, log_scale):
-		self.sweep_freq_min = start_freq
-		self.sweep_length = sweep_length
-		self.sweep_freq_delta = self.calculate_freq_step(start_freq, stop_freq, sweep_length, log_scale)
+	def set_sweep(self, start_frequency=1.0e5, end_frequency=10.0e6, sweep_points=512, logarithmic=False, amplitude_ch1=0.5, amplitude_ch2=0.5):
+		self.sweep_freq_min = start_frequency
+		self.sweep_length = sweep_points
+		self.log_en = logarithmic
+		self.sweep_amp_mult_ch1 = amplitude_ch1*_NA_DAC_V2COUNTS
+		self.sweep_amp_mult_ch2 = amplitude_ch2*_NA_DAC_V2COUNTS
+
+		if logarithmic:
+			print ((float(end_frequency) / float(start_frequency))**(1.0/(sweep_points-1)) - 1)
+			self.sweep_freq_delta = round(((float(end_frequency) / float(start_frequency))**(1.0/(sweep_points-1))-1) * _NA_FXP_SCALE)
+		else:
+			self.sweep_freq_delta = ((end_frequency - start_frequency)/sweep_points) * _NA_FREQ_SCALE
+		
+
+
+	# def calculate_freq_step(self, start_freq, stop_freq, sweep_length, log_scale):
+	# 	# calculates the frequency step required to obtain data at evenly spaced intervals between the start stop frequency
+	# 	if log_scale :
+	# 		freq_step = ( stop_freq / start_freq ) ** ( 1 / sweep_length)
+	# 	else :
+	# 		freq_step = ( stop_freq - start_freq ) / sweep_length
+
+	# 	return freq_step
+
+
+	# def set_sweep_parameters(self, start_freq, stop_freq, sweep_length, log_scale):
+	# 	self.sweep_freq_min = start_freq
+	# 	self.sweep_length = sweep_length
+	# 	self.log_en = log_scale
+	# 	self.sweep_freq_delta = self.calculate_freq_step(start_freq, stop_freq, sweep_length, log_scale)
+
 
 
 	def set_xmode(self, xmode):
 		self.x_mode = xmode
+
 
 	def set_defaults(self):
 		super(NetAn, self).set_defaults()
@@ -353,25 +381,24 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		self.framerate = _NA_FPS
 		self.frame_length = _NA_SCREEN_WIDTH
 
+		self.set_frontend(0,fiftyr=False, atten=True, ac=False)
 		self.set_frontend(1,fiftyr=False, atten=True, ac=False)
-		self.set_frontend(2,fiftyr=False, atten=True, ac=False)
+	
 		self.en_in_ch1 = True
 		self.en_in_ch2 = True
-
 
 		self.calibration = None
 		self.set_xmode(FULL_FRAME)
 
+		# self.set_frontend(0, True, True, False)
+		# self.set_frontend(1, True, True, False)
 
-		self.set_frontend(0, True, True, False)
-		self.set_frontend(1, True, True, False)
-		self.sweep_freq_min = 1000.0
-		self.sweep_freq_delta = 1000.0
+		self.sweep_freq_min = 1.0e3
 		self.log_en = False
 		self.hold_off_time = 125
 		self.sweep_length = 512
-		self.sweep_amp_bitshift = 0
-		self.sweep_amp_mult = 1
+		self.sweep_amp_mult_ch1 = 0.5
+		self.sweep_amp_mult_ch2 = 0.5
 		self.offset = 0
 		# self.render_dds = 1
 		self.render_mode = RDR_DDS
@@ -421,17 +448,19 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		# The moku contains calibration data for various configurations
 		self.calibration = dict(self._moku._get_property_section("calibration"))
 
+
 	attach_moku.__doc__ = MokuInstrument.attach_moku.__doc__
+
 
 _na_reg_handlers = {
 	'sweep_freq_min':			((REG_NA_SWEEP_FREQ_MIN_H, REG_NA_SWEEP_FREQ_MIN_L),
-											to_reg_unsigned(0, 48, xform=lambda f: f * _NA_FREQ_SCALE),
-											from_reg_unsigned(0, 48, xform=lambda f: f / _NA_FREQ_SCALE)),
-	'sweep_freq_delta':			((REG_NA_SWEEP_FREQ_DELTA_H, REG_NA_SWEEP_FREQ_DELTA_L),		
-											to_reg_unsigned(0, 48, xform=lambda f : f * _NA_FREQ_SCALE),
-											from_reg_unsigned(0, 48, xform=lambda f : f / _NA_FREQ_SCALE)),
+											to_reg_signed(0, 48, xform=lambda f: f * _NA_FREQ_SCALE),
+											from_reg_signed(0, 48, xform=lambda f: f / _NA_FREQ_SCALE)),
+	'sweep_freq_delta':			((REG_NA_SWEEP_FREQ_DELTA_H, REG_NA_SWEEP_FREQ_DELTA_L),
+											to_reg_signed(0, 48),
+											from_reg_signed(0, 48)),
 	'log_en':					(REG_NA_LOG_EN,
-											to_reg_bool(0),		
+											to_reg_bool(0),
 											from_reg_bool(0)),
 	'hold_off_time':			((REG_NA_HOLD_OFF_H, REG_NA_HOLD_OFF_L),
 											to_reg_unsigned(0, 48),
@@ -439,10 +468,10 @@ _na_reg_handlers = {
 	'sweep_length':				(REG_NA_SWEEP_LENGTH,		
 											to_reg_unsigned(0, 10),
 											from_reg_unsigned(0, 10)),
-	'sweep_amp_bitshift':		(REG_NA_SWEEP_AMP_BITSHIFT,		
-											to_reg_unsigned(0, 17),		
-											from_reg_unsigned(0, 17)),
-	'sweep_amp_mult':			(REG_NA_SWEEP_AMP_MULT,		
-											to_reg_unsigned(0, 17),
-											from_reg_unsigned(0, 17)),
+	'sweep_amp_mult_ch1':		(REG_NA_SWEEP_AMP_MULT,		
+											to_reg_unsigned(0, 16),
+											from_reg_unsigned(0, 16)),
+	'sweep_amp_mult_ch2':		(REG_NA_SWEEP_AMP_MULT,		
+											to_reg_unsigned(16, 16),
+											from_reg_unsigned(16, 16)),
 }

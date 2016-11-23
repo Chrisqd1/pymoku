@@ -11,7 +11,8 @@ logging.getLogger('pymoku').setLevel(logging.DEBUG)
 
 # Use Moku.get_by_serial() or get_by_name() if you don't know the IP
 # m = Moku.get_by_name('Oil Rigs')
-m = Moku('192.168.69.63')
+m = Moku('192.168.69.170')
+
 # i = m.discover_instrument()
 # if i is None or i.type != 'netan':
 # 	print("No or wrong instrument deployed")
@@ -26,22 +27,30 @@ m.attach_instrument(i)
 # Set these parameters
 	# i.set_defaults()
 
+start_frequency = 100.0e5
+end_frequency = 1.0e5
+sweep_points = 512
+logarithmic = False
+amp_ch1 = 0.5
+amp_ch2 = 0.5
 
-# ch1 = True
-# ch2 = False
-# 
-# i.set_frontend(0, fiftyr=True, atten=True, ac=False)
-# i.set_frontend(1, fiftyr=True, atten=True, ac=False)
+# i.set_defaults()
+i.set_sweep(start_frequency, end_frequency, sweep_points, logarithmic, amp_ch1, amp_ch2)
+
 i.set_dbscale(False)
-# i.calibration = None
-i.set_defaults()
-# i.sweep_freq_min = 1
-# i.sweep_freq_delta = 1
-# i.log_en = False
-# i.hold_off_time = 1
-# i.sweep_length = 1000
-# i.sweep_amp_bitshift = 0
-# i.sweep_amp_mult = 1
+
+ch1 = True
+ch2 = False
+
+i.set_frontend(0, fiftyr=True, atten=True, ac=False)
+i.set_frontend(1, fiftyr=True, atten=True, ac=False)
+
+i.calibration = None
+
+i.hold_off_time = 0
+i.sweep_amp_bitshift = 0
+i.sweep_amp_mult = 1
+
 
 #################################
 # END Instrument Configuration
@@ -51,20 +60,9 @@ i.set_defaults()
 
 # Push all new configuration to the Moku device
 
-
-# i.sweep_freq_min = 100
-# i.sweep_freq_delta = 100
-# i.hold_off_time = 125
-
-i.set_dbscale(True)
-
-i.set_sweep_parameters(1e3, 100e3, 512, False)
-
 i.commit()
 
 #frame = i.get_frame()
-# i.sweep_freq_min = 10
-# i.sweep_freq_delta = 10
 
 # i.commit()
 #print frame[0]
