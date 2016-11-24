@@ -34,22 +34,16 @@ logarithmic = False
 amp_ch1 = 0.5
 amp_ch2 = 0.5
 
-# i.set_defaults()
-i.set_sweep(start_frequency, end_frequency, sweep_points, logarithmic, amp_ch1, amp_ch2)
-
-i.set_dbscale(False)
-
 ch1 = True
 ch2 = False
+
+i.set_sweep(start_frequency, end_frequency, sweep_points, logarithmic, amp_ch1, amp_ch2)
+i.set_dbscale(False)
 
 i.set_frontend(0, fiftyr=True, atten=True, ac=False)
 i.set_frontend(1, fiftyr=True, atten=True, ac=False)
 
 i.calibration = None
-
-i.hold_off_time = 0
-i.sweep_amp_bitshift = 0
-i.sweep_amp_mult = 1
 
 
 #################################

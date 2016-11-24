@@ -204,7 +204,7 @@ class NetAnFrame(_frame_instrument.DataFrame):
 
 		freq_axis = [start_freq]
 
-		for k in range(1,sweep_length-1) :
+		for k in range(1,sweep_length) :
 			if log_scale:
 				freq_axis.append(freq_axis[k-1] * freq_step)
 			else :
@@ -338,7 +338,7 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 
 
-	def set_sweep(self, start_frequency=1.0e5, end_frequency=10.0e6, sweep_points=512, logarithmic=False, amplitude_ch1=0.5, amplitude_ch2=0.5):
+	def set_sweep(self, start_frequency=1.0e3, end_frequency=10.0e6, sweep_points=512, logarithmic=False, amplitude_ch1=0.5, amplitude_ch2=0.5):
 		self.sweep_freq_min = start_frequency
 		self.sweep_length = sweep_points
 		self.log_en = logarithmic
@@ -346,8 +346,8 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		self.sweep_amp_mult_ch2 = amplitude_ch2*_NA_DAC_V2COUNTS
 
 		if logarithmic:
-			print ((float(end_frequency) / float(start_frequency))**(1.0/(sweep_points-1)) - 1)
-			self.sweep_freq_delta = round(((float(end_frequency) / float(start_frequency))**(1.0/(sweep_points-1))-1) * _NA_FXP_SCALE)
+			print ((float(end_frequency) / float(start_frequency))**(1.0/(sweep_points - 1)) - 1)
+			self.sweep_freq_delta = round(((float(end_frequency) / float(start_frequency))**(1.0/(sweep_points - 1)) - 1) * _NA_FXP_SCALE)
 		else:
 			self.sweep_freq_delta = ((end_frequency - start_frequency)/sweep_points) * _NA_FREQ_SCALE
 		
