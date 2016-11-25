@@ -6,7 +6,6 @@ from pymoku._oscilloscope import _OSC_SCREEN_WIDTH, _OSC_ADC_SMPS, OSC_TRIG_NORM
 from pymoku._siggen import SG_MOD_NONE, SG_MOD_AMPL, SG_MOD_PHASE, SG_MOD_FREQ, SG_MODSOURCE_INT, SG_MODSOURCE_ADC, SG_MODSOURCE_DAC, SG_WAVE_SINE, SG_WAVE_SQUARE, SG_WAVE_TRIANGLE, SG_WAVE_DC
 import conftest
 import numpy, math
-from scipy.optimize import curve_fit, brute
 import scipy.signal
 import matplotlib.pyplot as plt
 from functools import partial
@@ -21,14 +20,15 @@ ADC_OFF_TOL_R = 0.100 # Volts
 ADC_AMP_TOL_P = 0.05
 ADC_AMP_TOL_R = 0.03
 DAC_DUTY_TOL_R = 0.05
+PHASE_TOL_R = 0.02
 
 # Threshold bounds
 MAX_RMS_ERROR_SQUARE = 0.15
 MAX_RMS_ERROR_SINE = 0.07
 MAX_RMS_ERROR_TRIANGLE = 0.13
 
-AC_COUPLE_CORNER_FREQ_1MO = 10*50
-AC_COUPLE_CORNER_FREQ_50O = 5e6
+AC_COUPLE_CORNER_FREQ_1MO = 50
+AC_COUPLE_CORNER_FREQ_50O = 1e6
 
 FRAME_TIMEOUT = 5 # seconds
 
@@ -126,6 +126,9 @@ def base_instrs(conn_mokus):
 	return (i1,i2)
 
 class Test_Siggen:
+	def _calculate_triangle_phase(symmetry):
+		return symmetry * numpy.pi
+
 	'''
 		This class tests the correctness of the embedded signal generator 
 	'''
@@ -138,7 +141,7 @@ class Test_Siggen:
 			[0.2, 0.5, 0.95],
 			[SG_WAVE_SINE, SG_WAVE_SQUARE, SG_WAVE_TRIANGLE]
 			))
-	def test_output_waveform(self, base_instrs, ch, freq, offset, duty, waveform):
+	def test_output_waveform(self, base_instrs, ch, vpp, freq, offset, duty, waveform):
 		# Check input parameters
 		assert (offset + 0.5*vpp) <= 1.0
 		assert (offset - 0.5*vpp) >= -1.0
@@ -184,9 +187,6 @@ class Test_Siggen:
 			gen_frame = _sinewave(ts,vpp/2.0,expected_phase,offset,freq)
 
 		elif waveform == SG_WAVE_TRIANGLE:
-
-			def _calculate_triangle_phase(symmetry):
-				return symmetry * numpy.pi
 			# Generate the frame that minimises the error
 			expected_phase = _calculate_triangle_phase(duty)
 			gen_frame = _sawtooth(ts, vpp/2.0, expected_phase, offset, freq, duty)
@@ -208,6 +208,115 @@ class Test_Siggen:
 				plt.show()
 
 		assert in_rms_bounds(frame, gen_frame, waveform, vpp)
+
+	@pytest.mark.parametrize("ch, freq, phase, waveform",
+		itertools.product(
+			[1,2],
+			[1e3, 1e6], 
+			[0.1, 0.3, 0.5, 0.7, 0.85],
+			[SG_WAVE_SINE, SG_WAVE_TRIANGLE, SG_WAVE_SQUARE]
+			))
+	def test_output_phase(self, base_instrs, ch, freq, phase, waveform):
+
+		master = base_instrs[0]
+		slave = base_instrs[1]
+
+		source_vpp = 1.0
+		source_freq = freq
+		source_offset = 0.0
+		source_duty = 0.5
+
+		timebase_cyc = 10.0
+		slave.set_timebase(0, timebase_cyc/freq)
+		slave.set_source(1, OSC_SOURCE_ADC)
+		slave.set_source(2, OSC_SOURCE_ADC)
+		slave.set_frontend(1, fiftyr=True, atten=False, ac=False)
+		slave.set_frontend(2, fiftyr=True, atten=False, ac=False)
+		# Reset phase from last test
+		master.out1_phase = 0.0
+		master.out2_phase = 0.0
+
+		# Trigger on the channel we aren't changing the phase on
+		if ch == 1:
+			slave.set_trigger(OSC_TRIG_CH2, OSC_EDGE_RISING, source_offset, hysteresis = 5, mode=OSC_TRIG_NORMAL)
+		else:
+			slave.set_trigger(OSC_TRIG_CH1, OSC_EDGE_RISING, source_offset, hysteresis = 5, mode=OSC_TRIG_NORMAL)
+
+		# Generate signals on master
+		if waveform == SG_WAVE_SINE:
+			master.synth_sinewave(1, source_vpp, freq, source_offset)
+			master.synth_sinewave(2, source_vpp, freq, source_offset)
+		elif waveform == SG_WAVE_SQUARE:
+			master.synth_squarewave(1, source_vpp, freq, offset=source_offset, duty = source_duty)
+			master.synth_squarewave(2, source_vpp, freq, offset=source_offset, duty = source_duty)
+		elif waveform == SG_WAVE_TRIANGLE:
+			master.synth_rampwave(1, source_vpp, freq, offset=source_offset, symmetry = source_duty)
+			master.synth_rampwave(2, source_vpp, freq, offset=source_offset, symmetry = source_duty)
+		else:
+			print "Invalid waveform type."
+			assert False
+
+		master.commit()
+		slave.commit()
+
+		def approximate_phase(t, waveform, waveform_type, vpp, freq, offset, duty):
+			# Generate signals on master
+			phase_values = numpy.linspace(0, 2.0*numpy.pi, num=100, endpoint=False)
+			rms_errors = []
+			for p in phase_values:
+				if waveform_type == SG_WAVE_SINE:
+					compare_waveform = _sinewave(t, vpp/2.0, p, offset, freq)
+				elif waveform_type == SG_WAVE_SQUARE:
+					compare_waveform = _sawtooth(t, vpp/2.0, p, offset, freq, duty)
+				elif waveform_type == SG_WAVE_TRIANGLE:
+					compare_waveform = _sawtooth(t, vpp/2.0, p, offset, freq, duty)
+				else:
+					print "Invalid waveform type."
+					assert False 
+
+				rms_errors = rms_errors + [_calculate_rms_error(waveform, compare_waveform)]
+
+			return phase_values[numpy.argmin(rms_errors)]/(2.0*numpy.pi)
+
+		# Get the relative phase on slave
+		slave.get_frame(timeout=FRAME_TIMEOUT) # Throwaway
+		frame1 = slave.get_frame(timeout=FRAME_TIMEOUT)
+		if ch==1:
+			frame1 = frame1.ch1
+		else:
+			frame1 = frame1.ch2
+
+		# Initial phase
+		ts = _get_frame_timesteps(slave, len(frame1))
+		phase_1 = approximate_phase(ts, frame1, SG_WAVE_SINE, source_vpp/2.0, source_freq, source_offset, source_duty)
+
+		# Change the output phase of desired output waveform
+		if ch == 1:
+			master.out1_phase = phase
+		else:
+			master.out2_phase = phase
+		master.commit()
+		slave.commit()
+
+		# Calculate new phase
+		slave.get_frame(timeout=FRAME_TIMEOUT)
+		time.sleep(2.0*timebase_cyc/source_freq)
+		slave.get_frame(timeout=FRAME_TIMEOUT)
+		frame2 = slave.get_frame(timeout=FRAME_TIMEOUT)
+		if ch==1:
+			frame2 = frame2.ch1
+		else:
+			frame2 = frame2.ch2
+
+		phase_2 = approximate_phase(ts, frame2, SG_WAVE_SINE, source_vpp/2.0, source_freq, source_offset, source_duty)
+
+		# Check the change in phase is as expected
+		if DEBUG_TESTS:
+			if not in_bounds( ((phase_2 % 1.0) - (phase_1 % 1.0)) % 1.0, phase, PHASE_TOL_R):
+				plt.plot(ts, frame1)
+				plt.plot(ts, frame2)
+				plt.show()
+		assert in_bounds( ((phase_2 % 1.0) - (phase_1 % 1.0)) % 1.0, phase, PHASE_TOL_R)
 
 class Test_Trigger:
 	'''
