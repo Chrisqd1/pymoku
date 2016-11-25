@@ -21,7 +21,7 @@ REG_NA_SWEEP_AMP_MULT		= 73
 
 
 _NA_DAC_BITDEPTH 	= 16
-_NA_DAC_VOLTRANGE 	= 2.0
+_NA_DAC_VOLTRANGE 	= 2.00
 
 _NA_ADC_BITDEPTH 	= 12
 _NA_ADC_VOLTRANGE 	= 10.0
@@ -148,7 +148,7 @@ class NetAnFrame(_frame_instrument.DataFrame):
 			# Set the frequency range of valid data in the current frame (same for both channels)
 			self.ch1_fs = self.calculate_freq_axis( scales['sweep_freq_min'], scales['sweep_freq_delta'], scales['sweep_length'], scales['log_en'] )
 			self.ch2_fs = self.calculate_freq_axis( scales['sweep_freq_min'], scales['sweep_freq_delta'], scales['sweep_length'], scales['log_en'] )
-
+			# print "ch1 axis length", len(self.ch1_fs)
 			##################################
 			# Process Ch1 Data
 			##################################
@@ -204,11 +204,11 @@ class NetAnFrame(_frame_instrument.DataFrame):
 
 		freq_axis = [start_freq]
 
-		for k in range(1,sweep_length) :
+		for k in range(1, sweep_length) :
 			if log_scale:
-				freq_axis.append(freq_axis[k-1] * freq_step)
+				freq_axis.append(freq_axis[k-1] * (float(freq_step)/_NA_FXP_SCALE + 1))
 			else :
-				freq_axis.append(freq_axis[k-1] + freq_step)
+				freq_axis.append(freq_axis[k-1] + float(freq_step) / _NA_FREQ_SCALE)
 
 		return freq_axis
 
@@ -338,18 +338,30 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 
 
-	def set_sweep(self, start_frequency=1.0e3, end_frequency=10.0e6, sweep_points=512, logarithmic=False, amplitude_ch1=0.5, amplitude_ch2=0.5):
+	def set_sweep(self, start_frequency=1.0e3, end_frequency=1.0e6, sweep_points=512, logarithmic=False, amplitude_ch1=0.5, amplitude_ch2=0.5):
 		self.sweep_freq_min = start_frequency
 		self.sweep_length = sweep_points
 		self.log_en = logarithmic
-		self.sweep_amp_mult_ch1 = amplitude_ch1*_NA_DAC_V2COUNTS
-		self.sweep_amp_mult_ch2 = amplitude_ch2*_NA_DAC_V2COUNTS
+		self.sweep_amp_mult_ch1 = float(amplitude_ch1*_NA_DAC_V2COUNTS)
+		self.sweep_amp_mult_ch2 = float(amplitude_ch2*_NA_DAC_V2COUNTS)
 
 		if logarithmic:
 			print ((float(end_frequency) / float(start_frequency))**(1.0/(sweep_points - 1)) - 1)
 			self.sweep_freq_delta = round(((float(end_frequency) / float(start_frequency))**(1.0/(sweep_points - 1)) - 1) * _NA_FXP_SCALE)
 		else:
+			print ((end_frequency - start_frequency)/sweep_points) 
 			self.sweep_freq_delta = ((end_frequency - start_frequency)/sweep_points) * _NA_FREQ_SCALE
+			
+	def get_sweep_freq_delta(self):
+
+		if self.log_en:
+			return float(self.sweep_freq_delta) / _NA_FXP_SCALE + 1
+		else:
+			return float(self.sweep_freq_delta) / _NA_FREQ_SCALE
+
+	def get_sweep_freq_min(self):
+		
+		return float(self.sweep_freq_min)
 		
 
 
@@ -390,27 +402,25 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		self.calibration = None
 		self.set_xmode(FULL_FRAME)
 
-		# self.set_frontend(0, True, True, False)
-		# self.set_frontend(1, True, True, False)
+		self.sweep_amp_mult_ch1 = 0.25*_NA_DAC_V2COUNTS
+		self.sweep_amp_mult_ch2 = 0.25*_NA_DAC_V2COUNTS
 
 		self.sweep_freq_min = 1.0e3
 		self.log_en = False
 		self.hold_off_time = 125
 		self.sweep_length = 512
-		self.sweep_amp_mult_ch1 = 0.5
-		self.sweep_amp_mult_ch2 = 0.5
 		self.offset = 0
 		# self.render_dds = 1
 		self.render_mode = RDR_DDS
 
-	def set_start_freq(self, start_freq):
-		self.sweep_freq_min = start_freq
+	# def set_start_freq(self, start_freq):
+	# 	self.sweep_freq_min = start_freq
 
-	def set_stop_freq(self, stop_freq):
-		self.stop_freq = stop_freq
+	# def set_stop_freq(self, stop_freq):
+	# 	self.stop_freq = stop_freq
 
-	def set_sweep_length(self, sweep_length):
-		self.sweep_length = sweep_length
+	# def set_sweep_length(self, sweep_length):
+	# 	self.sweep_length = sweep_length
 
 	def _calculate_scales(self):
 		"""
@@ -454,11 +464,11 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 _na_reg_handlers = {
 	'sweep_freq_min':			((REG_NA_SWEEP_FREQ_MIN_H, REG_NA_SWEEP_FREQ_MIN_L),
-											to_reg_signed(0, 48, xform=lambda f: f * _NA_FREQ_SCALE),
-											from_reg_signed(0, 48, xform=lambda f: f / _NA_FREQ_SCALE)),
+											to_reg_unsigned(0, 48, xform=lambda f: f * _NA_FREQ_SCALE),
+											from_reg_unsigned(0, 48, xform=lambda f: f / _NA_FREQ_SCALE)),
 	'sweep_freq_delta':			((REG_NA_SWEEP_FREQ_DELTA_H, REG_NA_SWEEP_FREQ_DELTA_L),
-											to_reg_signed(0, 48),
-											from_reg_signed(0, 48)),
+											to_reg_unsigned(0, 48),
+											from_reg_unsigned(0, 48)),
 	'log_en':					(REG_NA_LOG_EN,
 											to_reg_bool(0),
 											from_reg_bool(0)),

@@ -27,18 +27,21 @@ m.attach_instrument(i)
 # Set these parameters
 	# i.set_defaults()
 
-start_frequency = 100.0e5
-end_frequency = 1.0e5
+start_frequency = 1e5
+end_frequency = 10e6
 sweep_points = 512
 logarithmic = False
-amp_ch1 = 0.5
-amp_ch2 = 0.5
+amp_ch1 = 1
+amp_ch2 = 0
 
 ch1 = True
 ch2 = False
 
 i.set_sweep(start_frequency, end_frequency, sweep_points, logarithmic, amp_ch1, amp_ch2)
 i.set_dbscale(False)
+
+print "Sweep frequency delta: ", i.get_sweep_freq_delta()
+print "Minimum frequency: ", i.get_sweep_freq_min()
 
 i.set_frontend(0, fiftyr=True, atten=True, ac=False)
 i.set_frontend(1, fiftyr=True, atten=True, ac=False)
@@ -103,7 +106,9 @@ try:
 		line2.set_xdata(frame.ch2_fs)
 		print "ch1_axis", frame.ch1_fs
 		print "start freq", i.sweep_freq_min
-		print "freq step", i.sweep_freq_delta
+		print "freq step", i.get_sweep_freq_delta()
+		print "length", i.sweep_length
+		
 		#line1.set_xdata(range(len(frame.ch1.magnitude)))
 		#line2.set_xdata(range(len(frame.ch1.phase)))
 		# Ensure the frequency axis is a tight fit
