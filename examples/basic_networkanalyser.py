@@ -27,11 +27,11 @@ m.attach_instrument(i)
 # Set these parameters
 	# i.set_defaults()
 
-start_frequency = 1e5
-end_frequency = 10e6
+start_frequency = 20e6
+end_frequency = 50e6
 sweep_points = 512
-logarithmic = False
-amp_ch1 = 1
+logarithmic = True
+amp_ch1 = 0.5
 amp_ch2 = 0
 
 ch1 = True
