@@ -110,8 +110,8 @@ def base_instrs(conn_mokus):
 	i1 = Oscilloscope()
 	i2 = Oscilloscope()
 
-	m1.attach_instrument(i1, external_ref=False) # Master is 10MHz reference clock
-	m2.attach_instrument(i2, external_ref=False)
+	m1.attach_instrument(i1, use_external=False) # Master is 10MHz reference clock
+	m2.attach_instrument(i2, use_external=False)
 
 	i1.set_defaults()
 	i2.set_defaults()

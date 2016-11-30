@@ -211,29 +211,19 @@ class Moku(object):
 			raise NetworkError()
 
 
-<<<<<<< HEAD
 	def _deploy(self, partial_index=0, use_external=False):
-=======
-	def _deploy(self, external_ref=False):
->>>>>>> ed08795... PM-108: Added sync to external 10 MHz reference to the deploy instrument packet so we can now sync Moku clocks
 		if self._instrument is None:
 			DeployException("No Instrument Selected")
 
 		# Deploy doesn't return until the deploy has completed which can take several
 		# seconds on the device. Set an appropriately long timeout for this case.
 		self._set_timeout(short=False)
-
-<<<<<<< HEAD
 		if partial_index < 0 or partial_index > 2**7:
 			raise DeployException("Invalid partial index %d" % partial_index)
 
 		flags = partial_index << 2 | int(use_external)
 
 		self._conn.send(bytearray([0x43, self._instrument.id, flags]))
-=======
-		flags = 0x01 if external_ref else 0x00
-		self._conn.send(chr(0x43) + chr(self._instrument.id) + chr(flags))
->>>>>>> ed08795... PM-108: Added sync to external 10 MHz reference to the deploy instrument packet so we can now sync Moku clocks
 		ack = self._conn.recv()
 
 		self._set_timeout(short=True)
