@@ -111,7 +111,7 @@ def base_instrs(conn_mokus):
 	i2 = Oscilloscope()
 
 	m1.attach_instrument(i1, use_external=False) # Master is 10MHz reference clock
-	m2.attach_instrument(i2, use_external=False)
+	m2.attach_instrument(i2, use_external=True)
 
 	i1.set_defaults()
 	i2.set_defaults()
@@ -126,9 +126,6 @@ def base_instrs(conn_mokus):
 	return (i1,i2)
 
 class Test_Siggen:
-	def _calculate_triangle_phase(symmetry):
-		return symmetry * numpy.pi
-
 	'''
 		This class tests the correctness of the embedded signal generator 
 	'''
@@ -142,6 +139,9 @@ class Test_Siggen:
 			[SG_WAVE_SINE, SG_WAVE_SQUARE, SG_WAVE_TRIANGLE]
 			))
 	def test_output_waveform(self, base_instrs, ch, vpp, freq, offset, duty, waveform):
+		def _calculate_triangle_phase(symmetry):
+			return symmetry * numpy.pi
+
 		# Check input parameters
 		assert (offset + 0.5*vpp) <= 1.0
 		assert (offset - 0.5*vpp) >= -1.0
@@ -410,10 +410,7 @@ class Test_Trigger:
 		if trig_ch == 2:
 			master.set_trigger(OSC_TRIG_DA2, trig_edge, trig_lvl, hysteresis = 0, hf_reject = False, mode = trig_mode)
 
-	@pytest.mark.parametrize("freq",
-		itertools.product(
-			[20, 30, 40, 1e3, 10e3, 1e6, 10e6]
-			))
+	@pytest.mark.parametrize("freq", [20, 30, 40, 1e3, 10e3, 1e6, 10e6])
 	def test_trigger_mode_normal(self, base_instrs, freq):
 		'''
 			Tests 'Normal' trigger mode
