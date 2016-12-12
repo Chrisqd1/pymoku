@@ -156,8 +156,6 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		self.procstr = ["*C","*C"]
 		self.timestep = 1
 
-		self.decimation_rate = 1
-
 		self.scales = {}
 
 		self.set_frame_class(VoltsFrame, scales=self.scales)
