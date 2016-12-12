@@ -200,7 +200,7 @@ class NetAnFrame(_frame_instrument.DataFrame):
 
 		freq_axis = [start_freq]
 
-		for k in range(1,sweep_length) :
+		for k in range(1, sweep_length) :
 			if log_scale:
 				freq_axis.append(freq_axis[k-1] * freq_step)
 			else :
@@ -335,7 +335,7 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 	def calculate_freq_step(self, start_freq, stop_freq, sweep_length, log_scale):
 		# calculates the frequency step required to obtain data at evenly spaced intervals between the start stop frequency
 		if log_scale :
-			freq_step = ( stop_freq / start_freq ) ** ( 1 / sweep_length)
+			freq_step = ( stop_freq / start_freq ) ** (1.0 / sweep_length)
 		else :
 			freq_step = ( ( stop_freq - start_freq ) / sweep_length ) * _NA_FREQ_SCALE 
 		return freq_step
