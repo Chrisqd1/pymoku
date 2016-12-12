@@ -16,8 +16,10 @@ REG_NA_LOG_EN				= 68
 REG_NA_HOLD_OFF_L			= 69
 REG_NA_HOLD_OFF_H			= 70
 REG_NA_SWEEP_LENGTH			= 71
-REG_NA_SWEEP_AMP_BITSHIFT	= 72
-REG_NA_SWEEP_AMP_MULT		= 73
+REG_NA_AVERAGE_TIME			= 72
+REG_NA_SINGLE_SWEEP			= 73
+# REG_NA_SWEEP_AMP_BITSHIFT	= 72
+# REG_NA_SWEEP_AMP_MULT		= 73
 
 
 _NA_ADC_SMPS		= 500e6
@@ -54,12 +56,14 @@ class NetAnFrame(_frame_instrument.DataFrame):
 		:annotation: = n
 	"""
 	class _NetAnChannel():
-		# convert an RMS voltage to a power level (assuming 50Ohm load)
+		# convert an RMS voltage to a power level (assuming 50 Ohm load)
 		def _mag_to_db(self, v):
 			if v == None :
 				return None
+			elif v <= 0 :
+				return None
 			else :
-				return 20.0*math.log(v/20.0,10)
+				return 20.0*math.log10( v / 20.0)
 
 		def _calculate_magnitude(self, i_signal, q_signal, dbscale):
 			if i_signal == None or q_signal == None:
@@ -333,14 +337,16 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		if log_scale :
 			freq_step = ( stop_freq / start_freq ) ** ( 1 / sweep_length)
 		else :
-			freq_step = ( stop_freq - start_freq ) / sweep_length
-
+			freq_step = ( ( stop_freq - start_freq ) / sweep_length ) * _NA_FREQ_SCALE 
 		return freq_step
 
 
-	def set_sweep_parameters(self, start_freq, stop_freq, sweep_length, log_scale):
+	def set_sweep_parameters(self, start_freq, stop_freq, sweep_length, log_scale, averaging_time, settling_time):
 		self.sweep_freq_min = start_freq
 		self.sweep_length = sweep_length
+		self.averaging_time = averaging_time
+		self.hold_off_time = settling_time
+		self.log_en = log_scale
 		self.sweep_freq_delta = self.calculate_freq_step(start_freq, stop_freq, sweep_length, log_scale)
 
 
@@ -365,14 +371,16 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 		self.set_frontend(0, True, True, False)
 		self.set_frontend(1, True, True, False)
-		self.sweep_freq_min = 1000.0
-		self.sweep_freq_delta = 1000.0
-		self.log_en = False
-		self.hold_off_time = 125
+		self.sweep_freq_min = 1
+		self.sweep_freq_delta = 0.03* (2**31) #1e5 * _NA_FREQ_SCALE#  
+		self.log_en = True
+		self.hold_off_time = 10
 		self.sweep_length = 512
 		self.sweep_amp_bitshift = 0
 		self.sweep_amp_mult = 1
 		self.offset = 0
+		self.averaging_time = 1
+		self.single_sweep = 0
 		# self.render_dds = 1
 		self.render_mode = RDR_DDS
 
@@ -425,24 +433,30 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 _na_reg_handlers = {
 	'sweep_freq_min':			((REG_NA_SWEEP_FREQ_MIN_H, REG_NA_SWEEP_FREQ_MIN_L),
-											to_reg_unsigned(0, 48, xform=lambda f: f * _NA_FREQ_SCALE),
-											from_reg_unsigned(0, 48, xform=lambda f: f / _NA_FREQ_SCALE)),
+											to_reg_signed(0, 48, xform=lambda f: f * _NA_FREQ_SCALE),
+											from_reg_signed(0, 48, xform=lambda f: f / _NA_FREQ_SCALE)),
 	'sweep_freq_delta':			((REG_NA_SWEEP_FREQ_DELTA_H, REG_NA_SWEEP_FREQ_DELTA_L),		
-											to_reg_unsigned(0, 48, xform=lambda f : f * _NA_FREQ_SCALE),
-											from_reg_unsigned(0, 48, xform=lambda f : f / _NA_FREQ_SCALE)),
+											to_reg_signed(0, 48, xform=lambda f : f ),
+											from_reg_signed(0, 48, xform=lambda f : f )),
 	'log_en':					(REG_NA_LOG_EN,
 											to_reg_bool(0),		
 											from_reg_bool(0)),
-	'hold_off_time':			((REG_NA_HOLD_OFF_H, REG_NA_HOLD_OFF_L),
-											to_reg_unsigned(0, 48),
-											from_reg_unsigned(0, 48)),
+	'hold_off_time':			((REG_NA_HOLD_OFF_L),
+											to_reg_unsigned(0, 32),
+											from_reg_unsigned(0, 32)),
 	'sweep_length':				(REG_NA_SWEEP_LENGTH,		
 											to_reg_unsigned(0, 10),
 											from_reg_unsigned(0, 10)),
-	'sweep_amp_bitshift':		(REG_NA_SWEEP_AMP_BITSHIFT,		
-											to_reg_unsigned(0, 17),		
-											from_reg_unsigned(0, 17)),
-	'sweep_amp_mult':			(REG_NA_SWEEP_AMP_MULT,		
-											to_reg_unsigned(0, 17),
-											from_reg_unsigned(0, 17)),
+	'averaging_time':			(REG_NA_AVERAGE_TIME,
+											to_reg_unsigned(0,32),
+											from_reg_unsigned(0,32)),
+	'single_sweep':				(REG_NA_SINGLE_SWEEP,
+											to_reg_unsigned(0,1),
+											from_reg_unsigned(0,1)),
+	# 'sweep_amp_bitshift':		(REG_NA_SWEEP_AMP_BITSHIFT,		
+	# 										to_reg_unsigned(0, 17),		
+	# 										from_reg_unsigned(0, 17)),
+	# 'sweep_amp_mult':			(REG_NA_SWEEP_AMP_MULT,		
+	# 										to_reg_unsigned(0, 17),
+	# 										from_reg_unsigned(0, 17)),
 }
