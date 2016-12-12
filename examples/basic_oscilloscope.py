@@ -19,6 +19,7 @@ if i is None or i.type != 'oscilloscope':
 	m.attach_instrument(i)
 else:
 	print("Attached to existing Oscilloscope")
+	m.take_ownership()
 
 line1, = plt.plot([])
 line2, = plt.plot([])
