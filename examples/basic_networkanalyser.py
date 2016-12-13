@@ -60,7 +60,7 @@ i.set_defaults()
 
 i.set_dbscale(False)
 
-i.set_sweep_parameters(10, 1000, 512, False, 125, 125)
+i.set_sweep_parameters(1e5, 1e6, 512, False, 0.25, 1, 125, 125)
 
 i.commit()
 

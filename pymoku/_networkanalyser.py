@@ -18,12 +18,15 @@ REG_NA_HOLD_OFF_H			= 70
 REG_NA_SWEEP_LENGTH			= 71
 REG_NA_AVERAGE_TIME			= 72
 REG_NA_SINGLE_SWEEP			= 73
-# REG_NA_SWEEP_AMP_BITSHIFT	= 72
-# REG_NA_SWEEP_AMP_MULT		= 73
+REG_NA_SWEEP_AMP_MULT		= 74
 
 
 _NA_ADC_SMPS		= 500e6
 _NA_DAC_SMPS 		= 1e9
+_NA_DAC_VRANGE 		= 2
+_NA_DAC_BITDEPTH 	= 2**16
+_NA_DAC_CAL			= 0.84388
+_NA_DAC_V2BITS 		= (_NA_DAC_BITDEPTH/_NA_DAC_VRANGE)*_NA_DAC_CAL
 _NA_BUFLEN			= 2**14
 _NA_SCREEN_WIDTH	= 1024
 _NA_SCREEN_STEPS	= _NA_SCREEN_WIDTH - 1
@@ -337,15 +340,17 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 	def calculate_freq_step(self, start_freq, stop_freq, sweep_length, log_scale):
 		# calculates the frequency step required to obtain data at evenly spaced intervals between the start stop frequency
 		if log_scale :
-			freq_step = ( stop_freq / start_freq ) ** (1.0 / sweep_length)
+			freq_step = (stop_freq / start_freq) ** (1.0 / sweep_length)
 		else :
-			freq_step = ( ( stop_freq - start_freq ) / sweep_length ) * _NA_FREQ_SCALE 
+			freq_step = ((stop_freq - start_freq) / sweep_length ) * _NA_FREQ_SCALE 
 		return freq_step
 
 
-	def set_sweep_parameters(self, start_freq, stop_freq, sweep_length, log_scale, averaging_time, settling_time):
+	def set_sweep_parameters(self, start_freq, stop_freq, sweep_length, log_scale, sweep_amp_ch1, sweep_amp_ch2, averaging_time, settling_time):
 		self.sweep_freq_min = start_freq
 		self.sweep_length = sweep_length
+		self.sweep_amplitude_ch1 = sweep_amp_ch1
+		self.sweep_amplitude_ch2 = sweep_amp_ch2
 		self.averaging_time = averaging_time
 		self.hold_off_time = settling_time
 		self.log_en = log_scale
@@ -457,10 +462,10 @@ _na_reg_handlers = {
 	'single_sweep':				(REG_NA_SINGLE_SWEEP,
 											to_reg_unsigned(0,1),
 											from_reg_unsigned(0,1)),
-	# 'sweep_amp_bitshift':		(REG_NA_SWEEP_AMP_BITSHIFT,		
-	# 										to_reg_unsigned(0, 17),		
-	# 										from_reg_unsigned(0, 17)),
-	# 'sweep_amp_mult':			(REG_NA_SWEEP_AMP_MULT,		
-	# 										to_reg_unsigned(0, 17),
-	# 										from_reg_unsigned(0, 17)),
+	'sweep_amplitude_ch1':		(REG_NA_SWEEP_AMP_MULT,		
+											to_reg_unsigned(0, 16, xform=lambda a: a * _NA_DAC_V2BITS),
+											from_reg_unsigned(0, 16, xform=lambda a: a / _NA_DAC_V2BITS)),
+	'sweep_amplitude_ch2':		(REG_NA_SWEEP_AMP_MULT,
+											to_reg_unsigned(16, 16, xform=lambda a: a * _NA_DAC_V2BITS),
+											from_reg_unsigned(16, 16, xform=lambda a: a / _NA_DAC_V2BITS)),
 }
