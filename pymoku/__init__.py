@@ -467,7 +467,9 @@ class Moku(object):
 		act, status = struct.unpack("BB", pkt[:2])
 
 		if status:
-			raise NetworkError("File receive error %d" % status)
+			ex = NetworkError("File receive error %d" % status)
+			ex.dat = pkt[2:]
+			raise ex
 
 		return pkt[2:]
 
@@ -639,13 +641,21 @@ class Moku(object):
 		self._fs_send_generic(9, '')
 
 		try:
-			self._fs_receive_generic(9)
-			return _ERR_OK
-		except NetworkError:
-			return _ERR_BUSY
+			dat = self._fs_receive_generic(9)
+			stat = _ERR_OK
+		except NetworkError as e:
+			dat = e.dat
+			stat = _ERR_BUSY
+
+		size, pc = struct.unpack("<QB", dat)
+
+		return stat, size, pc
 
 	def _fs_rename_busy(self):
-		return self._fs_rename_status() == _ERR_BUSY
+		return self._fs_rename_status()[0] == _ERR_BUSY
+
+	def _fs_rename_progress(self):
+		return self._fs_rename_status()[2]
 
 	def delete_bitstream(self, path):
 		self._fs_finalise('b', path, 0)
