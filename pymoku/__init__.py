@@ -30,6 +30,7 @@ _ERR_NOSPC = 3
 _ERR_NOMP = 4
 _ERR_ACTION = 5
 _ERR_BUSY = 6
+_ERR_RO = 7
 _ERR_UNKOWN = 99
 
 # Chosen to trade off number of network transactions with memory usage.
