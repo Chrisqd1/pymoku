@@ -32,7 +32,7 @@ class BonjourFinder(object):
 			return
 
 		hw, pver, dummy = hosttarget.split('_')
-		if hw != 'moku10' or pver != self.pversion:
+		if not hw.startswith('moku') or pver != self.pversion:
 			return
 
 		query_sdRef = \
