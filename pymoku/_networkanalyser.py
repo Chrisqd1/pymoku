@@ -14,7 +14,7 @@ REG_NA_SWEEP_FREQ_DELTA_L 	= 66
 REG_NA_SWEEP_FREQ_DELTA_H 	= 67
 REG_NA_LOG_EN				= 68
 REG_NA_HOLD_OFF_L			= 69
-REG_NA_HOLD_OFF_H			= 70
+# REG_NA_HOLD_OFF_H			= 70
 REG_NA_SWEEP_LENGTH			= 71
 REG_NA_AVERAGE_TIME			= 72
 REG_NA_SINGLE_SWEEP			= 73
@@ -22,11 +22,11 @@ REG_NA_SWEEP_AMP_MULT		= 74
 
 
 _NA_ADC_SMPS		= 500e6
+_NA_FPGA_CLOCK 		= 125e6
 _NA_DAC_SMPS 		= 1e9
 _NA_DAC_VRANGE 		= 2
 _NA_DAC_BITDEPTH 	= 2**16
-_NA_DAC_CAL			= 0.84388
-_NA_DAC_V2BITS 		= (_NA_DAC_BITDEPTH/_NA_DAC_VRANGE)*_NA_DAC_CAL
+_NA_DAC_V2BITS 		= _NA_DAC_BITDEPTH/_NA_DAC_VRANGE
 _NA_BUFLEN			= 2**14
 _NA_SCREEN_WIDTH	= 1024
 _NA_SCREEN_STEPS	= _NA_SCREEN_WIDTH - 1
@@ -206,9 +206,9 @@ class NetAnFrame(_frame_instrument.DataFrame):
 
 		for k in range(1, sweep_length) :
 			if log_scale:
-				freq_axis.append(freq_axis[k-1] * freq_step)
+				freq_axis.append(freq_axis[k-1] * (freq_step))
 			else :
-				freq_axis.append(freq_axis[k-1] + freq_step)
+				freq_axis.append(freq_axis[k-1] + (freq_step))
 
 		return freq_axis
 
@@ -340,17 +340,19 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 	def calculate_freq_step(self, start_freq, stop_freq, sweep_length, log_scale):
 		# calculates the frequency step required to obtain data at evenly spaced intervals between the start stop frequency
 		if log_scale :
-			freq_step = (stop_freq / start_freq) ** (1.0 / sweep_length)
+			freq_step = (stop_freq / start_freq) ** (1.0 / (sweep_length - 1)) * _NA_FXP_SCALE
 		else :
-			freq_step = ((stop_freq - start_freq) / sweep_length ) * _NA_FREQ_SCALE 
+			freq_step = ((stop_freq - start_freq) / (sweep_length - 1)) * _NA_FREQ_SCALE
+			
 		return freq_step
+		return freq_step_scales
 
 
 	def set_sweep_parameters(self, start_freq, stop_freq, sweep_length, log_scale, sweep_amp_ch1, sweep_amp_ch2, averaging_time, settling_time):
 		self.sweep_freq_min = start_freq
 		self.sweep_length = sweep_length
-		self.sweep_amplitude_ch1 = sweep_amp_ch1
-		self.sweep_amplitude_ch2 = sweep_amp_ch2
+		self.sweep_amplitude_ch1 = sweep_amp_ch1 * self._get_dac_calibration()[0]
+		self.sweep_amplitude_ch2 = sweep_amp_ch2 * self._get_dac_calibration()[1]
 		self.averaging_time = averaging_time
 		self.hold_off_time = settling_time
 		self.log_en = log_scale
@@ -366,30 +368,21 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		self.framerate = _NA_FPS
 		self.frame_length = _NA_SCREEN_WIDTH
 
-		self.set_frontend(1,fiftyr=False, atten=True, ac=False)
-		self.set_frontend(2,fiftyr=False, atten=True, ac=False)
 		self.en_in_ch1 = True
 		self.en_in_ch2 = True
-
 
 		self.calibration = None
 		self.set_xmode(FULL_FRAME)
 
-
 		self.set_frontend(0, True, True, False)
 		self.set_frontend(1, True, True, False)
 
-		self.sweep_freq_min = 1
-		self.sweep_freq_delta = 0.03* (2**31) #1e5 * _NA_FREQ_SCALE#  
-		self.log_en = True
-		self.hold_off_time = 10
+		self.log_en = False
 		self.sweep_length = 512
-		self.sweep_amp_bitshift = 0
 		self.sweep_amp_mult = 1
 		self.offset = 0
-		self.averaging_time = 1
+		self.averaging_time = 0.1 
 		self.single_sweep = 0
-		# self.render_dds = 1
 		self.render_mode = RDR_DDS
 
 	def set_start_freq(self, start_freq):
@@ -428,6 +421,46 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 		return {'g1': g1, 'g2': g2, 'dbscale': self.dbscale, 'sweep_freq_min': self.sweep_freq_min, 'sweep_freq_delta': self.sweep_freq_delta, 'sweep_length': self.sweep_length, 'log_en': self.log_en}
 
+
+	def _get_dac_calibration(self):
+		# returns the volts to bits numbers for the DAC channels in the current state
+
+		sect1 = "calibration.DG-1"
+		sect2 = "calibration.DG-2"
+
+		try:
+			g1 = float(self.calibration[sect1])
+			g2 = float(self.calibration[sect2])
+		except (KeyError, TypeError):
+			log.warning("Moku appears uncalibrated")
+			g1 = g2 = 1
+
+		log.debug("gain values for dac sections %s, %s = %f, %f", sect1, sect2, g1, g2)
+
+		return (g1, g2)
+
+
+	def _get_adc_calibration(self):
+		# Returns the volts to bits numbers for each channel in the current state
+
+		sect1 = "calibration.AG-%s-%s-%s-1" % ( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
+								  "L" if self.relays_ch1 & RELAY_LOWG else "H",
+								  "D" if self.relays_ch1 & RELAY_DC else "A")
+
+		sect2 = "calibration.AG-%s-%s-%s-2" % ( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
+								  "L" if self.relays_ch1 & RELAY_LOWG else "H",
+								  "D" if self.relays_ch1 & RELAY_DC else "A")
+
+		try:
+			g1 = float(self.calibration[sect1])
+			g2 = float(self.calibration[sect2])
+		except (KeyError, TypeError):
+			log.warning("Moku adc appears uncalibrated")
+			g1 = g2 = 1
+		log.debug("gain values for adc sections %s, %s = %f, %f", sect1, sect2, g1, g2)
+		return (g1, g2)
+
+
 	def set_dbscale(self,dbm=True):
 		self.dbscale = dbm
 
@@ -441,27 +474,26 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 _na_reg_handlers = {
 	'sweep_freq_min':			((REG_NA_SWEEP_FREQ_MIN_H, REG_NA_SWEEP_FREQ_MIN_L),
-											to_reg_signed(0, 48, xform=lambda f: f * _NA_FREQ_SCALE),
-											from_reg_signed(0, 48, xform=lambda f: f / _NA_FREQ_SCALE)),
-
+											to_reg_unsigned(0, 48, xform=lambda f: f * _NA_FREQ_SCALE),
+											from_reg_unsigned(0, 48, xform=lambda f: f / _NA_FREQ_SCALE)),
 	'sweep_freq_delta':			((REG_NA_SWEEP_FREQ_DELTA_H, REG_NA_SWEEP_FREQ_DELTA_L),		
-											to_reg_signed(0, 48, xform=lambda f : f ),
-											from_reg_signed(0, 48, xform=lambda f : f )),
+											to_reg_signed(0, 48),
+											from_reg_signed(0, 48)),
 	'log_en':					(REG_NA_LOG_EN,
 											to_reg_bool(0),
 											from_reg_bool(0)),
-	'hold_off_time':			((REG_NA_HOLD_OFF_L),
-											to_reg_unsigned(0, 32),
-											from_reg_unsigned(0, 32)),
 	'sweep_length':				(REG_NA_SWEEP_LENGTH,		
 											to_reg_unsigned(0, 10),
 											from_reg_unsigned(0, 10)),
+	'hold_off_time':			((REG_NA_HOLD_OFF_L),
+											to_reg_unsigned(0, 32, xform=lambda t: t * _NA_FPGA_CLOCK),
+											from_reg_unsigned(0, 32, xform=lambda t: t / _NA_FPGA_CLOCK)),
 	'averaging_time':			(REG_NA_AVERAGE_TIME,
-											to_reg_unsigned(0,32),
-											from_reg_unsigned(0,32)),
+											to_reg_unsigned(0, 32, xform=lambda t: t * _NA_FPGA_CLOCK),
+											from_reg_unsigned(0, 32, xform=lambda t: t / _NA_FPGA_CLOCK)),
 	'single_sweep':				(REG_NA_SINGLE_SWEEP,
-											to_reg_unsigned(0,1),
-											from_reg_unsigned(0,1)),
+											to_reg_unsigned(0, 1),
+											from_reg_unsigned(0, 1)),
 	'sweep_amplitude_ch1':		(REG_NA_SWEEP_AMP_MULT,		
 											to_reg_unsigned(0, 16, xform=lambda a: a * _NA_DAC_V2BITS),
 											from_reg_unsigned(0, 16, xform=lambda a: a / _NA_DAC_V2BITS)),

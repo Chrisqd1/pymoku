@@ -11,7 +11,8 @@ logging.getLogger('pymoku').setLevel(logging.DEBUG)
 
 # Use Moku.get_by_serial() or get_by_name() if you don't know the IP
 # m = Moku.get_by_name('Oil Rigs')
-m = Moku('192.168.69.249')
+m = Moku('192.168.69.50')
+
 # i = m.discover_instrument()
 # if i is None or i.type != 'netan':
 # 	print("No or wrong instrument deployed")
@@ -24,6 +25,10 @@ m.attach_instrument(i)
 # BEGIN Instrument Configuration
 # ------------------------------
 # Set these parameters
+f_DAC = 1e9
+frequency_scale = 2.0**48 / f_DAC
+fxp_scale = 2**31
+
 i.set_defaults()
 
 
@@ -34,7 +39,7 @@ i.set_defaults()
 # i.set_frontend(1, fiftyr=True, atten=True, ac=False)
 i.set_dbscale(False)
 # i.calibration = None
-i.set_defaults()
+# i.set_defaults()
 # i.sweep_freq_min = 1
 # i.sweep_freq_delta = 1
 # i.log_en = False
@@ -60,7 +65,8 @@ i.set_defaults()
 
 i.set_dbscale(False)
 
-i.set_sweep_parameters(1e5, 1e6, 512, False, 0.25, 1, 125, 125)
+# i.set_sweep_parameters(f_start, f_end, sweep_points, log_scale?, amp_ch1, amp_ch2, averaging_time, settling_time) 
+i.set_sweep_parameters(1e2, 2e3, 512, False, 0.5, 1, 0.01, 0.01)
 
 i.commit()
 
