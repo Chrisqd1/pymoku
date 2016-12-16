@@ -206,9 +206,9 @@ class NetAnFrame(_frame_instrument.DataFrame):
 
 		for k in range(1, sweep_length) :
 			if log_scale:
-				freq_axis.append(freq_axis[k-1] * (freq_step))
+				freq_axis.append(freq_axis[k-1] * (freq_step/_NA_FXP_SCALE))
 			else :
-				freq_axis.append(freq_axis[k-1] + (freq_step))
+				freq_axis.append(freq_axis[k-1] + (freq_step/_NA_FREQ_SCALE))
 
 		return freq_axis
 
@@ -337,26 +337,58 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 	commit.__doc__ = MokuInstrument.commit.__doc__
 
 
-	def calculate_freq_step(self, start_freq, stop_freq, sweep_length, log_scale):
-		# calculates the frequency step required to obtain data at evenly spaced intervals between the start stop frequency
-		if log_scale :
-			freq_step = (stop_freq / start_freq) ** (1.0 / (sweep_length - 1)) * _NA_FXP_SCALE
-		else :
-			freq_step = ((stop_freq - start_freq) / (sweep_length - 1)) * _NA_FREQ_SCALE
-			
-		return freq_step
-		return freq_step_scales
+	# def set_sweep_parameters(self, start_freq, stop_freq, sweep_length, log_scale, sweep_amp_ch1, sweep_amp_ch2, averaging_time, settling_time):
+	# 	self.sweep_freq_min = start_freq
+	# 	self.sweep_length = sweep_length
+	# 	self.sweep_amplitude_ch1 = sweep_amp_ch1 * self._get_dac_calibration()[0]
+	# 	self.sweep_amplitude_ch2 = sweep_amp_ch2 * self._get_dac_calibration()[1]
+	# 	self.averaging_time = averaging_time
+	# 	self.settling_time = settling_time
+	# 	self.log_en = log_scale
+	# 	# self.sweep_freq_delta = self.set_sweep_freq_delta(start_freq, stop_freq, sweep_length, log_scale)
+
+	# 	sweep_delta = self.set_sweep_freq_delta(start_freq, stop_freq, sweep_length, log_scale)
+	# 	self.sweep_freq_delta = sweep_delta
+
+	# 	print 'CCC', sweep_delta
 
 
-	def set_sweep_parameters(self, start_freq, stop_freq, sweep_length, log_scale, sweep_amp_ch1, sweep_amp_ch2, averaging_time, settling_time):
-		self.sweep_freq_min = start_freq
+	def set_sweep_parameters(self, start_frequency=1.0e3, end_frequency=1.0e6, sweep_length=512, log_scale=False, sweep_amplitude_ch1=0.5, sweep_amplitude_ch2=0.5, averaging_time=1e-6, settling_time=1e-6):
+		self.sweep_freq_min = start_frequency
 		self.sweep_length = sweep_length
-		self.sweep_amplitude_ch1 = sweep_amp_ch1 * self._get_dac_calibration()[0]
-		self.sweep_amplitude_ch2 = sweep_amp_ch2 * self._get_dac_calibration()[1]
-		self.averaging_time = averaging_time
-		self.hold_off_time = settling_time
 		self.log_en = log_scale
-		self.sweep_freq_delta = self.calculate_freq_step(start_freq, stop_freq, sweep_length, log_scale)
+		self.sweep_amplitude_ch1 = sweep_amplitude_ch1 * self._get_dac_calibration()[0]
+		self.sweep_amplitude_ch2 = sweep_amplitude_ch2 * self._get_dac_calibration()[1]
+		self.averaging_time = averaging_time
+		self.settling_time = settling_time
+
+		if log_scale:
+			print ((float(end_frequency) / float(start_frequency))**(1.0/(sweep_length - 1)) - 1)
+			self.sweep_freq_delta = round(((float(end_frequency) / float(start_frequency))**(1.0/(sweep_length - 1)) - 1) * _NA_FXP_SCALE)
+		else:
+			print ((end_frequency - start_frequency)/(sweep_length-1)) 
+			self.sweep_freq_delta = ((end_frequency - start_frequency)/(sweep_length-1)) * _NA_FREQ_SCALE
+			
+
+	def set_sweep_freq_delta(self, start_freq, stop_freq, sweep_length, log_scale):
+		if log_scale:
+			freq_delta = ((float(end_frequency) / float(start_frequency))**(1.0/(sweep_length - 1)) - 1)
+			self.sweep_freq_delta = round(((float(end_frequency) / float(start_frequency))**(1.0/(sweep_length - 1)) - 1) * _NA_FXP_SCALE)
+		else:
+			freq_delta = ((end_frequency - start_frequency)/(sweep_length-1)) 
+			self.sweep_freq_delta = ((end_frequency - start_frequency)/(sweep_length-1)) * _NA_FREQ_SCALE
+
+		return freq_delta
+		print 'Calculated frequency delta: ', freq_delta
+
+	def get_sweep_freq_delta(self):
+
+		if self.log_en:
+			return float(self.sweep_freq_delta) / _NA_FXP_SCALE + 1
+		else:
+			return float(self.sweep_freq_delta) / _NA_FREQ_SCALE
+
+
 
 
 	def set_xmode(self, xmode):
@@ -387,6 +419,9 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 	def set_start_freq(self, start_freq):
 		self.sweep_freq_min = start_freq
+
+	def get_sweep_freq_min(self) :
+		return float(self.sweep_freq_min)
 
 	def set_stop_freq(self, stop_freq):
 		self.stop_freq = stop_freq
@@ -478,14 +513,14 @@ _na_reg_handlers = {
 											from_reg_unsigned(0, 48, xform=lambda f: f / _NA_FREQ_SCALE)),
 	'sweep_freq_delta':			((REG_NA_SWEEP_FREQ_DELTA_H, REG_NA_SWEEP_FREQ_DELTA_L),		
 											to_reg_signed(0, 48),
-											from_reg_signed(0, 48)),
+											from_reg_unsigned(0, 48)),
 	'log_en':					(REG_NA_LOG_EN,
 											to_reg_bool(0),
 											from_reg_bool(0)),
 	'sweep_length':				(REG_NA_SWEEP_LENGTH,		
 											to_reg_unsigned(0, 10),
 											from_reg_unsigned(0, 10)),
-	'hold_off_time':			((REG_NA_HOLD_OFF_L),
+	'settling_time':			((REG_NA_HOLD_OFF_L),
 											to_reg_unsigned(0, 32, xform=lambda t: t * _NA_FPGA_CLOCK),
 											from_reg_unsigned(0, 32, xform=lambda t: t / _NA_FPGA_CLOCK)),
 	'averaging_time':			(REG_NA_AVERAGE_TIME,

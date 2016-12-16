@@ -28,6 +28,7 @@ m.attach_instrument(i)
 f_DAC = 1e9
 frequency_scale = 2.0**48 / f_DAC
 fxp_scale = 2**31
+log_enable = False
 
 i.set_defaults()
 
@@ -67,8 +68,15 @@ i.set_dbscale(False)
 
 # i.set_sweep_parameters(f_start, f_end, sweep_points, log_scale?, amp_ch1, amp_ch2, averaging_time, settling_time) 
 i.set_sweep_parameters(1e2, 2e3, 512, False, 0.5, 1, 0.01, 0.01)
-
 i.commit()
+
+freq_step = i.get_sweep_freq_delta()
+
+
+print "Sweep frequency delta: ", i.get_sweep_freq_delta()
+print "Minimum frequency: ", i.get_sweep_freq_min()
+
+
 
 #frame = i.get_frame()
 # i.sweep_freq_min = 10
