@@ -433,6 +433,7 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		self.sweep_length = sweep_length
 
 	def _calculate_scales(self):	
+
 		"""
 			Returns per-channel correction and scaling parameters required for interpretation of incoming bit frames
 			Parameters are based on current instrument state
@@ -458,6 +459,7 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 			g1 = g2 = 1
 
 		return {'g1': g1, 'g2': g2, 'dbscale': self.dbscale, 'sweep_freq_min': self.sweep_freq_min, 'sweep_freq_delta': self.sweep_freq_delta, 'sweep_length': self.sweep_length, 'log_en': self.log_en, 'averaging_time': self.averaging_time}
+
 
 	def _get_dac_calibration(self):
 		# returns the volts to bits numbers for the DAC channels in the current state
