@@ -11,7 +11,8 @@ logging.getLogger('pymoku').setLevel(logging.DEBUG)
 
 # Use Moku.get_by_serial() or get_by_name() if you don't know the IP
 # m = Moku.get_by_name('Oil Rigs')
-m = Moku('192.168.69.249')
+m = Moku('192.168.69.50')
+
 # i = m.discover_instrument()
 # if i is None or i.type != 'netan':
 # 	print("No or wrong instrument deployed")
@@ -24,24 +25,22 @@ m.attach_instrument(i)
 # BEGIN Instrument Configuration
 # ------------------------------
 # Set these parameters
-i.set_defaults()
 
+f_start = 1e2 # Hz
+f_end = 2e4 # Hz
+sweep_length = 512 
+log_scale = False 
+amp_ch1 = 0.5 # volts (assuming high impedance)
+amp_ch2 = 0.85 # volts (assuming high impedance)
+averaging_time = 1e-3 # seconds
+settling_time = 1e-3 # seconds
 
-# ch1 = True
-# ch2 = False
-# 
-# i.set_frontend(0, fiftyr=True, atten=True, ac=False)
-# i.set_frontend(1, fiftyr=True, atten=True, ac=False)
 i.set_dbscale(False)
-# i.calibration = None
+
 i.set_defaults()
-# i.sweep_freq_min = 1
-# i.sweep_freq_delta = 1
-# i.log_en = False
-# i.hold_off_time = 1
-# i.sweep_length = 1000
-# i.sweep_amp_bitshift = 0
-# i.sweep_amp_mult = 1
+
+i.set_sweep_parameters(f_start, f_end, sweep_length, log_scale, amp_ch1, amp_ch2, averaging_time, settling_time) 
+# i.set_sweep_parameters(f_start,1e2, 2e3, 512, False, 0.5, 1, 0.01, 0.01)
 
 
 #################################
@@ -51,25 +50,14 @@ i.set_defaults()
 #i.set_xmode(FULL_FRAME)
 
 # Push all new configuration to the Moku device
-
-
-
-# i.sweep_freq_min = 100
-# i.sweep_freq_delta = 100
-# i.hold_off_time = 125
-
-i.set_dbscale(False)
-
-i.set_sweep_parameters(10, 1000, 512, False, 125, 125)
-
 i.commit()
 
-#frame = i.get_frame()
-# i.sweep_freq_min = 10
-# i.sweep_freq_delta = 10
+print "Sweep frequency delta: ", i.get_sweep_freq_delta()
+print "Minimum frequency: ", i.get_sweep_freq_min()
 
-# i.commit()
-#print frame[0]
+
+
+
 # Set up basic plot configurations
 line1, = plt.plot([])
 line2, = plt.plot([])
