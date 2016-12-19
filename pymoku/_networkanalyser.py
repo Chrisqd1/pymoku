@@ -11,7 +11,7 @@ log = logging.getLogger(__name__)
 REG_NA_SWEEP_FREQ_MIN_L 	= 64
 REG_NA_SWEEP_FREQ_MIN_H 	= 65
 REG_NA_SWEEP_FREQ_DELTA_L 	= 66
-REG_NA_SWEEP_FREQ_DELTA_H 	= 67
+REG_NA_SWEEP_FREQ_DELTA_H 	=	
 REG_NA_LOG_EN				= 68
 REG_NA_HOLD_OFF_L			= 69
 # REG_NA_HOLD_OFF_H			= 70
@@ -87,7 +87,7 @@ class NetAnFrame(_frame_instrument.DataFrame):
 
 		def _calculate_magnitude(self, i_signal, q_signal, dbscale):
 			if i_signal == None or q_signal == None:
-				return 0 # TODO: changes from 'None' for testing?
+				return None
 			elif dbscale:
 				return self._mag_to_db(math.sqrt(i_signal**2 + q_signal**2))
 			else:
@@ -175,7 +175,8 @@ class NetAnFrame(_frame_instrument.DataFrame):
 			#self.ch1.q_sig = [ self.ch1_bits[x] for x in range(1,len(self.ch1_bits ), 2 ) ]
 			#self.ch1.magnitude = [ self.ch1._calculate_magnitude(self.ch1.i_sig[x], self.ch1.q_sig[x]) for x in range(len(self.ch1.i_sig)) ] #[ math.sqrt(self.ch1.i_sig[x]**2 + self.ch1.q_sig[x]**2) for x in range(len(self.ch1.i_sig))]
 			self.ch1._generate_signals(self.ch1_bits, dbscale)
-			self.ch1.magnitude = [a/b for a,b in zip(self.ch1.magnitude, self.gain_correction(scales['sweep_freq_delta'], scales['sweep_freq_min'], scales['sweep_length'], scales['averaging_time'], scales['log_en']))]
+		
+			self.ch1.magnitude = self.gain_correction(self.ch1.magnitude,scales['sweep_freq_delta'], scales['sweep_freq_min'], scales['sweep_length'], scales['averaging_time'], scales['log_en'])
 
 			# print self.ch1_bits
 			# Apply frequency dependent corrections
@@ -275,13 +276,14 @@ class NetAnFrame(_frame_instrument.DataFrame):
 	def get_ycoord_fmt(self, y):
 		return self._get_yaxis_fmt(y,None)['ycoord']
 
-	def gain_correction(self, sweep_freq_delta, sweep_freq_min, sweep_points, averaging_time, log_scale):
+	def gain_correction(self, magnitude, sweep_freq_delta, sweep_freq_min, sweep_points, averaging_time, log_scale):
 		 
 		sweep_freq = calculate_freq_axis(sweep_freq_min, sweep_freq_delta, sweep_points, log_scale)
 		
 		points_per_freq = [math.ceil(f*averaging_time) for f in sweep_freq]
 
 		gain_scale = [0]*sweep_points
+		scaled_magnitude = [0]*sweep_points
 
 		for f in range(sweep_points) :
 			if sweep_freq[f] > 0 :
@@ -289,9 +291,14 @@ class NetAnFrame(_frame_instrument.DataFrame):
 			else :
 				gain_scale[f] = 1
 
-		#print 'GAIN: ', gain_scale
+			if magnitude[f] == None :
+				scaled_magnitude[f] = None
+			else :
+				scaled_magnitude[f] = magnitude[f]/gain_scale[f] 
 
-		return gain_scale
+		print gain_scale
+
+		return scaled_magnitude
 
 
 class NetAn(_frame_instrument.FrameBasedInstrument):

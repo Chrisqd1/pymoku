@@ -26,13 +26,15 @@ m.attach_instrument(i)
 # ------------------------------
 # Set these parameters
 
-f_start = 1e2 # Hz
-f_end = 2e4 # Hz
+i.set_frontend(0, True, False, False)
+
+f_start = 1e6 # Hz
+f_end = 1e2  # Hz
 sweep_length = 512 
-log_scale = False 
+log_scale = True 
 amp_ch1 = 0.5 # volts (assuming high impedance)
 amp_ch2 = 0.85 # volts (assuming high impedance)
-averaging_time = 1e-3 # seconds
+averaging_time = 1e-5 # seconds
 settling_time = 1e-3 # seconds
 
 i.set_dbscale(False)
@@ -42,7 +44,6 @@ i.set_defaults()
 i.set_sweep_parameters(f_start, f_end, sweep_length, log_scale, amp_ch1, amp_ch2, averaging_time, settling_time) 
 # i.set_sweep_parameters(f_start,1e2, 2e3, 512, False, 0.5, 1, 0.01, 0.01)
 
-
 #################################
 # END Instrument Configuration
 #################################
@@ -51,6 +52,9 @@ i.set_sweep_parameters(f_start, f_end, sweep_length, log_scale, amp_ch1, amp_ch2
 
 # Push all new configuration to the Moku device
 i.commit()
+
+#gain_scales = i.gain_correction()
+#print 'GAIN: ', gain_scales
 
 print "Sweep frequency delta: ", i.get_sweep_freq_delta()
 print "Minimum frequency: ", i.get_sweep_freq_min()
@@ -101,7 +105,10 @@ try:
 		line2.set_xdata(frame.ch2_fs)
 		print "ch1_axis", frame.ch1_fs
 		print "start freq", i.sweep_freq_min
-		print "freq step", i.sweep_freq_delta
+		if log_scale:
+			print "freq step", i.sweep_freq_delta/2.0**31
+		else :
+			print "freq step", i.sweep_freq_delta/2.0**48 * 1.0e9
 		#line1.set_xdata(range(len(frame.ch1.magnitude)))
 		#line2.set_xdata(range(len(frame.ch1.phase)))
 		# Ensure the frequency axis is a tight fit
