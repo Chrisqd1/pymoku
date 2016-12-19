@@ -250,6 +250,30 @@ class Moku(object):
 		# Return bitstream version
 		return struct.unpack("<H", ack[3:5])[0]
 
+
+	def _reset_instrument(self):
+		self._conn.send(bytearray([0x48, self._get_seq()]))
+		self._conn.recv()
+
+
+	def _set_clock_source(self, use_external=False):
+		self._conn.send(struct.pack("<BBB", 0x54, 0x01, use_external))
+		self._conn.recv()
+
+	def _get_clock_source(self):
+		self._conn.send(bytearray([0x54, 0x02]))
+		ack = self._conn.recv()
+		status = ord(ack[2])
+
+		return bool(status & 0x02), bool(status & 0x01)
+
+	def _get_requested_extclock(self):
+		return self._get_clock_source()[0]
+
+	def _get_actual_extclock(self):
+		return self._get_clock_source()[1]
+
+
 	def _get_properties(self, properties):
 		ret = []
 
