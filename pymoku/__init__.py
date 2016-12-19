@@ -9,7 +9,7 @@ log = logging.getLogger(__name__)
 try:
 	from .finders import BonjourFinder
 except Exception as e:
-	log.warning("Can't import the Bonjour libraries, I won't be able to automatically detect Mokus ({:s})".format(str(e)))
+	log.warning("Can't import the Bonjour libraries, I won't be able to automatically detect Mokus ({:s}).  Please install DNSSD libraries (e.g. libavahi-dnssd-compat on Linux)".format(str(e)))
 
 class MokuException(Exception):	"""Base class for other Exceptions""";	pass
 class MokuNotFound(MokuException): """Can't find Moku. Raised from discovery factory functions."""; pass
