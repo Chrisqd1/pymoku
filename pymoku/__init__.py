@@ -22,6 +22,17 @@ class NotDeployedException(MokuException): """Tried to perform an action on an I
 class FrameTimeout(MokuException): """No new :any:`DataFrame` arrived within the given timeout"""; pass
 class NoDataException(MokuException): """A request has been made for data but none will be generated """; pass
 
+# Network status codes
+_ERR_OK = 0
+_ERR_INVAL = 1
+_ERR_NOTFOUND = 2
+_ERR_NOSPC = 3
+_ERR_NOMP = 4
+_ERR_ACTION = 5
+_ERR_BUSY = 6
+_ERR_RO = 7
+_ERR_UNKOWN = 99
+
 # Chosen to trade off number of network transactions with memory usage.
 # 4MB is a little larger than a bitstream so those uploads aren't chunked.
 _FS_CHUNK_SIZE = 1024 * 1024 * 4
@@ -238,6 +249,30 @@ class Moku(object):
 
 		# Return bitstream version
 		return struct.unpack("<H", ack[3:5])[0]
+
+
+	def _reset_instrument(self):
+		self._conn.send(bytearray([0x48, self._get_seq()]))
+		self._conn.recv()
+
+
+	def _set_clock_source(self, use_external=False):
+		self._conn.send(struct.pack("<BBB", 0x54, 0x01, use_external))
+		self._conn.recv()
+
+	def _get_clock_source(self):
+		self._conn.send(bytearray([0x54, 0x02]))
+		ack = self._conn.recv()
+		status = ord(ack[2])
+
+		return bool(status & 0x02), bool(status & 0x01)
+
+	def _get_requested_extclock(self):
+		return self._get_clock_source()[0]
+
+	def _get_actual_extclock(self):
+		return self._get_clock_source()[1]
+
 
 	def _get_properties(self, properties):
 		ret = []
@@ -456,22 +491,26 @@ class Moku(object):
 		act, status = struct.unpack("BB", pkt[:2])
 
 		if status:
-			raise NetworkError("File receive error %d" % status)
+			ex = NetworkError("File receive error %d" % status)
+			ex.dat = pkt[2:]
+			raise ex
 
 		return pkt[2:]
 
 
-	def _send_file(self, mp, localname):
+	def _send_file(self, mp, localname, remotename=None):
+		if remotename is None:
+			remotename = os.path.basename(localname)
+
 		self._set_timeout(short=False)
 		i = 0
+
 		with open(localname, 'rb') as f:
 			while True:
 				data = f.read(_FS_CHUNK_SIZE)
 
 				if not len(data):
 					break
-
-				remotename = os.path.basename(localname)
 
 				fname = mp + ":" + remotename
 
@@ -493,18 +532,21 @@ class Moku(object):
 
 		return remotename
 
-	def _receive_file(self, mp, fname, l):
+	def _receive_file(self, mp, fname, length, localname=None):
 		qfname = mp + ":" + fname
 		self._set_timeout(short=False)
-		print("Receiving file qfname %s" % qfname)
+
+		localname = localname or fname
+
 		i = 0
-		with open(fname, "wb") as f:
-			if l == 0:
+		with open(localname, "wb") as f:
+			if length == 0:
 				# A zero length file implies transfer the entire file
 				# So we get the the file size
-				l = self._fs_size(mp, fname)
-			while i < l:
-				to_transfer = min(l, _FS_CHUNK_SIZE)
+				length = self._fs_size(mp, fname)
+
+			while i < length:
+				to_transfer = min(length, _FS_CHUNK_SIZE)
 				pkt = bytearray([len(qfname)])
 				pkt += qfname.encode('ascii')
 				pkt += struct.pack("<QQ", i, to_transfer)
@@ -530,6 +572,15 @@ class Moku(object):
 
 		return struct.unpack("<I", self._fs_receive_generic(3))[0]
 
+	def _fs_sha(self, mp, fname):
+		fname = mp + ":" + fname
+
+		pkt = bytearray([len(fname)])
+		pkt += fname.encode('ascii')
+		self._fs_send_generic(10, pkt)
+
+		return self._fs_receive_generic(10).decode('ascii')
+
 	def _fs_size(self, mp, fname):
 		fname = mp + ":" + fname
 
@@ -539,8 +590,10 @@ class Moku(object):
 
 		return struct.unpack("<Q", self._fs_receive_generic(4))[0]
 
-	def _fs_list(self, mp, calculate_checksums=False):
-		flags = 1 if calculate_checksums else 0
+	def _fs_list(self, mp, calculate_crc=False, calculate_sha=False):
+		flags = 0
+		flags |= int(calculate_crc)
+		flags |= int(calculate_sha) << 1
 
 		data = mp.encode('ascii')
 		data += bytearray([flags])
@@ -554,10 +607,17 @@ class Moku(object):
 		names = []
 
 		for i in range(n):
-			chk, bl, fl = struct.unpack("<IQB", reply[:13])
-			names.append((reply[13 : fl + 13].decode('ascii'), chk, bl))
+			if calculate_sha:
+				chk = reply[:64].decode('ascii')
+				reply = reply[64:]
+			else:
+				chk = struct.unpack("<I", reply[:4])
+				reply = reply[4:]
 
-			reply = reply[fl + 13 :]
+			bl, fl = struct.unpack("<QB", reply[:9])
+			reply = reply[9:]
+			names.append((reply[:fl].decode('ascii'), chk, bl))
+			reply = reply[fl:]
 
 		return names
 
@@ -567,7 +627,6 @@ class Moku(object):
 		t, f = struct.unpack("<QQ", self._fs_receive_generic(6))
 
 		return t, f
-
 
 	def _fs_finalise(self, mp, fname, fsize):
 		fname = mp + ":" + fname
@@ -586,6 +645,41 @@ class Moku(object):
 
 		return self._fs_finalise(mp, remotename, fsize)
 
+	def _fs_rename(self, smp, sname, dmp, dname, move=False):
+		sname = smp + ":" + sname
+		dname = dmp + ":" + dname
+		pkt = bytearray([len(sname)])
+		pkt += sname.encode('ascii')
+		pkt += bytearray([len(dname)])
+		pkt += dname.encode('ascii')
+
+		flags = 1 if move else 0
+		pkt += bytearray([flags])
+
+		self._fs_send_generic(8, pkt)
+
+		return self._fs_receive_generic(8)
+
+
+	def _fs_rename_status(self):
+		self._fs_send_generic(9, '')
+
+		try:
+			dat = self._fs_receive_generic(9)
+			stat = _ERR_OK
+		except NetworkError as e:
+			dat = e.dat
+			stat = _ERR_BUSY
+
+		size, pc = struct.unpack("<QB", dat)
+
+		return stat, size, pc
+
+	def _fs_rename_busy(self):
+		return self._fs_rename_status()[0] == _ERR_BUSY
+
+	def _fs_rename_progress(self):
+		return self._fs_rename_status()[2]
 
 	def delete_bitstream(self, path):
 		self._fs_finalise('b', path, 0)
@@ -593,7 +687,7 @@ class Moku(object):
 	def delete_file(self, mp, path):
 		self._fs_finalise(mp, path, 0)
 
-	def load_bitstream(self, path):
+	def load_bitstream(self, path, remotename=None):
 		"""
 		Load a bitstream file to the Moku, ready for deployment.
 
@@ -602,12 +696,12 @@ class Moku(object):
 
 		:raises NetworkError: if the upload fails verification.
 		"""
-		self.load_persistent(path)
+		return self.load_persistent(path, remotename)
 
-	def load_persistent(self, path):
+	def load_persistent(self, path, remotename=None):
 		import zlib
-		log.debug("Loading bitstream %s", path)
-		rname = self._send_file('b', path)
+
+		rname = self._send_file('b', path, remotename)
 
 		log.debug("Verifying upload")
 
@@ -618,6 +712,28 @@ class Moku(object):
 
 		if chk != chk2:
 			raise NetworkError("Bitstream upload failed checksum verification.")
+
+		return chk
+
+	def list_persistent(self):
+		fs = self._fs_list('b')
+		return list(zip(*fs))[0]
+
+	def list_bitstreams(self, include_version=True):
+		fs = self._fs_list('b', calculate_sha=include_version)
+
+		if include_version:
+			return [(b.split('.')[0], c) for b, c, s in fs if b.endswith('.bit')]
+		else:
+			return [b.split('.')[0] for b, c, s in fs if b.endswith('.bit')]
+
+	def list_package(self, include_version=False):
+		fs = self._fs_list('p', calculate_checksums=include_version)
+
+		if include_version:
+			return [b.split('.')[0] + '-{:X}'.format(c) for b, c, s in fs if b.endswith('.hgp')]
+		else:
+			return [b.split('.')[0] for b, c, s in fs if b.endswith('.hgp')]
 
 	def _trigger_fwload(self):
 		self._conn.send(bytearray([0x52, 0x01]))
@@ -650,6 +766,10 @@ class Moku(object):
 		""" :return: Name of connected Moku:Lab """
 		self.name = self._get_property_single('system.name')
 		return self.name
+
+	def get_version(self):
+		""" :return: Version of connected Moku:Lab """
+		return '.'.join(self._get_properties(['device.major','device.minor','device.micro']))
 
 	def set_name(self, name):
 		""" :param name: Set new name for the Moku:Lab. This can make it easier to discover the device if multiple Moku:Labs are on a network"""

@@ -3,3 +3,4 @@ pyzmq>=15.3.0
 six
 urllib3
 zmq
+rfc6266

@@ -259,7 +259,7 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		if ch2:
 			self.nch += 1
 
-		fname = datetime.now().strftime(self.logname+"_%Y%m%d_%H%M")
+		fname = datetime.now().strftime(self.logname + "_%Y%m%d_%H%M%S")
 
 		# Currently the data stream genesis is from the x_mode commit below, meaning that delayed start
 		# doesn't work properly. Once this is fixed in the FPGA/daemon, remove this check and the note
@@ -337,7 +337,7 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		if ch2:
 			self.nch += 1
 
-		fname = datetime.now().strftime(self.logname+"_%Y%m%d_%H%M")
+		fname = datetime.now().strftime(self.logname + "_%Y%m%d_%H%M%S")
 
 		if not all([ len(s) for s in [self.binstr, self.procstr, self.fmtstr, self.hdrstr]]):
 			raise InvalidOperationException("Instrument currently doesn't support data logging")
