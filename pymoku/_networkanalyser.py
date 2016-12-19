@@ -19,6 +19,8 @@ REG_NA_SWEEP_LENGTH			= 71
 REG_NA_AVERAGE_TIME			= 72
 REG_NA_SINGLE_SWEEP			= 73
 REG_NA_SWEEP_AMP_MULT		= 74
+REG_NA_SETTLE_CYCLES		= 76
+REG_NA_AVERAGE_CYCLES		= 77
 
 
 _NA_ADC_SMPS		= 500e6
@@ -353,7 +355,7 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 	# 	print 'CCC', sweep_delta
 
 
-	def set_sweep_parameters(self, start_frequency=1.0e3, end_frequency=1.0e6, sweep_length=512, log_scale=False, sweep_amplitude_ch1=0.5, sweep_amplitude_ch2=0.5, averaging_time=1e-6, settling_time=1e-6):
+	def set_sweep_parameters(self, start_frequency=1.0e3, end_frequency=1.0e6, sweep_length=512, log_scale=False, sweep_amplitude_ch1=0.5, sweep_amplitude_ch2=0.5, averaging_time=1e-6, settling_time=1e-6, settling_cycles=0,averaging_cycles=0):
 		self.sweep_freq_min = start_frequency
 		self.sweep_length = sweep_length
 		self.log_en = log_scale
@@ -361,6 +363,8 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		self.sweep_amplitude_ch2 = sweep_amplitude_ch2 * self._get_dac_calibration()[1]
 		self.averaging_time = averaging_time
 		self.settling_time = settling_time
+		self.settle_cycles = settling_cycles
+		self.averaging_cycles = averaging_cycles
 
 		if log_scale:
 			print ((float(end_frequency) / float(start_frequency))**(1.0/(sweep_length - 1)) - 1)
@@ -535,4 +539,10 @@ _na_reg_handlers = {
 	'sweep_amplitude_ch2':		(REG_NA_SWEEP_AMP_MULT,
 											to_reg_unsigned(16, 16, xform=lambda a: a * _NA_DAC_V2BITS),
 											from_reg_unsigned(16, 16, xform=lambda a: a / _NA_DAC_V2BITS)),
+	'settle_cycles':			(REG_NA_SETTLE_CYCLES,
+											to_reg_unsigned(0, 32),
+											from_reg_unsigned(0, 32)),
+	'averaging_cycles':			(REG_NA_AVERAGE_CYCLES,
+											to_reg_unsigned(0, 32),
+											from_reg_unsigned(0, 32)),
 }

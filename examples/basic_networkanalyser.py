@@ -11,7 +11,7 @@ logging.getLogger('pymoku').setLevel(logging.DEBUG)
 
 # Use Moku.get_by_serial() or get_by_name() if you don't know the IP
 # m = Moku.get_by_name('Oil Rigs')
-m = Moku('192.168.69.50')
+m = Moku('192.168.69.249')
 
 # i = m.discover_instrument()
 # if i is None or i.type != 'netan':
@@ -27,19 +27,22 @@ m.attach_instrument(i)
 # Set these parameters
 
 f_start = 1e2 # Hz
-f_end = 2e4 # Hz
-sweep_length = 512 
+f_end = 1e3 # Hz
+#sweep_length = 512 
+sweep_length = 2
 log_scale = False 
 amp_ch1 = 0.5 # volts (assuming high impedance)
 amp_ch2 = 0.85 # volts (assuming high impedance)
-averaging_time = 1e-3 # seconds
-settling_time = 1e-3 # seconds
+averaging_time = 1e-6 # seconds
+settling_time = 1e-6 # seconds
+settling_cycles = 3
+averaging_cycles = 2
 
 i.set_dbscale(False)
 
 i.set_defaults()
 
-i.set_sweep_parameters(f_start, f_end, sweep_length, log_scale, amp_ch1, amp_ch2, averaging_time, settling_time) 
+i.set_sweep_parameters(f_start, f_end, sweep_length, log_scale, amp_ch1, amp_ch2, averaging_time, settling_time, settling_cycles, averaging_cycles) 
 # i.set_sweep_parameters(f_start,1e2, 2e3, 512, False, 0.5, 1, 0.01, 0.01)
 
 
