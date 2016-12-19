@@ -196,8 +196,8 @@ def from_reg_signed(_offset, _len, xform=lambda x: x):
 		except TypeError:
 			v = 0
 			for r in reg:
-				v |= r
 				v <<= 32
+				v |= r
 
 			return xform(_upsgn((v & mask) >> _offset, _len))
 
