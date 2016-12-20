@@ -33,23 +33,30 @@ _NA_SCREEN_STEPS	= _NA_SCREEN_WIDTH - 1
 _NA_FPS				= 2
 _NA_FREQ_SCALE		= 2**48 / _NA_DAC_SMPS
 _NA_INT_VOLTS_SCALE = (1.437*pow(2.0,-8.0))
-_NA_FXP_SCALE 		= 2**31
+_NA_FXP_SCALE 		= 2.0**31
 
 '''
 	Plotting helper functions
 '''
 def calculate_freq_axis(start_freq, freq_step, sweep_length, log_scale):
-	# generates the frequency vector for plotting
-	# Copied this code for _gain_scale
+	# generates the frequency vector for plotting. The logarithmic scale is calculated on the FPGA with fixed point precision,
+	# hence the forced fxp calculation when log_scale = True.
 
+	F_start = start_freq*_NA_FREQ_SCALE
+	F_axis = [F_start]
 	freq_axis = [start_freq]
 
 	for k in range(1, sweep_length) :
 		if log_scale:
-			freq_axis.append(freq_axis[k-1] * (freq_step/_NA_FXP_SCALE))
+			F_axis.append(math.floor(F_axis[k-1] * (freq_step + _NA_FXP_SCALE)/_NA_FXP_SCALE))
 		else :
 			freq_axis.append(freq_axis[k-1] + (freq_step/_NA_FREQ_SCALE))
 
+	if log_scale:
+		freq_axis = [(x/_NA_FREQ_SCALE) for x in F_axis]
+
+	# print 'FREQUENCY CALCULATION: ', freq_axis
+	# print 'F_fpga', F_start
 	return freq_axis
 
 class NetAnFrame(_frame_instrument.DataFrame):
@@ -282,22 +289,21 @@ class NetAnFrame(_frame_instrument.DataFrame):
 		
 		points_per_freq = [math.ceil(f*averaging_time) for f in sweep_freq]
 
-		gain_scale = [0]*sweep_points
-		scaled_magnitude = [0]*sweep_points
+		gain_scale = [0.0]*sweep_points
+		scaled_magnitude = [0.0]*sweep_points
 
 		for f in range(sweep_points) :
-			if sweep_freq[f] > 0 :
-				gain_scale[f] =  math.ceil(points_per_freq[f]*_NA_FPGA_CLOCK/sweep_freq[f])
+			if sweep_freq[f] > 0.0 :
+				gain_scale[f] =  math.ceil(points_per_freq[f]*(_NA_FPGA_CLOCK/sweep_freq[f]))
 			else :
-				gain_scale[f] = 1
+				gain_scale[f] = 1.0
 
 			if magnitude[f] == None :
 				scaled_magnitude[f] = None
 			else :
 				scaled_magnitude[f] = magnitude[f]/gain_scale[f] 
 
-		print gain_scale
-
+		print 'Gain scale: ', gain_scale
 		return scaled_magnitude
 
 
@@ -380,7 +386,7 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 			self.sweep_freq_delta = round(((float(end_frequency) / float(start_frequency))**(1.0/(sweep_length - 1)) - 1) * _NA_FXP_SCALE)
 		else:
 			freq_delta = ((end_frequency - start_frequency)/(sweep_length-1)) 
-			self.sweep_freq_delta = ((end_frequency - start_frequency)/(sweep_length-1)) * _NA_FREQ_SCALE
+			self.sweep_freq_delta = round((end_frequency - start_frequency)/(sweep_length-1)) * _NA_FREQ_SCALE
 
 		return freq_delta
 		print 'Calculated frequency delta: ', freq_delta
@@ -517,7 +523,7 @@ _na_reg_handlers = {
 											from_reg_unsigned(0, 48, xform=lambda f: f / _NA_FREQ_SCALE)),
 	'sweep_freq_delta':			((REG_NA_SWEEP_FREQ_DELTA_H, REG_NA_SWEEP_FREQ_DELTA_L),		
 											to_reg_signed(0, 48),
-											from_reg_unsigned(0, 48)),
+											from_reg_signed(0, 48)),
 	'log_en':					(REG_NA_LOG_EN,
 											to_reg_bool(0),
 											from_reg_bool(0)),

@@ -28,13 +28,13 @@ m.attach_instrument(i)
 
 i.set_frontend(0, True, False, False)
 
-f_start = 1e6 # Hz
-f_end = 1e2  # Hz
+f_start = 100 # Hz
+f_end = 20e6  # Hz
 sweep_length = 512 
 log_scale = True 
 amp_ch1 = 0.5 # volts (assuming high impedance)
-amp_ch2 = 0.85 # volts (assuming high impedance)
-averaging_time = 1e-5 # seconds
+amp_ch2 = 0.5 # volts (assuming high impedance)
+averaging_time = 1e-3 # seconds
 settling_time = 1e-3 # seconds
 
 i.set_dbscale(False)
@@ -58,9 +58,6 @@ i.commit()
 
 print "Sweep frequency delta: ", i.get_sweep_freq_delta()
 print "Minimum frequency: ", i.get_sweep_freq_min()
-
-
-
 
 # Set up basic plot configurations
 line1, = plt.plot([])
