@@ -26,6 +26,7 @@ if i is None or i.type != 'phasemeter':
 	m.attach_instrument(i)
 else:
 	print("Attached to existing Phasemeter")
+	m.take_ownership()
 
 try:
 	#################################

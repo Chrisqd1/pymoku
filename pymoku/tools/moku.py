@@ -7,6 +7,9 @@ import requests
 from pymoku import *
 import pymoku.version
 
+import logging
+logging.basicConfig(level=logging.WARNING)
+
 parser = ArgumentParser()
 subparsers = parser.add_subparsers(title="action", description="Action to take")
 

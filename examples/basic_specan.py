@@ -13,13 +13,15 @@ logging.getLogger('pymoku').setLevel(logging.DEBUG)
 # m = Moku.get_by_name('example')
 m = Moku('192.168.69.220')
 
-# i = m.discover_instrument()
-# if i is None or i.type != 'specan':
-# 	print("No or wrong instrument deployed")
-i = SpecAn()
-m.attach_instrument(i)
-# else:
-# 	print("Attached to existing Spectrum Analyser")
+
+i = m.discover_instrument()
+if i is None or i.type != 'specan':
+	print("No or wrong instrument deployed")
+	i = SpecAn()
+	m.attach_instrument(i)
+else:
+	print("Attached to existing Spectrum Analyser")
+	m.take_ownership()
 
 #################################
 # BEGIN Instrument Configuration

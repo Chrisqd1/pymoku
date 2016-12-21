@@ -9,7 +9,7 @@ log = logging.getLogger(__name__)
 try:
 	from .finders import BonjourFinder
 except Exception as e:
-	log.warning("Can't import the Bonjour libraries, I won't be able to automatically detect Mokus ({:s})".format(str(e)))
+	log.warning("Can't import the Bonjour libraries, I won't be able to automatically detect Mokus ({:s}).  Please install DNSSD libraries (e.g. libavahi-dnssd-compat on Linux)".format(str(e)))
 
 class MokuException(Exception):	"""Base class for other Exceptions""";	pass
 class MokuNotFound(MokuException): """Can't find Moku. Raised from discovery factory functions."""; pass
@@ -193,6 +193,21 @@ class Moku(object):
 	def _get_seq(self):
 		self._seq = (self._seq + 1) % 256
 		return self._seq
+
+
+	def _ownership(self, t):
+		packet_data = bytearray([t, 0])
+		self._conn.send(packet_data)
+
+		ack = self._conn.recv()
+		return ord(ack[1]) == 1
+
+	def take_ownership(self):
+		return self._ownership(0x40)
+
+	def is_owner(self):
+		return self._ownership(0x41)
+
 
 	def _read_regs(self, commands):
 		packet_data = bytearray([0x47, 0x00, len(commands)])
@@ -824,6 +839,7 @@ class Moku(object):
 		if self._instrument:
 			self._instrument.set_running(False)
 
+		self.take_ownership()
 		self._instrument = instrument
 		self._instrument.attach_moku(self)
 		self._instrument.set_running(False)
