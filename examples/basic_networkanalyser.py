@@ -33,10 +33,12 @@ sweep_length = 2
 log_scale = False 
 amp_ch1 = 0.5 # volts (assuming high impedance)
 amp_ch2 = 0.85 # volts (assuming high impedance)
-averaging_time = 1e-6 # seconds
-settling_time = 1e-6 # seconds
-settling_cycles = 3
-averaging_cycles = 2
+#averaging_time = 1e-6 # seconds
+#settling_time = 1e-6 # seconds
+averaging_time = 1e-3 # seconds
+settling_time = 1e-3 # seconds
+settling_cycles = 0
+averaging_cycles = 0
 
 i.set_dbscale(False)
 
