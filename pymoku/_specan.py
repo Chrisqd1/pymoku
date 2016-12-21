@@ -556,21 +556,7 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 
 		# TODO: Centralise the calibration parsing, shared with Oscilloscope
 
-		sect1 = "calibration.AG-%s-%s-%s-1" % ( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
-								  "L" if self.relays_ch1 & RELAY_LOWG else "H",
-								  "D" if self.relays_ch1 & RELAY_DC else "A")
-
-		sect2 = "calibration.AG-%s-%s-%s-1" % ( "50" if self.relays_ch2 & RELAY_LOWZ else "1M",
-								  "L" if self.relays_ch2 & RELAY_LOWG else "H",
-								  "D" if self.relays_ch2 & RELAY_DC else "A")
-
-		# Compute per-channel constant scaling factors
-		try:
-			g1 = 1 / float(self.calibration[sect1])
-			g2 = 1 / float(self.calibration[sect2])
-		except KeyError:
-			log.warning("Moku appears uncalibrated")
-			g1 = g2 = 1
+		g1, g2 = self.adc_gains()
 
 		filt_gain2 = 2.0 ** (self.bs_cic2 - 2.0 * math.log(self.dec_cic2, 2))
 		filt_gain3 = 2.0 ** (self.bs_cic3 - 3.0 * math.log(self.dec_cic3, 2))
@@ -613,29 +599,22 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 	# Bring in the docstring from the superclass for our docco.
 	commit.__doc__ = MokuInstrument.commit.__doc__
 
-	def attach_moku(self, moku):
-		super(SpecAn, self).attach_moku(moku)
-
-		# The moku contains calibration data for various configurations
-		self.calibration = dict(self._moku._get_property_section("calibration"))
-
-	attach_moku.__doc__ = MokuInstrument.attach_moku.__doc__
 
 _sa_reg_handlers = {
-	'demod':			(REG_SA_DEMOD,		to_reg_unsigned(0, 32, xform=lambda f: f * _SA_FREQ_SCALE),
-											from_reg_unsigned(0, 32, xform=lambda f: f / _SA_FREQ_SCALE)),
+	'demod':			(REG_SA_DEMOD,		to_reg_unsigned(0, 32, xform=lambda obj, f: f * _SA_FREQ_SCALE),
+											from_reg_unsigned(0, 32, xform=lambda obj, f: f / _SA_FREQ_SCALE)),
 
 	'dec_enable':		(REG_SA_DECCTL,		to_reg_bool(0),				from_reg_bool(0)),
-	'dec_cic2':			(REG_SA_DECCTL,		to_reg_unsigned(1, 6, 	xform=lambda x: x-1),		
-											from_reg_unsigned(1, 6, xform=lambda x:x+1)),
+	'dec_cic2':			(REG_SA_DECCTL,		to_reg_unsigned(1, 6, 	xform=lambda obj, x: x-1),
+											from_reg_unsigned(1, 6, xform=lambda obj, x:x+1)),
 	'bs_cic2':			(REG_SA_DECCTL,		to_reg_unsigned(7, 4),		from_reg_unsigned(7, 4)),
-	'dec_cic3':			(REG_SA_DECCTL,		to_reg_unsigned(11, 4, 	xform=lambda x: x-1),
-											from_reg_unsigned(11, 4,xform=lambda x: x+1)),
+	'dec_cic3':			(REG_SA_DECCTL,		to_reg_unsigned(11, 4, 	xform=lambda obj, x: x-1),
+											from_reg_unsigned(11, 4,xform=lambda obj, x: x+1)),
 	'bs_cic3':			(REG_SA_DECCTL,		to_reg_unsigned(15, 4),		from_reg_unsigned(15, 4)),
-	'dec_iir':			(REG_SA_DECCTL,		to_reg_unsigned(19, 4, 	xform=lambda x: x-1),
-											from_reg_unsigned(19, 4,xform=lambda x: x+1)),
-	'rbw_ratio':		(REG_SA_RBW,		to_reg_unsigned(0, 24, 	xform=lambda x: x*2.0**10.0),
-											from_reg_unsigned(0, 24,xform=lambda x: x/(2.0**10.0))),
+	'dec_iir':			(REG_SA_DECCTL,		to_reg_unsigned(19, 4, 	xform=lambda obj, x: x-1),
+											from_reg_unsigned(19, 4,xform=lambda obj, x: x+1)),
+	'rbw_ratio':		(REG_SA_RBW,		to_reg_unsigned(0, 24, 	xform=lambda obj, x: x*2.0**10.0),
+											from_reg_unsigned(0, 24,xform=lambda obj, x: x/(2.0**10.0))),
 
 	'window':			(REG_SA_RBW,		to_reg_unsigned(24, 2, allow_set=[SA_WIN_NONE, SA_WIN_BH, SA_WIN_HANNING, SA_WIN_FLATTOP]),
 											from_reg_unsigned(24, 2)),

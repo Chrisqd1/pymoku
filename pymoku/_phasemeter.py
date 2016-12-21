@@ -43,9 +43,14 @@ _PM_FREQ_MIN = 2e6
 _PM_FREQ_MAX = 200e6
 _PM_UPDATE_RATE = 1e6
 
+_PM_CYCLE_SCALE = 2.0 * 2.0**16 / 2.0**48 * _PM_ADC_SMPS / _PM_UPDATE_RATE
+_PM_HERTZ_SCALE = 2.0 * _PM_ADC_SMPS / 2**48
+_PM_VOLTS_SCALE = 2.0 / (_PM_ADC_SMPS * _PM_ADC_SMPS / _PM_UPDATE_RATE / _PM_UPDATE_RATE)
+
 # Phasemeter signal generator constants
 _PM_SG_AMPSCALE = 2**16 / 4.0
 _PM_SG_FREQSCALE = _PM_FREQSCALE
+
 
 PM_LOGRATE_FAST = 200
 PM_LOGRATE_SLOW = 15
@@ -92,15 +97,15 @@ class PhaseMeter_SignalGenerator(MokuInstrument):
 
 _pm_siggen_reg_hdl = {
 	'pm_out1_frequency':	((REG_PM_SG_FREQ1_H, REG_PM_SG_FREQ1_L),
-											to_reg_unsigned(0, 48, xform=lambda f:f * _PM_SG_FREQSCALE ),
-											from_reg_unsigned(0, 48, xform=lambda f: f / _PM_FREQSCALE )),
+											to_reg_unsigned(0, 48, xform=lambda obj, f:f * _PM_SG_FREQSCALE ),
+											from_reg_unsigned(0, 48, xform=lambda obj, f: f / _PM_FREQSCALE )),
 	'pm_out2_frequency':	((REG_PM_SG_FREQ2_H, REG_PM_SG_FREQ2_L),
-											to_reg_unsigned(0, 48, xform=lambda f:f * _PM_SG_FREQSCALE ),
-											from_reg_unsigned(0, 48, xform=lambda f: f /_PM_FREQSCALE )),
-	'pm_out1_amplitude':	(REG_PM_SG_AMP, to_reg_unsigned(0, 16, xform=lambda a: a * _PM_SG_AMPSCALE),
-											from_reg_unsigned(0,16, xform=lambda a: a / _PM_SG_AMPSCALE)),
-	'pm_out2_amplitude':	(REG_PM_SG_AMP, to_reg_unsigned(16, 16, xform=lambda a: a * _PM_SG_AMPSCALE),
-											from_reg_unsigned(16,16, xform=lambda a: a / _PM_SG_AMPSCALE))
+											to_reg_unsigned(0, 48, xform=lambda obj, f:f * _PM_SG_FREQSCALE ),
+											from_reg_unsigned(0, 48, xform=lambda obj, f: f /_PM_FREQSCALE )),
+	'pm_out1_amplitude':	(REG_PM_SG_AMP, to_reg_unsigned(0, 16, xform=lambda obj, a: a * obj.adc_gains()[0]),
+											from_reg_unsigned(0,16, xform=lambda obj, a: a / obj.adc_gains()[0])),
+	'pm_out2_amplitude':	(REG_PM_SG_AMP, to_reg_unsigned(16, 16, xform=lambda obj, a: a * obj.adc_gains()[1]),
+											from_reg_unsigned(16,16, xform=lambda obj, a: a / obj.adc_gains()[1]))
 }
 
 class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenerator): #TODO Frame instrument may not be appropriate when we get streaming going.
@@ -138,18 +143,10 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 		self.logname = "MokuPhaseMeterData"
 
 		self.binstr = "<p32,0xAAAAAAAA:u48:u48:s15:p1,0:s48:s32:s32"
-		self.procstr = ["*{:.16e} : *{:.16e} : : *{:.16e} : *C*{:.16e} : *C*{:.16e} ".format(self._intToHertz(1.0), self._intToHertz(1.0),  self._intToCycles(1.0), self._intToVolts(1.0,1.0), self._intToVolts(1.0,1.0)),
-						"*{:.16e} : *{:.16e} : : *{:.16e} : *C*{:.16e} : *C*{:.16e} ".format(self._intToHertz(1.0), self._intToHertz(1.0),  self._intToCycles(1.0), self._intToVolts(1.0,1.0), self._intToVolts(1.0,1.0))]
+		self.procstr = ["*{:.16e} : *{:.16e} : : *{:.16e} : *C*{:.16e} : *C*{:.16e} ".format(_PM_HERTZ_SCALE, _PM_HERTZ_SCALE,  _PM_CYCLE_SCALE, _PM_VOLTS_SCALE, _PM_VOLTS_SCALE),
+						"*{:.16e} : *{:.16e} : : *{:.16e} : *C*{:.16e} : *C*{:.16e} ".format(_PM_HERTZ_SCALE, _PM_HERTZ_SCALE,  _PM_CYCLE_SCALE, _PM_VOLTS_SCALE, _PM_VOLTS_SCALE)]
 		print self.procstr
 
-	def _intToCycles(self, rawValue):
-	    return 2.0 * pow(2.0, 16.0) * rawValue / pow(2.0, 48.0) * _PM_ADC_SMPS / _PM_UPDATE_RATE
-	
-	def _intToHertz(self, rawValue):
-	    return 2.0 * _PM_ADC_SMPS * rawValue / pow(2.0, 48.0)
-
-	def _intToVolts(self, rawValue, scaleFactor):
-	    return 2.0 / (_PM_ADC_SMPS * _PM_ADC_SMPS / _PM_UPDATE_RATE / _PM_UPDATE_RATE) * rawValue * scaleFactor
 
 	def _update_datalogger_params(self, ch1, ch2):
 		self.timestep = 1.0/self.get_samplerate()
@@ -222,10 +219,6 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 	def get_controlgain(self):
 		return self.control_gain
 
-	def set_frontend(self, channel, fiftyr, atten, ac):
-		#TODO update the _instrument class to automatically run an update callback on instrument summary
-		super(PhaseMeter, self).set_frontend(channel, fiftyr, atten, ac)
-
 	def get_hdrstr(self, ch1, ch2):
 		chs = [ch1, ch2]
 
@@ -297,11 +290,11 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 
 _pm_reg_handlers = {
 	'init_freq_ch1':		((REG_PM_INITF1_H, REG_PM_INITF1_L), 
-											to_reg_unsigned(0,48, xform=lambda f: f * _PM_FREQSCALE),
-											from_reg_unsigned(0,48,xform=lambda f: f / _PM_FREQSCALE)),
+											to_reg_unsigned(0,48, xform=lambda obj, f: f * _PM_FREQSCALE),
+											from_reg_unsigned(0,48,xform=lambda obj, f: f / _PM_FREQSCALE)),
 	'init_freq_ch2':		((REG_PM_INITF2_H, REG_PM_INITF2_L),
-											to_reg_unsigned(0,48, xform=lambda f: f * _PM_FREQSCALE),
-											from_reg_unsigned(0,48,xform=lambda f: f / _PM_FREQSCALE)),
+											to_reg_unsigned(0,48, xform=lambda obj, f: f * _PM_FREQSCALE),
+											from_reg_unsigned(0,48,xform=lambda obj, f: f / _PM_FREQSCALE)),
 	'control_gain':			(REG_PM_CGAIN,	to_reg_signed(0,16),
 											from_reg_signed(0,16)),
 	'control_shift':		(REG_PM_CGAIN,	to_reg_unsigned(20,4),

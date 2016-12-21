@@ -19,6 +19,7 @@ if i is None or i.type != 'signal_generator':
 	m.attach_instrument(i)
 else:
 	print("Attached to existing Signal Generator")
+	m.take_ownership()
 
 try:
 	i.synth_sinewave(1, 1.0, 1000000)
