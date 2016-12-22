@@ -26,18 +26,18 @@ m.attach_instrument(i)
 # ------------------------------
 # Set these parameters
 
-i.set_frontend(0, True, False, False)
+i.set_frontend(0, fiftyr=False, atten=False, ac=False)
 
-f_start = 100 # Hz
+f_start = 1e6 # Hz
 f_end = 20e6  # Hz
-sweep_length = 512 
-log_scale = True 
-amp_ch1 = 0.5 # volts (assuming high impedance)
-amp_ch2 = 0.5 # volts (assuming high impedance)
-averaging_time = 1e-3 # seconds
+sweep_length = 512
+log_scale = False 
+amp_ch1 = 1 # volts (assuming high impedance)
+amp_ch2 = 1 # volts (assuming high impedance)
+averaging_time = 10e-3 # seconds
 settling_time = 1e-3 # seconds
 
-i.set_dbscale(False)
+i.set_dbscale(True)
 
 i.set_defaults()
 
@@ -96,16 +96,16 @@ try:
 		line1.set_ydata(frame.ch1.magnitude)
 		print frame.ch1.magnitude
 		line2.set_ydata(frame.ch1.phase)
-		print frame.ch1.phase
+		# print frame.ch1.phase
 		# Frequency axis shouldn't change, but to be sure
 		line1.set_xdata(frame.ch1_fs)
 		line2.set_xdata(frame.ch2_fs)
 		print "ch1_axis", frame.ch1_fs
 		print "start freq", i.sweep_freq_min
-		if log_scale:
-			print "freq step", i.sweep_freq_delta/2.0**31
-		else :
-			print "freq step", i.sweep_freq_delta/2.0**48 * 1.0e9
+		# if log_scale:
+		# 	print "freq step", i.sweep_freq_delta/2.0**30
+		# else :
+		# 	print "freq step", i.sweep_freq_delta/2.0**48 * 1.0e9
 		#line1.set_xdata(range(len(frame.ch1.magnitude)))
 		#line2.set_xdata(range(len(frame.ch1.phase)))
 		# Ensure the frequency axis is a tight fit

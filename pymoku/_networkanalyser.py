@@ -1,5 +1,6 @@
 import math
 import logging
+import numpy
 
 from ._instrument import *
 from . import _frame_instrument
@@ -33,7 +34,7 @@ _NA_SCREEN_STEPS	= _NA_SCREEN_WIDTH - 1
 _NA_FPS				= 2
 _NA_FREQ_SCALE		= 2**48 / _NA_DAC_SMPS
 _NA_INT_VOLTS_SCALE = (1.437*pow(2.0,-8.0))
-_NA_FXP_SCALE 		= 2.0**31
+_NA_FXP_SCALE 		= 2.0**30
 
 '''
 	Plotting helper functions
@@ -44,11 +45,13 @@ def calculate_freq_axis(start_freq, freq_step, sweep_length, log_scale):
 
 	F_start = start_freq*_NA_FREQ_SCALE
 	F_axis = [F_start]
-	freq_axis = [start_freq]
+
+	if log_scale == 0 :
+		freq_axis = [start_freq]
 
 	for k in range(1, sweep_length) :
 		if log_scale:
-			F_axis.append(math.floor(F_axis[k-1] * (freq_step + _NA_FXP_SCALE)/_NA_FXP_SCALE))
+			F_axis.append(math.floor(math.floor(F_axis[k-1] * freq_step/_NA_FXP_SCALE) + F_axis[k-1]))
 		else :
 			freq_axis.append(freq_axis[k-1] + (freq_step/_NA_FREQ_SCALE))
 
@@ -84,34 +87,15 @@ class NetAnFrame(_frame_instrument.DataFrame):
 	"""
 	class _NetAnChannel():
 		# convert an RMS voltage to a power level (assuming 50 Ohm load)
-		def _mag_to_db(self, v):
-			if v == None :
-				return None
-			elif v <= 0 :
-				return None
-			else :
-				return 20.0*math.log10( v / 20.0)
 
-		def _calculate_magnitude(self, i_signal, q_signal, dbscale):
-			if i_signal == None or q_signal == None:
-				return None
-			elif dbscale:
-				return self._mag_to_db(math.sqrt(i_signal**2 + q_signal**2))
-			else:
-				return math.sqrt(i_signal**2 + q_signal**2)
-
-		def _calculate_phase(self, i_signal, q_signal):
-			if i_signal == None or q_signal == None:
-				return None
-			else:
-				return math.atan2(i_signal, q_signal)
-
-		def _generate_signals(self, input_signal, dbscale):
+		def _generate_signals(self, input_signal, gain_correction, dbscale):
 			self.i_sig = [ input_signal[x] for x in range(0,len(input_signal ), 2 ) ]
 			self.q_sig = [ input_signal[x] for x in range(1,len(input_signal ), 2 ) ]
 	
-			self.magnitude =  [ self._calculate_magnitude(self.i_sig[x], self.q_sig[x], dbscale) for x in range(len(self.q_sig)) ] #self._calculate_magnitude( self.i_sig[x], self.q_sig[x] )
-			self.phase = [ self._calculate_phase(self.i_sig[x], self.q_sig[x]) for x in range(len(self.q_sig)) ]
+			self.magnitude = [ math.sqrt(I**2 + Q**2)/G if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
+			self.magnitude = [ (10.0*math.log10(x) if dbscale else x) if x else None for x in self.magnitude]
+
+			self.phase = [ math.atan2(Q, I) if all ([I,Q]) else None for I,Q in zip(self.i_sig, self.q_sig)]
 
 		i_sig = []
 		q_sig = []
@@ -177,20 +161,10 @@ class NetAnFrame(_frame_instrument.DataFrame):
 			# NetAn data is backwards because $(EXPLETIVE), also remove zeros for the sake of common
 			# display on a log axis.
 			self.ch1_bits = [ float(x) if x is not None else None for x in dat[:1024] ]
-			print self.ch1_bits[100]
-			#self.ch1.i_sig = [ self.ch1_bits[x] for x in range(0,len(self.ch1_bits ), 2 ) ]
-			#self.ch1.q_sig = [ self.ch1_bits[x] for x in range(1,len(self.ch1_bits ), 2 ) ]
-			#self.ch1.magnitude = [ self.ch1._calculate_magnitude(self.ch1.i_sig[x], self.ch1.q_sig[x]) for x in range(len(self.ch1.i_sig)) ] #[ math.sqrt(self.ch1.i_sig[x]**2 + self.ch1.q_sig[x]**2) for x in range(len(self.ch1.i_sig))]
-			self.ch1._generate_signals(self.ch1_bits, dbscale)
+			# print self.ch1_bits[100]
+
+			self.ch1._generate_signals(self.ch1_bits, scales['gain_correction'], scales['dbscale'])
 		
-			self.ch1.magnitude = self.gain_correction(self.ch1.magnitude,scales['sweep_freq_delta'], scales['sweep_freq_min'], scales['sweep_length'], scales['averaging_time'], scales['log_en'])
-
-			# print self.ch1_bits
-			# Apply frequency dependent corrections
-			# self.ch1 = [ self._vrms_to_dbm(a*c*scale1) if dbmscale else a*c*scale1 if a is not None else None for a,c in zip(self.ch1_bits, fcorrs)]
-
-			# Trim invalid part of frame
-			# self.ch1 = self.ch1[start_index:-1]
 
 			##################################
 			# Process Ch2 Data
@@ -201,10 +175,7 @@ class NetAnFrame(_frame_instrument.DataFrame):
 
 			self.ch2_bits = [ float(x) if x is not None else None for x in dat[:1024] ]
 
-			# self.ch2._generate_signals(self.ch2_bits)
-
-			# self.ch2 = [ self._vrms_to_dbm(a*c*scale2) if dbmscale else a*c*scale2 if a is not None else None for a,c in zip(self.ch2_bits, fcorrs)]
-			# self.ch2 = self.ch2[start_index:-1]
+			self.ch2._generate_signals(self.ch2_bits, scales['gain_correction'], scales['dbscale'])
 
 		except (IndexError, TypeError, struct.error):
 			# If the data is bollocksed, force a reinitialisation on next packet
@@ -283,28 +254,7 @@ class NetAnFrame(_frame_instrument.DataFrame):
 	def get_ycoord_fmt(self, y):
 		return self._get_yaxis_fmt(y,None)['ycoord']
 
-	def gain_correction(self, magnitude, sweep_freq_delta, sweep_freq_min, sweep_points, averaging_time, log_scale):
-		 
-		sweep_freq = calculate_freq_axis(sweep_freq_min, sweep_freq_delta, sweep_points, log_scale)
-		
-		points_per_freq = [math.ceil(f*averaging_time) for f in sweep_freq]
 
-		gain_scale = [0.0]*sweep_points
-		scaled_magnitude = [0.0]*sweep_points
-
-		for f in range(sweep_points) :
-			if sweep_freq[f] > 0.0 :
-				gain_scale[f] =  math.ceil(points_per_freq[f]*(_NA_FPGA_CLOCK/sweep_freq[f]))
-			else :
-				gain_scale[f] = 1.0
-
-			if magnitude[f] == None :
-				scaled_magnitude[f] = None
-			else :
-				scaled_magnitude[f] = magnitude[f]/gain_scale[f] 
-
-		print 'Gain scale: ', gain_scale
-		return scaled_magnitude
 
 
 class NetAn(_frame_instrument.FrameBasedInstrument):
@@ -341,7 +291,6 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 		self.id = 9
 		self.type = "NetAn"
-		self.calibration = None
 
 		self.set_dbscale(True)
 
@@ -367,8 +316,8 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		self.sweep_freq_min = start_frequency
 		self.sweep_length = sweep_length
 		self.log_en = log_scale
-		self.sweep_amplitude_ch1 = sweep_amplitude_ch1 * self._get_dac_calibration()[0]
-		self.sweep_amplitude_ch2 = sweep_amplitude_ch2 * self._get_dac_calibration()[1]
+		self.sweep_amplitude_ch1 = sweep_amplitude_ch1 * (self._get_dac_calibration()[0]/ _NA_DAC_BITDEPTH)
+		self.sweep_amplitude_ch2 = sweep_amplitude_ch2 * (self._get_dac_calibration()[1] /_NA_DAC_BITDEPTH)
 		self.averaging_time = averaging_time
 		self.settling_time = settling_time
 
@@ -383,13 +332,13 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 	def set_sweep_freq_delta(self, start_freq, stop_freq, sweep_length, log_scale):
 		if log_scale:
 			freq_delta = ((float(end_frequency) / float(start_frequency))**(1.0/(sweep_length - 1)) - 1)
-			self.sweep_freq_delta = round(((float(end_frequency) / float(start_frequency))**(1.0/(sweep_length - 1)) - 1) * _NA_FXP_SCALE)
+			self.sweep_freq_delta = (((float(end_frequency) / float(start_frequency))**(1.0/(sweep_length - 1)) - 1) * _NA_FXP_SCALE)
 		else:
 			freq_delta = ((end_frequency - start_frequency)/(sweep_length-1)) 
-			self.sweep_freq_delta = round((end_frequency - start_frequency)/(sweep_length-1)) * _NA_FREQ_SCALE
+			self.sweep_freq_delta = ((end_frequency - start_frequency)/(sweep_length-1)) * _NA_FREQ_SCALE
 
 		return freq_delta
-		print 'Calculated frequency delta: ', freq_delta
+		# print 'Calculated frequency delta: ', freq_delta
 
 	def get_sweep_freq_delta(self):
 
@@ -412,7 +361,6 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		self.en_in_ch1 = True
 		self.en_in_ch2 = True
 
-		self.calibration = None
 		self.set_xmode(FULL_FRAME)
 
 		self.set_frontend(0, True, True, False)
@@ -438,6 +386,23 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 	def set_sweep_length(self, sweep_length):
 		self.sweep_length = sweep_length
 
+	def gain_correction(self, sweep_freq_delta, sweep_freq_min, sweep_points, averaging_time, log_scale):
+	 
+		sweep_freq = calculate_freq_axis(sweep_freq_min, sweep_freq_delta, sweep_points, log_scale)
+		points_per_freq = [math.ceil(f*averaging_time) for f in sweep_freq]
+
+		gain_scale = [0.0]*sweep_points
+		scaled_magnitude = [0.0]*sweep_points
+
+		for f in range(sweep_points) :
+			if sweep_freq[f] > 0.0 :
+				gain_scale[f] =  math.ceil(points_per_freq[f]*(_NA_FPGA_CLOCK/sweep_freq[f]))
+			else :
+				gain_scale[f] = 1.0
+
+		return gain_scale
+
+
 	def _calculate_scales(self):	
 
 		"""
@@ -458,13 +423,20 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 		# Compute per-channel constant scaling factors
 		try:
-			g1 = 1 #/ float(self.calibration[sect1])
-			g2 = 1 #/ float(self.calibration[sect2])
+			g1 = 1/float(self.calibration[sect1])
+			g2 = 1/float(self.calibration[sect2])
 		except KeyError:
 			log.warning("Moku appears uncalibrated")
 			g1 = g2 = 1
 
-		return {'g1': g1, 'g2': g2, 'dbscale': self.dbscale, 'sweep_freq_min': self.sweep_freq_min, 'sweep_freq_delta': self.sweep_freq_delta, 'sweep_length': self.sweep_length, 'log_en': self.log_en, 'averaging_time': self.averaging_time}
+		return {'g1': g1, 'g2': g2, 
+				'dbscale': self.dbscale, 
+				'gain_correction' : self.gain_correction(self.sweep_freq_delta, self.sweep_freq_min, self.sweep_length, self.averaging_time, self.log_en),
+				'sweep_freq_min': self.sweep_freq_min, 
+				'sweep_freq_delta': self.sweep_freq_delta,
+				'sweep_length': self.sweep_length, 
+				'log_en': self.log_en, 
+				'averaging_time': self.averaging_time}
 
 
 	def _get_dac_calibration(self):
@@ -485,42 +457,35 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		return (g1, g2)
 
 
-	def _get_adc_calibration(self):
-		# Returns the volts to bits numbers for each channel in the current state
+	# def _get_adc_calibration(self):
+	# 	# Returns the volts to bits numbers for each channel in the current state
 
-		sect1 = "calibration.AG-%s-%s-%s-1" % ( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
-								  "L" if self.relays_ch1 & RELAY_LOWG else "H",
-								  "D" if self.relays_ch1 & RELAY_DC else "A")
+	# 	sect1 = "calibration.AG-%s-%s-%s-1" % ( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
+	# 							  "L" if self.relays_ch1 & RELAY_LOWG else "H",
+	# 							  "D" if self.relays_ch1 & RELAY_DC else "A")
 
-		sect2 = "calibration.AG-%s-%s-%s-2" % ( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
-								  "L" if self.relays_ch1 & RELAY_LOWG else "H",
-								  "D" if self.relays_ch1 & RELAY_DC else "A")
+	# 	sect2 = "calibration.AG-%s-%s-%s-2" % ( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
+	# 							  "L" if self.relays_ch1 & RELAY_LOWG else "H",
+	# 							  "D" if self.relays_ch1 & RELAY_DC else "A")
 
-		try:
-			g1 = float(self.calibration[sect1])
-			g2 = float(self.calibration[sect2])
-		except (KeyError, TypeError):
-			log.warning("Moku adc appears uncalibrated")
-			g1 = g2 = 1
-		log.debug("gain values for adc sections %s, %s = %f, %f", sect1, sect2, g1, g2)
-		return (g1, g2)
+	# 	try:
+	# 		g1 = float(self.calibration[sect1])
+	# 		g2 = float(self.calibration[sect2])
+	# 	except (KeyError, TypeError):
+	# 		log.warning("Moku adc appears uncalibrated")
+	# 		g1 = g2 = 1
+	# 	log.debug("gain values for adc sections %s, %s = %f, %f", sect1, sect2, g1, g2)
+	# 	return (g1, g2)
 
 
 	def set_dbscale(self,dbm=True):
 		self.dbscale = dbm
 
-	def attach_moku(self, moku):
-		super(NetAn, self).attach_moku(moku)
-
-		# The moku contains calibration data for various configurations
-		self.calibration = dict(self._moku._get_property_section("calibration"))
-
-	attach_moku.__doc__ = MokuInstrument.attach_moku.__doc__
 
 _na_reg_handlers = {
 	'sweep_freq_min':			((REG_NA_SWEEP_FREQ_MIN_H, REG_NA_SWEEP_FREQ_MIN_L),
-											to_reg_unsigned(0, 48, xform=lambda f: f * _NA_FREQ_SCALE),
-											from_reg_unsigned(0, 48, xform=lambda f: f / _NA_FREQ_SCALE)),
+											to_reg_unsigned(0, 48, xform=lambda obj, f: f * _NA_FREQ_SCALE),
+											from_reg_unsigned(0, 48, xform=lambda obj, f: f / _NA_FREQ_SCALE)),
 	'sweep_freq_delta':			((REG_NA_SWEEP_FREQ_DELTA_H, REG_NA_SWEEP_FREQ_DELTA_L),		
 											to_reg_signed(0, 48),
 											from_reg_signed(0, 48)),
@@ -530,19 +495,19 @@ _na_reg_handlers = {
 	'sweep_length':				(REG_NA_SWEEP_LENGTH,		
 											to_reg_unsigned(0, 10),
 											from_reg_unsigned(0, 10)),
-	'settling_time':			((REG_NA_HOLD_OFF_L),
-											to_reg_unsigned(0, 32, xform=lambda t: t * _NA_FPGA_CLOCK),
-											from_reg_unsigned(0, 32, xform=lambda t: t / _NA_FPGA_CLOCK)),
+	'settling_time':			(REG_NA_HOLD_OFF_L,
+											to_reg_unsigned(0, 32, xform=lambda obj, t: t * _NA_FPGA_CLOCK),
+											from_reg_unsigned(0, 32, xform=lambda obj, t: t / _NA_FPGA_CLOCK)),
 	'averaging_time':			(REG_NA_AVERAGE_TIME,
-											to_reg_unsigned(0, 32, xform=lambda t: t * _NA_FPGA_CLOCK),
-											from_reg_unsigned(0, 32, xform=lambda t: t / _NA_FPGA_CLOCK)),
+											to_reg_unsigned(0, 32, xform=lambda obj, t: t * _NA_FPGA_CLOCK),
+											from_reg_unsigned(0, 32, xform=lambda obj, t: t / _NA_FPGA_CLOCK)),
 	'single_sweep':				(REG_NA_SINGLE_SWEEP,
 											to_reg_unsigned(0, 1),
 											from_reg_unsigned(0, 1)),
 	'sweep_amplitude_ch1':		(REG_NA_SWEEP_AMP_MULT,		
-											to_reg_unsigned(0, 16, xform=lambda a: a * _NA_DAC_V2BITS),
-											from_reg_unsigned(0, 16, xform=lambda a: a / _NA_DAC_V2BITS)),
+											to_reg_unsigned(0, 16, xform=lambda obj, a: a * _NA_DAC_V2BITS),
+											from_reg_unsigned(0, 16, xform=lambda obj, a: a / _NA_DAC_V2BITS)),
 	'sweep_amplitude_ch2':		(REG_NA_SWEEP_AMP_MULT,
-											to_reg_unsigned(16, 16, xform=lambda a: a * _NA_DAC_V2BITS),
-											from_reg_unsigned(16, 16, xform=lambda a: a / _NA_DAC_V2BITS)),
+											to_reg_unsigned(16, 16, xform=lambda obj, a: a * _NA_DAC_V2BITS),
+											from_reg_unsigned(16, 16, xform=lambda obj, a: a / _NA_DAC_V2BITS)),
 }
