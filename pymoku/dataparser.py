@@ -3,9 +3,17 @@
 # Python 3 str object for Python 2
 from builtins import str
 
-import os, time, datetime, math
+import sys
+import os, os.path, time, datetime, math
 import logging
 import re, struct
+
+sys.path.append(os.path.join(os.path.dirname(__file__), 'schema'))
+
+print sys.path
+
+import capnp
+import li_capnp as schema
 
 log = logging.getLogger(__name__)
 
@@ -43,6 +51,8 @@ class LIDataFileReader(object):
 
 	:autoinstanceattribute:: pymoku.dataparser.LIDataFileReader.starttime
 
+	:autoinstanceattribute:: pymoku.dataparser.LIDataFileReader.startoffset
+
 	"""
 
 	def __init__(self, filename):
@@ -56,7 +66,6 @@ class LIDataFileReader(object):
 		self.cal = []
 		self.proc = []
 		self.file = open(filename, 'rb')
-		f = self.file
 
 		# Pre-define instance fields so we can attach docstrings.
 
@@ -78,15 +87,38 @@ class LIDataFileReader(object):
 		#: Time at which the recording was started (seconds since Jan 1 1970)
 		self.starttime = 0
 
-		if f.read(2) != b'LI':
+		#: Time at which the first sample occured, relative to the start time (valid in V2+ files only)
+		self.startoffset = 0
+
+		if self.file.read(2) != b'LI':
 			raise InvalidFileException("Bad Magic")
 
-		v = f.read(1)
-		if v != b'1':
+		self.version = int(self.file.read(1))
+		if self.version == 1:
+			self._parse_v1_header()
+		elif self.version == 2:
+			self._parse_v2_header()
+		else:
 			raise InvalidFileException("Unknown File Version %s" % v)
 
-		pkthdr_len = struct.unpack("<H", f.read(2))[0]
-		self.chs, self.instr, self.instrv, self.deltat, self.starttime = struct.unpack("<BBHdQ", f.read(20))
+		# Assume the last line of the CSV header block is the column headers
+		try:
+			self.headers = [ s.strip() for s in self.hdr.split('\r\n') if len(s) ][-1].split(',')
+		except IndexError:
+			self.headers = []
+
+		log.debug("NCH: %d INSTR: %d INSTRV: %d DT: %d", self.nch, self.instr, self.instrv, self.deltat)
+		log.debug("B: %s P: %s F: %s H: %s", self.rec, self.proc, self.fmt, self.hdr)
+		log.debug("CAL: %s", self.cal)
+
+		self.records = [ [] for _ in range(self.nch)]
+
+		self.parser = LIDataParser(self.ch1, self.ch2, self.rec, self.proc, self.fmt, self.hdr, self.deltat, self.starttime, self.cal, self.startoffset)
+
+
+	def _parse_v1_header(self):
+		pkthdr_len = struct.unpack("<H", self.file.read(2))[0]
+		self.chs, self.instr, self.instrv, self.deltat, self.starttime = struct.unpack("<BBHdQ", self.file.read(20))
 
 		# Extract the selected channels
 		self.nch = 0
@@ -97,59 +129,107 @@ class LIDataFileReader(object):
 		if (self.ch2):
 			self.nch += 1
 
-		log.debug("NCH %d INST: %d INSTV: %d DT: %f ST: %f", self.nch, self.instr, self.instrv, self.deltat, self.starttime)
-
-		# Do this nch times
-		for i in range(self.nch):
-			self.cal.append(struct.unpack("<d", f.read(8))[0])
-
-		log.debug("CAL: %s", self.cal)
-
-		reclen = struct.unpack("<H", f.read(2))[0]
-		self.rec = f.read(reclen).decode('ascii'); log.debug("Rec %s (%d)", self.rec, reclen)
+		log.debug("CHS %d NCH %d", self.chs, self.nch)
 
 		for i in range(self.nch):
-			proclen = struct.unpack("<H", f.read(2))[0]
-			self.proc.append(f.read(proclen).decode('ascii'));
+			self.cal.append(struct.unpack("<d", self.file.read(8))[0])
 
-		fmtlen = struct.unpack("<H", f.read(2))[0]
-		self.fmt = f.read(fmtlen).decode('ascii'); log.debug("Fmt %s (%d)", self.fmt, fmtlen)
-		hdrlen = struct.unpack("<H", f.read(2))[0]
-		self.hdr = f.read(hdrlen).decode('ascii'); log.debug("Hdr %s (%d)", self.hdr, hdrlen)
+		reclen = struct.unpack("<H", self.file.read(2))[0]
+		self.rec = self.file.read(reclen).decode('ascii'); log.debug("Rec %s (%d)", self.rec, reclen)
 
-		# Assume the last line of the CSV header block is the column headers
-		try:
-			self.headers = [ s.strip() for s in self.hdr.split('\r\n') if len(s) ][-1].split(',')
-		except IndexError:
-			self.headers = []
+		for i in range(self.nch):
+			proclen = struct.unpack("<H", self.file.read(2))[0]
+			self.proc.append(self.file.read(proclen).decode('ascii'));
+			log.debug("PRead len %d, str %s", proclen, self.proc[-1])
 
-		log.debug("NCH: %d INSTR: %d INSTRV: %d DT: %d", self.nch, self.instr, self.instrv, self.deltat)
-		log.debug("B: %s P: %s F: %s H: %s", self.rec, self.proc, self.fmt, self.hdr)
+		fmtlen = struct.unpack("<H", self.file.read(2))[0]
+		self.fmt = self.file.read(fmtlen).decode('ascii'); log.debug("Fmt %s (%d)", self.fmt, fmtlen)
+		hdrlen = struct.unpack("<H", self.file.read(2))[0]
+		self.hdr = self.file.read(hdrlen).decode('ascii'); log.debug("Hdr %s (%d)", self.hdr, hdrlen)
 
-		if f.tell() != pkthdr_len + 5:
-			raise InvalidFileException("Incorrect File Header Length (expected %d got %d)" % (pkthdr_len + 5, f.tell()))
+		if self.file.tell() != pkthdr_len + 5:
+			raise InvalidFileException("Incorrect File Header Length (expected %d got %d)" % (pkthdr_len + 5, self.file.tell()))
 
-		self.parser = LIDataParser(self.ch1, self.ch2, self.rec, self.proc, self.fmt, self.hdr, self.deltat, self.starttime, self.cal)
+
+	def _parse_v2_header(self):
+		self.element_iterator = li_schema.LIFileElement.read_multiple(self.file)
+
+		element = self.element_iterator.next()
+		if element.which() != 'header':
+			raise InvalidFileException('First Element is not a Header: %s', element.which())
+
+		header = element.header
+
+		self.instr = header.instrumentId;
+		self.instrv = header.instrumentVer;
+		self.deltat = header.timeStep;
+		self.starttime = header.startTime;
+		self.startoffset = header.startOffset;
+
+		# The definition of these fields is heavily influenced by the V1 header format and should be
+		# refactored if/when we put that out to pasture.
+		self.nch = len(header.channels)
+
+		self.ch1 = 1 in [c.number for c in header.channels]
+		self.ch2 = 2 in [c.number for c in header.channels]
+
+		# This file format allows for different records per channel but we don't currently use that.
+		self.rec = header.channels[0].recordFmt
+		self.proc = [c.procFmt for c in header.channels]
+		self.cal = [c.calibration for c in header.channels]
+
+		self.fmt = header.csvFmt
+		self.hdr = header.csvHeader
 
 
 	def _parse_chunk(self):
+		log.debug("Parse")
+		if self.version == 1:
+			ch, d = self._parse_chunk_v1()
+		elif self.version == 2:
+			ch, d = self._parse_chunk_v2()
 
+		if ch is None:
+			return None
+		
+		self.parser.parse(d, ch)
+
+		return ch
+
+	def _parse_chunk_v1(self):
 		dhdr = self.file.read(3)
 		if len(dhdr) != 3:
-			return None
+			return None, None
 
 		ch, _len = struct.unpack("<BH", dhdr)
 
 		d = self.file.read(_len)
 
+		log.debug("V1 chunk of len %d", _len)
+
 		if len(d) != _len:
 			raise InvalidFileException("Unexpected EOF while reading data")
 
-		self.parser.parse(d, ch)
+		return ch, d
 
-		return ch
+
+	def _parse_chunk_v2(self):
+		try:
+			element = self.element_iterator.next()
+		except StopIteration:
+			return None, None
+
+		if element.which() != 'data':
+			raise InvalidFileException("Unexpected element type %s", element.which())
+
+		ch = element.data.channel
+		d = element.data.data
+
+		return ch, d
+
 
 	def _process_chunk(self):
+		log.debug("Process")
 		ch = self._parse_chunk()
 
 		if ch is None:
@@ -167,10 +247,12 @@ class LIDataFileReader(object):
 		""" Read a single record from the file
 		:returns: [ch1_record, ...]
 		"""
+		log.debug("Read")
 		while not all([ len(r) >= 1 for r in self.records]):
 			if not self._process_chunk():
 				break
 
+		log.debug(self.records)
 		# Make sure we have matched samples for all channels
 		if not all([ len(r) for r in self.records ]):
 			return None
@@ -228,10 +310,10 @@ class LIDataFileReader(object):
 		self.close()
 
 
-class LIDataFileWriter(object):
+class LIDataFileWriterV1(object):
 	""" Eases the creation of LI format data files."""
 	def __init__(self, filename, instr, instrv, chs, binstr, procstr, fmtstr, hdrstr, calcoeffs, timestep, starttime):
-		""" Create object and write the header information.
+		""" Create file and write the header information.
 		Not designed for general use, is likely to only be of utility in the Moku:Lab firmware.
 
 		:param filename: Output file name
@@ -294,6 +376,79 @@ class LIDataFileWriter(object):
 	def __exit__(self):
 		self.finalize()
 
+class LIDataFileWriterV2(object):
+	""" Eases the creation of LIv2 format data files."""
+	def __init__(self, filename, instr, instrv, chs, binstr, procstr, fmtstr, hdrstr, calcoeffs, timestep, starttime, startoffset):
+		""" Create file and write the header information.
+		Not designed for general use, is likely to only be of utility in the Moku:Lab firmware.
+
+		:param filename: Output file name
+		:param instr: Numeric instrument identifier
+		:param instrv: Numberic instrument version
+		:param chs: Channel selection flags
+		:param binstr: Format string representing the binary data from the instrument
+		:param procstr: String array representing the record processing to apply to the data of each channel
+		:param fmtstr: Format string describing the transformation from data records to CSV output
+		:param hdrstr: Format string describing the header lines on a CSV output
+		:param calcoeffs: Array of calibration coefficients for the data being acquired
+		:param timestep: Time between records being captured
+		:param starttime: Time at which the record was started, seconds since Jan 1 1970
+		:param startoffset: Time delta, fractional seconds, between starttime and the time of the first sample (e.g. because of triggered start with offset)
+		"""
+		self.file = open(filename, 'wb')
+
+		element = schema.LIFileElement.new_message()
+		element.header.instrumentId = instr
+		element.header.instrumentVer = instrv
+		element.header.timeStep = timestep
+		element.header.startTime = starttime
+		element.header.startOffset = startoffset
+
+		chnums = []
+		if chs & 0x01: chnums.append(1)
+		if chs & 0x02: chnums.append(2)
+
+		channels = element.header.init('channels', len(chnums))
+		for i, ch in enumerate(chnums):
+			channels[i].number = ch
+			channels[i].calibration = calcoeffs[i]
+			channels[i].recordFmt = binstr
+			channels[i].procFmt = procstr[i]
+
+		element.header.csvFmt = fmtstr
+		element.header.csvHeader = hdrstr
+
+		element.write(self.file)
+
+
+	def add_data(self, data, ch, flush=False):
+		""" Append a data chunk to the open file.
+
+		:param data: Bytestring of new data
+		:param ch: Channel number to which the data belongs (0-indexed)
+		"""
+		element = schema.LIFileElement.new_message()
+		element.data.channel = ch
+		element.data.data = data
+
+		element.write(self.file)
+
+		if flush:
+			self.file.flush()
+
+	def finalize(self):
+		"""
+		Save and close the file.
+		"""
+		self.file.close()
+
+	def __enter__(self):
+		pass
+
+	def __exit__(self):
+		self.finalize()
+
+
 class LIDataParser(object):
 	""" Backend class that parses raw bytestrings from the instruments according to given format strings.
 
@@ -347,7 +502,7 @@ class LIDataParser(object):
 		return fmt
 
 
-	def __init__(self, ch1, ch2, binstr, procstr, fmtstr, hdrstr, deltat, starttime, calcoeffs):
+	def __init__(self, ch1, ch2, binstr, procstr, fmtstr, hdrstr, deltat, starttime, calcoeffs, startoffset):
 
 		if not len(binstr):
 			raise InvalidFormatException("Can't use empty binary record string")
@@ -371,7 +526,7 @@ class LIDataParser(object):
 
 		self.fmtdict = {
 			'T' : time.strftime('%c %Z', time.localtime(starttime)), # Standard repr plus explicit timezone
-			't' : 0,
+			't' : startoffset,
 			'd' : deltat,
 			'n' : 0,
 		}

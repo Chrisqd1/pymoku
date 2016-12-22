@@ -4,3 +4,5 @@ six
 urllib3
 zmq
 rfc6266
+requests
+pycapnp

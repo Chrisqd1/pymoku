@@ -69,16 +69,19 @@ def test_procfmts(_bin, proc, din, expected):
 # File contents are hand-crafted, hence the small number of test cases!
 write_binfile_data = [
 	(1, 1, 1, "", "", "", "", [1], 1, 0, '',
-		'LI1\x20\x00\x01\x01\x01\x00\x00\x00\x80\x3F\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xF0\x3F\x00\x00\x00\x00\x00\x00\x00\x00'),
+		'LI1\x24\x00\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\xf0\x3F\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xF0\x3F\x00\x00\x00\x00\x00\x00\x00\x00'),
 	(1, 1, 1, "A", "B", "C", "D", [1], 1, 0, '',
-		'LI1\x24\x00\x01\x01\x01\x00\x00\x00\x80\x3F\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xF0\x3F\x01\x00A\x01\x00B\x01\x00C\x01\x00D'),
+		'LI1\x28\x00\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\xf0\x3F\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xF0\x3F\x01\x00A\x01\x00B\x01\x00C\x01\x00D'),
 	(1, 1, 1, "", "", "", "", [1], 1, 0, '\x00\x00\x00\x00',
-		'LI1\x20\x00\x01\x01\x01\x00\x00\x00\x80\x3F\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xF0\x3F\x00\x00\x00\x00\x00\x00\x00\x00\x00\x04\x00\x00\x00\x00\x00\x01\x04\x00\x00\x00\x00\x00'),
+		'LI1\x24\x00\x01\x01\x01\x00\x00\x00\x00\x00\x00\x00\xf0\x3F\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\xF0\x3F\x00\x00\x00\x00\x00\x00\x00\x00\x00\x04\x00\x00\x00\x00\x00\x01\x04\x00\x00\x00\x00\x00'),
 ]
 
 @pytest.mark.parametrize("instr,instrv,nch,binstr,procstr,fmtstr,hdrstr,calcoeffs,timestep,starttime,data,expected", write_binfile_data)
-def test_binfile_write(instr, instrv, nch, binstr, procstr, fmtstr, hdrstr, calcoeffs, timestep, starttime, data, expected):
-	writer = LIDataFileWriter("test.dat", instr, instrv, nch, binstr, procstr, fmtstr, hdrstr, calcoeffs, timestep, starttime)
+def test_binfile_v1_write(instr, instrv, nch, binstr, procstr, fmtstr, hdrstr, calcoeffs, timestep, starttime, data, expected):
+
+	procstr = [procstr] * nch
+
+	writer = LIDataFileWriterV1("test.dat", instr, instrv, nch, binstr, procstr, fmtstr, hdrstr, calcoeffs, timestep, starttime)
 	if len(data):
 		for ch in [0, 1]:
 			writer.add_data(data, ch)
@@ -107,8 +110,11 @@ roundtrip_binfile_data = [
 ]
 
 @pytest.mark.parametrize("instr,instrv,nch,binstr,procstr,fmtstr,hdrstr,calcoeffs,timestep,starttime,din,dout,csv,supposedtobeborked", roundtrip_binfile_data)
-def test_binfile_roundtrip(instr, instrv, nch, binstr, procstr, fmtstr, hdrstr, calcoeffs, timestep, starttime, din, dout, csv, supposedtobeborked):
-	writer = LIDataFileWriter("test.dat", instr, instrv, nch, binstr, procstr, fmtstr, hdrstr, calcoeffs, timestep, starttime)
+def test_binfile_v1_roundtrip(instr, instrv, nch, binstr, procstr, fmtstr, hdrstr, calcoeffs, timestep, starttime, din, dout, csv, supposedtobeborked):
+
+	procstr = [procstr] * nch
+
+	writer = LIDataFileWriterV1("test.li", instr, instrv, nch, binstr, procstr, fmtstr, hdrstr, calcoeffs, timestep, starttime)
 
 	# Input data format is binary, output format is records
 	for d in din:
@@ -119,9 +125,49 @@ def test_binfile_roundtrip(instr, instrv, nch, binstr, procstr, fmtstr, hdrstr, 
 
 	if supposedtobeborked:
 		with pytest.raises(InvalidFormatException):
-			reader = LIDataFileReader("test.dat")
+			reader = LIDataFileReader("test.li")
 	else:
-		reader = LIDataFileReader("test.dat")
+		reader = LIDataFileReader("test.li")
+
+		assert reader.rec == binstr
+		assert reader.proc == procstr
+		assert reader.fmt == fmtstr
+		assert reader.hdr == hdrstr
+		assert reader.nch == nch
+		assert reader.instr == instr
+		assert reader.instrv == instrv
+		assert reader.deltat == timestep
+		assert reader.starttime == starttime
+		assert reader.cal == calcoeffs
+
+		assert reader.readall() == dout
+
+		# No CSV will get written if there's no output data (not even header)
+		if len(dout) > 0:
+			# Reinitialise the reader from the beginning of the data file
+			reader = LIDataFileReader("test.li")
+			reader.to_csv("test.csv")
+			assert open("test.csv").read() == csv
+
+# TODO: Two-channel tests
+
+@pytest.mark.parametrize("instr,instrv,nch,binstr,procstr,fmtstr,hdrstr,calcoeffs,timestep,starttime,din,dout,csv,supposedtobeborked", roundtrip_binfile_data)
+def test_binfile_v2_roundtrip(instr, instrv, nch, binstr, procstr, fmtstr, hdrstr, calcoeffs, timestep, starttime, din, dout, csv, supposedtobeborked):
+	# TODO: Non-zero startoffset
+	writer = LIDataFileWriterV2("test.li", instr, instrv, nch, binstr, procstr, fmtstr, hdrstr, calcoeffs, timestep, starttime, 0)
+
+	# Input data format is binary, output format is records
+	for d in din:
+		for ch in range(nch):
+			writer.add_data(d, ch)
+
+	writer.finalize()
+
+	if supposedtobeborked:
+		with pytest.raises(InvalidFormatException):
+			reader = LIDataFileReader("test.li")
+	else:
+		reader = LIDataFileReader("test.li")
 
 		assert reader.rec == binstr
 		assert reader.proc == procstr
@@ -142,8 +188,6 @@ def test_binfile_roundtrip(instr, instrv, nch, binstr, procstr, fmtstr, hdrstr, 
 			reader = LIDataFileReader("test.dat")
 			reader.to_csv("test.csv")
 			assert open("test.csv").read() == csv
-
-# TODO: Two-channel tests
 
 
 stream_csv_data = [
