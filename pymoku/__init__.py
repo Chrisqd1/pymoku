@@ -879,13 +879,11 @@ class Moku(object):
 		If an instrument is found, return a new :any:`MokuInstrument` subclass representing that instrument, ready
 		to be controlled."""
 		import pymoku.instruments
-		i = int(self._get_property_single('system.instrument').split(',')[0])
+		i = int(self._get_property_single('system.instrument'))
 		try:
 			instr = pymoku.instruments.id_table[i]
 		except KeyError:
-			instr = None
-
-		if instr is None: return None
+			return None
 
 		running = instr()
 		running.attach_moku(self)
