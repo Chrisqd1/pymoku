@@ -94,23 +94,6 @@ class SignalGenerator(MokuInstrument):
 		self.id = 4
 		self.type = "signal_generator"
 
-	def _get_calibration(self):
-
-		adc1 = "calibration.AG-%s-%s-%s-1" % ( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
-								  "L" if self.relays_ch1 & RELAY_LOWG else "H",
-								  "D" if self.relays_ch1 & RELAY_DC else "A")
-
-		adc2 = "calibration.AG-%s-%s-%s-1" % ( "50" if self.relays_ch2 & RELAY_LOWZ else "1M",
-								  "L" if self.relays_ch2 & RELAY_LOWG else "H",
-								  "D" if self.relays_ch2 & RELAY_DC else "A")
-		dac1 = "calibration.DG-1"
-		dac2 = "calibration.DG-2"
-		scale1 = self.calibration[dac1]
-		scale2 = self.calibration[dac2]
-		scale3 = self.calibration[adc1]
-		scale4 = self.calibration[adc2]
-		return (float(scale1), float(scale2), float(scale3), float(scale4))
-
 	def set_defaults(self):
 		""" Set sane defaults.
 		Defaults are outputs off, amplitudes and frequencies zero."""
@@ -141,20 +124,18 @@ class SignalGenerator(MokuInstrument):
 		:type offset: float, volts
 		:param offset: DC offset applied to the waveform"""
 
-		scale1, scale2, scale3, scale4 = self._get_calibration()
-
 		if ch == 1:
 			self.out1_waveform = SG_WAVE_SINE
 			self.out1_enable = True
-			self.out1_amplitude = scale1 * amplitude
+			self.out1_amplitude = amplitude
 			self.out1_frequency = frequency
-			self.out1_offset = scale1 * offset
+			self.out1_offset = offset
 		elif ch == 2:
 			self.out2_waveform = SG_WAVE_SINE
 			self.out2_enable = True
-			self.out2_amplitude = scale2 * amplitude
+			self.out2_amplitude = amplitude
 			self.out2_frequency = frequency
-			self.out2_offset = scale2 * offset
+			self.out2_offset = offset
 		else:
 			raise ValueOutOfRangeException("Invalid Channel")
 
@@ -187,14 +168,12 @@ class SignalGenerator(MokuInstrument):
 		elif duty + falltime > 1:
 			raise ValueOutOfRangeException("Duty and fall time too big")
 
-		scale1, scale2, scale3, scale4 = self._get_calibration()
-
 		if ch == 1:
 			self.out1_waveform = SG_WAVE_SQUARE
 			self.out1_enable = True
-			self.out1_amplitude = scale1 * amplitude
+			self.out1_amplitude = amplitude
 			self.out1_frequency = frequency
-			self.out1_offset = scale1 * offset
+			self.out1_offset = offset
 			self.out1_clipsine = False # TODO: Should switch to clip depending on freq or user
 
 			# This is overdefined, but saves the FPGA doing a tricky division
@@ -206,9 +185,9 @@ class SignalGenerator(MokuInstrument):
 		elif ch == 2:
 			self.out2_waveform = SG_WAVE_SQUARE
 			self.out2_enable = True
-			self.out2_amplitude = scale2 * amplitude
+			self.out2_amplitude = amplitude
 			self.out2_frequency = frequency
-			self.out2_offset = scale2 * offset
+			self.out2_offset = offset
 			self.out2_clipsine = False
 			self.out2_t0 = risetime
 			self.out2_t1 = duty
@@ -273,7 +252,7 @@ class SignalGenerator(MokuInstrument):
 			# Modulation depth
 			depth_parameter = 0.0
 			if(source == SG_MODSOURCE_INT):
-				depth_parameter = depth * 1.0 # No change in depth
+				depth_parameter = depth # No change in depth
 			elif(source == SG_MODSOURCE_DAC):
 				# Check what the DAC scaling factor is
 				depth_parameter = depth * pow(2.0,15.0) / dac2
@@ -281,6 +260,7 @@ class SignalGenerator(MokuInstrument):
 				# The input 1 is being used as Output 2 modulation signal
 				depth_parameter = depth * pow(2.0,9.0) / adc1
 			res = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
+
 			self.mod1_amplitude = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
 
 		elif ch == 2:
@@ -321,73 +301,75 @@ _siggen_reg_handlers = {
 											from_reg_unsigned(24, 8)),
 
 	'out1_frequency':	((REG_SG_FREQ1_H, REG_SG_FREQ1_L),
-											to_reg_unsigned(0, 48, xform=lambda f:f / _SG_FREQSCALE),
-											from_reg_unsigned(0, 48, xform=lambda f: f * _SG_FREQSCALE)),
+											to_reg_unsigned(0, 48, xform=lambda obj, f:f / _SG_FREQSCALE),
+											from_reg_unsigned(0, 48, xform=lambda obj, f: f * _SG_FREQSCALE)),
 
 	'out2_frequency':	((REG_SG_FREQ2_H, REG_SG_FREQ2_L),
-											to_reg_unsigned(0, 48, xform=lambda f:f / _SG_FREQSCALE),
-											from_reg_unsigned(0, 48, xform=lambda f: f * _SG_FREQSCALE)),
+											to_reg_unsigned(0, 48, xform=lambda obj, f:f / _SG_FREQSCALE),
+											from_reg_unsigned(0, 48, xform=lambda obj, f: f * _SG_FREQSCALE)),
 
-	'out1_offset':		(REG_SG_MODF1_H,	to_reg_signed(0, 16),
-											from_reg_signed(0, 16)),
+	'out1_offset':		(REG_SG_MODF1_H,	to_reg_signed(0, 16, xform=lambda obj, o:o / obj.dac_gains()[0]),
+											from_reg_signed(0, 16, xform=lambda obj, o: o * obj.dac_gains()[0])),
 
-	'out2_offset':		(REG_SG_MODF2_H,	to_reg_signed(0, 16),
-											from_reg_signed(0, 16)),
+	'out2_offset':		(REG_SG_MODF2_H,	to_reg_signed(0, 16, xform=lambda obj, o:o / obj.dac_gains()[1]),
+											from_reg_signed(0, 16, xform=lambda obj, o: o * obj.dac_gains()[1])),
 
-	'out1_phase':		(REG_SG_PHASE1,		to_reg_unsigned(0, 32, xform=lambda p:p / _SG_PHASESCALE),
-											from_reg_unsigned(0, 32, xform=lambda p:p * _SG_PHASESCALE)),
+	'out1_phase':		(REG_SG_PHASE1,		to_reg_unsigned(0, 32, xform=lambda obj, p:p / _SG_PHASESCALE),
+											from_reg_unsigned(0, 32, xform=lambda obj, p:p * _SG_PHASESCALE)),
 
-	'out2_phase':		(REG_SG_PHASE2,		to_reg_unsigned(0, 32, xform=lambda p:p / _SG_PHASESCALE),
-											from_reg_unsigned(0, 32, xform=lambda p:p * _SG_PHASESCALE)),
+	'out2_phase':		(REG_SG_PHASE2,		to_reg_unsigned(0, 32, xform=lambda obj, p:p / _SG_PHASESCALE),
+											from_reg_unsigned(0, 32, xform=lambda obj, p:p * _SG_PHASESCALE)),
 
-	'out1_amplitude':	(REG_SG_AMP1,		to_reg_unsigned(0, 16),
-											from_reg_unsigned(0, 16)),
+	'out1_amplitude':	(REG_SG_AMP1,		to_reg_unsigned(0, 32, xform=lambda obj, p:p / obj.dac_gains()[0]),
+											from_reg_unsigned(0, 32, xform=lambda obj, p:p * obj.dac_gains()[0])),
 
-	'out2_amplitude':	(REG_SG_AMP2,		to_reg_unsigned(0, 16),
-											from_reg_unsigned(0, 16)),
+	'out2_amplitude':	(REG_SG_AMP2,		to_reg_unsigned(0, 32, xform=lambda obj, p:p / obj.dac_gains()[1]),
+											from_reg_unsigned(0, 32, xform=lambda obj, p:p * obj.dac_gains()[1])),
 
 	'mod1_frequency':	((REG_SG_MODF1_H, REG_SG_MODF1_L),
-											lambda f, old: ((old[0] & 0x0000FFFF) | (_usgn(f/_SG_FREQSCALE, 48) >> 16) & 0xFFFF0000, _usgn(f/_SG_FREQSCALE, 48) & 0xFFFFFFFF),
-											lambda rval: _SG_FREQSCALE * ((rval[0] & 0xFFFF0000) << 16 | rval[1])),
+											lambda obj, f, old: ((old[0] & 0x0000FFFF) | (_usgn(f/_SG_FREQSCALE, 48) >> 16) & 0xFFFF0000, _usgn(f/_SG_FREQSCALE, 48) & 0xFFFFFFFF),
+											lambda obj, rval: _SG_FREQSCALE * ((rval[0] & 0xFFFF0000) << 16 | rval[1])),
 
 	'mod2_frequency':	((REG_SG_MODF2_H, REG_SG_MODF2_L),
-											lambda f, old: ((old[0] & 0x0000FFFF) | (_usgn(f/_SG_FREQSCALE, 48) >> 16) & 0xFFFF0000, _usgn(f/_SG_FREQSCALE, 48) & 0xFFFFFFFF),
-											lambda rval: _SG_FREQSCALE * ((rval[0] & 0xFFFF0000) << 16 | rval[1])),
+											lambda obj, f, old: ((old[0] & 0x0000FFFF) | (_usgn(f/_SG_FREQSCALE, 48) >> 16) & 0xFFFF0000, _usgn(f/_SG_FREQSCALE, 48) & 0xFFFFFFFF),
+											lambda obj, rval: _SG_FREQSCALE * ((rval[0] & 0xFFFF0000) << 16 | rval[1])),
 
-	'out1_t0':			(REG_SG_T01,		to_reg_unsigned(0, 32, xform=lambda o: o / _SG_PHASESCALE),
-											from_reg_unsigned(0, 32, xform=lambda o: o * _SG_PHASESCALE)),
+	'out1_t0':			(REG_SG_T01,		to_reg_signed(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
+											from_reg_signed(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
 
-	'out1_t1':			(REG_SG_T11,		to_reg_unsigned(0, 32, xform=lambda o: o / _SG_PHASESCALE),
-											from_reg_unsigned(0, 32, xform=lambda o: o * _SG_PHASESCALE)),
+	'out1_t1':			(REG_SG_T11,		to_reg_signed(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
+											from_reg_signed(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
 
-	'out1_t2':			(REG_SG_T21,		to_reg_unsigned(0, 32, xform=lambda o: o / _SG_PHASESCALE),
-											from_reg_unsigned(0, 32, xform=lambda o: o * _SG_PHASESCALE)),
+	'out1_t2':			(REG_SG_T21,		to_reg_signed(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
+											from_reg_signed(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
 
-	'out2_t0':			(REG_SG_T02,		to_reg_unsigned(0, 32, xform=lambda o: o / _SG_PHASESCALE),
-											from_reg_unsigned(0, 32, xform=lambda o: o * _SG_PHASESCALE)),
+	'out2_t0':			(REG_SG_T02,		to_reg_signed(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
+											from_reg_signed(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
 
-	'out2_t1':			(REG_SG_T12,		to_reg_unsigned(0, 32, xform=lambda o: o / _SG_PHASESCALE),
-											from_reg_unsigned(0, 32, xform=lambda o: o * _SG_PHASESCALE)),
+	'out2_t1':			(REG_SG_T12,		to_reg_signed(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
+											from_reg_signed(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
 
-	'out2_t2':			(REG_SG_T22,		to_reg_unsigned(0, 32, xform=lambda o: o / _SG_PHASESCALE),
-											from_reg_unsigned(0, 32, xform=lambda o: o * _SG_PHASESCALE)),
+	'out2_t2':			(REG_SG_T22,		to_reg_signed(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
+											from_reg_signed(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
 
 	'out1_riserate':	((REG_SG_RFRATE1_H, REG_SG_RISERATE1_L),
-											to_reg_unsigned(0, 48, xform=lambda r: r / _SG_FREQSCALE),
-											from_reg_unsigned(0, 48, xform=lambda r: r * _SG_FREQSCALE)),
+											to_reg_unsigned(0, 48, xform=lambda obj, r: r / _SG_FREQSCALE),
+											from_reg_unsigned(0, 48, xform=lambda obj, r: r * _SG_FREQSCALE)),
 
 	'out1_fallrate':	((REG_SG_RFRATE1_H, REG_SG_FALLRATE1_L),
-											lambda f, old: ((old[0] & 0x0000FFFF) | (_usgn(f/_SG_FREQSCALE, 48) >> 16) & 0xFFFF0000, _usgn(f/_SG_FREQSCALE, 48) & 0xFFFFFFFF),
-											lambda rval: _SG_FREQSCALE * ((rval[0] & 0xFFFF0000) << 16 | rval[1])),
+											lambda obj, f, old: ((old[0] & 0x0000FFFF) | (_usgn(f/_SG_FREQSCALE, 48) >> 16) & 0xFFFF0000, _usgn(f/_SG_FREQSCALE, 48) & 0xFFFFFFFF),
+											lambda obj, rval: _SG_FREQSCALE * ((rval[0] & 0xFFFF0000) << 16 | rval[1])),
 
 	'out2_riserate':	((REG_SG_RFRATE2_H, REG_SG_RISERATE2_L),
-											to_reg_unsigned(0, 48, xform=lambda r: r / _SG_FREQSCALE),
-											from_reg_unsigned(0, 48, xform=lambda r: r * _SG_FREQSCALE)),
+											to_reg_unsigned(0, 48, xform=lambda obj, r: r / _SG_FREQSCALE),
+											from_reg_unsigned(0, 48, xform=lambda obj, r: r * _SG_FREQSCALE)),
 
 	'out2_fallrate':	((REG_SG_RFRATE2_H, REG_SG_FALLRATE2_L),
-											lambda f, old: ((old[0] & 0x0000FFFF) | (_usgn(f/_SG_FREQSCALE, 48) >> 16) & 0xFFFF0000, _usgn(f/_SG_FREQSCALE, 48) & 0xFFFFFFFF),
-											lambda rval: _SG_FREQSCALE * ((rval[0] & 0xFFFF0000) << 16 | rval[1])),
+											lambda obj, f, old: ((old[0] & 0x0000FFFF) | (_usgn(f/_SG_FREQSCALE, 48) >> 16) & 0xFFFF0000, _usgn(f/_SG_FREQSCALE, 48) & 0xFFFFFFFF),
+											lambda obj, rval: _SG_FREQSCALE * ((rval[0] & 0xFFFF0000) << 16 | rval[1])),
 
+	# The meaning of this amplitude field is complicated enough that the conversion to register value is done in the
+	# main code above rather than inline
 	'mod1_amplitude':	(REG_SG_MODA1,		to_reg_unsigned(0, 32),
 											from_reg_unsigned(0, 32)),
 
@@ -400,9 +382,9 @@ _siggen_reg_handlers = {
 	'out2_modsource':	(REG_SG_MODSOURCE,	to_reg_unsigned(3, 2, allow_set=[SG_MODSOURCE_INT, SG_MODSOURCE_ADC, SG_MODSOURCE_DAC]),
 											from_reg_unsigned(3, 2)),
 
-	'out1_amp_pc':		(REG_SG_PRECLIP,	to_reg_unsigned(0, 16),
-											from_reg_unsigned(0, 16)),
+	'out1_amp_pc':		(REG_SG_PRECLIP,	to_reg_unsigned(0, 16, xform=lambda obj, a: a / obj.dac_gains()[0]),
+											from_reg_unsigned(0, 16, xform=lambda obj, a: a * obj.dac_gains()[0])),
 
-	'out2_amp_pc':		(REG_SG_PRECLIP,	to_reg_unsigned(16, 16),
-											from_reg_unsigned(16, 16)),
+	'out2_amp_pc':		(REG_SG_PRECLIP,	to_reg_unsigned(16, 16, xform=lambda obj, a: a / obj.dac_gains()[1]),
+											from_reg_unsigned(16, 16, xform=lambda obj, a: a * obj.dac_gains()[1])),
 }

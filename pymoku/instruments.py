@@ -44,7 +44,6 @@ for attr, val in _phasemeter.__dict__.items():
 		setattr(_this_module, attr, val)
 
 id_table = {
-	0: None,
 	1: Oscilloscope,
 	3: PhaseMeter,
 	4: SignalGenerator,

@@ -19,7 +19,8 @@ if i is None or i.type != 'oscilloscope':
 	i = Oscilloscope()
 	m.attach_instrument(i)
 else:
-	print "Attached to existing Oscilloscope"
+	print("Attached to existing Oscilloscope")
+	m.take_ownership()
 
 try:
 	i.set_defaults()

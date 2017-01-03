@@ -10,7 +10,7 @@ import zmq
 from collections import deque
 from queue import Queue, Empty
 
-from pymoku import Moku, FrameTimeout, NotDeployedException, InvalidOperationException, NoDataException, dataparser
+from pymoku import Moku, FrameTimeout, NotDeployedException, InvalidOperationException, NoDataException, StreamException, dataparser
 
 from . import _instrument
 
@@ -352,12 +352,16 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		self._moku._stream_start()
 
 	def datalogger_stop(self):
-		""" Stop a recording session previously started with :py:func:`datalogger_start`"""
-		if self._moku is None: raise NotDeployedException()
-		# TODO: Handle errors
-		self._moku._stream_stop()
+		""" Stop a recording session previously started with :py:func:`datalogger_start`
 
+		:rtype: int
+		:return: final status code (see :py:func:`datalogger_status`"""
+		if self._moku is None: raise NotDeployedException()
+
+		stat = self._moku._stream_stop()
 		self._dlsub_destroy()
+
+		return stat
 
 	def datalogger_status(self):
 		""" Return the status of the most recent recording session to be started.
@@ -565,29 +569,10 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		super(FrameBasedInstrument, self).set_running(state)
 		if state and not prev_state:
 			self._fr_worker = threading.Thread(target=self._frame_worker)
-			self._hb_worker = threading.Thread(target=self._heartbeat_worker)
 			self._fr_worker.start()
-			self._hb_worker.start()
 		elif not state and prev_state:
 			self._fr_worker.join()
-			self._hb_worker.join()
 
-	def _send_heartbeat(self, hbs, port):
-		try:
-			d, a = hbs.recvfrom(1024)
-			if len(d) >= 3 and d[0] == '@':
-				self._hb_forced = True
-		except socket.timeout:
-			pass
-
-		try:
-			hdr = 0x41 if self._hb_forced else 0x40
-			ts = int(time.time() % 2**16)
-			hbs.sendto(struct.pack('<BH', hdr, ts), (self._moku._ip, port))
-		except:
-			# TODO: Catch only what we expect, which is moku disappeared and whatever
-			# the network layer can throw at us
-			log.exception("HB")
 
 	def _frame_worker(self):
 		if(getattr(self, 'frame_class', None)):
@@ -611,18 +596,3 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 							fr = self.frame_class(**self.frame_kwargs)
 			finally:
 				skt.close()
-
-	def _heartbeat_worker(self):
-		hs = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-		hs.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-		hs.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEPORT, 1)
-		hs.settimeout(0.1)
-		hs.bind(('0.0.0.0', 27183))
-
-		try:
-			while self._running:
-				self._send_heartbeat(hs, 27183)
-				time.sleep(1.0)
-		finally:
-			hs.close()
-

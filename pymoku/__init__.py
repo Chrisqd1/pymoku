@@ -9,7 +9,7 @@ log = logging.getLogger(__name__)
 try:
 	from .finders import BonjourFinder
 except Exception as e:
-	log.warning("Can't import the Bonjour libraries, I won't be able to automatically detect Mokus ({:s})".format(str(e)))
+	log.warning("Can't import the Bonjour libraries, I won't be able to automatically detect Mokus ({:s}).  Please install DNSSD libraries (e.g. libavahi-dnssd-compat on Linux)".format(str(e)))
 
 class MokuException(Exception):	"""Base class for other Exceptions""";	pass
 class MokuNotFound(MokuException): """Can't find Moku. Raised from discovery factory functions."""; pass
@@ -21,6 +21,17 @@ class ValueOutOfRangeException(MokuException): """Invalid value for this operati
 class NotDeployedException(MokuException): """Tried to perform an action on an Instrument before it was deployed to a Moku"""; pass
 class FrameTimeout(MokuException): """No new :any:`DataFrame` arrived within the given timeout"""; pass
 class NoDataException(MokuException): """A request has been made for data but none will be generated """; pass
+
+# Network status codes
+_ERR_OK = 0
+_ERR_INVAL = 1
+_ERR_NOTFOUND = 2
+_ERR_NOSPC = 3
+_ERR_NOMP = 4
+_ERR_ACTION = 5
+_ERR_BUSY = 6
+_ERR_RO = 7
+_ERR_UNKOWN = 99
 
 # Chosen to trade off number of network transactions with memory usage.
 # 4MB is a little larger than a bitstream so those uploads aren't chunked.
@@ -183,6 +194,21 @@ class Moku(object):
 		self._seq = (self._seq + 1) % 256
 		return self._seq
 
+
+	def _ownership(self, t):
+		packet_data = bytearray([t, 0])
+		self._conn.send(packet_data)
+
+		ack = self._conn.recv()
+		return ord(ack[1]) == 1
+
+	def take_ownership(self):
+		return self._ownership(0x40)
+
+	def is_owner(self):
+		return self._ownership(0x41)
+
+
 	def _read_regs(self, commands):
 		packet_data = bytearray([0x47, 0x00, len(commands)])
 		packet_data += b''.join([struct.pack('<B', x) for x in commands])
@@ -237,6 +263,30 @@ class Moku(object):
 
 		# Return bitstream version
 		return struct.unpack("<H", ack[3:5])[0]
+
+
+	def _reset_instrument(self):
+		self._conn.send(bytearray([0x48, self._get_seq()]))
+		self._conn.recv()
+
+
+	def _set_clock_source(self, use_external=False):
+		self._conn.send(struct.pack("<BBB", 0x54, 0x01, use_external))
+		self._conn.recv()
+
+	def _get_clock_source(self):
+		self._conn.send(bytearray([0x54, 0x02]))
+		ack = self._conn.recv()
+		status = ord(ack[2])
+
+		return bool(status & 0x02), bool(status & 0x01)
+
+	def _get_requested_extclock(self):
+		return self._get_clock_source()[0]
+
+	def _get_actual_extclock(self):
+		return self._get_clock_source()[1]
+
 
 	def _get_properties(self, properties):
 		ret = []
@@ -455,7 +505,9 @@ class Moku(object):
 		act, status = struct.unpack("BB", pkt[:2])
 
 		if status:
-			raise NetworkError("File receive error %d" % status)
+			ex = NetworkError("File receive error %d" % status)
+			ex.dat = pkt[2:]
+			raise ex
 
 		return pkt[2:]
 
@@ -494,18 +546,21 @@ class Moku(object):
 
 		return remotename
 
-	def _receive_file(self, mp, fname, l):
+	def _receive_file(self, mp, fname, length, localname=None):
 		qfname = mp + ":" + fname
 		self._set_timeout(short=False)
 
+		localname = localname or fname
+
 		i = 0
-		with open(fname, "wb") as f:
-			if l == 0:
+		with open(localname, "wb") as f:
+			if length == 0:
 				# A zero length file implies transfer the entire file
 				# So we get the the file size
-				l = self._fs_size(mp, fname)
-			while i < l:
-				to_transfer = min(l, _FS_CHUNK_SIZE)
+				length = self._fs_size(mp, fname)
+
+			while i < length:
+				to_transfer = min(length, _FS_CHUNK_SIZE)
 				pkt = bytearray([len(qfname)])
 				pkt += qfname.encode('ascii')
 				pkt += struct.pack("<QQ", i, to_transfer)
@@ -604,6 +659,41 @@ class Moku(object):
 
 		return self._fs_finalise(mp, remotename, fsize)
 
+	def _fs_rename(self, smp, sname, dmp, dname, move=False):
+		sname = smp + ":" + sname
+		dname = dmp + ":" + dname
+		pkt = bytearray([len(sname)])
+		pkt += sname.encode('ascii')
+		pkt += bytearray([len(dname)])
+		pkt += dname.encode('ascii')
+
+		flags = 1 if move else 0
+		pkt += bytearray([flags])
+
+		self._fs_send_generic(8, pkt)
+
+		return self._fs_receive_generic(8)
+
+
+	def _fs_rename_status(self):
+		self._fs_send_generic(9, '')
+
+		try:
+			dat = self._fs_receive_generic(9)
+			stat = _ERR_OK
+		except NetworkError as e:
+			dat = e.dat
+			stat = _ERR_BUSY
+
+		size, pc = struct.unpack("<QB", dat)
+
+		return stat, size, pc
+
+	def _fs_rename_busy(self):
+		return self._fs_rename_status()[0] == _ERR_BUSY
+
+	def _fs_rename_progress(self):
+		return self._fs_rename_status()[2]
 
 	def delete_bitstream(self, path):
 		self._fs_finalise('b', path, 0)
@@ -748,6 +838,7 @@ class Moku(object):
 		if self._instrument:
 			self._instrument.set_running(False)
 
+		self.take_ownership()
 		self._instrument = instrument
 		self._instrument.attach_moku(self)
 		self._instrument.set_running(False)
@@ -788,13 +879,11 @@ class Moku(object):
 		If an instrument is found, return a new :any:`MokuInstrument` subclass representing that instrument, ready
 		to be controlled."""
 		import pymoku.instruments
-		i = int(self._get_property_single('system.instrument').split(',')[0])
+		i = int(self._get_property_single('system.instrument'))
 		try:
 			instr = pymoku.instruments.id_table[i]
 		except KeyError:
-			instr = None
-
-		if instr is None: return None
+			return None
 
 		running = instr()
 		running.attach_moku(self)

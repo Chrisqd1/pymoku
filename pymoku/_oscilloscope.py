@@ -515,20 +515,9 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		self.en_in_ch2 = True
 
 	def _calculate_scales(self):
-		# Returns the bits-to-volts numbers for each channel in the current state
+		g1, g2 = self.adc_gains()
+		d1, d2 = self.dac_gains()
 
-		sect1 = "calibration.AG-%s-%s-%s-1" % ( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
-								  "L" if self.relays_ch1 & RELAY_LOWG else "H",
-								  "D" if self.relays_ch1 & RELAY_DC else "A")
-
-		sect2 = "calibration.AG-%s-%s-%s-1" % ( "50" if self.relays_ch2 & RELAY_LOWZ else "1M",
-								  "L" if self.relays_ch2 & RELAY_LOWG else "H",
-								  "D" if self.relays_ch2 & RELAY_DC else "A")
-		dac1 = "calibration.DG-1"
-		dac2 = "calibration.DG-2"
-
-		s1 = self.source_ch1
-		s2 = self.source_ch2
 		l1 = self.loopback_mode_ch1
 		l2 = self.loopback_mode_ch2
 
@@ -537,20 +526,8 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 			t1 = 0
 			t2 = 1
 		else:
-
 			t1 = self._calculate_frame_start_time(self.decimation_rate, self.render_deci, self.offset)
 			t2 = t1 + self._calculate_frame_timestep(self.decimation_rate, self.render_deci) * (_OSC_SCREEN_WIDTH - 1)
-
-		try:
-			g1 = 1 / float(self.calibration[sect1])
-			g2 = 1 / float(self.calibration[sect2])
-			d1 = 1 / float(self.calibration[dac1])
-			d2 = 1 / float(self.calibration[dac2])
-		except (KeyError, TypeError):
-			log.warning("Moku appears uncalibrated")
-			g1 = g2 = d1 = d2 = 1
-
-		log.debug("gain values for sections %s, %s, %s, %s = %f, %f, %f, %f; deci %f", sect1, sect2, dac1, dac2, g1, g2, d1, d2, self._deci_gain())
 
 		if self.ain_mode == _OSC_AIN_DECI:
 			g1 /= self._deci_gain()
@@ -587,11 +564,6 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 
 	# Bring in the docstring from the superclass for our docco.
 	commit.__doc__ = MokuInstrument.commit.__doc__
-
-	def attach_moku(self, moku):
-		super(Oscilloscope, self).attach_moku(moku)
-
-	attach_moku.__doc__ = MokuInstrument.attach_moku.__doc__
 
 _osc_reg_handlers = {
 	'source_ch1':		(REG_OSC_OUTSEL,	to_reg_unsigned(0, 1, allow_set=[OSC_SOURCE_ADC, OSC_SOURCE_DAC]),
