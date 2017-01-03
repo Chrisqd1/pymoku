@@ -243,7 +243,7 @@ class SignalGenerator(MokuInstrument):
 			risetime = symmetry,
 			falltime = 1 - symmetry)
 
-	def synth_modulate(self, ch, type, source, depth=0.0, frequency=0):
+	def synth_modulate(self, ch, type, source, depth, frequency=0.0):
 		"""
 		Set up modulation on an output channel.
 
@@ -283,7 +283,7 @@ class SignalGenerator(MokuInstrument):
 			res = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
 			self.mod1_amplitude = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
 
-		if ch == 1:
+		elif ch == 2:
 			self.out2_modulation = type
 			self.out2_modsource = source
 			self.mod2_frequency = frequency
@@ -328,11 +328,11 @@ _siggen_reg_handlers = {
 											to_reg_unsigned(0, 48, xform=lambda f:f / _SG_FREQSCALE),
 											from_reg_unsigned(0, 48, xform=lambda f: f * _SG_FREQSCALE)),
 
-	'out1_offset':		(REG_SG_MODF1_H,	to_reg_signed(0, 16, xform=lambda o:o),
-											from_reg_signed(0, 16, xform=lambda o: o)),
+	'out1_offset':		(REG_SG_MODF1_H,	to_reg_signed(0, 16),
+											from_reg_signed(0, 16)),
 
-	'out2_offset':		(REG_SG_MODF2_H,	to_reg_signed(0, 16, xform=lambda o:o),
-											from_reg_signed(0, 16, xform=lambda o: o)),
+	'out2_offset':		(REG_SG_MODF2_H,	to_reg_signed(0, 16),
+											from_reg_signed(0, 16)),
 
 	'out1_phase':		(REG_SG_PHASE1,		to_reg_unsigned(0, 32, xform=lambda p:p / _SG_PHASESCALE),
 											from_reg_unsigned(0, 32, xform=lambda p:p * _SG_PHASESCALE)),
@@ -340,11 +340,11 @@ _siggen_reg_handlers = {
 	'out2_phase':		(REG_SG_PHASE2,		to_reg_unsigned(0, 32, xform=lambda p:p / _SG_PHASESCALE),
 											from_reg_unsigned(0, 32, xform=lambda p:p * _SG_PHASESCALE)),
 
-	'out1_amplitude':	(REG_SG_AMP1,		to_reg_unsigned(0, 16, xform=lambda p:p),
-											from_reg_unsigned(0, 16, xform=lambda p:p)),
+	'out1_amplitude':	(REG_SG_AMP1,		to_reg_unsigned(0, 16),
+											from_reg_unsigned(0, 16)),
 
-	'out2_amplitude':	(REG_SG_AMP2,		to_reg_unsigned(0, 16, xform=lambda p:p),
-											from_reg_unsigned(0, 16, xform=lambda p:p)),
+	'out2_amplitude':	(REG_SG_AMP2,		to_reg_unsigned(0, 16),
+											from_reg_unsigned(0, 16)),
 
 	'mod1_frequency':	((REG_SG_MODF1_H, REG_SG_MODF1_L),
 											lambda f, old: ((old[0] & 0x0000FFFF) | (_usgn(f/_SG_FREQSCALE, 48) >> 16) & 0xFFFF0000, _usgn(f/_SG_FREQSCALE, 48) & 0xFFFFFFFF),
@@ -388,11 +388,11 @@ _siggen_reg_handlers = {
 											lambda f, old: ((old[0] & 0x0000FFFF) | (_usgn(f/_SG_FREQSCALE, 48) >> 16) & 0xFFFF0000, _usgn(f/_SG_FREQSCALE, 48) & 0xFFFFFFFF),
 											lambda rval: _SG_FREQSCALE * ((rval[0] & 0xFFFF0000) << 16 | rval[1])),
 
-	'mod1_amplitude':	(REG_SG_MODA1,		to_reg_unsigned(0, 32, xform=lambda a: a),
-											from_reg_unsigned(0, 32, xform=lambda a: a )),
+	'mod1_amplitude':	(REG_SG_MODA1,		to_reg_unsigned(0, 32),
+											from_reg_unsigned(0, 32)),
 
-	'mod2_amplitude':	(REG_SG_MODA2,		to_reg_unsigned(0, 32, xform=lambda a: a),
-											from_reg_unsigned(0, 32, xform=lambda a: a)),
+	'mod2_amplitude':	(REG_SG_MODA2,		to_reg_unsigned(0, 32),
+											from_reg_unsigned(0, 32)),
 
 	'out1_modsource':	(REG_SG_MODSOURCE,	to_reg_unsigned(1, 2, allow_set=[SG_MODSOURCE_INT, SG_MODSOURCE_ADC, SG_MODSOURCE_DAC]),
 											from_reg_unsigned(1, 2)),
@@ -400,9 +400,9 @@ _siggen_reg_handlers = {
 	'out2_modsource':	(REG_SG_MODSOURCE,	to_reg_unsigned(3, 2, allow_set=[SG_MODSOURCE_INT, SG_MODSOURCE_ADC, SG_MODSOURCE_DAC]),
 											from_reg_unsigned(3, 2)),
 
-	'out1_amp_pc':		(REG_SG_PRECLIP,	to_reg_unsigned(0, 16, xform=lambda a: a),
-											from_reg_unsigned(0, 16, xform=lambda a: a)),
+	'out1_amp_pc':		(REG_SG_PRECLIP,	to_reg_unsigned(0, 16),
+											from_reg_unsigned(0, 16)),
 
-	'out2_amp_pc':		(REG_SG_PRECLIP,	to_reg_unsigned(16, 16, xform=lambda a: a),
-											from_reg_unsigned(16, 16, xform=lambda a: a)),
+	'out2_amp_pc':		(REG_SG_PRECLIP,	to_reg_unsigned(16, 16),
+											from_reg_unsigned(16, 16)),
 }

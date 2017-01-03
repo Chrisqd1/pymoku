@@ -94,16 +94,16 @@ class VoltsFrame(_frame_instrument.DataFrame):
 			return
 
 		scales = self.scales[self.stateid]
-		g1 = scales['g1']
-		g2 = scales['g2']
-		d1 = scales['d1']
-		d2 = scales['d2']
-		s1 = scales['s1']
-		s2 = scales['s2']
-		l1 = scales['l1']
-		l2 = scales['l2']
-		t1 = scales['t1']
-		t2 = scales['t2']
+		g1 = scales['gain_adc1']
+		g2 = scales['gain_adc2']
+		d1 = scales['gain_dac1']
+		d2 = scales['gain_dac2']
+		s1 = scales['source_ch1']
+		s2 = scales['source_ch2']
+		l1 = scales['gain_loopback1']
+		l2 = scales['gain_loopback2']
+		t1 = scales['time_min']
+		t2 = scales['time_max']
 
 		def _compute_scaling_factor(adc,dac,src,lmode):
 			# Change scaling factor depending on the source type
@@ -148,7 +148,7 @@ class VoltsFrame(_frame_instrument.DataFrame):
 	'''
 		Plotting helper functions
 	'''
-	def _get_timeScale(self, tspan):
+	def _get_timescale(self, tspan):
 		# Returns a scaling factor and units for time 'T'
 		if(tspan <  1e-6):
 			scale_str = 'ns'
@@ -174,8 +174,8 @@ class VoltsFrame(_frame_instrument.DataFrame):
 			return
 
 		scales = self.scales[self.stateid]
-		t1 = scales['t1']
-		t2 = scales['t2']
+		t1 = scales['time_min']
+		t2 = scales['time_max']
 		ts = abs(t2 - t1) / _OSC_SCREEN_WIDTH
 		tscale_str, tscale_const = self._get_timeScale(abs(t2-t1))
 
@@ -337,13 +337,13 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		# An amplitude in volts is scaled to an ADC level depending on the trigger input source 
 		# and its current configuration
 		if (source == OSC_TRIG_CH1):
-			level = amplitude/scales['g1']
+			level = amplitude/scales['gain_adc1']
 		elif (source == OSC_TRIG_CH2):
-			level = amplitude/scales['g2']
+			level = amplitude/scales['gain_adc2']
 		elif (source == OSC_TRIG_DA1):
-			level = (amplitude/scales['d1'])/16
+			level = (amplitude/scales['gain_dac1'])/16
 		elif (source == OSC_TRIG_DA2):
-			level = (amplitude/scales['d2'])/16
+			level = (amplitude/scales['gain_dac2'])/16
 
 		return level
 
@@ -558,7 +558,17 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 			d1 /= self._deci_gain()
 			d2 /= self._deci_gain()
 
-		return {'g1':g1, 'g2':g2, 'd1':d1, 'd2':d2, 's1':s1, 's2':s2, 'l1':l1, 'l2':l2, 't1':t1, 't2':t2}
+		return {'gain_adc1': g1,
+				'gain_adc2': g2,
+				'gain_dac1': d1,
+				'gain_dac2': d2,
+				'source_ch1': s1,
+				'source_ch2': s2,
+				'gain_loopback1': l1,
+				'gain_loopback2': l2,
+				'time_min': t1,
+				'time_max': t2}
+
 
 	def _update_dependent_regs(self, scales):
 		# Trigger level must be scaled depending on the current relay settings and chosen trigger source

@@ -608,7 +608,6 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 						if fr.complete:
 							self._queue.put_nowait(fr)
-							#print("SI: %s, TS: %s, WI: %s" % (fr.stateid, fr.trigstate, fr.waveformid))
 							fr = self.frame_class(**self.frame_kwargs)
 			finally:
 				skt.close()

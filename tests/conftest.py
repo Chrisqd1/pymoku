@@ -23,21 +23,3 @@ def conn_mokus(request):
 	request.addfinalizer(m1.close)
 	request.addfinalizer(m2.close)
 	return (m1, m2)
-	#return (m1, None)
-
-'''
-@pytest.fixture(scope="function")
-def base_instr(instruments):
-	
-		Per test setup function
-	
-	# Extract Mokus
-	m1 = conn_mokus[0]
-	m2 = conn_mokus[1]
-
-	print "Setting defaults."
-	m1.set_defaults()
-	m2.set_defaults()
-
-	return m1
-'''

@@ -2,8 +2,7 @@ import itertools
 import pytest, time
 from pymoku import Moku, FrameTimeout
 from pymoku.instruments import *
-from pymoku._oscilloscope import _OSC_SCREEN_WIDTH, _OSC_ADC_SMPS, OSC_TRIG_NORMAL, OSC_TRIG_SINGLE, OSC_TRIG_AUTO
-from pymoku._siggen import SG_MOD_NONE, SG_MOD_AMPL, SG_MOD_PHASE, SG_MOD_FREQ, SG_MODSOURCE_INT, SG_MODSOURCE_ADC, SG_MODSOURCE_DAC, SG_WAVE_SINE, SG_WAVE_SQUARE, SG_WAVE_TRIANGLE, SG_WAVE_DC
+from pymoku._oscilloscope import _OSC_SCREEN_WIDTH, _OSC_ADC_SMPS # Need a few internal signals for test
 import conftest
 import numpy, math
 import scipy.signal
@@ -789,7 +788,6 @@ class Test_Frontend:
 		source_vpp = vpp
 		source_freq = freq
 		source_offset = offset
-		tolerance_percent = 0.05
 
 		expected_vpp = source_vpp if fiftyr else (source_vpp*2.0)
 		expected_off = source_offset if fiftyr else (source_offset*2.0)
@@ -808,13 +806,13 @@ class Test_Frontend:
 		slave.commit()
 		master.commit()
 
-		master.get_frame(timeout = 5) # throwaway
+		master.get_frame(timeout=FRAME_TIMEOUT) # throwaway
 		time.sleep(0.01)
-		master.get_frame(timeout = 5)
+		master.get_frame(timeout=FRAME_TIMEOUT)
 		if ch == 1:
-			frame = master.get_frame(timeout = 5).ch1
+			frame = master.get_frame(timeout=FRAME_TIMEOUT).ch1
 		if ch == 2:
-			frame = master.get_frame(timeout = 5).ch2
+			frame = master.get_frame(timeout=FRAME_TIMEOUT).ch2
 		frame = _crop_frame_of_nones(frame)
 
 		# Fit a curve to the input waveform
@@ -859,13 +857,13 @@ class Test_Frontend:
 		master.commit()
 
 		# Get a throwaway frame
-		master.get_frame(timeout= FRAME_TIMEOUT)
+		master.get_frame(timeout=FRAME_TIMEOUT)
 
 		# Get a valid frame
 		if ch == 1:
-			frame = master.get_frame(timeout = 5).ch1
+			frame = master.get_frame(timeout=FRAME_TIMEOUT).ch1
 		else:
-			frame = master.get_frame(timeout = 5).ch2
+			frame = master.get_frame(timeout=FRAME_TIMEOUT).ch2
 		frame = _crop_frame_of_nones(frame)
 		ts = _get_frame_timesteps(master, len(frame))
 
@@ -885,10 +883,6 @@ class Test_Frontend:
 			[-0.2, -0.1, 0.0, 0.1, 0.2]
 			))
 	def test_acdc_coupling(self, base_instrs, ch, fiftyr, ac, amp, offset):
-
-		tolerance_percent =  ADC_AMP_TOL_P
-		tolerance_offset = ADC_OFF_TOL_R
-
 		master = base_instrs[0]
 		slave = base_instrs[1]
 
@@ -918,11 +912,11 @@ class Test_Frontend:
 		master.commit()
 
 		# Throwaway frame
-		master.get_frame(timeout = 5)
+		master.get_frame(timeout=FRAME_TIMEOUT)
 		if ch == 1:
-			frame = master.get_frame(timeout = 5).ch1
+			frame = master.get_frame(timeout=FRAME_TIMEOUT).ch1
 		else:
-			frame = master.get_frame(timeout = 5).ch2
+			frame = master.get_frame(timeout=FRAME_TIMEOUT).ch2
 		frame = _crop_frame_of_nones(frame)
 
 		# Check that the amplitude is half and that it is approximately 0V mean if AC coupling is ON
