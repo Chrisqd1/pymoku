@@ -10,8 +10,8 @@ logging.basicConfig(format='%(asctime)s:%(name)s:%(levelname)s::%(message)s')
 logging.getLogger('pymoku').setLevel(logging.DEBUG)
 
 # Use Moku.get_by_serial() or get_by_name() if you don't know the IP
-# m = Moku.get_by_name('Oil Rigs')
-m = Moku('192.168.69.53')
+m = Moku.get_by_name('Oil Rigs')
+# m = Moku('192.168.69.53')
 
 # i = m.discover_instrument()
 # if i is None or i.type != 'netan':
@@ -30,13 +30,13 @@ i.set_defaults()
 
 # i.set_frontend(0, fiftyr=True, atten=True, ac=False)
 
-f_start = 1e6 # Hz
-f_end = 20e6  # Hz
-sweep_length = 512
+f_start = 10e3 # Hz
+f_end = 1.2e3  # Hz
+sweep_length = 3
 log_scale = True 
-amp_ch1 = 5 # volts (assuming high impedance)
+amp_ch1 = 1 # volts (assuming high impedance)
 amp_ch2 = 1 # volts (assuming high impedance)
-averaging_time = 8e-4 # seconds
+averaging_time = 1 # seconds
 settling_time = 1e-4 # seconds
 
 i.set_dbscale(False),
