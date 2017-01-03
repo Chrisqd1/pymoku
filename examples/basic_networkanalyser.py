@@ -30,7 +30,7 @@ i.set_frontend(0, fiftyr=False, atten=False, ac=False)
 
 f_start = 1e6 # Hz
 f_end = 20e6  # Hz
-sweep_length = 6
+sweep_length = 511
 log_scale = False 
 amp_ch1 = 1 # volts (assuming high impedance)
 amp_ch2 = 1 # volts (assuming high impedance)
@@ -64,6 +64,7 @@ line1, = plt.plot([])
 line2, = plt.plot([])
 plt.ion()
 plt.show()
+
 plt.grid(b=True)
 # if(dbm):
 # plt.ylim([-200, 100])

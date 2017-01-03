@@ -89,13 +89,24 @@ class NetAnFrame(_frame_instrument.DataFrame):
 		# convert an RMS voltage to a power level (assuming 50 Ohm load)
 
 		def _generate_signals(self, input_signal, gain_correction, dbscale):
-			self.i_sig = [ input_signal[x] for x in range(0,len(input_signal ), 2 ) ]
-			self.q_sig = [ input_signal[x] for x in range(1,len(input_signal ), 2 ) ]
+			# Trim I and Q data to be the length of the sweep. The maximum index for x is 2 times he length of the gain
+			# correction because the data for I and Q is interleaved.
+			self.i_sig = [ input_signal[x] for x in range(0, 2*len(gain_correction ), 2 ) ]
+			self.q_sig = [ input_signal[x] for x in range(1, 2*len(gain_correction ), 2 ) ]
 	
 			self.magnitude = [ math.sqrt(I**2 + Q**2)/G for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) if all ([I,Q,G]) ] 
 			self.magnitude = [ (10.0*math.log10(x) if dbscale else x) if x else None for x in self.magnitude]
 
 			self.phase = [ math.atan2(Q, I) for I,Q in zip(self.i_sig, self.q_sig) if all ([I,Q]) ]
+
+			if len(self.magnitude) !=  len(gain_correction) or len(self.phase) !=  len(gain_correction) :
+				self.complete = False
+				log.debug('Incorrect number of valid data points (x- and y-axes are not matched)')
+
+			print len(self.magnitude)
+			print len(self.phase)
+			print len(self.i_sig)
+			print len(gain_correction)
 
 		i_sig = []
 		q_sig = []
