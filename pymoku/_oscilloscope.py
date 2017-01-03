@@ -177,7 +177,7 @@ class VoltsFrame(_frame_instrument.DataFrame):
 		t1 = scales['time_min']
 		t2 = scales['time_max']
 		ts = abs(t2 - t1) / _OSC_SCREEN_WIDTH
-		tscale_str, tscale_const = self._get_timeScale(abs(t2-t1))
+		tscale_str, tscale_const = self._get_timescale(abs(t2-t1))
 
 		return {'xaxis': '%.1f %s' % ((t1 + x*ts)*tscale_const, tscale_str), 'xcoord': '%.3f %s' % ((t1 + x*ts)*tscale_const, tscale_str)}
 
@@ -520,6 +520,9 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 
 		l1 = self.loopback_mode_ch1
 		l2 = self.loopback_mode_ch2
+
+		s1 = self.source_ch1
+		s2 = self.source_ch2
 
 		if(self.decimation_rate == 0 or self.render_deci == 0):
 			log.warning("ADCs appear to be turned off or decimation unset")

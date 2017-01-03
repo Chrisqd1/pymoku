@@ -334,23 +334,23 @@ _siggen_reg_handlers = {
 											lambda obj, f, old: ((old[0] & 0x0000FFFF) | (_usgn(f/_SG_FREQSCALE, 48) >> 16) & 0xFFFF0000, _usgn(f/_SG_FREQSCALE, 48) & 0xFFFFFFFF),
 											lambda obj, rval: _SG_FREQSCALE * ((rval[0] & 0xFFFF0000) << 16 | rval[1])),
 
-	'out1_t0':			(REG_SG_T01,		to_reg_signed(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
-											from_reg_signed(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
+	'out1_t0':			(REG_SG_T01,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
+											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
 
-	'out1_t1':			(REG_SG_T11,		to_reg_signed(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
-											from_reg_signed(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
+	'out1_t1':			(REG_SG_T11,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
+											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
 
-	'out1_t2':			(REG_SG_T21,		to_reg_signed(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
-											from_reg_signed(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
+	'out1_t2':			(REG_SG_T21,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
+											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
 
-	'out2_t0':			(REG_SG_T02,		to_reg_signed(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
-											from_reg_signed(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
+	'out2_t0':			(REG_SG_T02,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
+											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
 
-	'out2_t1':			(REG_SG_T12,		to_reg_signed(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
-											from_reg_signed(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
+	'out2_t1':			(REG_SG_T12,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
+											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
 
-	'out2_t2':			(REG_SG_T22,		to_reg_signed(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
-											from_reg_signed(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
+	'out2_t2':			(REG_SG_T22,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
+											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
 
 	'out1_riserate':	((REG_SG_RFRATE1_H, REG_SG_RISERATE1_L),
 											to_reg_unsigned(0, 48, xform=lambda obj, r: r / _SG_FREQSCALE),
