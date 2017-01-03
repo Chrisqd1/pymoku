@@ -94,14 +94,15 @@ class NetAnFrame(_frame_instrument.DataFrame):
 			self.i_sig = [ input_signal[x] for x in range(0, 2*len(gain_correction ), 2 ) ]
 			self.q_sig = [ input_signal[x] for x in range(1, 2*len(gain_correction ), 2 ) ]
 	
-			self.magnitude = [ math.sqrt(I**2 + Q**2)/G for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) if all ([I,Q,G]) ] 
+			# self.magnitude = [ math.sqrt(I**2 + Q**2)/G if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
+			self.magnitude = [ math.sqrt(I**2 + Q**2)/1e5 if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
 			self.magnitude = [ (10.0*math.log10(x) if dbscale else x) if x else None for x in self.magnitude]
 
-			self.phase = [ math.atan2(Q, I) for I,Q in zip(self.i_sig, self.q_sig) if all ([I,Q]) ]
+			self.phase = [ math.atan2(Q, I) if all ([I,Q]) else None for I,Q in zip(self.i_sig, self.q_sig)]
 
 			if len(self.magnitude) !=  len(gain_correction) or len(self.phase) !=  len(gain_correction) :
 				self.complete = False
-				log.debug('Incorrect number of valid data points (x- and y-axes are not matched)')
+				log.debug('Inconsistent number of valid data points (frequency axis and data lengths do not match)')
 
 			print len(self.magnitude)
 			print len(self.phase)
@@ -148,6 +149,7 @@ class NetAnFrame(_frame_instrument.DataFrame):
 		scales = self.scales[self.stateid]
 		scale1 = scales['g1']
 		scale2 = scales['g2']
+
 		# fs = scales['fs']
 		# f1, f2 = scales['fspan']
 		# fcorrs = scales['fcorrs']
@@ -323,7 +325,7 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 	commit.__doc__ = MokuInstrument.commit.__doc__
 
 
-	def set_sweep_parameters(self, start_frequency=1.0e3, end_frequency=1.0e6, sweep_length=512, log_scale=False, sweep_amplitude_ch1=0.5, sweep_amplitude_ch2=0.5, averaging_time=1e-6, settling_time=1e-6):
+	def set_sweep_parameters(self, start_frequency=1.0e6, end_frequency=10.0e6, sweep_length=512, log_scale=False, sweep_amplitude_ch1=0.5, sweep_amplitude_ch2=0.5, averaging_time=8e-4, settling_time=1e-4):
 		self.sweep_freq_min = start_frequency
 		self.sweep_length = sweep_length
 		self.log_en = log_scale
@@ -367,22 +369,22 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		self.framerate = _NA_FPS
 		self.frame_length = _NA_SCREEN_WIDTH
 
-		self.sweep_freq_min = 1
-
 		self.en_in_ch1 = True
 		self.en_in_ch2 = True
 
 		self.set_xmode(FULL_FRAME)
 
-		self.set_frontend(0, True, True, False)
-		self.set_frontend(1, True, True, False)
+		self.set_frontend(0, False, True, False)
+		self.set_frontend(1, False, True, False)
 
-		self.log_en = False
-		self.sweep_length = 512
-		self.sweep_amp_mult = 1
-		self.offset = 0
-		self.averaging_time = 0.1 
-		self.single_sweep = 0
+		# self.log_en = False
+		# self.sweep_length = 512
+		# self.averaging_time = 8e-4 
+		# self.settling_time = 1e-4
+		# self.single_sweep = 0
+
+		self.set_sweep_parameters()
+
 		self.render_mode = RDR_DDS
 
 	def set_start_freq(self, start_freq):
@@ -434,11 +436,14 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 		# Compute per-channel constant scaling factors
 		try:
-			g1 = 1/float(self.calibration[sect1])
-			g2 = 1/float(self.calibration[sect2])
+			g1 = float(self.calibration[sect1])
+			g2 = float(self.calibration[sect2])
 		except KeyError:
 			log.warning("Moku appears uncalibrated")
 			g1 = g2 = 1
+
+		log.debug("gain values for ADC: %s = %f", sect1, g1)
+
 
 		return {'g1': g1, 'g2': g2, 
 				'dbscale': self.dbscale, 
@@ -448,6 +453,8 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 				'sweep_length': self.sweep_length, 
 				'log_en': self.log_en, 
 				'averaging_time': self.averaging_time}
+
+
 
 
 	def _get_dac_calibration(self):
@@ -463,30 +470,10 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 			log.warning("Moku appears uncalibrated")
 			g1 = g2 = 1
 
-		log.debug("gain values for dac sections %s, %s = %f, %f", sect1, sect2, g1, g2)
+		log.debug("gain values for DAC sections %s, %s = %f, %f", sect1, sect2, g1, g2)
 
 		return (g1, g2)
 
-
-	# def _get_adc_calibration(self):
-	# 	# Returns the volts to bits numbers for each channel in the current state
-
-	# 	sect1 = "calibration.AG-%s-%s-%s-1" % ( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
-	# 							  "L" if self.relays_ch1 & RELAY_LOWG else "H",
-	# 							  "D" if self.relays_ch1 & RELAY_DC else "A")
-
-	# 	sect2 = "calibration.AG-%s-%s-%s-2" % ( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
-	# 							  "L" if self.relays_ch1 & RELAY_LOWG else "H",
-	# 							  "D" if self.relays_ch1 & RELAY_DC else "A")
-
-	# 	try:
-	# 		g1 = float(self.calibration[sect1])
-	# 		g2 = float(self.calibration[sect2])
-	# 	except (KeyError, TypeError):
-	# 		log.warning("Moku adc appears uncalibrated")
-	# 		g1 = g2 = 1
-	# 	log.debug("gain values for adc sections %s, %s = %f, %f", sect1, sect2, g1, g2)
-	# 	return (g1, g2)
 
 
 	def set_dbscale(self,dbm=True):

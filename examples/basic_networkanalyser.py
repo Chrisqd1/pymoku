@@ -26,20 +26,20 @@ m.attach_instrument(i)
 # ------------------------------
 # Set these parameters
 
-i.set_frontend(0, fiftyr=False, atten=False, ac=False)
+i.set_defaults()
+
+# i.set_frontend(0, fiftyr=True, atten=True, ac=False)
 
 f_start = 1e6 # Hz
 f_end = 20e6  # Hz
-sweep_length = 511
-log_scale = False 
-amp_ch1 = 1 # volts (assuming high impedance)
+sweep_length = 512
+log_scale = True 
+amp_ch1 = 5 # volts (assuming high impedance)
 amp_ch2 = 1 # volts (assuming high impedance)
-averaging_time = 1e-3 # seconds
-settling_time = 1e-3 # seconds
+averaging_time = 8e-4 # seconds
+settling_time = 1e-4 # seconds
 
-i.set_dbscale(False)
-
-i.set_defaults()
+i.set_dbscale(False),
 
 i.set_sweep_parameters(f_start, f_end, sweep_length, log_scale, amp_ch1, amp_ch2, averaging_time, settling_time) 
 # i.set_sweep_parameters(f_start,1e2, 2e3, 512, False, 0.5, 1, 0.01, 0.01)
@@ -51,6 +51,9 @@ i.set_sweep_parameters(f_start, f_end, sweep_length, log_scale, amp_ch1, amp_ch2
 #i.set_xmode(FULL_FRAME)
 
 # Push all new configuration to the Moku device
+# time.sleep(1.0)
+# i.set_frontend(0, True, True, False)
+
 i.commit()
 
 #gain_scales = i.gain_correction()
