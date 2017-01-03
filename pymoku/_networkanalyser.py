@@ -92,10 +92,10 @@ class NetAnFrame(_frame_instrument.DataFrame):
 			self.i_sig = [ input_signal[x] for x in range(0,len(input_signal ), 2 ) ]
 			self.q_sig = [ input_signal[x] for x in range(1,len(input_signal ), 2 ) ]
 	
-			self.magnitude = [ math.sqrt(I**2 + Q**2)/G if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
+			self.magnitude = [ math.sqrt(I**2 + Q**2)/G for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) if all ([I,Q,G]) ] 
 			self.magnitude = [ (10.0*math.log10(x) if dbscale else x) if x else None for x in self.magnitude]
 
-			self.phase = [ math.atan2(Q, I) if all ([I,Q]) else None for I,Q in zip(self.i_sig, self.q_sig)]
+			self.phase = [ math.atan2(Q, I) for I,Q in zip(self.i_sig, self.q_sig) if all ([I,Q]) ]
 
 		i_sig = []
 		q_sig = []
