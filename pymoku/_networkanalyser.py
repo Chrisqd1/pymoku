@@ -36,6 +36,7 @@ _NA_FREQ_SCALE		= 2**48 / _NA_DAC_SMPS
 _NA_INT_VOLTS_SCALE = (1.437*pow(2.0,-8.0))
 _NA_FXP_SCALE 		= 2.0**30
 
+
 '''
 	Plotting helper functions
 '''
