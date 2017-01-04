@@ -29,16 +29,16 @@ m.attach_instrument(i)
 
 i.set_frontend(0, True, False, False)
 
-f_start = 100 # Hz
+f_start = 1e6 # Hz
 f_end = 20e6  # Hz
 sweep_length = 512 
-log_scale = True 
-amp_ch1 = 0.5 # volts (assuming high impedance)
+log_scale = False 
+amp_ch1 = 1.1 # volts (assuming high impedance)
 amp_ch2 = 0.5 # volts (assuming high impedance)
-averaging_time = 1e-3 # seconds
-settling_time = 1e-3 # seconds
-settling_cycles = 0
-averaging_cycles = 0
+averaging_time = 0e-3 # seconds
+settling_time = 0e-3 # seconds
+settling_cycles = 1
+averaging_cycles = 1
 
 i.set_dbscale(False)
 

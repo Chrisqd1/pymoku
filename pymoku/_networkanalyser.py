@@ -365,16 +365,17 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 	commit.__doc__ = MokuInstrument.commit.__doc__
 
 
-	def set_sweep_parameters(self, start_frequency=1.0e3, end_frequency=1.0e6, sweep_length=512, log_scale=False, sweep_amplitude_ch1=0.5, sweep_amplitude_ch2=0.5, averaging_time=1e-6, settling_time=1e-6):
+	def set_sweep_parameters(self, start_frequency=1.0e3, end_frequency=1.0e6, sweep_length=512, log_scale=False, sweep_amplitude_ch1=0.5, sweep_amplitude_ch2=0.5, averaging_time=1e-6, settling_time=1e-6, averaging_cycles=0, settling_cycles=0):
 		self.sweep_freq_min = start_frequency
 		self.sweep_length = sweep_length
 		self.log_en = log_scale
 		self.sweep_amplitude_ch1 = sweep_amplitude_ch1 * self._get_dac_calibration()[0]
 		self.sweep_amplitude_ch2 = sweep_amplitude_ch2 * self._get_dac_calibration()[1]
 		self.averaging_time = averaging_time
-		self.settling_time = settling_time
-		self.settle_cycles = settling_cycles
 		self.averaging_cycles = averaging_cycles
+		self.settling_time = settling_time
+		self.settling_cycles = settling_cycles
+		
 
 		if log_scale:
 			print ((float(end_frequency) / float(start_frequency))**(1.0/(sweep_length - 1)) - 1)
@@ -523,8 +524,8 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 _na_reg_handlers = {
 	'sweep_freq_min':			((REG_NA_SWEEP_FREQ_MIN_H, REG_NA_SWEEP_FREQ_MIN_L),
-											to_reg_unsigned(0, 48, xform=lambda f: f * _NA_FREQ_SCALE),
-											from_reg_unsigned(0, 48, xform=lambda f: f / _NA_FREQ_SCALE)),
+											to_reg_unsigned(0, 48, xform=lambda obj, f: f * _NA_FREQ_SCALE),
+											from_reg_unsigned(0, 48, xform=lambda obj, f: f / _NA_FREQ_SCALE)),
 	'sweep_freq_delta':			((REG_NA_SWEEP_FREQ_DELTA_H, REG_NA_SWEEP_FREQ_DELTA_L),		
 											to_reg_signed(0, 48),
 											from_reg_signed(0, 48)),
@@ -535,21 +536,21 @@ _na_reg_handlers = {
 											to_reg_unsigned(0, 10),
 											from_reg_unsigned(0, 10)),
 	'settling_time':			((REG_NA_HOLD_OFF_L),
-											to_reg_unsigned(0, 32, xform=lambda t: t * _NA_FPGA_CLOCK),
-											from_reg_unsigned(0, 32, xform=lambda t: t / _NA_FPGA_CLOCK)),
+											to_reg_unsigned(0, 32, xform=lambda obj, t: t * _NA_FPGA_CLOCK),
+											from_reg_unsigned(0, 32, xform=lambda obj, t: t / _NA_FPGA_CLOCK)),
 	'averaging_time':			(REG_NA_AVERAGE_TIME,
-											to_reg_unsigned(0, 32, xform=lambda t: t * _NA_FPGA_CLOCK),
-											from_reg_unsigned(0, 32, xform=lambda t: t / _NA_FPGA_CLOCK)),
+											to_reg_unsigned(0, 32, xform=lambda obj, t: t * _NA_FPGA_CLOCK),
+											from_reg_unsigned(0, 32, xform=lambda obj, t: t / _NA_FPGA_CLOCK)),
 	'single_sweep':				(REG_NA_SINGLE_SWEEP,
 											to_reg_unsigned(0, 1),
 											from_reg_unsigned(0, 1)),
 	'sweep_amplitude_ch1':		(REG_NA_SWEEP_AMP_MULT,		
-											to_reg_unsigned(0, 16, xform=lambda a: a * _NA_DAC_V2BITS),
-											from_reg_unsigned(0, 16, xform=lambda a: a / _NA_DAC_V2BITS)),
+											to_reg_unsigned(0, 16, xform=lambda obj, a: a * _NA_DAC_V2BITS),
+											from_reg_unsigned(0, 16, xform=lambda obj, a: a / _NA_DAC_V2BITS)),
 	'sweep_amplitude_ch2':		(REG_NA_SWEEP_AMP_MULT,
-											to_reg_unsigned(16, 16, xform=lambda a: a * _NA_DAC_V2BITS),
-											from_reg_unsigned(16, 16, xform=lambda a: a / _NA_DAC_V2BITS)),
-	'settle_cycles':			(REG_NA_SETTLE_CYCLES,
+											to_reg_unsigned(16, 16, xform=lambda obj, a: a * _NA_DAC_V2BITS),
+											from_reg_unsigned(16, 16, xform=lambda obj, a: a / _NA_DAC_V2BITS)),
+	'settling_cycles':			(REG_NA_SETTLE_CYCLES,
 											to_reg_unsigned(0, 32),
 											from_reg_unsigned(0, 32)),
 	'averaging_cycles':			(REG_NA_AVERAGE_CYCLES,
