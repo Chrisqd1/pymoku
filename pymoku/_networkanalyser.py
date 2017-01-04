@@ -35,8 +35,31 @@ _NA_SCREEN_STEPS	= _NA_SCREEN_WIDTH - 1
 _NA_FPS				= 2
 _NA_FREQ_SCALE		= 2**48 / _NA_DAC_SMPS
 _NA_INT_VOLTS_SCALE = (1.437*pow(2.0,-8.0))
-_NA_FXP_SCALE 		= 2**31
+_NA_FXP_SCALE 		= 2.0**31
 
+'''
+	Plotting helper functions
+'''
+def calculate_freq_axis(start_freq, freq_step, sweep_length, log_scale):
+	# generates the frequency vector for plotting. The logarithmic scale is calculated on the FPGA with fixed point precision,
+	# hence the forced fxp calculation when log_scale = True.
+
+	F_start = start_freq*_NA_FREQ_SCALE
+	F_axis = [F_start]
+	freq_axis = [start_freq]
+
+	for k in range(1, sweep_length) :
+		if log_scale:
+			F_axis.append(math.floor(F_axis[k-1] * (freq_step + _NA_FXP_SCALE)/_NA_FXP_SCALE))
+		else :
+			freq_axis.append(freq_axis[k-1] + (freq_step/_NA_FREQ_SCALE))
+
+	if log_scale:
+		freq_axis = [(x/_NA_FREQ_SCALE) for x in F_axis]
+
+	# print 'FREQUENCY CALCULATION: ', freq_axis
+	# print 'F_fpga', F_start
+	return freq_axis
 
 class NetAnFrame(_frame_instrument.DataFrame):
 	"""
@@ -92,13 +115,10 @@ class NetAnFrame(_frame_instrument.DataFrame):
 			self.magnitude =  [ self._calculate_magnitude(self.i_sig[x], self.q_sig[x], dbscale) for x in range(len(self.q_sig)) ] #self._calculate_magnitude( self.i_sig[x], self.q_sig[x] )
 			self.phase = [ self._calculate_phase(self.i_sig[x], self.q_sig[x]) for x in range(len(self.q_sig)) ]
 
-
 		i_sig = []
 		q_sig = []
 		magnitude = []
 		phase = []
-
-
 
 	def __init__(self, scales):
 		super(NetAnFrame, self).__init__()
@@ -118,8 +138,6 @@ class NetAnFrame(_frame_instrument.DataFrame):
 
 	def __json__(self):
 		return { 'ch1' : self.ch1, 'ch2' : self.ch2, 'fs' : self.fs }
-
-
 
 	def process_complete(self):
 
@@ -148,8 +166,8 @@ class NetAnFrame(_frame_instrument.DataFrame):
 			# start_index = bisect_right(fs,f1)
 
 			# Set the frequency range of valid data in the current frame (same for both channels)
-			self.ch1_fs = self.calculate_freq_axis( scales['sweep_freq_min'], scales['sweep_freq_delta'], scales['sweep_length'], scales['log_en'] )
-			self.ch2_fs = self.calculate_freq_axis( scales['sweep_freq_min'], scales['sweep_freq_delta'], scales['sweep_length'], scales['log_en'] )
+			self.ch1_fs = calculate_freq_axis( scales['sweep_freq_min'], scales['sweep_freq_delta'], scales['sweep_length'], scales['log_en'] )
+			self.ch2_fs = calculate_freq_axis( scales['sweep_freq_min'], scales['sweep_freq_delta'], scales['sweep_length'], scales['log_en'] )
 
 			##################################
 			# Process Ch1 Data
@@ -166,7 +184,8 @@ class NetAnFrame(_frame_instrument.DataFrame):
 			#self.ch1.q_sig = [ self.ch1_bits[x] for x in range(1,len(self.ch1_bits ), 2 ) ]
 			#self.ch1.magnitude = [ self.ch1._calculate_magnitude(self.ch1.i_sig[x], self.ch1.q_sig[x]) for x in range(len(self.ch1.i_sig)) ] #[ math.sqrt(self.ch1.i_sig[x]**2 + self.ch1.q_sig[x]**2) for x in range(len(self.ch1.i_sig))]
 			self.ch1._generate_signals(self.ch1_bits, dbscale)
-
+		
+			self.ch1.magnitude = self.gain_correction(self.ch1.magnitude,scales['sweep_freq_delta'], scales['sweep_freq_min'], scales['sweep_length'], scales['averaging_time'], scales['log_en'])
 
 			# print self.ch1_bits
 			# Apply frequency dependent corrections
@@ -197,22 +216,6 @@ class NetAnFrame(_frame_instrument.DataFrame):
 
 		# A valid frame is there's at least one valid sample in each channel
 		return self.ch1 and self.ch2
-
-	'''
-		Plotting helper functions
-	'''
-	def calculate_freq_axis(self, start_freq, freq_step, sweep_length, log_scale):
-		# generates the frequency vector for plotting
-
-		freq_axis = [start_freq]
-
-		for k in range(1, sweep_length) :
-			if log_scale:
-				freq_axis.append(freq_axis[k-1] * (freq_step/_NA_FXP_SCALE))
-			else :
-				freq_axis.append(freq_axis[k-1] + (freq_step/_NA_FREQ_SCALE))
-
-		return freq_axis
 
 
 	def _get_freqScale(self, f):
@@ -282,6 +285,29 @@ class NetAnFrame(_frame_instrument.DataFrame):
 	def get_ycoord_fmt(self, y):
 		return self._get_yaxis_fmt(y,None)['ycoord']
 
+	def gain_correction(self, magnitude, sweep_freq_delta, sweep_freq_min, sweep_points, averaging_time, log_scale):
+		 
+		sweep_freq = calculate_freq_axis(sweep_freq_min, sweep_freq_delta, sweep_points, log_scale)
+		
+		points_per_freq = [math.ceil(f*averaging_time) for f in sweep_freq]
+
+		gain_scale = [0.0]*sweep_points
+		scaled_magnitude = [0.0]*sweep_points
+
+		for f in range(sweep_points) :
+			if sweep_freq[f] > 0.0 :
+				gain_scale[f] =  math.ceil(points_per_freq[f]*(_NA_FPGA_CLOCK/sweep_freq[f]))
+			else :
+				gain_scale[f] = 1.0
+
+			if magnitude[f] == None :
+				scaled_magnitude[f] = None
+			else :
+				scaled_magnitude[f] = magnitude[f]/gain_scale[f] 
+
+		print 'Gain scale: ', gain_scale
+		return scaled_magnitude
+
 
 class NetAn(_frame_instrument.FrameBasedInstrument):
 	""" Network Analyser instrument object. This should be instantiated and attached to a :any:`Moku` instance.
@@ -339,23 +365,7 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 	commit.__doc__ = MokuInstrument.commit.__doc__
 
 
-	# def set_sweep_parameters(self, start_freq, stop_freq, sweep_length, log_scale, sweep_amp_ch1, sweep_amp_ch2, averaging_time, settling_time):
-	# 	self.sweep_freq_min = start_freq
-	# 	self.sweep_length = sweep_length
-	# 	self.sweep_amplitude_ch1 = sweep_amp_ch1 * self._get_dac_calibration()[0]
-	# 	self.sweep_amplitude_ch2 = sweep_amp_ch2 * self._get_dac_calibration()[1]
-	# 	self.averaging_time = averaging_time
-	# 	self.settling_time = settling_time
-	# 	self.log_en = log_scale
-	# 	# self.sweep_freq_delta = self.set_sweep_freq_delta(start_freq, stop_freq, sweep_length, log_scale)
-
-	# 	sweep_delta = self.set_sweep_freq_delta(start_freq, stop_freq, sweep_length, log_scale)
-	# 	self.sweep_freq_delta = sweep_delta
-
-	# 	print 'CCC', sweep_delta
-
-
-	def set_sweep_parameters(self, start_frequency=1.0e3, end_frequency=1.0e6, sweep_length=512, log_scale=False, sweep_amplitude_ch1=0.5, sweep_amplitude_ch2=0.5, averaging_time=1e-6, settling_time=1e-6, settling_cycles=0,averaging_cycles=0):
+	def set_sweep_parameters(self, start_frequency=1.0e3, end_frequency=1.0e6, sweep_length=512, log_scale=False, sweep_amplitude_ch1=0.5, sweep_amplitude_ch2=0.5, averaging_time=1e-6, settling_time=1e-6):
 		self.sweep_freq_min = start_frequency
 		self.sweep_length = sweep_length
 		self.log_en = log_scale
@@ -380,7 +390,7 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 			self.sweep_freq_delta = round(((float(end_frequency) / float(start_frequency))**(1.0/(sweep_length - 1)) - 1) * _NA_FXP_SCALE)
 		else:
 			freq_delta = ((end_frequency - start_frequency)/(sweep_length-1)) 
-			self.sweep_freq_delta = ((end_frequency - start_frequency)/(sweep_length-1)) * _NA_FREQ_SCALE
+			self.sweep_freq_delta = round((end_frequency - start_frequency)/(sweep_length-1)) * _NA_FREQ_SCALE
 
 		return freq_delta
 		print 'Calculated frequency delta: ', freq_delta
@@ -392,9 +402,6 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		else:
 			return float(self.sweep_freq_delta) / _NA_FREQ_SCALE
 
-
-
-
 	def set_xmode(self, xmode):
 		self.x_mode = xmode
 
@@ -403,6 +410,8 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 		self.framerate = _NA_FPS
 		self.frame_length = _NA_SCREEN_WIDTH
+
+		self.sweep_freq_min = 1
 
 		self.en_in_ch1 = True
 		self.en_in_ch2 = True
@@ -433,7 +442,8 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 	def set_sweep_length(self, sweep_length):
 		self.sweep_length = sweep_length
 
-	def _calculate_scales(self):
+	def _calculate_scales(self):	
+
 		"""
 			Returns per-channel correction and scaling parameters required for interpretation of incoming bit frames
 			Parameters are based on current instrument state
@@ -458,7 +468,7 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 			log.warning("Moku appears uncalibrated")
 			g1 = g2 = 1
 
-		return {'g1': g1, 'g2': g2, 'dbscale': self.dbscale, 'sweep_freq_min': self.sweep_freq_min, 'sweep_freq_delta': self.sweep_freq_delta, 'sweep_length': self.sweep_length, 'log_en': self.log_en}
+		return {'g1': g1, 'g2': g2, 'dbscale': self.dbscale, 'sweep_freq_min': self.sweep_freq_min, 'sweep_freq_delta': self.sweep_freq_delta, 'sweep_length': self.sweep_length, 'log_en': self.log_en, 'averaging_time': self.averaging_time}
 
 
 	def _get_dac_calibration(self):
@@ -517,7 +527,7 @@ _na_reg_handlers = {
 											from_reg_unsigned(0, 48, xform=lambda f: f / _NA_FREQ_SCALE)),
 	'sweep_freq_delta':			((REG_NA_SWEEP_FREQ_DELTA_H, REG_NA_SWEEP_FREQ_DELTA_L),		
 											to_reg_signed(0, 48),
-											from_reg_unsigned(0, 48)),
+											from_reg_signed(0, 48)),
 	'log_en':					(REG_NA_LOG_EN,
 											to_reg_bool(0),
 											from_reg_bool(0)),

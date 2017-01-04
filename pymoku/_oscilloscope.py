@@ -243,13 +243,17 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		fmtstr += "\r\n"
 		return fmtstr
 
-	def datalogger_start(self, start, duration, use_sd, ch1, ch2, filetype):
+	def datalogger_start(self, start=0, duration=0, use_sd=True, ch1=True, ch2=False, filetype='csv'):
 		self._update_datalogger_params(ch1, ch2)
 		super(Oscilloscope, self).datalogger_start(start=start, duration=duration, use_sd=use_sd, ch1=ch1, ch2=ch2, filetype=filetype)
 
-	def datalogger_start_single(self, use_sd, ch1, ch2, filetype):
+	datalogger_start.__doc__ = _frame_instrument.FrameBasedInstrument.datalogger_start.__doc__
+
+	def datalogger_start_single(self, use_sd=True, ch1=True, ch2=False, filetype='csv'):
 		self._update_datalogger_params(ch1, ch2)
 		super(Oscilloscope, self).datalogger_start_single(use_sd=use_sd, ch1=ch1, ch2=ch2, filetype=filetype)
+
+	datalogger_start_single.__doc__ = _frame_instrument.FrameBasedInstrument.datalogger_start_single.__doc__
 
 	def _set_render(self, t1, t2, decimation):
 		self.render_mode = RDR_CUBIC #TODO: Support other
@@ -372,22 +376,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 
 	def _calculate_scales(self):
 		# Returns the bits-to-volts numbers for each channel in the current state
-
-		sect1 = "calibration.AG-%s-%s-%s-1" % ( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
-								  "L" if self.relays_ch1 & RELAY_LOWG else "H",
-								  "D" if self.relays_ch1 & RELAY_DC else "A")
-
-		sect2 = "calibration.AG-%s-%s-%s-1" % ( "50" if self.relays_ch2 & RELAY_LOWZ else "1M",
-								  "L" if self.relays_ch2 & RELAY_LOWG else "H",
-								  "D" if self.relays_ch2 & RELAY_DC else "A")
-		try:
-			g1 = 1 / float(self.calibration[sect1])
-			g2 = 1 / float(self.calibration[sect2])
-		except (KeyError, TypeError):
-			log.warning("Moku appears uncalibrated")
-			g1 = g2 = 1
-
-		log.debug("gain values for sections %s, %s = %f, %f; deci %f", sect1, sect2, g1, g2, self._deci_gain())
+		g1, g2 = self.adc_gains()
 
 		if self.ain_mode == _OSC_AIN_DECI:
 			g1 /= self._deci_gain()
@@ -404,15 +393,6 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 	# Bring in the docstring from the superclass for our docco.
 	commit.__doc__ = MokuInstrument.commit.__doc__
 
-	def attach_moku(self, moku):
-		super(Oscilloscope, self).attach_moku(moku)
-
-		try:
-			self.calibration = dict(self._moku._get_property_section("calibration"))
-		except:
-			log.warning("Can't read calibration values.")
-
-	attach_moku.__doc__ = MokuInstrument.attach_moku.__doc__
 
 _osc_reg_handlers = {
 	'source_ch1':		(REG_OSC_OUTSEL,	to_reg_unsigned(0, 1, allow_set=[OSC_SOURCE_ADC, OSC_SOURCE_DAC]),
