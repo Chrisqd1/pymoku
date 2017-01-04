@@ -10,8 +10,9 @@ logging.basicConfig(format='%(asctime)s:%(name)s:%(levelname)s::%(message)s')
 logging.getLogger('pymoku').setLevel(logging.DEBUG)
 
 # Use Moku.get_by_serial() or get_by_name() if you don't know the IP
-m = Moku.get_by_name('Oil Rigs')
-# m = Moku('192.168.69.53')
+
+# m = Moku.get_by_name('Oil Rigs')
+m = Moku('192.168.69.53')
 
 # i = m.discover_instrument()
 # if i is None or i.type != 'netan':
@@ -26,23 +27,28 @@ m.attach_instrument(i)
 # ------------------------------
 # Set these parameters
 
-i.set_defaults()
+i.set_frontend(0, False, False, False)
 
-# i.set_frontend(0, fiftyr=True, atten=True, ac=False)
-
-f_start = 10e3 # Hz
-f_end = 1.2e3  # Hz
-sweep_length = 3
+f_start = 1e6 # Hz
+f_end = 62.5e6  # Hz
+sweep_length = 512
 log_scale = True 
 amp_ch1 = 1 # volts (assuming high impedance)
 amp_ch2 = 1 # volts (assuming high impedance)
-averaging_time = 1 # seconds
-settling_time = 1e-4 # seconds
+averaging_time = 8e-3 # seconds
+settling_time = 1e-3 # seconds
+settling_cycles = 100
+averaging_cycles = 100
 
-i.set_dbscale(False),
+i.set_dbscale(True),
 
-i.set_sweep_parameters(f_start, f_end, sweep_length, log_scale, amp_ch1, amp_ch2, averaging_time, settling_time) 
-# i.set_sweep_parameters(f_start,1e2, 2e3, 512, False, 0.5, 1, 0.01, 0.01)
+i.set_sweep_parameters(f_start, f_end, sweep_length, log_scale, amp_ch1, amp_ch2, averaging_time, settling_time, settling_cycles, averaging_cycles) 
+
+
+
+
+
+
 
 #################################
 # END Instrument Configuration

@@ -20,6 +20,8 @@ REG_NA_SWEEP_LENGTH			= 71
 REG_NA_AVERAGE_TIME			= 72
 REG_NA_SINGLE_SWEEP			= 73
 REG_NA_SWEEP_AMP_MULT		= 74
+REG_NA_SETTLE_CYCLES		= 76
+REG_NA_AVERAGE_CYCLES		= 77
 
 
 _NA_ADC_SMPS		= 500e6
@@ -95,8 +97,8 @@ class NetAnFrame(_frame_instrument.DataFrame):
 			self.i_sig = [ input_signal[x] for x in range(0, 2*len(gain_correction ), 2 ) ]
 			self.q_sig = [ input_signal[x] for x in range(1, 2*len(gain_correction ), 2 ) ]
 	
-			# self.magnitude = [ math.sqrt(I**2 + Q**2)/G if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
-			self.magnitude = [ math.sqrt(I**2 + Q**2)/1e5 if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
+			self.magnitude = [ math.sqrt(I**2 + Q**2)/G if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
+			# self.magnitude = [ math.sqrt(I**2 + Q**2)/1e5 if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
 			self.magnitude = [ (10.0*math.log10(x) if dbscale else x) if x else None for x in self.magnitude]
 
 			self.phase = [ math.atan2(Q, I) if all ([I,Q]) else None for I,Q in zip(self.i_sig, self.q_sig)]
@@ -326,14 +328,18 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 	commit.__doc__ = MokuInstrument.commit.__doc__
 
 
-	def set_sweep_parameters(self, start_frequency=1.0e6, end_frequency=10.0e6, sweep_length=512, log_scale=False, sweep_amplitude_ch1=0.5, sweep_amplitude_ch2=0.5, averaging_time=8e-4, settling_time=1e-4):
+
+	def set_sweep_parameters(self, start_frequency=1.0e3, end_frequency=1.0e6, sweep_length=512, log_scale=False, sweep_amplitude_ch1=0.5, sweep_amplitude_ch2=0.5, averaging_time=1e-6, settling_time=1e-6, averaging_cycles=0, settling_cycles=0):
 		self.sweep_freq_min = start_frequency
 		self.sweep_length = sweep_length
 		self.log_en = log_scale
-		self.sweep_amplitude_ch1 = sweep_amplitude_ch1 * (self._get_dac_calibration()[0]/ _NA_DAC_BITDEPTH)
-		self.sweep_amplitude_ch2 = sweep_amplitude_ch2 * (self._get_dac_calibration()[1] /_NA_DAC_BITDEPTH)
+		self.sweep_amplitude_ch1 = sweep_amplitude_ch1 * (self._get_dac_calibration()[0]/ (_NA_DAC_BITDEPTH/2))
+		self.sweep_amplitude_ch2 = sweep_amplitude_ch2 * (self._get_dac_calibration()[1]/ (_NA_DAC_BITDEPTH/2))
 		self.averaging_time = averaging_time
+		self.averaging_cycles = averaging_cycles
 		self.settling_time = settling_time
+		self.settling_cycles = settling_cycles
+		
 
 		if log_scale:
 			print ((float(end_frequency) / float(start_frequency))**(1.0/(sweep_length - 1)) - 1)
@@ -494,6 +500,7 @@ _na_reg_handlers = {
 	'sweep_length':				(REG_NA_SWEEP_LENGTH,		
 											to_reg_unsigned(0, 10),
 											from_reg_unsigned(0, 10)),
+
 	'settling_time':			(REG_NA_HOLD_OFF_L,
 											to_reg_unsigned(0, 32, xform=lambda obj, t: t * _NA_FPGA_CLOCK),
 											from_reg_unsigned(0, 32, xform=lambda obj, t: t / _NA_FPGA_CLOCK)),
@@ -509,4 +516,10 @@ _na_reg_handlers = {
 	'sweep_amplitude_ch2':		(REG_NA_SWEEP_AMP_MULT,
 											to_reg_unsigned(16, 16, xform=lambda obj, a: a * _NA_DAC_V2BITS),
 											from_reg_unsigned(16, 16, xform=lambda obj, a: a / _NA_DAC_V2BITS)),
+	'settling_cycles':			(REG_NA_SETTLE_CYCLES,
+											to_reg_unsigned(0, 32),
+											from_reg_unsigned(0, 32)),
+	'averaging_cycles':			(REG_NA_AVERAGE_CYCLES,
+											to_reg_unsigned(0, 32),
+											from_reg_unsigned(0, 32)),
 }
