@@ -241,6 +241,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		# Define any (non- register-mapped) properties that are used when committing
 		# as a commit is called when the instrument is set running
 		self.trig_volts = 0
+		self.hysteresis_volts = 0.0
 
 	def _calculate_decimation(self, tspan):
 
@@ -327,10 +328,10 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		self.pretrigger = buffer_offset
 		self.offset = frame_offset
 
-
-	def _trigger_level(self, amplitude, source, scales):
-		# An amplitude in volts is scaled to an ADC level depending on the trigger input source 
-		# and its current configuration
+	def _source_volts_to_bits(self, amplitude, source, scales):
+		"""
+			Converts volts to bits depending on the source (ADC1/2, DAC1/2)
+		"""
 		if (source == OSC_TRIG_CH1):
 			level = amplitude/scales['gain_adc1']
 		elif (source == OSC_TRIG_CH2):
@@ -469,7 +470,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		:param hysteresis: Hysteresis to apply around trigger point."""
 		self.trig_ch = source
 		self.trig_edge = edge
-		self.hysteresis = hysteresis
+		self.hysteresis_volts = hysteresis
 		self.hf_reject = hf_reject
 		self.trig_mode = mode
 		self.trig_volts = level # Save the desired trigger voltage
@@ -550,7 +551,8 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 
 	def _update_dependent_regs(self, scales):
 		# Trigger level must be scaled depending on the current relay settings and chosen trigger source
-		self.trigger_level = self._trigger_level(self.trig_volts, self.trig_ch, scales)
+		self.trigger_level = self._source_volts_to_bits(self.trig_volts, self.trig_ch, scales)
+		self.hysteresis = self._source_volts_to_bits(self.hysteresis_volts, self.trig_ch, scales)
 		
 	def commit(self):
 		scales = self._calculate_scales()
@@ -584,6 +586,8 @@ _osc_reg_handlers = {
 
 	'hf_reject':		(REG_OSC_TRIGCTL,	to_reg_bool(12),			from_reg_bool(12)),
 	'hysteresis':		(REG_OSC_TRIGCTL,	to_reg_unsigned(16, 16),	from_reg_unsigned(16, 16)),
+	# The conversion of trigger level value to register value is dependent on the trigger source
+	# and therefore is performed in the _trigger_level() function above.
 	'trigger_level':	(REG_OSC_TRIGLVL,	to_reg_signed(0, 32),		from_reg_signed(0, 32)),
 
 	'loopback_mode_ch1':	(REG_OSC_ACTL,	to_reg_unsigned(0, 1, allow_set=[_OSC_LB_CLIP, _OSC_LB_ROUND]),
