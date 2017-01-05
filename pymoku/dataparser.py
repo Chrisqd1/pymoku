@@ -10,8 +10,6 @@ import re, struct
 
 sys.path.append(os.path.join(os.path.dirname(__file__), 'schema'))
 
-print sys.path
-
 import capnp
 import li_capnp as schema
 
@@ -65,7 +63,8 @@ class LIDataFileReader(object):
 		self.records = []
 		self.cal = []
 		self.proc = []
-		self.file = open(filename, 'rb')
+		self.filename = filename
+		self.file = open(filename, 'r+b')
 
 		# Pre-define instance fields so we can attach docstrings.
 
@@ -152,9 +151,16 @@ class LIDataFileReader(object):
 
 
 	def _parse_v2_header(self):
-		self.element_iterator = li_schema.LIFileElement.read_multiple(self.file)
+		# The capnp parser uses the underlying fileno and does its own buffering which renders it
+		# incompatible with Python's internal buffering (triggered when ever you call read()).
+		# TL;DR the Python file object used by capnp can't have been read() from, re-open it and
+		# seek past the header
+		self.file.close()
+		self.file = open(self.filename, 'r+b')
+		self.file.seek(3)
+		self.element_iterator = schema.LIFileElement.read_multiple(self.file)
 
-		element = self.element_iterator.next()
+		element = self.element_iterator.__next__()
 		if element.which() != 'header':
 			raise InvalidFileException('First Element is not a Header: %s', element.which())
 
@@ -215,8 +221,8 @@ class LIDataFileReader(object):
 
 	def _parse_chunk_v2(self):
 		try:
-			element = self.element_iterator.next()
-		except StopIteration:
+			element = self.element_iterator.__next__()
+		except:
 			return None, None
 
 		if element.which() != 'data':
@@ -252,7 +258,6 @@ class LIDataFileReader(object):
 			if not self._process_chunk():
 				break
 
-		log.debug(self.records)
 		# Make sure we have matched samples for all channels
 		if not all([ len(r) for r in self.records ]):
 			return None
@@ -341,13 +346,13 @@ class LIDataFileWriterV1(object):
 		for i in range(nch):
 			hdr += struct.pack('<d', calcoeffs[i])
 
-		hdr += struct.pack("<H", len(binstr)) + binstr
+		hdr += struct.pack("<H", len(binstr)) + binstr.encode()
 
 		for i in range(nch):
-			hdr += struct.pack("<H", len(procstr[i])) + procstr[i]
+			hdr += struct.pack("<H", len(procstr[i])) + procstr[i].encode()
 			
-		hdr += struct.pack("<H", len(fmtstr)) + fmtstr
-		hdr += struct.pack("<H", len(hdrstr)) + hdrstr
+		hdr += struct.pack("<H", len(fmtstr)) + fmtstr.encode()
+		hdr += struct.pack("<H", len(hdrstr)) + hdrstr.encode()
 
 		self.file.write(struct.pack("<H", len(hdr)))
 		self.file.write(hdr)
@@ -397,6 +402,8 @@ class LIDataFileWriterV2(object):
 		"""
 		self.file = open(filename, 'wb')
 
+		self.file.write(b'LI2')
+
 		element = schema.LIFileElement.new_message()
 		element.header.instrumentId = instr
 		element.header.instrumentVer = instrv
@@ -417,8 +424,7 @@ class LIDataFileWriterV2(object):
 
 		element.header.csvFmt = fmtstr
 		element.header.csvHeader = hdrstr
-
-		element.write(self.file)
+		self.file.write(element.to_bytes())
 
 
 	def add_data(self, data, ch, flush=False):
@@ -428,10 +434,11 @@ class LIDataFileWriterV2(object):
 		:param ch: Channel number to which the data belongs (0-indexed)
 		"""
 		element = schema.LIFileElement.new_message()
+		element.init('data')
 		element.data.channel = ch
 		element.data.data = data
 
-		element.write(self.file)
+		self.file.write(element.to_bytes())
 
 		if flush:
 			self.file.flush()
@@ -541,7 +548,6 @@ class LIDataParser(object):
 		self._currfmt 	= [[] for x in range(self.nch)]
 
 	def _process_records(self):
-		#for ch in [0, 1]:
 		for ch in range(self.nch):
 			for record in self.records[ch]:
 				rec = []
@@ -610,8 +616,8 @@ class LIDataParser(object):
 			self.dout = ''
 			return d
 
-		with open(fname, 'a') as f:
-			f.write(self.dout)
+		with open(fname, 'ab') as f:
+			f.write(self.dout.encode())
 
 		self.dout = ''
 

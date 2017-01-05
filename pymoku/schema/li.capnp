@@ -2,7 +2,7 @@
 
 struct LIHeader {
 	instrumentId	@0 :Int8;
-	intrumentVer	@1 :Int16;
+	instrumentVer	@1 :Int16;
 	timeStep		@2 :Float64;
 	startTime		@3 :Int64;
 	startOffset		@4 :Float64;
@@ -22,7 +22,7 @@ struct LIHeader {
 
 struct LIData {
 	channel			@0 :Int8;
-	data			@1 :Data;	
+	data			@1 :Data;
 }
 
 struct LIFileElement {
