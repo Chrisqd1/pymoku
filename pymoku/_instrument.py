@@ -318,6 +318,12 @@ class MokuInstrument(object):
 			log.warning("Can't read calibration values.")
 
 
+		try:
+			self.calibration = dict(self._moku._get_property_section("calibration"))
+		except:
+			log.warning("Can't read calibration values.")
+
+
 	def commit(self):
 		"""
 		Apply all modified settings.
@@ -507,7 +513,6 @@ _instr_reg_handlers = {
 
 	'render_deci_alt':	(REG_SCALE,		to_reg_unsigned(16, 16, xform=lambda obj, x: 128 * (x - 1), allow_range=(0,0x077E)),
 										from_reg_unsigned(16, 16, xform=lambda obj, x: (x / 128.0) + 1)),
-
 	# Direct Downsampling accessors
 	'render_dds':		(REG_SCALE,		to_reg_unsigned(0, 16, xform=lambda obj, x: x - 1),
 										from_reg_unsigned(0, 16, xform=lambda obj, x: x + 1)),
