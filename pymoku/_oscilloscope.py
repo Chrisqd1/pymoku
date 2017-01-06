@@ -283,7 +283,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		# Calculate the number of pretrigger samples and offset it by an additional (CubicRatio) samples
 		buffer_smp_rate = ADC_SMP_RATE/decimation
 		buffer_offset_secs = -1.0 * t1
-		buffer_offset = math.ceil(min(max(math.ceil(buffer_offset_secs * buffer_smp_rate / 4.0), -2**28), (2**12)-1))
+		buffer_offset = math.ceil(min(max(math.ceil(buffer_offset_secs * buffer_smp_rate / 4.0), _OSC_MAX_POSTTRIGGER), _OSC_MAX_PRETRIGGER))
 
 		# Apply a correction in pretrigger because of the way cubic interpolation occurs when rendering
 		return buffer_offset
