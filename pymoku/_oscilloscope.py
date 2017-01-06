@@ -53,6 +53,9 @@ _OSC_BUFLEN			= CHN_BUFLEN
 _OSC_SCREEN_WIDTH	= 1024
 _OSC_FPS			= 10
 
+_OSC_MAX_PRETRIGGER = (2**12)-1
+_OSC_MAX_POSTTRIGGER = -2**28
+
 class VoltsFrame(_frame_instrument.DataFrame):
 	"""
 	Object representing a frame of data in units of Volts. This is the native output format of
@@ -243,16 +246,21 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		self.trig_volts = 0
 		self.hysteresis_volts = 0.0
 
-	def _calculate_decimation(self, tspan):
+	def _calculate_decimation(self, t1, t2):
 
 		# Calculate time the buffer should contain
 		# Want one frame to be approximately 1/3 of a buffer (RD ~ 5)
 		# or the full buffer if it would take longer than 100ms
 
 		# TODO: Put some limits on what the span/decimation can be
-		buffer_span = float(tspan) 
+		if (t2 < 0):
+			buffer_span = -float(t1)
+		else:
+			buffer_span = float(t2 - t1)
 
-		return math.ceil(ADC_SMP_RATE * buffer_span / _OSC_BUFLEN)
+		deci = math.ceil(ADC_SMP_RATE * buffer_span / _OSC_BUFLEN)
+		
+		return deci
 
 
 	def _calculate_render_downsample(self, t1, t2, decimation):
@@ -318,7 +326,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		if(t2 <= t1):
 			raise Exception("Timebase must be non-zero, with t1 < t2. Attempted to set t1=%f and t2=%f" % (t1, t2))
 
-		decimation = self._calculate_decimation(t2-t1)
+		decimation = self._calculate_decimation(t1,t2)
 		render_decimation = self._calculate_render_downsample(t1, t2, decimation)
 		buffer_offset = self._calculate_buffer_offset(t1, decimation)
 		frame_offset = self._calculate_render_offset(t1, decimation)
