@@ -30,19 +30,20 @@ m.attach_instrument(i)
 i.set_frontend(0, False, False, False)
 
 f_start = 1e6 # Hz
-f_end = 62.5e6  # Hz
+f_end = 124.9e6  # Hz
 sweep_length = 512
-log_scale = True 
+log_scale = False 
 amp_ch1 = 1 # volts (assuming high impedance)
 amp_ch2 = 1 # volts (assuming high impedance)
-averaging_time = 8e-3 # seconds
+averaging_time = 1e-5 # seconds
 settling_time = 1e-3 # seconds
-settling_cycles = 100
-averaging_cycles = 100
+averaging_cycles = 100.0
+settling_cycles = 1
 
-i.set_dbscale(True),
 
-i.set_sweep_parameters(f_start, f_end, sweep_length, log_scale, amp_ch1, amp_ch2, averaging_time, settling_time, settling_cycles, averaging_cycles) 
+i.set_dbscale(False),
+
+i.set_sweep_parameters(f_start, f_end, sweep_length, log_scale, amp_ch1, amp_ch2, averaging_time, settling_time, averaging_cycles, settling_cycles) 
 
 
 
@@ -110,8 +111,9 @@ try:
 		# Frequency axis shouldn't change, but to be sure
 		line1.set_xdata(frame.ch1_fs)
 		line2.set_xdata(frame.ch2_fs)
-		print "ch1_axis", frame.ch1_fs
-		print "start freq", i.sweep_freq_min
+		print "ch1_axis: ", frame.ch1_fs
+		print "start freq: ", i.sweep_freq_min
+		print "frequency delta: ", i.sweep_freq_delta
 		# if log_scale:
 		# 	print "freq step", i.sweep_freq_delta/2.0**30
 		# else :

@@ -56,10 +56,10 @@ def calculate_freq_axis(start_freq, freq_step, sweep_length, log_scale):
 		if log_scale:
 			F_axis.append(math.floor(math.floor(F_axis[k-1] * freq_step/_NA_FXP_SCALE) + F_axis[k-1]))
 		else :
-			freq_axis.append(freq_axis[k-1] + (freq_step/_NA_FREQ_SCALE))
+			F_axis.append(F_axis[k-1] + freq_step)
 
-	if log_scale:
-		freq_axis = [(x/_NA_FREQ_SCALE) for x in F_axis]
+	freq_axis = [(x/_NA_FREQ_SCALE) for x in F_axis]
+
 
 	# print 'FREQUENCY CALCULATION: ', freq_axis
 	# print 'F_fpga', F_start
@@ -99,7 +99,7 @@ class NetAnFrame(_frame_instrument.DataFrame):
 	
 			self.magnitude = [ math.sqrt(I**2 + Q**2)/G if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
 			# self.magnitude = [ math.sqrt(I**2 + Q**2)/1e5 if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
-			self.magnitude = [ (10.0*math.log10(x) if dbscale else x) if x else None for x in self.magnitude]
+			self.magnitude = [ (20.0*math.log10(x) if dbscale else x) if x else None for x in self.magnitude]
 
 			self.phase = [ math.atan2(Q, I) if all ([I,Q]) else None for I,Q in zip(self.i_sig, self.q_sig)]
 
@@ -327,6 +327,14 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 	# Bring in the docstring from the superclass for our docco.
 	commit.__doc__ = MokuInstrument.commit.__doc__
 
+	def set_sweep_freq_delta(self, start_frequency, end_frequency, sweep_length, log_scale):
+		
+		if log_scale:
+			sweep_freq_delta = round(((end_frequency / start_frequency)**(1.0/(sweep_length - 1)) - 1) * _NA_FXP_SCALE)
+		else:
+			sweep_freq_delta = round(((end_frequency - start_frequency)/(sweep_length-1)) * _NA_FREQ_SCALE)
+
+		return sweep_freq_delta
 
 
 	def set_sweep_parameters(self, start_frequency=1.0e3, end_frequency=1.0e6, sweep_length=512, log_scale=False, sweep_amplitude_ch1=0.5, sweep_amplitude_ch2=0.5, averaging_time=1e-6, settling_time=1e-6, averaging_cycles=0, settling_cycles=0):
@@ -339,26 +347,9 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		self.averaging_cycles = averaging_cycles
 		self.settling_time = settling_time
 		self.settling_cycles = settling_cycles
-		
 
-		if log_scale:
-			print ((float(end_frequency) / float(start_frequency))**(1.0/(sweep_length - 1)) - 1)
-			self.sweep_freq_delta = round(((float(end_frequency) / float(start_frequency))**(1.0/(sweep_length - 1)) - 1) * _NA_FXP_SCALE)
-		else:
-			print ((end_frequency - start_frequency)/(sweep_length-1)) 
-			self.sweep_freq_delta = ((end_frequency - start_frequency)/(sweep_length-1)) * _NA_FREQ_SCALE
+		self.sweep_freq_delta = self.set_sweep_freq_delta(start_frequency, end_frequency, sweep_length, log_scale)
 			
-
-	def set_sweep_freq_delta(self, start_freq, stop_freq, sweep_length, log_scale):
-		if log_scale:
-			freq_delta = ((float(end_frequency) / float(start_frequency))**(1.0/(sweep_length - 1)) - 1)
-			self.sweep_freq_delta = (((float(end_frequency) / float(start_frequency))**(1.0/(sweep_length - 1)) - 1) * _NA_FXP_SCALE)
-		else:
-			freq_delta = ((end_frequency - start_frequency)/(sweep_length-1)) 
-			self.sweep_freq_delta = ((end_frequency - start_frequency)/(sweep_length-1)) * _NA_FREQ_SCALE
-
-		return freq_delta
-		# print 'Calculated frequency delta: ', freq_delta
 
 	def get_sweep_freq_delta(self):
 
@@ -367,8 +358,10 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		else:
 			return float(self.sweep_freq_delta) / _NA_FREQ_SCALE
 
+
 	def set_xmode(self, xmode):
 		self.x_mode = xmode
+
 
 	def set_defaults(self):
 		super(NetAn, self).set_defaults()
@@ -406,13 +399,28 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 	def set_sweep_length(self, sweep_length):
 		self.sweep_length = sweep_length
 
-	def gain_correction(self, sweep_freq_delta, sweep_freq_min, sweep_points, averaging_time, log_scale):
+	def gain_correction(self, sweep_freq_delta, sweep_freq_min, sweep_points, averaging_time, averaging_cycles, log_scale):
 	 
 		sweep_freq = calculate_freq_axis(sweep_freq_min, sweep_freq_delta, sweep_points, log_scale)
-		points_per_freq = [math.ceil(f*averaging_time) for f in sweep_freq]
+
+		print sweep_freq
+		
+		cycles_time = [0.0]*sweep_points
+
+		if all(sweep_freq) != 0 :
+			cycles_time = [ averaging_cycles / sweep_freq[n] for n in range(sweep_points)]
+
+
+
+		# if cycles_time > averaging_time : 
+		# 	points_per_freq = [math.ceil(sweep_freq[x]*cycles_time[x]) for x in range(sweep_points)]
+		# else :
+		
+
+		points_per_freq = [math.ceil(a*max(averaging_time, b)) for (a,b) in zip(sweep_freq, cycles_time)]
+
 
 		gain_scale = [0.0]*sweep_points
-		scaled_magnitude = [0.0]*sweep_points
 
 		for f in range(sweep_points) :
 			if sweep_freq[f] > 0.0 :
@@ -420,6 +428,13 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 			else :
 				gain_scale[f] = 1.0
 
+		print 'Cycles per frequency: ', points_per_freq
+		print 'Gain scale: ', gain_scale
+		print 'Cycles time: ', cycles_time
+		print 'Sweep freq: ', sweep_freq
+		print 'Averaging cycles: ', averaging_cycles
+		print 'Averaging time: ', averaging_time
+		
 		return gain_scale
 
 
@@ -454,7 +469,7 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 		return {'g1': g1, 'g2': g2, 
 				'dbscale': self.dbscale, 
-				'gain_correction' : self.gain_correction(self.sweep_freq_delta, self.sweep_freq_min, self.sweep_length, self.averaging_time, self.log_en),
+				'gain_correction' : self.gain_correction(self.sweep_freq_delta, self.sweep_freq_min, self.sweep_length, self.averaging_time, self.averaging_cycles, self.log_en),
 				'sweep_freq_min': self.sweep_freq_min, 
 				'sweep_freq_delta': self.sweep_freq_delta,
 				'sweep_length': self.sweep_length, 
