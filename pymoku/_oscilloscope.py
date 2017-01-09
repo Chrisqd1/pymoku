@@ -42,8 +42,8 @@ OSC_ROLL			= ROLL
 OSC_SWEEP			= SWEEP
 OSC_FULL_FRAME		= FULL_FRAME
 
-_OSC_LB_ROUND		= 0
-_OSC_LB_CLIP		= 1
+OSC_LB_ROUND		= 0
+OSC_LB_CLIP			= 1
 
 _OSC_AIN_DDS		= 0
 _OSC_AIN_DECI		= 1
@@ -113,7 +113,7 @@ class VoltsFrame(_frame_instrument.DataFrame):
 			if (src == OSC_SOURCE_ADC):
 				scale = adc
 			elif (src == OSC_SOURCE_DAC):
-				if(lmode == _OSC_LB_CLIP):
+				if(lmode == OSC_LB_CLIP):
 					scale = dac 
 				else: # Rounding mode
 					scale = dac * 16
@@ -478,12 +478,14 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		:param hysteresis: Hysteresis to apply around trigger point."""
 		self.trig_ch = source
 		self.trig_edge = edge
+
 		self.hysteresis_volts = hysteresis
+
 		self.hf_reject = hf_reject
 		self.trig_mode = mode
 		self.trig_volts = level # Save the desired trigger voltage
 
-	def set_source(self, ch, source):
+	def set_source(self, ch, source, lmode=OSC_LB_ROUND):
 		""" Sets the source of the channel data to either the ADC input or internally looped-back DAC output.
 
 		This feature allows the user to preview the Signal Generator outputs.
@@ -493,11 +495,18 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 
 		:type source: OSC_SOURCE_ADC, OSC_SOURCE_DAC
 		:param source: Data source
+
+		:type lmode: OSC_LB_ROUND, OSC_LB_CLIP
+		:param lmode: DAC Loopback mode (ignored for ADC sources)
 		"""
 		if ch == 1:
 			self.source_ch1 = source
+			if source == OSC_SOURCE_DAC:
+				self.loopback_mode_ch1 = lmode
 		elif ch == 2:
 			self.source_ch2 = source
+			if source == OSC_SOURCE_DAC:
+				self.loopback_mode_ch2 = lmode
 		else:
 			raise ValueOutOfRangeException("Incorrect channel number %d", ch)
 
@@ -598,9 +607,9 @@ _osc_reg_handlers = {
 	# and therefore is performed in the _trigger_level() function above.
 	'trigger_level':	(REG_OSC_TRIGLVL,	to_reg_signed(0, 32),		from_reg_signed(0, 32)),
 
-	'loopback_mode_ch1':	(REG_OSC_ACTL,	to_reg_unsigned(0, 1, allow_set=[_OSC_LB_CLIP, _OSC_LB_ROUND]),
+	'loopback_mode_ch1':	(REG_OSC_ACTL,	to_reg_unsigned(0, 1, allow_set=[OSC_LB_CLIP, OSC_LB_ROUND]),
 											from_reg_unsigned(0, 1)),
-	'loopback_mode_ch2':	(REG_OSC_ACTL,	to_reg_unsigned(1, 1, allow_set=[_OSC_LB_CLIP, _OSC_LB_ROUND]),
+	'loopback_mode_ch2':	(REG_OSC_ACTL,	to_reg_unsigned(1, 1, allow_set=[OSC_LB_CLIP, OSC_LB_ROUND]),
 											from_reg_unsigned(1, 1)),
 	'ain_mode':			(REG_OSC_ACTL,		to_reg_unsigned(16,2, allow_set=[_OSC_AIN_DDS, _OSC_AIN_DECI]),
 											from_reg_unsigned(16,2)),
