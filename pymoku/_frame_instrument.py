@@ -302,6 +302,9 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 		self._moku._stream_start()
 
+		self.logfile = str(self.datalogger_status()[4]).strip()
+
+
 	def datalogger_start_single(self, use_sd=True, ch1=True, ch2=False, filetype='csv'):
 		""" Grab all currently-recorded data at full rate.
 
@@ -350,6 +353,8 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 			self._dlsub_init(self.tag)
 
 		self._moku._stream_start()
+
+		self.logfile = str(self.datalogger_status()[4]).strip()
 
 	def datalogger_stop(self):
 		""" Stop a recording session previously started with :py:func:`datalogger_start`
@@ -434,7 +439,7 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 		The base filename doesn't include the file extension as multiple files might be
 		recorded simultaneously with different extensions."""
-		return str(self.datalogger_status()[4]).strip()
+		return self.logfile.split(':')[1]
 
 	def datalogger_error(self):
 		""" Returns a string representing the current error, or *None* if the session is not in error."""
