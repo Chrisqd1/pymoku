@@ -624,13 +624,15 @@ class Moku(object):
 			if calculate_sha:
 				chk = reply[:64].decode('ascii')
 				reply = reply[64:]
-			else:
+			elif calculate_crc:
 				chk = struct.unpack("<I", reply[:4])
 				reply = reply[4:]
+			else:
+				chk = ''
 
 			bl, fl = struct.unpack("<QB", reply[:9])
 			reply = reply[9:]
-			names.append((reply[:fl].decode('ascii'), chk, bl))
+			names.append((reply[:fl].decode(), chk, bl))
 			reply = reply[fl:]
 
 		return names
