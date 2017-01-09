@@ -6,7 +6,7 @@ logging.basicConfig(format='%(asctime)s:%(name)s:%(levelname)s::%(message)s')
 logging.getLogger('pymoku').setLevel(logging.INFO)
 
 # Use Moku.get_by_serial() or get_by_name() if you don't know the IP
-m = Moku.get_by_name('example')
+m = Moku('192.168.69.122')#.get_by_name('example')
 
 i = Oscilloscope()
 m.attach_instrument(i)
