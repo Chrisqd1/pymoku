@@ -412,7 +412,7 @@ class Moku(object):
 		return r[0][1]
 
 
-	def _stream_prep(self, ch1, ch2, start, end, timestep, tag, binstr, procstr, fmtstr, hdrstr, fname, ftype='csv', use_sd=True):
+	def _stream_prep(self, ch1, ch2, start, end, offset, timestep, tag, binstr, procstr, fmtstr, hdrstr, fname, ftype='csv', use_sd=True):
 		mp = 'e' if use_sd else 'i'
 
 		if start < 0 or end < start:
@@ -431,7 +431,7 @@ class Moku(object):
 		pkt = struct.pack("<BBB", 0x53, 0, 1) #TODO: Proper sequence number
 		pkt += tag.encode('ascii')
 		pkt += mp.encode('ascii')
-		pkt += struct.pack("<IIBd", start, end, flags, timestep)
+		pkt += struct.pack("<IIdBd", start, end, offset, flags, timestep)
 		pkt += struct.pack("<H", len(fname))
 		pkt += fname.encode('ascii')
 		pkt += struct.pack("<H", len(binstr))

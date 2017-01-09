@@ -293,7 +293,7 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		self.x_mode = _instrument.ROLL
 		self.commit()
 
-		self._moku._stream_prep(ch1=ch1, ch2=ch2, start=start, end=start + duration, timestep=self.timestep,
+		self._moku._stream_prep(ch1=ch1, ch2=ch2, start=start, end=start + duration, offset=0, timestep=self.timestep,
 			binstr=self.binstr, procstr=self.procstr, fmtstr=self.fmtstr, hdrstr=self.hdrstr,
 			fname=fname, ftype=filetype, tag=self.tag, use_sd=use_sd)
 
@@ -345,7 +345,8 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		if not all([ len(s) for s in [self.binstr, self.procstr, self.fmtstr, self.hdrstr]]):
 			raise InvalidOperationException("Instrument currently doesn't support data logging")
 
-		self._moku._stream_prep(ch1=ch1, ch2=ch2, start=0, end=0, timestep=self.timestep,
+		#TODO: Work out the offset from current span (instrument dependent?)
+		self._moku._stream_prep(ch1=ch1, ch2=ch2, start=0, end=0, timestep=self.timestep, offset=0,
 			binstr=self.binstr, procstr=self.procstr, fmtstr=self.fmtstr, hdrstr=self.hdrstr,
 			fname=fname, ftype=filetype, tag=self.tag, use_sd=use_sd)
 
