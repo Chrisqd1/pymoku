@@ -895,11 +895,6 @@ class Moku(object):
 		return running
 
 	def close(self):
-		"""Close connection to the Moku:Lab.
-
-		This should be called before any user script terminates."""
-		if self._instrument is not None:
-			self._instrument.set_running(False)
-
+		"""Close connection to the Moku:Lab."""
 		self._conn.close()
 		self._ctx.destroy()
