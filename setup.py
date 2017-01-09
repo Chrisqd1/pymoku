@@ -8,7 +8,9 @@ setup(
 	version=version.release,
 	author='Ben Nizette',
 	author_email='ben.nizette@liquidinstruments.com',
-	packages=['pymoku',],
+	packages=['pymoku', 'pymoku.schema'],
+	package_dir={'pymoku.schema': 'pymoku/schema'},
+	package_data={'pymoku.schema': ['*.capnp']},
 	license='Commercial',
 	long_description=open('README.md').read(),
 

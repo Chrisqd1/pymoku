@@ -8,10 +8,8 @@ import os, os.path, time, datetime, math
 import logging
 import re, struct
 
-sys.path.append(os.path.join(os.path.dirname(__file__), 'schema'))
-
 import capnp
-import li_capnp as schema
+import pymoku.schema.li_capnp as schema
 
 log = logging.getLogger(__name__)
 
