@@ -37,6 +37,7 @@ single_sweep = False
 amp_ch1 = 1.0 # Volts peak-to-peak (assuming 50 Ohm impedance)
 amp_ch2 = 1.0 # Volts peak-to-peak (assuming 50 Ohm impedance)
 
+
 averaging_time = 1e-6 # seconds
 settling_time = 1e-6 # seconds
 
@@ -55,18 +56,8 @@ i.set_frontend(2, fiftyr=True, atten=True, ac=False)
 # END Instrument Configuration
 #################################
 
-#i.set_xmode(FULL_FRAME)
-
-# Push all new configuration to the Moku device
-# time.sleep(1.0)
-# i.set_frontend(0, True, True, False)
-
 i.commit()
 
-
-
-print "Sweep frequency delta: ", i.get_sweep_freq_delta()
-print "Minimum frequency: ", i.get_sweep_freq_min()
 print "Channel 1 Amplitude: ", i.sweep_amp_volts_ch1
 
 # Set up basic plot configurations

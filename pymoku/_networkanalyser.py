@@ -54,10 +54,10 @@ def calculate_freq_axis(start_freq, freq_step, sweep_length, log_scale):
 		if log_scale:
 			F_axis.append(math.floor(math.floor(F_axis[k-1] * freq_step/_NA_FXP_SCALE) + F_axis[k-1]))
 		else :
-			freq_axis.append(freq_axis[k-1] + (freq_step/_NA_FREQ_SCALE))
+			F_axis.append(F_axis[k-1] + freq_step)
 
-	if log_scale:
-		freq_axis = [(x/_NA_FREQ_SCALE) for x in F_axis]
+	freq_axis = [(x/_NA_FREQ_SCALE) for x in F_axis]
+
 
 	# print 'FREQUENCY CALCULATION: ', freq_axis
 	# print 'F_fpga', F_start
@@ -97,6 +97,7 @@ class NetAnFrame(_frame_instrument.DataFrame):
 	
 			self.magnitude = [ math.sqrt(I**2 + Q**2)/G/front_end_scale if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
 			self.magnitude = [ ((20.0*math.log10(x/(output_amp/2)) if output_amp != 0 else None) if dbscale else x) if x else None for x in self.magnitude]
+
 			self.phase = [ math.atan2(Q, I) if all ([I,Q]) else None for I,Q in zip(self.i_sig, self.q_sig)]
 
 			if len(self.magnitude) !=  len(gain_correction) or len(self.phase) !=  len(gain_correction) :
@@ -319,6 +320,15 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 	# Bring in the docstring from the superclass for our docco.
 	commit.__doc__ = MokuInstrument.commit.__doc__
 
+	def set_sweep_freq_delta(self, start_frequency, end_frequency, sweep_length, log_scale):
+		
+		if log_scale:
+			sweep_freq_delta = round(((end_frequency / start_frequency)**(1.0/(sweep_length - 1)) - 1) * _NA_FXP_SCALE)
+		else:
+			sweep_freq_delta = round(((end_frequency - start_frequency)/(sweep_length-1)) * _NA_FREQ_SCALE)
+
+		return sweep_freq_delta
+
 
 	def set_sweep_parameters(self, start_frequency, end_frequency, sweep_length, log_scale, single_sweep, sweep_amplitude_ch1, sweep_amplitude_ch2, averaging_time, settling_time, averaging_cycles, settling_cycles):
 		self.sweep_freq_min = start_frequency
@@ -351,6 +361,7 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		return sweep_freq_delta
 
 
+
 	def get_sweep_freq_delta(self):
 
 		if self.log_en:
@@ -361,6 +372,7 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 	def set_xmode(self, xmode):
 		self.x_mode = xmode
+
 
 	def set_defaults(self):
 		super(NetAn, self).set_defaults()
@@ -379,25 +391,37 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		self.set_xmode(FULL_FRAME)
 		self.render_mode = RDR_DDS
 
+
 	def set_start_freq(self, start_freq):
 		self.sweep_freq_min = start_freq
+
 
 	def get_sweep_freq_min(self) :
 		return float(self.sweep_freq_min)
 
+
 	def set_stop_freq(self, stop_freq):
 		self.stop_freq = stop_freq
+
 
 	def set_sweep_length(self, sweep_length):
 		self.sweep_length = sweep_length
 
-	def gain_correction(self, sweep_freq_delta, sweep_freq_min, sweep_points, averaging_time, log_scale):
+
+	def gain_correction(self, sweep_freq_delta, sweep_freq_min, sweep_points, averaging_time, averaging_cycles, log_scale):
 	 
 		sweep_freq = calculate_freq_axis(sweep_freq_min, sweep_freq_delta, sweep_points, log_scale)
-		points_per_freq = [math.ceil(f*averaging_time) for f in sweep_freq]
+
+		print sweep_freq
+		
+		cycles_time = [0.0]*sweep_points
+
+		if all(sweep_freq) != 0 :
+			cycles_time = [ averaging_cycles / sweep_freq[n] for n in range(sweep_points)]
+
+		points_per_freq = [math.ceil(a*max(averaging_time, b)) for (a,b) in zip(sweep_freq, cycles_time)]
 
 		gain_scale = [0.0]*sweep_points
-		scaled_magnitude = [0.0]*sweep_points
 
 		for f in range(sweep_points) :
 			if sweep_freq[f] > 0.0 :
@@ -405,6 +429,13 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 			else :
 				gain_scale[f] = 1.0
 
+		print 'Cycles per frequency: ', points_per_freq
+		print 'Gain scale: ', gain_scale
+		print 'Cycles time: ', cycles_time
+		print 'Sweep freq: ', sweep_freq
+		print 'Averaging cycles: ', averaging_cycles
+		print 'Averaging time: ', averaging_time
+		
 		return gain_scale
 
 
@@ -438,7 +469,7 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 		return {'g1': g1, 'g2': g2, 
 				'dbscale': self.dbscale, 
-				'gain_correction' : self.gain_correction(self.sweep_freq_delta, self.sweep_freq_min, self.sweep_length, self.averaging_time, self.log_en),
+				'gain_correction' : self.gain_correction(self.sweep_freq_delta, self.sweep_freq_min, self.sweep_length, self.averaging_time, self.averaging_cycles, self.log_en),
 				'sweep_freq_min': self.sweep_freq_min, 
 				'sweep_freq_delta': self.sweep_freq_delta,
 				'sweep_length': self.sweep_length, 
@@ -447,8 +478,6 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 				'sweep_amplitude_ch1' : self.sweep_amp_volts_ch1,
 				'sweep_amplitude_ch2' : self.sweep_amp_volts_ch2,
 				}
-
-
 
 
 	def _get_dac_calibration(self):
@@ -467,7 +496,6 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		log.debug("gain values for DAC sections %s, %s = %f, %f", sect1, sect2, g1, g2)
 
 		return (g1, g2)
-
 
 
 	def set_dbscale(self,dbm=True):
