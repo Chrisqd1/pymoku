@@ -64,7 +64,7 @@ _SG_AMPSCALE		= 4.0 / (2**15 - 1)
 _SG_DEPTHSCALE		= 1.0 / 2**15
 _SG_MAX_RISE		= 1e9 - 1
 
-class SignalGenerator(MokuInstrument):
+class BasicSignalGenerator(MokuInstrument):
 	"""
 
 	.. automethod:: pymoku.instruments.SignalGenerator.__init__
@@ -77,7 +77,7 @@ class SignalGenerator(MokuInstrument):
 	"""
 	def __init__(self):
 		""" Create a new SignalGenerator instance, ready to be attached to a Moku."""
-		super(SignalGenerator, self).__init__()
+		super(BasicSignalGenerator, self).__init__()
 		self._register_accessors(_siggen_reg_handlers)
 
 		self.id = 4
@@ -86,7 +86,7 @@ class SignalGenerator(MokuInstrument):
 	def set_defaults(self):
 		""" Set sane defaults.
 		Defaults are outputs off, amplitudes and frequencies zero."""
-		super(SignalGenerator, self).set_defaults()
+		super(BasicSignalGenerator, self).set_defaults()
 		self.out1_enable = False
 		self.out2_enable = False
 		self.out1_amplitude = 0
@@ -211,6 +211,13 @@ class SignalGenerator(MokuInstrument):
 			risetime = symmetry,
 			falltime = 1 - symmetry)
 
+class SignalGenerator(BasicSignalGenerator):
+
+	def __init__(self):
+		""" Create a new SignalGenerator instance, ready to be attached to a Moku."""
+		super(SignalGenerator, self).__init__()
+		self._register_accessors(_siggen_mod_reg_handlers)
+
 	def synth_modulate(self, ch, type, source, depth, frequency=0.0):
 		"""
 		Set up modulation on an output channel.
@@ -231,7 +238,8 @@ class SignalGenerator(MokuInstrument):
 		:param frequency: Frequency of internally-generated sine wave modulation. This parameter is ignored if the source is set to ADC or DAC.
 		"""
 		# Get the calibration coefficients of the front end and output
-		dac1, dac2, adc1, adc2 = self._get_calibration()
+		dac1, dac2 = self.dac_gains()
+		adc1, adc2 = self.adc_gains()
 
 		if ch == 1:
 			self.out1_modulation = type
@@ -270,6 +278,36 @@ class SignalGenerator(MokuInstrument):
 			res = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
 			self.mod2_amplitude = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
 
+_siggen_mod_reg_handlers = {
+	'out1_modulation':	(REG_SG_WAVEFORMS,	to_reg_unsigned(16, 8, allow_range=[SG_MOD_NONE, SG_MOD_AMPL | SG_MOD_FREQ | SG_MOD_PHASE]),
+											from_reg_unsigned(16, 8)),
+
+	'out2_modulation':	(REG_SG_WAVEFORMS,	to_reg_unsigned(24, 8, allow_range=[SG_MOD_NONE, SG_MOD_AMPL | SG_MOD_FREQ | SG_MOD_PHASE]),
+											from_reg_unsigned(24, 8)),
+
+	'mod1_frequency':	((REG_SG_MODF1_H, REG_SG_MODF1_L),
+											lambda obj, f, old: ((old[0] & 0x0000FFFF) | (_usgn(f/_SG_FREQSCALE, 48) >> 16) & 0xFFFF0000, _usgn(f/_SG_FREQSCALE, 48) & 0xFFFFFFFF),
+											lambda obj, rval: _SG_FREQSCALE * ((rval[0] & 0xFFFF0000) << 16 | rval[1])),
+
+	'mod2_frequency':	((REG_SG_MODF2_H, REG_SG_MODF2_L),
+											lambda obj, f, old: ((old[0] & 0x0000FFFF) | (_usgn(f/_SG_FREQSCALE, 48) >> 16) & 0xFFFF0000, _usgn(f/_SG_FREQSCALE, 48) & 0xFFFFFFFF),
+											lambda obj, rval: _SG_FREQSCALE * ((rval[0] & 0xFFFF0000) << 16 | rval[1])),
+	# The meaning of this amplitude field is complicated enough that the conversion to register value is done in the
+	# main code above rather than inline
+	'mod1_amplitude':	(REG_SG_MODA1,		to_reg_unsigned(0, 32),
+											from_reg_unsigned(0, 32)),
+
+	'mod2_amplitude':	(REG_SG_MODA2,		to_reg_unsigned(0, 32),
+											from_reg_unsigned(0, 32)),
+
+	'out1_modsource':	(REG_SG_MODSOURCE,	to_reg_unsigned(1, 2, allow_set=[SG_MODSOURCE_INT, SG_MODSOURCE_ADC, SG_MODSOURCE_DAC]),
+											from_reg_unsigned(1, 2)),
+
+	'out2_modsource':	(REG_SG_MODSOURCE,	to_reg_unsigned(3, 2, allow_set=[SG_MODSOURCE_INT, SG_MODSOURCE_ADC, SG_MODSOURCE_DAC]),
+											from_reg_unsigned(3, 2))
+}
+
+
 _siggen_reg_handlers = {
 	'out1_enable':		(REG_SG_WAVEFORMS,	to_reg_bool(0),		from_reg_bool(0)),
 	'out2_enable':		(REG_SG_WAVEFORMS,	to_reg_bool(1),		from_reg_bool(1)),
@@ -282,13 +320,6 @@ _siggen_reg_handlers = {
 
 	'out1_clipsine':	(REG_SG_WAVEFORMS,	to_reg_bool(7),		from_reg_bool(7)),
 	'out2_clipsine':	(REG_SG_WAVEFORMS,	to_reg_bool(11),		from_reg_bool(11)),
-
-	'out1_modulation':	(REG_SG_WAVEFORMS,	to_reg_unsigned(16, 8, allow_range=[SG_MOD_NONE, SG_MOD_AMPL | SG_MOD_FREQ | SG_MOD_PHASE]),
-											from_reg_unsigned(16, 8)),
-
-	'out2_modulation':	(REG_SG_WAVEFORMS,	to_reg_unsigned(24, 8, allow_range=[SG_MOD_NONE, SG_MOD_AMPL | SG_MOD_FREQ | SG_MOD_PHASE]),
-											from_reg_unsigned(24, 8)),
-
 	'out1_frequency':	((REG_SG_FREQ1_H, REG_SG_FREQ1_L),
 											to_reg_unsigned(0, 48, xform=lambda obj, f:f / _SG_FREQSCALE),
 											from_reg_unsigned(0, 48, xform=lambda obj, f: f * _SG_FREQSCALE)),
@@ -314,14 +345,6 @@ _siggen_reg_handlers = {
 
 	'out2_amplitude':	(REG_SG_AMP2,		to_reg_unsigned(0, 32, xform=lambda obj, p:p / obj.dac_gains()[1]),
 											from_reg_unsigned(0, 32, xform=lambda obj, p:p * obj.dac_gains()[1])),
-
-	'mod1_frequency':	((REG_SG_MODF1_H, REG_SG_MODF1_L),
-											lambda obj, f, old: ((old[0] & 0x0000FFFF) | (_usgn(f/_SG_FREQSCALE, 48) >> 16) & 0xFFFF0000, _usgn(f/_SG_FREQSCALE, 48) & 0xFFFFFFFF),
-											lambda obj, rval: _SG_FREQSCALE * ((rval[0] & 0xFFFF0000) << 16 | rval[1])),
-
-	'mod2_frequency':	((REG_SG_MODF2_H, REG_SG_MODF2_L),
-											lambda obj, f, old: ((old[0] & 0x0000FFFF) | (_usgn(f/_SG_FREQSCALE, 48) >> 16) & 0xFFFF0000, _usgn(f/_SG_FREQSCALE, 48) & 0xFFFFFFFF),
-											lambda obj, rval: _SG_FREQSCALE * ((rval[0] & 0xFFFF0000) << 16 | rval[1])),
 
 	'out1_t0':			(REG_SG_T01,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
 											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
@@ -356,20 +379,6 @@ _siggen_reg_handlers = {
 	'out2_fallrate':	((REG_SG_RFRATE2_H, REG_SG_FALLRATE2_L),
 											lambda obj, f, old: ((old[0] & 0x0000FFFF) | (_usgn(f/_SG_FREQSCALE, 48) >> 16) & 0xFFFF0000, _usgn(f/_SG_FREQSCALE, 48) & 0xFFFFFFFF),
 											lambda obj, rval: _SG_FREQSCALE * ((rval[0] & 0xFFFF0000) << 16 | rval[1])),
-
-	# The meaning of this amplitude field is complicated enough that the conversion to register value is done in the
-	# main code above rather than inline
-	'mod1_amplitude':	(REG_SG_MODA1,		to_reg_unsigned(0, 32),
-											from_reg_unsigned(0, 32)),
-
-	'mod2_amplitude':	(REG_SG_MODA2,		to_reg_unsigned(0, 32),
-											from_reg_unsigned(0, 32)),
-
-	'out1_modsource':	(REG_SG_MODSOURCE,	to_reg_unsigned(1, 2, allow_set=[SG_MODSOURCE_INT, SG_MODSOURCE_ADC, SG_MODSOURCE_DAC]),
-											from_reg_unsigned(1, 2)),
-
-	'out2_modsource':	(REG_SG_MODSOURCE,	to_reg_unsigned(3, 2, allow_set=[SG_MODSOURCE_INT, SG_MODSOURCE_ADC, SG_MODSOURCE_DAC]),
-											from_reg_unsigned(3, 2)),
 
 	'out1_amp_pc':		(REG_SG_PRECLIP,	to_reg_unsigned(0, 16, xform=lambda obj, a: a / obj.dac_gains()[0]),
 											from_reg_unsigned(0, 16, xform=lambda obj, a: a * obj.dac_gains()[0])),
