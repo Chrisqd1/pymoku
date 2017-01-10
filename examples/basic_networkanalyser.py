@@ -29,25 +29,25 @@ m.attach_instrument(i)
 
 i.set_defaults()
 
-f_start = 1e6 # Hz
-f_end = 100e6  # Hz
-sweep_length = 512
+f_start = 1e3 # Hz
+f_end = 10e6  # Hz
+sweep_length = 128
 log_scale = False 
 single_sweep = False
 amp_ch1 = 1.0 # Volts peak-to-peak (assuming 50 Ohm impedance)
 amp_ch2 = 1.0 # Volts peak-to-peak (assuming 50 Ohm impedance)
 
-averaging_time = 1e-3 # seconds
-settling_time = 1e-3 # seconds
+averaging_time = 1e-6 # seconds
+settling_time = 1e-6 # seconds
 
-averaging_cycles = 100
-settling_cycles = 100
+averaging_cycles = 1
+settling_cycles = 1
 
 i.set_dbscale(False),
 
 i.set_sweep_parameters(f_start, f_end, sweep_length, log_scale, single_sweep, amp_ch1, amp_ch2, averaging_time, settling_time, averaging_cycles, settling_cycles) 
 
-i.set_frontend(1, fiftyr=True, atten=True, ac=False)
+i.set_frontend(1, fiftyr=True, atten=False, ac=False)
 i.set_frontend(2, fiftyr=True, atten=True, ac=False)
 
 
