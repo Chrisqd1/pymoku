@@ -305,7 +305,7 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		self.logfile = str(self.datalogger_status()[4]).strip()
 
 
-	def datalogger_start_single(self, use_sd=True, ch1=True, ch2=False, filetype='csv'):
+	def datalogger_start_single(self, use_sd=False, ch1=True, ch2=False, filetype='csv'):
 		""" Grab all currently-recorded data at full rate.
 
 		Unlike a normal datalogger session, this will log only the data that has *already* been aquired through
