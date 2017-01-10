@@ -16,7 +16,8 @@ setup(
 
 	entry_points={
 		'console_scripts' : [
-			'moku=pymoku.tools.moku:main'
+			'moku=pymoku.tools.moku:main',
+			'moku_convert=pymoku.tools.moku_convert:main',
 		]
 	}
 )
