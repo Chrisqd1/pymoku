@@ -401,19 +401,33 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 
 	datalogger_start_single.__doc__ = _frame_instrument.FrameBasedInstrument.datalogger_start_single.__doc__
 
-	def set_samplerate(self, samplerate):
+	def set_samplerate(self, samplerate, trigger_offset=0):
 		""" Manually set the sample rate of the instrument.
 
-		The sample rate is automatically calcluated and set in :any:`set_timebase`; setting it through this
-		interface if you've previously set the scales through that will have unexpected results.
+		The sample rate is automatically calcluated and set in :any:`set_timebase`.
 
-		This interface is most useful for datalogging and similar aquisition where one will not be looking
-		at data frames.
+		This interface allows you to specify the rate at which data is sampled, and set 
+		a trigger offset in number of samples. This interface is useful for datalogging and capturing
+		of data frames. 
+
+		NOTE: Triggered starts are not currently implemented for datalogging.
 
 		:type samplerate: float; *0 < samplerate < 500MSPS*
 		:param samplerate: Target samples per second. Will get rounded to the nearest allowable unit.
+
+		:type trigger_offset: int; *-2^16 + 1 < trigger_offset < 2^32*
+		:param trigger_offset: Number of samples before (-) or after (+) the trigger point to start capturing.
+
 		"""
-		self.decimation_rate = _OSC_ADC_SMPS / samplerate
+		decimation = _OSC_ADC_SMPS / samplerate
+
+		self.decimation_rate = decimation
+		# Ensure the buffer offset is large enough to incorporate the desired pretrigger/posttrigger data
+		self.pretrigger = - math.ceil(trigger_offset/4.0) if trigger_offset > 0 else - math.floor(trigger_offset/4.0)
+		# We don't want any rendering as each sample is already at the desired samplerate
+		self.render_deci = 1
+		# The render offset needs to be corrected for cubic downsampling (even with unity decimation)
+		self.offset = - round(trigger_offset) + self.render_deci
 
 	def get_samplerate(self):
 		""" :return: The current instrument sample rate """
