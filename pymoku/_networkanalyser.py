@@ -410,15 +410,7 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		if all(sweep_freq) != 0 :
 			cycles_time = [ averaging_cycles / sweep_freq[n] for n in range(sweep_points)]
 
-
-
-		# if cycles_time > averaging_time : 
-		# 	points_per_freq = [math.ceil(sweep_freq[x]*cycles_time[x]) for x in range(sweep_points)]
-		# else :
-		
-
 		points_per_freq = [math.ceil(a*max(averaging_time, b)) for (a,b) in zip(sweep_freq, cycles_time)]
-
 
 		gain_scale = [0.0]*sweep_points
 
