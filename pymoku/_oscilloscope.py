@@ -58,8 +58,8 @@ class VoltsFrame(_frame_instrument.DataFrame):
 	Object representing a frame of data in units of Volts. This is the native output format of
 	the :any:`Oscilloscope` instrument and similar.
 
-	This object should not be instantiated directly, but will be returned by a supporting *get_frame*
-	implementation.
+	This object should not be instantiated directly, but will be returned by the Oscilloscope's
+	*get_frame* function.
 
 	.. autoinstanceattribute:: pymoku._frame_instrument.VoltsFrame.ch1
 		:annotation: = [CH1_DATA]
@@ -182,18 +182,22 @@ class VoltsFrame(_frame_instrument.DataFrame):
 		return {'xaxis': '%.1f %s' % ((t1 + x*ts)*tscale_const, tscale_str), 'xcoord': '%.3f %s' % ((t1 + x*ts)*tscale_const, tscale_str)}
 
 	def get_xaxis_fmt(self, x, pos):
+		""" Function suitable to use as argument to a matplotlib FuncFormatter for X (time) axis """
 		return self._get_xaxis_fmt(x,pos)['xaxis']
 
 	def get_xcoord_fmt(self, x):
+		""" Function suitable to use as argument to a matplotlib FuncFormatter for X (time) coordinate """
 		return self._get_xaxis_fmt(x,None)['xcoord']
 
 	def _get_yaxis_fmt(self,y,pos):
 		return {'yaxis': '%.1f %s' % (y,'V'), 'ycoord': '%.3f %s' % (y,'V')}
 
 	def get_yaxis_fmt(self, y, pos):
+		""" Function suitable to use as argument to a matplotlib FuncFormatter for Y (voltage) axis """
 		return self._get_yaxis_fmt(y,pos)['yaxis']
 
 	def get_ycoord_fmt(self, y):
+		""" Function suitable to use as argument to a matplotlib FuncFormatter for Y (voltage) coordinate """
 		return self._get_yaxis_fmt(y,None)['ycoord']
 
 
@@ -201,14 +205,6 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 	""" Oscilloscope instrument object. This should be instantiated and attached to a :any:`Moku` instance.
 
 	.. automethod:: pymoku.instruments.Oscilloscope.__init__
-
-	.. attribute:: hwver
-
-		Hardware Version
-
-	.. attribute:: hwserial
-
-		Hardware Serial Number
 
 	.. attribute:: framerate
 		:annotation: = 10
@@ -394,6 +390,8 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		self._update_datalogger_params(ch1, ch2)
 		super(Oscilloscope, self).datalogger_start_single(use_sd=use_sd, ch1=ch1, ch2=ch2, filetype=filetype)
 
+	datalogger_start_single.__doc__ = _frame_instrument.FrameBasedInstrument.datalogger_start_single.__doc__
+
 	def set_samplerate(self, samplerate):
 		""" Manually set the sample rate of the instrument.
 
@@ -409,6 +407,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		self.decimation_rate = _OSC_ADC_SMPS / samplerate
 
 	def get_samplerate(self):
+		""" :return: The current instrument sample rate """
 		if(self.decimation_rate == 0):
 			raise Exception("Decimation rate appears to be unset.")
 		return _OSC_ADC_SMPS / self.decimation_rate

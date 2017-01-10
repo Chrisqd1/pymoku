@@ -273,9 +273,11 @@ class SpectrumFrame(_frame_instrument.DataFrame):
 		return {'xaxis': '%.1f %s' % (x*fscale_const, fscale_str), 'xcoord': '%.3f %s' % (x*fscale_const, fscale_str)}
 
 	def get_xaxis_fmt(self, x, pos):
+		""" Function suitable to use as argument to a matplotlib FuncFormatter for X (time) axis """
 		return self._get_xaxis_fmt(x,pos)['xaxis']
 
 	def get_xcoord_fmt(self, x):
+		""" Function suitable to use as argument to a matplotlib FuncFormatter for X (time) coordinate """
 		return self._get_xaxis_fmt(x,None)['xcoord']
 
 	def _get_yaxis_fmt(self,y,pos):
@@ -299,9 +301,11 @@ class SpectrumFrame(_frame_instrument.DataFrame):
 		return {'yaxis': (yfmt['log'] if dbm else yfmt['linear']), 'ycoord': (ycoord['log'] if dbm else ycoord['linear'])}
 
 	def get_yaxis_fmt(self, y, pos):
+		""" Function suitable to use as argument to a matplotlib FuncFormatter for Y (voltage) axis """
 		return self._get_yaxis_fmt(y,pos)['yaxis']
 
 	def get_ycoord_fmt(self, y):
+		""" Function suitable to use as argument to a matplotlib FuncFormatter for Y (voltage) coordinate """
 		return self._get_yaxis_fmt(y,None)['ycoord']
 
 
@@ -309,14 +313,6 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 	""" Spectrum Analyser instrument object. This should be instantiated and attached to a :any:`Moku` instance.
 
 	.. automethod:: pymoku.instruments.SpecAn.__init__
-
-	.. attribute:: hwver
-
-		Hardware Version
-
-	.. attribute:: hwserial
-
-		Hardware Serial Number
 
 	.. attribute:: framerate
 		:annotation: = 2
@@ -433,6 +429,21 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		log.debug("DM: %f FS: %f, BS: %f, RD: %f, W:%d, RBW: %f, RBR: %f", self.demod, fspan, buffer_span, self.render_dds, self.window, rbw, self.rbw_ratio)
 
 	def set_span(self, f1, f2):
+		""" Sets the frequency span to be analysed.
+
+		Rounding and quantization in the instrument limits the range of spans for which a full set of 1024
+		data points can be calculated. In this mode, the resultant span in guaranteed however fewer than
+		1024 data points may be present in the measured sweeps. See :any:`set_fullspan` for an alternative
+		rounding mode.
+
+		Note that the valid sweep points and the associated frequencies will be given by the :any:`SpectrumFrame`
+		that contains the data.
+
+		:type f1: float
+		:param f1: Left-most frequency (Hz)
+		:type f2: float
+		:param f2: Right-most frequency (Hz)"""
+
 		# TODO: Enforce f2 > f1
 		self.f1 = f1
 		self.f2 = f2
@@ -442,8 +453,20 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		self._f2_full = f2
 
 	def set_fullspan(self,f1,f2):
-		# This sets the fullspan frequencies _f1_full, _f2_full to the nearest buffspan
-		# Allowing a full FFT frame to be valid data
+		""" Sets the frequency span to be analysed.
+
+		Rounding and quantization in the instrument limits the range of spans for which a full set of 1024
+		data points can be calculated. In this mode, the resultant number of valid points is guaranteed
+		however this may lead to the span being slightly increased from that requested.  See :any:`set_span`
+		for an alternative rounding mode.
+
+		Note that the valid sweep points and the associated frequencies will be given by the :any:`SpectrumFrame`
+		that contains the data.
+
+		:type f1: float
+		:param f1: Left-most frequency (Hz)
+		:type f2: float
+		:param f2: Right-most frequency (Hz)"""
 
 		# Set the actual input frequencies
 		self.f1 = f1
@@ -471,26 +494,30 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		self._f2_full = new_f2
 
 	def set_rbw(self, rbw=None):
+		""" Set Resolution Bandwidth
+
+		:type rbw: float
+		:param rbw: RBW (Hz) or *None* for "auto"
+		"""
 		self.rbw = rbw
 
 	def set_window(self, window):
-		self.window = window
+		""" Set Window function
 
-	def window_type(self, name):
-		if (name=='BH'):
-			win = SA_WIN_BH
-		elif (name=='FLATTOP'):
-			win = SA_WIN_FLATTOP
-		elif (name=='HANNING'):
-			win = SA_WIN_HANNING
-		elif (name=='NONE'):
-			win = SA_WIN_NONE
-		else:
-			win = SA_WIN_NONE
-			log.error('Invalid window type %s. Choose one of {{FLATTOP, HANNING, BH, NONE}}', name)
-		return win
+		Window should be one of:
+
+		- **SA_WIN_BH** Blackman-Harris
+		- **SA_WIN_FLATTOP** Flat Top
+		- **SA_WIN_HANNING** Hanning
+		- **SA_WIN_NONE** No window
+
+		:type window: int
+		:param window: Window Function
+		self.window = window
+		"""
 
 	def set_dbmscale(self,dbm=True):
+		""" Configures the Spectrum Analyser to use a logarithmic amplitude axis """
 		self.dbmscale = dbm
 
 	def set_defaults(self):

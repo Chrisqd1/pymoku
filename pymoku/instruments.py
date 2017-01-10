@@ -15,6 +15,7 @@ _this_module = sys.modules[__name__]
 
 DataFrame = _frame_instrument.DataFrame
 VoltsFrame = _oscilloscope.VoltsFrame
+SpectrumFrame = _specan.SpectrumFrame
 
 MokuInstrument = _instrument.MokuInstrument
 

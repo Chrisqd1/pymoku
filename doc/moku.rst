@@ -24,6 +24,18 @@ The Moku Class
 .. autoclass:: pymoku.Moku
 	:members:
 
+-----------
+Instruments
+-----------
+
+.. toctree::
+	:maxdepth: 1
+
+	oscilloscope
+	siggen
+	specan
+	phasemeter
+
 ------------------
 Instrument Classes
 ------------------
@@ -32,14 +44,6 @@ Instrument Classes
 
 .. autoclass:: pymoku.instruments.DataFrame
 
-Instruments
-^^^^^^^^^^^
-
-.. toctree::
-	:maxdepth: 1
-
-	oscilloscope
-	siggen
 
 ----------
 Exceptions

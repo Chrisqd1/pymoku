@@ -74,17 +74,6 @@ class SignalGenerator(MokuInstrument):
 
 		Name of this instrument.
 
-	.. attribute:: out1_enable
-		:annotation: = False
-
-		Output 1 On or Off. Automatically turned on when *synth_* is called on this channel
-
-
-	.. attribute:: out2_enable
-		:annotation: = False
-
-		Output 2 On or Off. Automatically turned on when *synth_* is called on this channel
-
 	"""
 	def __init__(self):
 		""" Create a new SignalGenerator instance, ready to be attached to a Moku."""

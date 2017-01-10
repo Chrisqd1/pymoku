@@ -56,7 +56,6 @@ PM_LOGRATE_FAST = 200
 PM_LOGRATE_SLOW = 15
 
 class PhaseMeter_SignalGenerator(MokuInstrument):
-
 	def __init__(self):
 		super(PhaseMeter_SignalGenerator, self).__init__()
 		self._register_accessors(_pm_siggen_reg_hdl)
@@ -112,14 +111,6 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 	""" PhaseMeter instrument object. This should be instantiated and attached to a :any:`Moku` instance.
 
 	.. automethod:: pymoku.instruments.PhaseMeter.__init__
-
-	.. attribute:: hwver
-
-		Hardware Version
-
-	.. attribute:: hwserial
-
-		Hardware Serial Number
 
 	.. attribute:: framerate
 		:annotation: = 10

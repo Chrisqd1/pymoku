@@ -470,17 +470,6 @@ class MokuInstrument(object):
 		self.pause = pause
 
 	def load_feature(self, index):
-		"""
-		Loads an optional feature in to an already-running instrument.
-
-		Some instruments have different features that can be loaded and configured at run-time
-		without disturbing the normal operation of the device. Refer to the specific instrument
-		documentation to determine what these features are and the index to use.
-
-		:type index: int
-		:param index: index of feature to load.
-		"""
-
 		# For now we don't support switching clock modes during a partial deploy
 		self._moku._deploy(use_external=self._moku.external_reference, partial_index=index)
 

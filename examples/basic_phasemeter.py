@@ -7,7 +7,7 @@
 #
 # (c) 2016 Liquid Instruments Pty. Ltd.
 #
-from pymoku import Moku, NoDataException
+from pymoku import Moku
 from pymoku.instruments import *
 import math
 
@@ -41,7 +41,5 @@ try:
 		print("Error occured: %s" % e)
 
 	i.datalogger_stop()
-except Exception as e:
-	print(e)
 finally:
 	m.close()

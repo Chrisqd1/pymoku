@@ -236,13 +236,13 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		:param ch1: Log from Channel 1
 		:type ch2: bool
 		:param ch2: Log from Channel 2
-		:param filetype: Type of log to start. One of:
+		:param filetype: Type of log to start. One of the types below.
+
+		*File Types*
 
 		- **csv** -- CSV file, 1ksmps max rate
 		- **bin** -- LI Binary file, 10ksmps max rate
 		- **net** -- Log to network, retrieve data with :any:`datalogger_get_samples`. 100smps max rate
-		- **plt** -- Log to Plot.ly. 10smps max rate
-
 		"""
 		from datetime import datetime
 		if self._moku is None: raise NotDeployedException()
@@ -318,12 +318,13 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		:param ch1: Log from Channel 1
 		:type ch2: bool
 		:param ch2: Log from Channel 2
-		:param filetype: Type of log to start. One of:
+		:param filetype: Type of log to start. One of the types below.
 
-		- **csv** -- CSV file
-		- **bin** -- LI Binary file
-		- **net** -- Log to network, retrieve data with :any:`datalogger_get_samples`
-		- **plt** -- Log to Plot.ly
+		*File Types*
+
+		- **csv** -- CSV file, 1ksmps max rate
+		- **bin** -- LI Binary file, 10ksmps max rate
+		- **net** -- Log to network, retrieve data with :any:`datalogger_get_samples`. 100smps max rate
 		"""
 		from datetime import datetime
 		if self._moku is None: raise NotDeployedException()
@@ -359,6 +360,10 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 	def datalogger_stop(self):
 		""" Stop a recording session previously started with :py:func:`datalogger_start`
+
+		This function signals that the user no longer needs to know the status of the previous
+		log, discarding that state. It must be called before a second log is started or else
+		that start attempt will fail with a "busy" error.
 
 		:rtype: int
 		:return: final status code (see :py:func:`datalogger_status`"""
@@ -424,7 +429,10 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 		If the datalogger is busy, the time remaining may be queried to see how long it might be
 		until it has finished what it's doing, or it can be forcibly stopped with a call to
-		:any:`datalogger_stop`."""
+		:any:`datalogger_stop`.
+
+		:rtype: bool
+		:returns: Whether or not a new session can be started. """
 		return self.datalogger_status()[0] != DL_STATE_NONE
 
 	def datalogger_completed(self):
@@ -432,14 +440,20 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 		If the log is completed then the results files are ready to be uploaded or simply
 		read off the SD card. At most one subsequent :any:`datalogger_get_samples` call
-		will return without timeout."""
+		will return without timeout.
+
+		:rtype: bool
+		:returns: Whether the current session has finished running. """
 		return self.datalogger_status()[0] not in [DL_STATE_RUNNING, DL_STATE_WAITING]
 
 	def datalogger_filename(self):
 		""" Returns the current base filename of the logging session.
 
 		The base filename doesn't include the file extension as multiple files might be
-		recorded simultaneously with different extensions."""
+		recorded simultaneously with different extensions.
+
+		:rtype: str
+		:returns: The file name of the current, or most recent, log file."""
 		return self.logfile.split(':')[1]
 
 	def datalogger_error(self):
