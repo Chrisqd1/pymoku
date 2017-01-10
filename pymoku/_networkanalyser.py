@@ -15,11 +15,12 @@ REG_NA_SWEEP_FREQ_DELTA_L 	= 66
 REG_NA_SWEEP_FREQ_DELTA_H 	= 67
 REG_NA_LOG_EN				= 68
 REG_NA_HOLD_OFF_L			= 69
-# REG_NA_HOLD_OFF_H			= 70
 REG_NA_SWEEP_LENGTH			= 71
 REG_NA_AVERAGE_TIME			= 72
 REG_NA_SINGLE_SWEEP			= 73
 REG_NA_SWEEP_AMP_MULT		= 74
+REG_NA_SETTLE_CYCLES		= 76
+REG_NA_AVERAGE_CYCLES		= 77
 
 
 _NA_ADC_SMPS		= 500e6
@@ -33,8 +34,8 @@ _NA_SCREEN_WIDTH	= 1024
 _NA_SCREEN_STEPS	= _NA_SCREEN_WIDTH - 1
 _NA_FPS				= 2
 _NA_FREQ_SCALE		= 2**48 / _NA_DAC_SMPS
-_NA_INT_VOLTS_SCALE = (1.437*pow(2.0,-8.0))
 _NA_FXP_SCALE 		= 2.0**30
+
 
 '''
 	Plotting helper functions
@@ -93,12 +94,17 @@ class NetAnFrame(_frame_instrument.DataFrame):
 			self.q_sig = [ input_signal[x] for x in range(1,len(input_signal ), 2 ) ]
 	
 			self.magnitude = [ math.sqrt(I**2 + Q**2)/G/front_end_scale if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
-
-			print "Output amp: ", output_amp
-
-			self.magnitude = [ ((20.0*math.log10(2*x/output_amp) if output_amp != 0 else None) if dbscale else x) if x else None for x in self.magnitude]
-
+			self.magnitude = [ ((20.0*math.log10(x/(output_amp/2)) if output_amp != 0 else None) if dbscale else x) if x else None for x in self.magnitude]
 			self.phase = [ math.atan2(Q, I) if all ([I,Q]) else None for I,Q in zip(self.i_sig, self.q_sig)]
+
+			if len(self.magnitude) !=  len(gain_correction) or len(self.phase) !=  len(gain_correction) :
+				self.complete = False
+				log.debug('Inconsistent number of valid data points (frequency axis and data lengths do not match)')
+
+			print len(self.magnitude)
+			print len(self.phase)
+			print len(self.i_sig)
+			print len(gain_correction)
 
 		i_sig = []
 		q_sig = []
@@ -138,11 +144,6 @@ class NetAnFrame(_frame_instrument.DataFrame):
 
 		# Get scaling/correction factors based on current instrument configuration
 		scales = self.scales[self.stateid]
-		scale1 = scales['g1']
-		scale2 = scales['g2']
-		# fs = scales['fs']
-		# f1, f2 = scales['fspan']
-		# fcorrs = scales['fcorrs']
 		dbscale = scales['dbscale']
 
 		try:
@@ -208,9 +209,9 @@ class NetAnFrame(_frame_instrument.DataFrame):
 			scale_str = 'uHz'
 			scale_const = 1e6
 
-		return [scale_str,scale_const]
+		return [scale_str, scale_const]
 
-	def _get_xaxis_fmt(self,x,pos):
+	def _get_xaxis_fmt(self, x, pos):
 		# This function returns a format string for the x-axis ticks and x-coordinates along the frequency scale
 		# Use this to set an x-axis format during plotting of NetAn frames
 
@@ -317,22 +318,26 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 	commit.__doc__ = MokuInstrument.commit.__doc__
 
 
-	def set_sweep_parameters(self, start_frequency, end_frequency, sweep_length, log_scale, sweep_amplitude_ch1, sweep_amplitude_ch2, averaging_time, settling_time):
+	def set_sweep_parameters(self, start_frequency, end_frequency, sweep_length, log_scale, single_sweep, sweep_amplitude_ch1, sweep_amplitude_ch2, averaging_time, settling_time, averaging_cycles, settling_cycles):
 		self.sweep_freq_min = start_frequency
 		self.sweep_length = sweep_length
 		self.log_en = log_scale
+
+		self.single_sweep = single_sweep
+
 		self.sweep_amplitude_ch1 = sweep_amplitude_ch1 * (self._get_dac_calibration()[0] / _NA_DAC_BITDEPTH)
 		self.sweep_amplitude_ch2 = sweep_amplitude_ch2 * (self._get_dac_calibration()[1] / _NA_DAC_BITDEPTH)
-		self.averaging_time = averaging_time
-		self.settling_time = settling_time
-		self.sweep_freq_delta = self.set_sweep_freq_delta(start_frequency, end_frequency, sweep_length, log_scale)
 
+		self.averaging_time = averaging_time
+		self.averaging_cycles = averaging_cycles
+		self.settling_time = settling_time
+
+		self.sweep_freq_delta = self.set_sweep_freq_delta(start_frequency, end_frequency, sweep_length, log_scale)
+		self.settling_cycles = settling_cycles
+		
 		self.sweep_amp_volts_ch1 = sweep_amplitude_ch1
 		self.sweep_amp_volts_ch2 = sweep_amplitude_ch2
 
-		# self.DAC_bits2volts =  sweep_amplitude_ch1 * self._get_dac_calibration()[0]  / _NA_DAC_BITDEPTH
-		# self.scales[self._stateid]['sweep_amplitude_ch1'] = sweep_amplitude_ch1
-		# self.scales[self._stateid]['sweep_amplitude_ch2'] = sweep_amplitude_ch2
 
 	def set_sweep_freq_delta(self, start_frequency, end_frequency, sweep_length, log_scale):
 		
@@ -363,15 +368,13 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 		self.set_frontend(1, True, False, False)
 		self.set_frontend(2, True, False, False)
-
-		self.set_sweep_parameters(start_frequency=1e3, end_frequency=1e7, sweep_length=512, log_scale=False, sweep_amplitude_ch1=1.0, sweep_amplitude_ch2=1.0, averaging_time=1e-3, settling_time=1e-3)
+		self.set_sweep_parameters(start_frequency=1e3, end_frequency=1e7, sweep_length=512, log_scale=False, single_sweep=False, sweep_amplitude_ch1=1.0, sweep_amplitude_ch2=1.0, averaging_time=1e-3, settling_time=1e-3, averaging_cycles=1.0, settling_cycles=1.0)
+		self.single_sweep = False
 
 		self.en_in_ch1 = True
 		self.en_in_ch2 = True
 
 		self.set_xmode(FULL_FRAME)
-
-		self.single_sweep = 0
 		self.render_mode = RDR_DDS
 
 	def set_start_freq(self, start_freq):
@@ -429,8 +432,7 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 			log.warning("Moku appears uncalibrated")
 			g1 = g2 = 1
 
-		log.debug("gain values for ADC sections %s, %s = %f, %f", sect1, sect2, g1, g2)
-
+		log.debug("Gain values for ADC %s, %s = %f, %f", sect1, sect2, g1, g2)
 
 		return {'g1': g1, 'g2': g2, 
 				'dbscale': self.dbscale, 
@@ -443,6 +445,8 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 				'sweep_amplitude_ch1' : self.sweep_amp_volts_ch1,
 				'sweep_amplitude_ch2' : self.sweep_amp_volts_ch2,
 				}
+
+
 
 
 	def _get_dac_calibration(self):
@@ -458,30 +462,10 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 			log.warning("Moku appears uncalibrated")
 			g1 = g2 = 1
 
-		log.debug("gain values for dac sections %s, %s = %f, %f", sect1, sect2, g1, g2)
+		log.debug("gain values for DAC sections %s, %s = %f, %f", sect1, sect2, g1, g2)
 
 		return (g1, g2)
 
-
-	# def _get_adc_calibration(self):
-	# 	# Returns the volts to bits numbers for each channel in the current state
-
-	# 	sect1 = "calibration.AG-%s-%s-%s-1" % ( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
-	# 							  "L" if self.relays_ch1 & RELAY_LOWG else "H",
-	# 							  "D" if self.relays_ch1 & RELAY_DC else "A")
-
-	# 	sect2 = "calibration.AG-%s-%s-%s-2" % ( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
-	# 							  "L" if self.relays_ch1 & RELAY_LOWG else "H",
-	# 							  "D" if self.relays_ch1 & RELAY_DC else "A")
-
-	# 	try:
-	# 		g1 = float(self.calibration[sect1])
-	# 		g2 = float(self.calibration[sect2])
-	# 	except (KeyError, TypeError):
-	# 		log.warning("Moku adc appears uncalibrated")
-	# 		g1 = g2 = 1
-	# 	log.debug("gain values for adc sections %s, %s = %f, %f", sect1, sect2, g1, g2)
-	# 	return (g1, g2)
 
 
 	def set_dbscale(self,dbm=True):
@@ -498,6 +482,9 @@ _na_reg_handlers = {
 	'log_en':					(REG_NA_LOG_EN,
 											to_reg_bool(0),
 											from_reg_bool(0)),
+	'single_sweep':				(REG_NA_SINGLE_SWEEP,
+											to_reg_bool(0),
+											from_reg_bool(0)),
 	'sweep_length':				(REG_NA_SWEEP_LENGTH,		
 											to_reg_unsigned(0, 10),
 											from_reg_unsigned(0, 10)),
@@ -507,13 +494,16 @@ _na_reg_handlers = {
 	'averaging_time':			(REG_NA_AVERAGE_TIME,
 											to_reg_unsigned(0, 32, xform=lambda obj, t: t * _NA_FPGA_CLOCK),
 											from_reg_unsigned(0, 32, xform=lambda obj, t: t / _NA_FPGA_CLOCK)),
-	'single_sweep':				(REG_NA_SINGLE_SWEEP,
-											to_reg_unsigned(0, 1),
-											from_reg_unsigned(0, 1)),
 	'sweep_amplitude_ch1':		(REG_NA_SWEEP_AMP_MULT,		
 											to_reg_unsigned(0, 16, xform=lambda obj, a: a * _NA_DAC_BITS2V),
 											from_reg_unsigned(0, 16, xform=lambda obj, a: a / _NA_DAC_BITS2V)),
 	'sweep_amplitude_ch2':		(REG_NA_SWEEP_AMP_MULT,
 											to_reg_unsigned(16, 16, xform=lambda obj, a: a * _NA_DAC_BITS2V),
 											from_reg_unsigned(16, 16, xform=lambda obj, a: a / _NA_DAC_BITS2V)),
-}
+	'settling_cycles':			(REG_NA_SETTLE_CYCLES,
+											to_reg_unsigned(0, 32),
+											from_reg_unsigned(0, 32)),
+	'averaging_cycles':			(REG_NA_AVERAGE_CYCLES,
+											to_reg_unsigned(0, 32),
+											from_reg_unsigned(0, 32)),
+	}
