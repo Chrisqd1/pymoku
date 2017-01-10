@@ -9,7 +9,7 @@ i = SpecAn()
 m.attach_instrument(i)
 
 # DC to 100MHz span, apply changes
-i.set_span(0, 100000)
+i.set_span(0, 10000000)
 i.commit()
 
 # Get the scan results and print them out (power vs frequency, two channels)
