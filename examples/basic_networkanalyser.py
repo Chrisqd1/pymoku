@@ -47,8 +47,8 @@ i.set_dbscale(False),
 
 i.set_sweep_parameters(f_start, f_end, sweep_length, log_scale, single_sweep, amp_ch1, amp_ch2, averaging_time, settling_time, averaging_cycles, settling_cycles) 
 
-i.set_frontend(1, fiftyr=True, atten=False, ac=False)
-i.set_frontend(2, fiftyr=True, atten=False, ac=False)
+i.set_frontend(1, fiftyr=True, atten=True, ac=False)
+i.set_frontend(2, fiftyr=True, atten=True, ac=False)
 
 
 #################################
