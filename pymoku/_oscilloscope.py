@@ -453,10 +453,8 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 
 		:param state: Select Precision Mode
 		:type state: bool """
-		if state:
-			# Hysteresis goes to zero
-			self.hysteresis_volts = 0.0
-			log.warning("Precision mode has been set, hysteresis is now 0.0")
+		if state and self.hysteresis_volts > 0 :
+			raise InvalidConfigurationException("Precision mode and Hysteresis can't be set at the same time.")
 		self.ain_mode = _OSC_AIN_DECI if state else _OSC_AIN_DDS
 
 	
@@ -497,9 +495,8 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		self.trig_ch = source
 		self.trig_edge = edge
 		# Precision mode should be off if hysteresis is being used
-		if hysteresis > 0.0:
-			self.set_precision_mode(False)
-			log.warning("Hysteresis has been set, precision mode is now OFF.")
+		if self.ain_mode == _OSC_AIN_DECI and hysteresis > 0:
+			raise InvalidConfigurationException("Precision mode and Hysteresis can't be set at the same time.")
 		self.hysteresis_volts = hysteresis
 
 		self.hf_reject = hf_reject
