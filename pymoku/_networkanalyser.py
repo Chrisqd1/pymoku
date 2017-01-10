@@ -25,9 +25,9 @@ REG_NA_SWEEP_AMP_MULT		= 74
 _NA_ADC_SMPS		= 500e6
 _NA_FPGA_CLOCK 		= 125e6
 _NA_DAC_SMPS 		= 1e9
-_NA_DAC_VRANGE 		= 2
+_NA_DAC_VRANGE 		= 1
 _NA_DAC_BITDEPTH 	= 2**16
-_NA_DAC_V2BITS 		= _NA_DAC_BITDEPTH/_NA_DAC_VRANGE
+_NA_DAC_BITS2V		= _NA_DAC_BITDEPTH/_NA_DAC_VRANGE
 _NA_BUFLEN			= 2**14
 _NA_SCREEN_WIDTH	= 1024
 _NA_SCREEN_STEPS	= _NA_SCREEN_WIDTH - 1
@@ -88,12 +88,15 @@ class NetAnFrame(_frame_instrument.DataFrame):
 	class _NetAnChannel():
 		# convert an RMS voltage to a power level (assuming 50 Ohm load)
 
-		def _generate_signals(self, input_signal, gain_correction, dbscale):
+		def _generate_signals(self, input_signal, gain_correction, front_end_scale, output_amp, dbscale):
 			self.i_sig = [ input_signal[x] for x in range(0,len(input_signal ), 2 ) ]
 			self.q_sig = [ input_signal[x] for x in range(1,len(input_signal ), 2 ) ]
 	
-			self.magnitude = [ math.sqrt(I**2 + Q**2)/G if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
-			self.magnitude = [ (10.0*math.log10(x) if dbscale else x) if x else None for x in self.magnitude]
+			self.magnitude = [ math.sqrt(I**2 + Q**2)/G/front_end_scale if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
+
+			print "Output amp: ", output_amp
+
+			self.magnitude = [ ((20.0*math.log10(2*x/output_amp) if output_amp != 0 else None) if dbscale else x) if x else None for x in self.magnitude]
 
 			self.phase = [ math.atan2(Q, I) if all ([I,Q]) else None for I,Q in zip(self.i_sig, self.q_sig)]
 
@@ -163,7 +166,7 @@ class NetAnFrame(_frame_instrument.DataFrame):
 			self.ch1_bits = [ float(x) if x is not None else None for x in dat[:1024] ]
 			# print self.ch1_bits[100]
 
-			self.ch1._generate_signals(self.ch1_bits, scales['gain_correction'], scales['dbscale'])
+			self.ch1._generate_signals(self.ch1_bits, scales['gain_correction'], scales['g1'], scales['sweep_amplitude_ch1'], scales['dbscale'])
 		
 
 			##################################
@@ -175,7 +178,7 @@ class NetAnFrame(_frame_instrument.DataFrame):
 
 			self.ch2_bits = [ float(x) if x is not None else None for x in dat[:1024] ]
 
-			self.ch2._generate_signals(self.ch2_bits, scales['gain_correction'], scales['dbscale'])
+			self.ch2._generate_signals(self.ch2_bits, scales['gain_correction'], scales['g2'], scales['sweep_amplitude_ch2'], scales['dbscale'])
 
 		except (IndexError, TypeError, struct.error):
 			# If the data is bollocksed, force a reinitialisation on next packet
@@ -293,6 +296,8 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		self.type = "NetAn"
 
 		self.set_dbscale(True)
+		self.sweep_amp_volts_ch1 = 1.0
+		self.sweep_amp_volts_ch2 = 1.0
 
 
 	def commit(self):
@@ -312,33 +317,32 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 	commit.__doc__ = MokuInstrument.commit.__doc__
 
 
-	def set_sweep_parameters(self, start_frequency=1.0e3, end_frequency=1.0e6, sweep_length=512, log_scale=False, sweep_amplitude_ch1=0.5, sweep_amplitude_ch2=0.5, averaging_time=1e-6, settling_time=1e-6):
+	def set_sweep_parameters(self, start_frequency, end_frequency, sweep_length, log_scale, sweep_amplitude_ch1, sweep_amplitude_ch2, averaging_time, settling_time):
 		self.sweep_freq_min = start_frequency
 		self.sweep_length = sweep_length
 		self.log_en = log_scale
-		self.sweep_amplitude_ch1 = sweep_amplitude_ch1 * (self._get_dac_calibration()[0]/ _NA_DAC_BITDEPTH)
-		self.sweep_amplitude_ch2 = sweep_amplitude_ch2 * (self._get_dac_calibration()[1] /_NA_DAC_BITDEPTH)
+		self.sweep_amplitude_ch1 = sweep_amplitude_ch1 * (self._get_dac_calibration()[0] / _NA_DAC_BITDEPTH)
+		self.sweep_amplitude_ch2 = sweep_amplitude_ch2 * (self._get_dac_calibration()[1] / _NA_DAC_BITDEPTH)
 		self.averaging_time = averaging_time
 		self.settling_time = settling_time
+		self.sweep_freq_delta = self.set_sweep_freq_delta(start_frequency, end_frequency, sweep_length, log_scale)
 
+		self.sweep_amp_volts_ch1 = sweep_amplitude_ch1
+		self.sweep_amp_volts_ch2 = sweep_amplitude_ch2
+
+		# self.DAC_bits2volts =  sweep_amplitude_ch1 * self._get_dac_calibration()[0]  / _NA_DAC_BITDEPTH
+		# self.scales[self._stateid]['sweep_amplitude_ch1'] = sweep_amplitude_ch1
+		# self.scales[self._stateid]['sweep_amplitude_ch2'] = sweep_amplitude_ch2
+
+	def set_sweep_freq_delta(self, start_frequency, end_frequency, sweep_length, log_scale):
+		
 		if log_scale:
-			print ((float(end_frequency) / float(start_frequency))**(1.0/(sweep_length - 1)) - 1)
-			self.sweep_freq_delta = round(((float(end_frequency) / float(start_frequency))**(1.0/(sweep_length - 1)) - 1) * _NA_FXP_SCALE)
+			sweep_freq_delta = round(((end_frequency / start_frequency)**(1.0/(sweep_length - 1)) - 1) * _NA_FXP_SCALE)
 		else:
-			print ((end_frequency - start_frequency)/(sweep_length-1)) 
-			self.sweep_freq_delta = ((end_frequency - start_frequency)/(sweep_length-1)) * _NA_FREQ_SCALE
-			
+			sweep_freq_delta = round(((end_frequency - start_frequency)/(sweep_length - 1 )) * _NA_FREQ_SCALE)
 
-	def set_sweep_freq_delta(self, start_freq, stop_freq, sweep_length, log_scale):
-		if log_scale:
-			freq_delta = ((float(end_frequency) / float(start_frequency))**(1.0/(sweep_length - 1)) - 1)
-			self.sweep_freq_delta = (((float(end_frequency) / float(start_frequency))**(1.0/(sweep_length - 1)) - 1) * _NA_FXP_SCALE)
-		else:
-			freq_delta = ((end_frequency - start_frequency)/(sweep_length-1)) 
-			self.sweep_freq_delta = ((end_frequency - start_frequency)/(sweep_length-1)) * _NA_FREQ_SCALE
+		return sweep_freq_delta
 
-		return freq_delta
-		# print 'Calculated frequency delta: ', freq_delta
 
 	def get_sweep_freq_delta(self):
 
@@ -346,6 +350,7 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 			return float(self.sweep_freq_delta) / _NA_FXP_SCALE + 1
 		else:
 			return float(self.sweep_freq_delta) / _NA_FREQ_SCALE
+
 
 	def set_xmode(self, xmode):
 		self.x_mode = xmode
@@ -356,21 +361,16 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		self.framerate = _NA_FPS
 		self.frame_length = _NA_SCREEN_WIDTH
 
-		self.sweep_freq_min = 1
+		self.set_frontend(1, True, False, False)
+		self.set_frontend(2, True, False, False)
+
+		self.set_sweep_parameters(start_frequency=1e3, end_frequency=1e7, sweep_length=512, log_scale=False, sweep_amplitude_ch1=1.0, sweep_amplitude_ch2=1.0, averaging_time=1e-3, settling_time=1e-3)
 
 		self.en_in_ch1 = True
 		self.en_in_ch2 = True
 
 		self.set_xmode(FULL_FRAME)
 
-		self.set_frontend(0, True, True, False)
-		self.set_frontend(1, True, True, False)
-
-		self.log_en = False
-		self.sweep_length = 512
-		self.sweep_amp_mult = 1
-		self.offset = 0
-		self.averaging_time = 0.1 
 		self.single_sweep = 0
 		self.render_mode = RDR_DDS
 
@@ -423,11 +423,14 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 		# Compute per-channel constant scaling factors
 		try:
-			g1 = 1/float(self.calibration[sect1])
-			g2 = 1/float(self.calibration[sect2])
+			g1 = float(self.calibration[sect1])
+			g2 = float(self.calibration[sect2])
 		except KeyError:
 			log.warning("Moku appears uncalibrated")
 			g1 = g2 = 1
+
+		log.debug("gain values for ADC sections %s, %s = %f, %f", sect1, sect2, g1, g2)
+
 
 		return {'g1': g1, 'g2': g2, 
 				'dbscale': self.dbscale, 
@@ -436,7 +439,10 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 				'sweep_freq_delta': self.sweep_freq_delta,
 				'sweep_length': self.sweep_length, 
 				'log_en': self.log_en, 
-				'averaging_time': self.averaging_time}
+				'averaging_time': self.averaging_time,
+				'sweep_amplitude_ch1' : self.sweep_amp_volts_ch1,
+				'sweep_amplitude_ch2' : self.sweep_amp_volts_ch2,
+				}
 
 
 	def _get_dac_calibration(self):
@@ -505,9 +511,9 @@ _na_reg_handlers = {
 											to_reg_unsigned(0, 1),
 											from_reg_unsigned(0, 1)),
 	'sweep_amplitude_ch1':		(REG_NA_SWEEP_AMP_MULT,		
-											to_reg_unsigned(0, 16, xform=lambda obj, a: a * _NA_DAC_V2BITS),
-											from_reg_unsigned(0, 16, xform=lambda obj, a: a / _NA_DAC_V2BITS)),
+											to_reg_unsigned(0, 16, xform=lambda obj, a: a * _NA_DAC_BITS2V),
+											from_reg_unsigned(0, 16, xform=lambda obj, a: a / _NA_DAC_BITS2V)),
 	'sweep_amplitude_ch2':		(REG_NA_SWEEP_AMP_MULT,
-											to_reg_unsigned(16, 16, xform=lambda obj, a: a * _NA_DAC_V2BITS),
-											from_reg_unsigned(16, 16, xform=lambda obj, a: a / _NA_DAC_V2BITS)),
+											to_reg_unsigned(16, 16, xform=lambda obj, a: a * _NA_DAC_BITS2V),
+											from_reg_unsigned(16, 16, xform=lambda obj, a: a / _NA_DAC_BITS2V)),
 }

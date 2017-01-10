@@ -11,7 +11,7 @@ logging.getLogger('pymoku').setLevel(logging.DEBUG)
 
 # Use Moku.get_by_serial() or get_by_name() if you don't know the IP
 # m = Moku.get_by_name('Oil Rigs')
-m = Moku('192.168.69.50')
+m = Moku('192.168.69.53')
 
 # i = m.discover_instrument()
 # if i is None or i.type != 'netan':
@@ -26,20 +26,20 @@ m.attach_instrument(i)
 # ------------------------------
 # Set these parameters
 
-i.set_frontend(0, fiftyr=False, atten=False, ac=False)
+i.set_defaults()
 
 f_start = 1e6 # Hz
-f_end = 20e6  # Hz
+f_end = 100e6  # Hz
 sweep_length = 512
-log_scale = False 
-amp_ch1 = 1 # volts (assuming high impedance)
-amp_ch2 = 1 # volts (assuming high impedance)
+log_scale = True 
+amp_ch1 = 1.0 # Volts peak-to-peak (assuming 50 Ohm impedance)
+amp_ch2 = 1.0 # Volts peak-to-peak (assuming 50 Ohm impedance)
 averaging_time = 1e-3 # seconds
 settling_time = 1e-3 # seconds
 
 i.set_dbscale(True)
 
-i.set_defaults()
+i.set_frontend(1, fiftyr=True, atten=False, ac=False)
 
 i.set_sweep_parameters(f_start, f_end, sweep_length, log_scale, amp_ch1, amp_ch2, averaging_time, settling_time) 
 # i.set_sweep_parameters(f_start,1e2, 2e3, 512, False, 0.5, 1, 0.01, 0.01)
@@ -48,9 +48,6 @@ i.set_sweep_parameters(f_start, f_end, sweep_length, log_scale, amp_ch1, amp_ch2
 # END Instrument Configuration
 #################################
 
-#i.set_xmode(FULL_FRAME)
-
-# Push all new configuration to the Moku device
 i.commit()
 
 #gain_scales = i.gain_correction()
@@ -58,6 +55,7 @@ i.commit()
 
 print "Sweep frequency delta: ", i.get_sweep_freq_delta()
 print "Minimum frequency: ", i.get_sweep_freq_min()
+print "Channel 1 Amplitude: ", i.sweep_amp_volts_ch1
 
 # Set up basic plot configurations
 line1, = plt.plot([])
@@ -78,6 +76,7 @@ try:
 	print "frame", frame
 	print "channel 1 mag", frame.ch1.magnitude
 	print "channel 1 phase", frame.ch1.phase
+	
 
 	# Format the x-axis as a frequency scale 
 	ax = plt.gca()
@@ -101,7 +100,9 @@ try:
 		line1.set_xdata(frame.ch1_fs)
 		line2.set_xdata(frame.ch2_fs)
 		print "ch1_axis", frame.ch1_fs
-		print "start freq", i.sweep_freq_min
+		print "Sweep frequency delta: ", i.get_sweep_freq_delta()
+		print "Minimum frequency: ", i.get_sweep_freq_min()
+		print "Channel 1 Amplitude: ", i.sweep_amp_volts_ch1
 		# if log_scale:
 		# 	print "freq step", i.sweep_freq_delta/2.0**30
 		# else :
