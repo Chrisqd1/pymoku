@@ -27,22 +27,24 @@ m.attach_instrument(i)
 # ------------------------------
 # Set these parameters
 
-i.set_frontend(0, False, False, False)
+i.set_frontend(1, False, False, False)
 
-f_start = 1e6 # Hz
-f_end = 62.5e6  # Hz
-sweep_length = 512
-log_scale = True 
+f_start = 1e3 # Hz
+f_end = 1e7  # Hz
+sweep_length = 100
+log_scale = False 
 amp_ch1 = 1 # volts (assuming high impedance)
 amp_ch2 = 1 # volts (assuming high impedance)
-averaging_time = 8e-3 # seconds
-settling_time = 1e-3 # seconds
-settling_cycles = 100
-averaging_cycles = 100
+averaging_time = 1e-6 # seconds
+averaging_cycles = 0
 
-i.set_dbscale(True),
+settling_time = 1e-6 # seconds
+settling_cycles = 0
 
-i.set_sweep_parameters(f_start, f_end, sweep_length, log_scale, amp_ch1, amp_ch2, averaging_time, settling_time, settling_cycles, averaging_cycles) 
+
+i.set_dbscale(False),
+
+i.set_sweep_parameters(f_start, f_end, sweep_length, log_scale, amp_ch1, amp_ch2, averaging_time, settling_time, averaging_cycles, settling_cycles) 
 
 
 
@@ -69,8 +71,8 @@ print "Sweep frequency delta: ", i.get_sweep_freq_delta()
 print "Minimum frequency: ", i.get_sweep_freq_min()
 
 # Set up basic plot configurations
-line1, = plt.plot([])
-line2, = plt.plot([])
+line1, = plt.semilogx([])
+line2, = plt.semilogx([])
 plt.ion()
 plt.show()
 

@@ -99,7 +99,7 @@ class NetAnFrame(_frame_instrument.DataFrame):
 	
 			self.magnitude = [ math.sqrt(I**2 + Q**2)/G if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
 			# self.magnitude = [ math.sqrt(I**2 + Q**2)/1e5 if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
-			self.magnitude = [ (10.0*math.log10(x) if dbscale else x) if x else None for x in self.magnitude]
+			self.magnitude = [ (20.0*math.log10(x) if dbscale else x) if x else None for x in self.magnitude]
 
 			self.phase = [ math.atan2(Q, I) if all ([I,Q]) else None for I,Q in zip(self.i_sig, self.q_sig)]
 
