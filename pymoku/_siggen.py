@@ -231,8 +231,8 @@ class SignalGenerator(BasicSignalGenerator):
 		:type source: SG_MODSOURCE_INT, SG_MODSOURCE_ADC, SG_MODSOURCE_DAC
 		:param source: Modulation source. Respectively Internal Sinewave, Associated ADC Channel or Opposite DAC Channel.
 
-		:type depth: float 0-1
-		:param depth: Fractional modulation depth
+		:type depth: float 0-1, 0-125MHz, 0 - 360 deg
+		:param depth: Fractional modulation depth, Frequency Deviation/Volt, Phase shift
 
 		:type frequency: float
 		:param frequency: Frequency of internally-generated sine wave modulation. This parameter is ignored if the source is set to ADC or DAC.
@@ -245,37 +245,39 @@ class SignalGenerator(BasicSignalGenerator):
 			self.out1_modulation = type
 			self.out1_modsource = source
 			self.mod1_frequency = frequency
-
-			# Modulation depth
-			depth_parameter = 0.0
-			if(source == SG_MODSOURCE_INT):
-				depth_parameter = depth # No change in depth
-			elif(source == SG_MODSOURCE_DAC):
-				# Check what the DAC scaling factor is
-				depth_parameter = depth * pow(2.0,15.0) / dac2
-			elif(source == SG_MODSOURCE_ADC):
-				# The input 1 is being used as Output 2 modulation signal
-				depth_parameter = depth * pow(2.0,9.0) / adc1
-			res = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
-
-			self.mod1_amplitude = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
-
 		elif ch == 2:
 			self.out2_modulation = type
 			self.out2_modsource = source
 			self.mod2_frequency = frequency
 
-			# Modulation depth
-			depth_parameter = 0.0
-			if(source == SG_MODSOURCE_INT):
-				depth_parameter = depth * 1.0 # No change in depth
-			elif(source == SG_MODSOURCE_DAC):
-				# Check what the DAC scaling factor is
-				depth_parameter = depth * pow(2.0,15.0) / dac1
-			elif(source == SG_MODSOURCE_ADC):
-				# The input 1 is being used as Output 2 modulation signal
-				depth_parameter = depth * pow(2.0,9.0) / adc2
-			res = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
+		# Calculate the depth value depending on modulation source and type
+		depth_parameter = 0.0
+		if type == SG_MOD_AMPL:
+			depth_parameter = depth
+			if not 0 <= depth_parameter <= 1.0:
+				raise ValueOutOfRangeException("Invalid amplitude modulation depth [0.0-1.0]: %s" % depth)
+		elif type == SG_MOD_FREQ:
+			depth_parameter = depth/(DAC_SMP_RATE/8.0)
+			if not 0 <= depth_parameter <= 1.0:
+				raise ValueOutOfRangeException("Invalid frequency modulation deviation [0-125MHz]: %s" % depth)
+		elif type == SG_MOD_PHASE:
+			depth_parameter = depth/360.0
+			if not 0 <= depth_parameter <= 1.0:
+				raise ValueOutOfRangeException("Invalid phase modulation shift [0-360deg]: %s" % depth)
+
+		# Calibrate the depth value depending on the source
+		if(source == SG_MODSOURCE_INT):
+			depth_parameter *= 1.0 # No change in depth
+		elif(source == SG_MODSOURCE_DAC):
+			# Opposite DAC is used
+			depth_parameter = depth_parameter * pow(2.0,15.0) * (dac2 if ch == 1 else dac1)
+		elif(source == SG_MODSOURCE_ADC):
+			# Associated ADC for current channel
+			depth_parameter =  depth_parameter * pow(2.0,9.0) * (adc1 if ch == 1 else adc2)
+
+		if ch == 1:
+			self.mod1_amplitude = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
+		elif ch == 2:
 			self.mod2_amplitude = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
 
 _siggen_mod_reg_handlers = {
