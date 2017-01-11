@@ -200,7 +200,7 @@ class Moku(object):
 		self._conn.send(packet_data)
 
 		ack = self._conn.recv()
-		return ord(ack[1]) == 1
+		return ack[1] == 1
 
 	def take_ownership(self):
 		return self._ownership(0x40)

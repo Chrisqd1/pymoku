@@ -16,7 +16,7 @@ import math
 # of frames containing a range of data.  This simple example just records 10 seconds of
 # measurements to a CSV file.
 
-m = Moku.get_by_name('example')
+m = Moku('192.168.69.122')#.get_by_name('example')
 i = PhaseMeter()
 m.attach_instrument(i)
 

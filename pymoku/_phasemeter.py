@@ -136,7 +136,6 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 		self.binstr = "<p32,0xAAAAAAAA:u48:u48:s15:p1,0:s48:s32:s32"
 		self.procstr = ["*{:.16e} : *{:.16e} : : *{:.16e} : *C*{:.16e} : *C*{:.16e} ".format(_PM_HERTZ_SCALE, _PM_HERTZ_SCALE,  _PM_CYCLE_SCALE, _PM_VOLTS_SCALE, _PM_VOLTS_SCALE),
 						"*{:.16e} : *{:.16e} : : *{:.16e} : *C*{:.16e} : *C*{:.16e} ".format(_PM_HERTZ_SCALE, _PM_HERTZ_SCALE,  _PM_CYCLE_SCALE, _PM_VOLTS_SCALE, _PM_VOLTS_SCALE)]
-		print self.procstr
 
 
 	def _update_datalogger_params(self, ch1, ch2):
@@ -163,7 +162,7 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 		self.output_decimation = 2**shift
 		self.output_shift = shift
 
-		print "Output decimation: %f, Shift: %f, Samplerate: %f" % (self.output_decimation, shift, _PM_UPDATE_RATE/self.output_decimation)
+		log.debug("Output decimation: %f, Shift: %f, Samplerate: %f" % (self.output_decimation, shift, _PM_UPDATE_RATE/self.output_decimation))
 
 
 	def get_samplerate(self):
