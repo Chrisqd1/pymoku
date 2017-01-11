@@ -33,19 +33,20 @@ try:
 
 	i.commit() # Apply all changes.
 
-	plt.ion()
-	plt.show()
-	plt.grid(b=True)
-	plt.ylim([-10, 10])
-	plt.xlim([0,1024])
-
-	line1, = plt.plot([])
-	line2, = plt.plot([])
-
 	# Get initial frame to set up plotting parameters. This can be done once
 	# if we know that the axes aren't going to change (otherwise we'd do
 	# this in the loop)
 	frame = i.get_frame()
+
+	plt.ion()
+	plt.show()
+	plt.grid(b=True)
+	plt.ylim([-10, 10])
+	plt.xlim([0,len(frame.ch1)])
+
+	line1, = plt.plot([])
+	line2, = plt.plot([])
+
 
 	ax = plt.gca()
 	ax.xaxis.set_major_formatter(FuncFormatter(frame.get_xaxis_fmt))
@@ -58,8 +59,8 @@ try:
 		plt.pause(0.001)
 		line1.set_ydata(frame.ch1)
 		line2.set_ydata(frame.ch2)
-		line1.set_xdata(list(range(1024)))
-		line2.set_xdata(list(range(1024)))
+		line1.set_xdata(list(range(len(frame.ch1))))
+		line2.set_xdata(list(range(len(frame.ch2))))
 
 finally:
 	m.close()

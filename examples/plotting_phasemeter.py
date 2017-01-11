@@ -40,21 +40,16 @@ try:
 	# ------------------------------
 	# Set these parameters
 	#################################
-	'''
-		Which channels are ON?
-	'''
+
+	# Which channels are ON?
 	ch1 = True
 	ch2 = True
 
-	'''
-		Initial channel scan frequencies
-	'''
+	#Initial channel scan frequencies
 	ch1_freq = 10e6
 	ch2_freq = 10e6
 
-	'''
-		Ouput sinewaves
-	'''
+	#Ouput sinewaves
 	ch1_out_enable = True
 	ch1_out_freq = 10e6
 	ch1_out_amp = 1
@@ -63,10 +58,11 @@ try:
 	ch2_out_freq = 10e6
 	ch2_out_amp = 1
 
-	'''
-		Log duration (sec)
-	'''
+	#Log duration (sec)
 	duration = 100
+
+	# Measurements to display on the plot
+	plot_points = 500
 	#################################
 	# END Instrument Configuration
 	#################################
@@ -103,20 +99,21 @@ try:
 
 	# Set up basic plot configurations
 	if ch1:
-		ydata1 = [None] * 1024
+		ydata1 = [None] * plot_points
 		line1, = plt.plot(ydata1)
 	if ch2:
-		ydata2 = [None] * 1024
+		ydata2 = [None] * plot_points
 		line2, = plt.plot(ydata2)
 
-	xdata = numpy.linspace(-1*(i.get_timestep()*1023), 0, 1024)
+	xtent = -1 * (i.get_timestep() * (plot_points - 1))
+	xdata = numpy.linspace(xtent, 0, plot_points)
 
 	plt.ion()
 	plt.show()
 	plt.grid(b=True)
 	ax = plt.gca()
 	ax.get_yaxis().get_major_formatter().set_useOffset(False)
-	plt.xlim([-1*(i.get_timestep()*1023), 0])
+	plt.xlim([xtent, 0])
 	plt.ylabel('Amplitude (V)')
 	plt.xlabel('Time (s)')
 	
@@ -130,27 +127,20 @@ try:
 		print("Ch: %d, Idx: %d, #Samples: %s" % (ch, idx, len(samp)))
 
 		# Process the retrieved samples
+		# Process individual sample 's' here. Output format [fs, f, count, phase, I, Q]
+		# fs = setpoint frequency
+		# f = measured frequency
+		# Convert I,Q to amplitude and append to line graph
 		if ch1 & (ch==1):
-			datalen = len(samp)
-			ydata1 = ydata1[(datalen-1):-1]
 			for s in samp:
-				# Process individual sample 's' here. Output format [fs, f, count, phase, I, Q]
-				# fs = setpoint frequency
-				# f = measured frequency
-
-				# Convert I,Q to amplitude and append to line graph
 				ydata1 = ydata1 + [math.sqrt(s[4]**2 + s[5]**2)]
 
 		elif ch2 & (ch==2):
-			datalen = len(samp)
-			ydata2 = ydata2[(datalen-1):-1]
 			for s in samp:
-				# Process individual sample 's' here. Output format [fs, f, count, phase, I, Q]
-				# fs = setpoint frequency
-				# f = measured frequency
-
-				# Convert I,Q to amplitude and append to line graph
 				ydata2 = ydata2 + [math.sqrt(s[4]**2 + s[5]**2)]
+
+		ydata1 = ydata1[-plot_points:]
+		ydata2 = ydata2[-plot_points:]
 
 		# Must set lines for each draw loop
 		if ch1:
