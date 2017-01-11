@@ -58,7 +58,7 @@ SG_MODSOURCE_ADC	= 1
 SG_MODSOURCE_DAC	= 2
 
 _SG_FREQSCALE		= 1e9 / 2**48
-_SG_PHASESCALE		= 1.0 / (2**32 - 1)
+_SG_PHASESCALE		= 1.0 / (2**32) # Wraps
 _SG_RISESCALE		= 1e9 / 2**48
 _SG_AMPSCALE		= 4.0 / (2**15 - 1)
 _SG_DEPTHSCALE		= 1.0 / 2**15
@@ -98,7 +98,7 @@ class BasicSignalGenerator(MokuInstrument):
 		self.en_in_ch1 = False
 		self.en_in_ch2 = False
 
-	def synth_sinewave(self, ch, amplitude, frequency, offset=0):
+	def synth_sinewave(self, ch, amplitude, frequency, offset=0, phase=0.0):
 		""" Generate a Sine Wave with the given parameters on the given channel.
 
 		:type ch: int
@@ -119,16 +119,18 @@ class BasicSignalGenerator(MokuInstrument):
 			self.out1_amplitude = amplitude
 			self.out1_frequency = frequency
 			self.out1_offset = offset
+			self.out1_phase =  phase/360.0 
 		elif ch == 2:
 			self.out2_waveform = SG_WAVE_SINE
 			self.out2_enable = True
 			self.out2_amplitude = amplitude
 			self.out2_frequency = frequency
 			self.out2_offset = offset
+			self.out2_phase = phase/360.0
 		else:
 			raise ValueOutOfRangeException("Invalid Channel")
 
-	def synth_squarewave(self, ch, amplitude, frequency, offset=0, duty=0.5, risetime=0, falltime=0):
+	def synth_squarewave(self, ch, amplitude, frequency, offset=0, duty=0.5, risetime=0, falltime=0, phase=0.0):
 		""" Generate a Square Wave with given parameters on the given channel.
 
 		:type ch: int
@@ -171,6 +173,7 @@ class BasicSignalGenerator(MokuInstrument):
 			self.out1_t2 = duty + falltime
 			self.out1_riserate = frequency / risetime if risetime else _SG_MAX_RISE
 			self.out1_fallrate = frequency / falltime if falltime else _SG_MAX_RISE
+			self.out1_phase =  phase/360.0
 		elif ch == 2:
 			self.out2_waveform = SG_WAVE_SQUARE
 			self.out2_enable = True
@@ -183,10 +186,11 @@ class BasicSignalGenerator(MokuInstrument):
 			self.out2_t2 = duty + falltime
 			self.out2_riserate = frequency / risetime if risetime else _SG_MAX_RISE
 			self.out2_fallrate = frequency / falltime if falltime else _SG_MAX_RISE
+			self.out2_phase = phase/360.0
 		else:
 			raise ValueOutOfRangeException("Invalid Channel")
 
-	def synth_rampwave(self, ch, amplitude, frequency, offset=0, symmetry=0.5):
+	def synth_rampwave(self, ch, amplitude, frequency, offset=0, symmetry=0.5, phase= 0.0):
 		""" Generate a Ramp with the given parameters on the given channel.
 
 		This is a wrapper around the Square Wave generator, using the *riserate* and *fallrate*
@@ -209,7 +213,8 @@ class BasicSignalGenerator(MokuInstrument):
 		self.synth_squarewave(ch, amplitude, frequency,
 			offset = offset, duty = symmetry,
 			risetime = symmetry,
-			falltime = 1 - symmetry)
+			falltime = 1 - symmetry,
+			phase = phase)
 
 class SignalGenerator(BasicSignalGenerator):
 
@@ -336,10 +341,10 @@ _siggen_reg_handlers = {
 	'out2_offset':		(REG_SG_MODF2_H,	to_reg_signed(0, 16, xform=lambda obj, o:o / obj.dac_gains()[1]),
 											from_reg_signed(0, 16, xform=lambda obj, o: o * obj.dac_gains()[1])),
 
-	'out1_phase':		(REG_SG_PHASE1,		to_reg_unsigned(0, 32, xform=lambda obj, p:p / _SG_PHASESCALE),
+	'out1_phase':		(REG_SG_PHASE1,		to_reg_unsigned(0, 32, xform=lambda obj, p:p / _SG_PHASESCALE % (2**32)),
 											from_reg_unsigned(0, 32, xform=lambda obj, p:p * _SG_PHASESCALE)),
 
-	'out2_phase':		(REG_SG_PHASE2,		to_reg_unsigned(0, 32, xform=lambda obj, p:p / _SG_PHASESCALE),
+	'out2_phase':		(REG_SG_PHASE2,		to_reg_unsigned(0, 32, xform=lambda obj, p:p / _SG_PHASESCALE % (2**32)),
 											from_reg_unsigned(0, 32, xform=lambda obj, p:p * _SG_PHASESCALE)),
 
 	'out1_amplitude':	(REG_SG_AMP1,		to_reg_unsigned(0, 32, xform=lambda obj, p:p / obj.dac_gains()[0]),
@@ -348,22 +353,22 @@ _siggen_reg_handlers = {
 	'out2_amplitude':	(REG_SG_AMP2,		to_reg_unsigned(0, 32, xform=lambda obj, p:p / obj.dac_gains()[1]),
 											from_reg_unsigned(0, 32, xform=lambda obj, p:p * obj.dac_gains()[1])),
 
-	'out1_t0':			(REG_SG_T01,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
+	'out1_t0':			(REG_SG_T01,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE % (2**32)),
 											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
 
-	'out1_t1':			(REG_SG_T11,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
+	'out1_t1':			(REG_SG_T11,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE % (2**32)),
 											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
 
-	'out1_t2':			(REG_SG_T21,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
+	'out1_t2':			(REG_SG_T21,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE % (2**32)) ,
 											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
 
-	'out2_t0':			(REG_SG_T02,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
+	'out2_t0':			(REG_SG_T02,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE % (2**32)),
 											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
 
-	'out2_t1':			(REG_SG_T12,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
+	'out2_t1':			(REG_SG_T12,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE % (2**32)),
 											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
 
-	'out2_t2':			(REG_SG_T22,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
+	'out2_t2':			(REG_SG_T22,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE % (2**32)),
 											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
 
 	'out1_riserate':	((REG_SG_RFRATE1_H, REG_SG_RISERATE1_L),
