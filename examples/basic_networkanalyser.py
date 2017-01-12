@@ -38,7 +38,6 @@ single_sweep = False
 amp_ch1 = 1.0 # Volts peak-to-peak (assuming 50 Ohm impedance)
 amp_ch2 = 1.0 # Volts peak-to-peak (assuming 50 Ohm impedance)
 
-
 averaging_time = 1e-5 # seconds
 settling_time = 1e-6 # seconds
 
@@ -63,8 +62,8 @@ i.commit()
 
 
 # Set up basic plot configurations
-line1, = plt.plot([])
-line2, = plt.plot([])
+line1, = plt.semilogx([])
+line2, = plt.semilogx([])
 plt.ion()
 plt.show()
 
