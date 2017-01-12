@@ -58,7 +58,7 @@ SG_MODSOURCE_ADC	= 1
 SG_MODSOURCE_DAC	= 2
 
 _SG_FREQSCALE		= 1e9 / 2**48
-_SG_PHASESCALE		= 1.0 / (2**32) # Wraps
+_SG_PHASESCALE		= 360.0 / (2**32) # Wraps
 _SG_RISESCALE		= 1e9 / 2**48
 _SG_AMPSCALE		= 4.0 / (2**15 - 1)
 _SG_DEPTHSCALE		= 1.0 / 2**15
@@ -112,7 +112,11 @@ class BasicSignalGenerator(MokuInstrument):
 		:param frequency: Freqency of the wave
 
 		:type offset: float, volts
-		:param offset: DC offset applied to the waveform"""
+		:param offset: DC offset applied to the waveform
+
+		:type phase: float, degrees 0-360
+		:param phase: Phase offset of the wave
+		"""
 
 		if ch == 1:
 			self.out1_waveform = SG_WAVE_SINE
@@ -120,14 +124,14 @@ class BasicSignalGenerator(MokuInstrument):
 			self.out1_amplitude = amplitude
 			self.out1_frequency = frequency
 			self.out1_offset = offset
-			self.out1_phase =  phase/360.0 
+			self.out1_phase =  phase
 		elif ch == 2:
 			self.out2_waveform = SG_WAVE_SINE
 			self.out2_enable = True
 			self.out2_amplitude = amplitude
 			self.out2_frequency = frequency
 			self.out2_offset = offset
-			self.out2_phase = phase/360.0
+			self.out2_phase = phase
 		else:
 			raise ValueOutOfRangeException("Invalid Channel")
 
@@ -153,7 +157,12 @@ class BasicSignalGenerator(MokuInstrument):
 		:param risetime: Fraction of a cycle taken for the waveform to rise
 
 		:type falltime: float 0-1
-		:param falltime: Fraction of a cycle taken for the waveform to fall"""
+		:param falltime: Fraction of a cycle taken for the waveform to fall
+
+		:type phase: float, degrees 0-360
+		:param phase: Phase offset of the wave
+
+		"""
 
 		if duty < risetime:
 			raise ValueOutOfRangeException("Duty too small for given rise rate")
@@ -174,7 +183,7 @@ class BasicSignalGenerator(MokuInstrument):
 			self.out1_t2 = duty + falltime
 			self.out1_riserate = frequency / risetime if risetime else _SG_MAX_RISE
 			self.out1_fallrate = frequency / falltime if falltime else _SG_MAX_RISE
-			self.out1_phase =  phase/360.0
+			self.out1_phase =  phase
 		elif ch == 2:
 			self.out2_waveform = SG_WAVE_SQUARE
 			self.out2_enable = True
@@ -187,7 +196,7 @@ class BasicSignalGenerator(MokuInstrument):
 			self.out2_t2 = duty + falltime
 			self.out2_riserate = frequency / risetime if risetime else _SG_MAX_RISE
 			self.out2_fallrate = frequency / falltime if falltime else _SG_MAX_RISE
-			self.out2_phase = phase/360.0
+			self.out2_phase = phase
 		else:
 			raise ValueOutOfRangeException("Invalid Channel")
 
@@ -210,7 +219,11 @@ class BasicSignalGenerator(MokuInstrument):
 		:param offset: DC offset applied to the waveform
 
 		:type symmetry: float, 0-1
-		:param symmetry: Fraction of the cycle rising."""
+		:param symmetry: Fraction of the cycle rising.
+
+		:type phase: float, degrees 0-360
+		:param phase: Phase offset of the wave
+		"""
 		self.synth_squarewave(ch, amplitude, frequency,
 			offset = offset, duty = symmetry,
 			risetime = symmetry,
