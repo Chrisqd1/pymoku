@@ -58,6 +58,9 @@ def calculate_freq_axis(start_freq, freq_step, sweep_length, log_scale):
 
 	freq_axis = [(x/_NA_FREQ_SCALE) for x in F_axis]
 
+	if sweep_length <= 510 :
+		freq_axis = [1, 1] + freq_axis[1 : len(freq_axis)-1]
+
 
 	# print 'FREQUENCY CALCULATION: ', freq_axis
 	# print 'F_fpga', F_start
@@ -90,12 +93,17 @@ class NetAnFrame(_frame_instrument.DataFrame):
 		# convert an RMS voltage to a power level (assuming 50 Ohm load)
 
 		def _generate_signals(self, input_signal, gain_correction, front_end_scale, output_amp, dbscale):
-			# Trim I and Q data to be the length of the sweep. The maximum index for x is 2 times he length of the gain
+			# Trim I and Q data to be the length of the sweep. The maximum index for x is 2 timesphe length of the gain
 			# correction because the data for I and Q is interleaved.
-			self.i_sig = [ input_signal[x] for x in range(0, 2*len(gain_correction ), 2 ) ]
-			self.q_sig = [ input_signal[x] for x in range(1, 2*len(gain_correction ), 2 ) ]
-	
-			self.magnitude = [ math.sqrt(I**2 + Q**2)/G/front_end_scale if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
+			self.input = [ input_signal[x] for x in range(0, len(input_signal), 1 ) ]
+
+			self.i_sig = [ input_signal[x] for x in range(0, 2*len(gain_correction), 2) ]
+			self.q_sig = [ input_signal[x] for x in range(1, 2*len(gain_correction), 2) ]
+
+
+			self.magnitude = [ I/G if all ([I,G]) else None for I,G in zip(self.i_sig, gain_correction)]
+
+			# self.magnitude = [ math.sqrt(I**2 + Q**2)/G/front_end_scale if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
 			self.magnitude = [ ((20.0*math.log10(x/(output_amp/2)) if output_amp != 0 else None) if dbscale else x) if x else None for x in self.magnitude]
 
 			self.phase = [ math.atan2(Q, I) if all ([I,Q]) else None for I,Q in zip(self.i_sig, self.q_sig)]
@@ -351,17 +359,6 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		self.sweep_amp_volts_ch2 = sweep_amplitude_ch2
 
 
-	def set_sweep_freq_delta(self, start_frequency, end_frequency, sweep_length, log_scale):
-		
-		if log_scale:
-			sweep_freq_delta = round(((end_frequency / start_frequency)**(1.0/(sweep_length - 1)) - 1) * _NA_FXP_SCALE)
-		else:
-			sweep_freq_delta = round(((end_frequency - start_frequency)/(sweep_length - 1 )) * _NA_FREQ_SCALE)
-
-		return sweep_freq_delta
-
-
-
 	def get_sweep_freq_delta(self):
 
 		if self.log_en:
@@ -419,7 +416,7 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		if all(sweep_freq) != 0 :
 			cycles_time = [ averaging_cycles / sweep_freq[n] for n in range(sweep_points)]
 
-		points_per_freq = [math.ceil(a*max(averaging_time, b)) for (a,b) in zip(sweep_freq, cycles_time)]
+		points_per_freq = [math.ceil(a*max(averaging_time, b)-1e-12) for (a,b) in zip(sweep_freq, cycles_time)]
 
 		gain_scale = [0.0]*sweep_points
 
