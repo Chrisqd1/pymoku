@@ -63,6 +63,7 @@ _SG_RISESCALE		= 1e9 / 2**48
 _SG_AMPSCALE		= 4.0 / (2**15 - 1)
 _SG_DEPTHSCALE		= 1.0 / 2**15
 _SG_MAX_RISE		= 1e9 - 1
+_SG_TIMESCALE 		= 1.0 / (2**32 - 1) # Doesn't wrap
 
 class BasicSignalGenerator(MokuInstrument):
 	"""
@@ -314,7 +315,6 @@ _siggen_mod_reg_handlers = {
 											from_reg_unsigned(3, 2))
 }
 
-
 _siggen_reg_handlers = {
 	'out1_enable':		(REG_SG_WAVEFORMS,	to_reg_bool(0),		from_reg_bool(0)),
 	'out2_enable':		(REG_SG_WAVEFORMS,	to_reg_bool(1),		from_reg_bool(1)),
@@ -341,10 +341,10 @@ _siggen_reg_handlers = {
 	'out2_offset':		(REG_SG_MODF2_H,	to_reg_signed(0, 16, xform=lambda obj, o:o / obj.dac_gains()[1]),
 											from_reg_signed(0, 16, xform=lambda obj, o: o * obj.dac_gains()[1])),
 
-	'out1_phase':		(REG_SG_PHASE1,		to_reg_unsigned(0, 32, xform=lambda obj, p:p / _SG_PHASESCALE % (2**32)),
+	'out1_phase':		(REG_SG_PHASE1,		to_reg_unsigned(0, 32, xform=lambda obj, p: (p / _SG_PHASESCALE) % (2**32)),
 											from_reg_unsigned(0, 32, xform=lambda obj, p:p * _SG_PHASESCALE)),
 
-	'out2_phase':		(REG_SG_PHASE2,		to_reg_unsigned(0, 32, xform=lambda obj, p:p / _SG_PHASESCALE % (2**32)),
+	'out2_phase':		(REG_SG_PHASE2,		to_reg_unsigned(0, 32, xform=lambda obj, p: (p / _SG_PHASESCALE) % (2**32)),
 											from_reg_unsigned(0, 32, xform=lambda obj, p:p * _SG_PHASESCALE)),
 
 	'out1_amplitude':	(REG_SG_AMP1,		to_reg_unsigned(0, 32, xform=lambda obj, p:p / obj.dac_gains()[0]),
@@ -353,23 +353,23 @@ _siggen_reg_handlers = {
 	'out2_amplitude':	(REG_SG_AMP2,		to_reg_unsigned(0, 32, xform=lambda obj, p:p / obj.dac_gains()[1]),
 											from_reg_unsigned(0, 32, xform=lambda obj, p:p * obj.dac_gains()[1])),
 
-	'out1_t0':			(REG_SG_T01,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE % (2**32)),
-											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
+	'out1_t0':			(REG_SG_T01,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_TIMESCALE),
+											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_TIMESCALE)),
 
-	'out1_t1':			(REG_SG_T11,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE % (2**32)),
-											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
+	'out1_t1':			(REG_SG_T11,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_TIMESCALE),
+											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_TIMESCALE)),
 
-	'out1_t2':			(REG_SG_T21,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE % (2**32)) ,
-											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
+	'out1_t2':			(REG_SG_T21,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_TIMESCALE) ,
+											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_TIMESCALE)),
 
-	'out2_t0':			(REG_SG_T02,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE % (2**32)),
-											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
+	'out2_t0':			(REG_SG_T02,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_TIMESCALE),
+											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_TIMESCALE)),
 
-	'out2_t1':			(REG_SG_T12,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE % (2**32)),
-											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
+	'out2_t1':			(REG_SG_T12,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_TIMESCALE),
+											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_TIMESCALE )),
 
-	'out2_t2':			(REG_SG_T22,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE % (2**32)),
-											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
+	'out2_t2':			(REG_SG_T22,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_TIMESCALE ),
+											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_TIMESCALE )),
 
 	'out1_riserate':	((REG_SG_RFRATE1_H, REG_SG_RISERATE1_L),
 											to_reg_unsigned(0, 48, xform=lambda obj, r: r / _SG_FREQSCALE),
