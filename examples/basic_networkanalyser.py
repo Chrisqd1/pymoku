@@ -33,15 +33,15 @@ f_start = 1e6 # Hz
 f_end = 1e8  # Hz
 sweep_order = 9
 sweep_length = 2**sweep_order
-log_scale = False
+log_scale = True
 single_sweep = False
 amp_ch1 = 1.0 # Volts peak-to-peak (assuming 50 Ohm impedance)
 amp_ch2 = 1.0 # Volts peak-to-peak (assuming 50 Ohm impedance)
 
-averaging_time = 1e-5 # seconds
+averaging_time = 1e-3 # seconds
 settling_time = 1e-6 # seconds
 
-averaging_cycles = 500
+averaging_cycles = 1
 settling_cycles = 1
 
 i.set_dbscale(False),

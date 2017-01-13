@@ -61,10 +61,8 @@ def calculate_freq_axis(start_freq, freq_step, sweep_length, log_scale):
 	if sweep_length <= 510 :
 		freq_axis = [1, 1] + freq_axis[1 : len(freq_axis)-1]
 
-
-	# print 'FREQUENCY CALCULATION: ', freq_axis
-	# print 'F_fpga', F_start
 	return freq_axis
+
 
 class NetAnFrame(_frame_instrument.DataFrame):
 	"""
@@ -102,8 +100,8 @@ class NetAnFrame(_frame_instrument.DataFrame):
 
 			# self.magnitude = [ I/G if all ([I,G]) else None for I,G in zip(self.i_sig, gain_correction)]
 
-			self.magnitude = [ math.sqrt(I**2 + Q**2)/G/front_end_scale if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
-			self.magnitude = [ ((20.0*math.log10(x/(output_amp/2)) if output_amp != 0 else None) if dbscale else x) if x else None for x in self.magnitude]
+			self.magnitude = [ 2.0*math.sqrt(I**2 + Q**2)/G/front_end_scale if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
+			self.magnitude = [ ((20.0*math.log10(x/(output_amp)) if output_amp != 0 else None) if dbscale else x) if x else None for x in self.magnitude]
 
 			self.phase = [ math.atan2(Q, I) if all ([I,Q]) else None for I,Q in zip(self.i_sig, self.q_sig)]
 
@@ -111,10 +109,10 @@ class NetAnFrame(_frame_instrument.DataFrame):
 				self.complete = False
 				log.debug('Inconsistent number of valid data points (frequency axis and data lengths do not match)')
 
-			print len(self.magnitude)
-			print len(self.phase)
-			print len(self.i_sig)
-			print len(gain_correction)
+			# print len(self.magnitude)
+			# print len(self.phase)
+			# print len(self.i_sig)
+			# print len(gain_correction)
 
 		i_sig = []
 		q_sig = []
@@ -149,7 +147,6 @@ class NetAnFrame(_frame_instrument.DataFrame):
 			dat = struct.unpack('<' + 'i' * smpls, self.raw1)
 			dat = [ x if x != -0x80000000 else None for x in dat ]
 
-			# print dat
 			return
 
 		# Get scaling/correction factors based on current instrument configuration
@@ -408,7 +405,7 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 	 
 		sweep_freq = calculate_freq_axis(sweep_freq_min, sweep_freq_delta, sweep_points, log_scale)
 
-		print sweep_freq
+		# print sweep_freq
 		
 		cycles_time = [0.0]*sweep_points
 
@@ -425,12 +422,12 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 			else :
 				gain_scale[f] = 1.0
 
-		print 'Cycles per frequency: ', points_per_freq
-		print 'Gain scale: ', gain_scale
-		print 'Cycles time: ', cycles_time
-		print 'Sweep freq: ', sweep_freq
-		print 'Averaging cycles: ', averaging_cycles
-		print 'Averaging time: ', averaging_time
+		# print 'Cycles per frequency: ', points_per_freq
+		# print 'Gain scale: ', gain_scale
+		# print 'Cycles time: ', cycles_time
+		# print 'Sweep freq: ', sweep_freq
+		# print 'Averaging cycles: ', averaging_cycles
+		# print 'Averaging time: ', averaging_time
 		
 		return gain_scale
 
