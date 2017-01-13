@@ -152,6 +152,7 @@ try:
 
 		ax.relim()
 		ax.autoscale_view()
+		plt.pause(0.001)
 		plt.draw()
 
 	# Check if there were any errors
