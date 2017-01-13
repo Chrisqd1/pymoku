@@ -208,7 +208,10 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		self._dlskt.connect("tcp://%s:27186" % self._moku._ip)
 		self._dlskt.setsockopt_string(zmq.SUBSCRIBE, str(tag))
 
-		self._strparser = dataparser.LIDataParser(self.ch1, self.ch2, self.binstr, self.procstr, self.fmtstr, self.hdrstr, self.timestep, time.time(), [0] * self.nch)
+		self._strparser = dataparser.LIDataParser(self.ch1, self.ch2,
+			self.binstr, self.procstr, self.fmtstr, self.hdrstr,
+			self.timestep, int(time.time()), [0] * self.nch,
+			0) # Zero offset from start time to first sample, valid for streams but not so much for single frame transfers
 
 
 	def _dlsub_destroy(self):
