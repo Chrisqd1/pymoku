@@ -30,7 +30,7 @@ m.attach_instrument(i)
 i.set_defaults()
 
 f_start = 1e6 # Hz
-f_end = 1e8  # Hz
+f_end = 2e7  # Hz
 sweep_order = 9
 sweep_length = 2**sweep_order
 log_scale = True
@@ -39,18 +39,17 @@ amp_ch1 = 1.0 # Volts peak-to-peak (assuming 50 Ohm impedance)
 amp_ch2 = 1.0 # Volts peak-to-peak (assuming 50 Ohm impedance)
 
 averaging_time = 1e-3 # seconds
-settling_time = 1e-6 # seconds
+settling_time = 1e-3 # seconds
 
-averaging_cycles = 1
-settling_cycles = 1
+averaging_cycles = 100
+settling_cycles = 100
 
-i.set_dbscale(False),
+i.set_dbscale(True)
 
 i.set_sweep_parameters(f_start, f_end, sweep_length, log_scale, single_sweep, amp_ch1, amp_ch2, averaging_time, settling_time, averaging_cycles, settling_cycles) 
 
 i.set_frontend(1, fiftyr=True, atten=False, ac=False)
 i.set_frontend(2, fiftyr=True, atten=True, ac=False)
-
 
 #################################
 # END Instrument Configuration
@@ -59,11 +58,12 @@ i.set_frontend(2, fiftyr=True, atten=True, ac=False)
 i.commit()
 
 
+i.set_calibration()
 
 
 # Set up basic plot configurations
 line1, = plt.semilogx([])
-line2, = plt.semilogx([])
+# line2, = plt.semilogx([])
 plt.ion()
 plt.show()
 
@@ -90,14 +90,14 @@ try:
 
 		# Set the frame data for each channel plot
 		line1.set_ydata(frame.ch1.magnitude)
-		line2.set_ydata(frame.ch1.phase)
+		# line2.set_ydata(frame.ch1.phase)
 
 		print 'Magnitude: ', frame.ch1.magnitude
 		print 'Input frame: ', frame.ch1.input
 		
 		# Frequency axis shouldn't change, but to be sure
 		line1.set_xdata(frame.ch1_fs)
-		line2.set_xdata(frame.ch2_fs)
+		# line2.set_xdata(frame.ch2_fs)
 		
 		print "ch1_axis", frame.ch1_fs
 		print "Sweep frequency delta: ", i.get_sweep_freq_delta()

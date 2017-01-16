@@ -64,6 +64,34 @@ def calculate_freq_axis(start_freq, freq_step, sweep_length, log_scale):
 	return freq_axis
 
 
+class _NetAnChannel():
+
+	def __init__(self, input_signal, gain_correction, front_end_scale, output_amp, dbscale, calibration):
+		# Trim I and Q data to be the length of the sweep. The maximum index for x is 2 times the length of the gain
+		# correction because the data for I and Q is interleaved.
+		self.input = [ input_signal[x] for x in range(0, len(input_signal), 1 ) ]
+
+		self.i_sig = [ input_signal[x] for x in range(0, 2*len(gain_correction), 2) ]
+		self.q_sig = [ input_signal[x] for x in range(1, 2*len(gain_correction), 2) ]
+
+		self.magnitude_volts = [ 2.0*math.sqrt(I**2 + Q**2)/G/front_end_scale if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
+		
+		if calibration is not None :
+			self.magnitude_volts = [ (M/C)*output_amp if all ([M,C]) else None for M,C in zip(self.magnitude_volts, calibration) ] 
+
+		if dbscale :
+			self.magnitude_dB = [ (20.0*math.log10(x/output_amp) if output_amp != 0 else None) if x else None for x in self.magnitude_volts ]
+			self.magnitude = self.magnitude_dB
+		else :
+			self.magnitude = self.magnitude_volts
+
+		self.phase = [ math.atan2(Q, I) if all ([I,Q]) else None for I,Q in zip(self.i_sig, self.q_sig)]
+
+		if len(self.magnitude_volts) !=  len(gain_correction) or len(self.phase) !=  len(gain_correction) :
+			self.complete = False
+			log.debug('Inconsistent number of valid data points (frequency axis and data lengths do not match)')
+
+
 class NetAnFrame(_frame_instrument.DataFrame):
 	"""
 	Object representing a frame of data in units of power vs frequency. This is the native output format of
@@ -87,47 +115,12 @@ class NetAnFrame(_frame_instrument.DataFrame):
 	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumFrame.waveformid
 		:annotation: = n
 	"""
-	class _NetAnChannel():
-		# convert an RMS voltage to a power level (assuming 50 Ohm load)
-
-		def _generate_signals(self, input_signal, gain_correction, front_end_scale, output_amp, dbscale):
-			# Trim I and Q data to be the length of the sweep. The maximum index for x is 2 timesphe length of the gain
-			# correction because the data for I and Q is interleaved.
-			self.input = [ input_signal[x] for x in range(0, len(input_signal), 1 ) ]
-
-			self.i_sig = [ input_signal[x] for x in range(0, 2*len(gain_correction), 2) ]
-			self.q_sig = [ input_signal[x] for x in range(1, 2*len(gain_correction), 2) ]
-
-			# self.magnitude = [ I/G if all ([I,G]) else None for I,G in zip(self.i_sig, gain_correction)]
-
-			self.magnitude = [ 2.0*math.sqrt(I**2 + Q**2)/G/front_end_scale if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
-			self.magnitude = [ ((20.0*math.log10(x/(output_amp)) if output_amp != 0 else None) if dbscale else x) if x else None for x in self.magnitude]
-
-			self.phase = [ math.atan2(Q, I) if all ([I,Q]) else None for I,Q in zip(self.i_sig, self.q_sig)]
-
-			if len(self.magnitude) !=  len(gain_correction) or len(self.phase) !=  len(gain_correction) :
-				self.complete = False
-				log.debug('Inconsistent number of valid data points (frequency axis and data lengths do not match)')
-
-			# print len(self.magnitude)
-			# print len(self.phase)
-			# print len(self.i_sig)
-			# print len(gain_correction)
-
-		i_sig = []
-		q_sig = []
-		magnitude = []
-		phase = []
 
 	def __init__(self, scales):
 		super(NetAnFrame, self).__init__()
 
 		#: Channel 1 data array in units of power. Present whether or not the channel is enabled, but the
 		#: contents are undefined in the latter case.
-		self.ch1 = self._NetAnChannel()
-
-		#: Channel 2 data array in units of power.
-		self.ch2 = self._NetAnChannel()
 
 		#: The frequency range associated with both channels
 		self.fs = []
@@ -174,7 +167,7 @@ class NetAnFrame(_frame_instrument.DataFrame):
 			self.ch1_bits = [ float(x) if x is not None else None for x in dat[:1024] ]
 			# print self.ch1_bits[100]
 
-			self.ch1._generate_signals(self.ch1_bits, scales['gain_correction'], scales['g1'], scales['sweep_amplitude_ch1'], scales['dbscale'])
+			self.ch1 = _NetAnChannel(self.ch1_bits, scales['gain_correction'], scales['g1'], scales['sweep_amplitude_ch1'], scales['dbscale'], scales['calibration_ch1'])
 		
 
 			##################################
@@ -186,7 +179,7 @@ class NetAnFrame(_frame_instrument.DataFrame):
 
 			self.ch2_bits = [ float(x) if x is not None else None for x in dat[:1024] ]
 
-			self.ch2._generate_signals(self.ch2_bits, scales['gain_correction'], scales['g2'], scales['sweep_amplitude_ch2'], scales['dbscale'])
+			self.ch2 = _NetAnChannel(self.ch2_bits, scales['gain_correction'], scales['g2'], scales['sweep_amplitude_ch2'], scales['dbscale'], scales['calibration_ch2'])
 
 		except (IndexError, TypeError, struct.error):
 			# If the data is bollocksed, force a reinitialisation on next packet
@@ -307,6 +300,9 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		self.sweep_amp_volts_ch1 = 1.0
 		self.sweep_amp_volts_ch2 = 1.0
 
+		self.calibration_ch1 = None
+		self.calibration_ch2 = None
+
 
 	def commit(self):
 		# Compute remaining control register values based on window, rbw and fspan
@@ -400,6 +396,15 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 	def set_sweep_length(self, sweep_length):
 		self.sweep_length = sweep_length
 
+	def set_calibration(self):
+		frame = self.get_frame()
+
+		self.calibration_ch1 = frame.ch1.magnitude_volts
+		self.calibration_ch2 = frame.ch2.magnitude_volts
+
+		self.scales[self._stateid]['calibration_ch1'] = self.calibration_ch1
+		self.scales[self._stateid]['calibration_ch2'] = self.calibration_ch2
+
 
 	def gain_correction(self, sweep_freq_delta, sweep_freq_min, sweep_points, averaging_time, averaging_cycles, log_scale):
 	 
@@ -470,6 +475,8 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 				'averaging_time': self.averaging_time,
 				'sweep_amplitude_ch1' : self.sweep_amp_volts_ch1,
 				'sweep_amplitude_ch2' : self.sweep_amp_volts_ch2,
+				'calibration_ch1' : self.calibration_ch1,
+				'calibration_ch2' : self.calibration_ch2,
 				}
 
 
