@@ -74,7 +74,9 @@ class _NetAnChannel():
 		self.i_sig = [ input_signal[x] for x in range(0, 2*len(gain_correction), 2) ]
 		self.q_sig = [ input_signal[x] for x in range(1, 2*len(gain_correction), 2) ]
 
-		self.magnitude_volts = [ 2.0*math.sqrt(I**2 + Q**2)/G/front_end_scale if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
+		#self.magnitude_volts = [ 2.0*math.sqrt(I**2 + Q**2)/G/front_end_scale if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
+		self.magnitude_volts = [ 2.0*math.sqrt(I**2 + Q**2)/G/front_end_scale if all ([I,Q,G]) else 2.0*math.sqrt(I**2)/G/front_end_scale if all([I,G]) else 2.0*math.sqrt(Q**2)/G/front_end_scale if all([Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
+			
 		
 		if calibration is not None :
 			self.magnitude_volts = [ (M/C)*output_amp if all ([M,C]) else None for M,C in zip(self.magnitude_volts, calibration) ] 
@@ -115,7 +117,42 @@ class NetAnFrame(_frame_instrument.DataFrame):
 	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumFrame.waveformid
 		:annotation: = n
 	"""
+	"""<<<<<<< 5eeed7e96a5f0d1d769c94e9c34ab1cb750eab3d
+	=======
+	class _NetAnChannel():
+		# convert an RMS voltage to a power level (assuming 50 Ohm load)
 
+		def _generate_signals(self, input_signal, gain_correction, front_end_scale, output_amp, dbscale):
+			# Trim I and Q data to be the length of the sweep. The maximum index for x is 2 timesphe length of the gain
+			# correction because the data for I and Q is interleaved.
+			self.input = [ input_signal[x] for x in range(0, len(input_signal), 1 ) ]
+
+			self.i_sig = [ input_signal[x] for x in range(0, 2*len(gain_correction), 2) ]
+			self.q_sig = [ input_signal[x] for x in range(1, 2*len(gain_correction), 2) ]
+
+			self.magnitude = [ I/G if all ([I,G]) else None for I,G in zip(self.i_sig, gain_correction)]
+
+			#self.magnitude = [ 2.0*math.sqrt(I**2 + Q**2)/1/front_end_scale if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
+			#self.magnitude = [ 2.0*math.sqrt(I**2 + Q**2)/G/front_end_scale if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
+			self.magnitude = [ 2.0*math.sqrt(I**2 + Q**2)/G/front_end_scale if all ([I,Q,G]) else 2.0*math.sqrt(I**2)/G/front_end_scale if all([I,G]) else 2.0*math.sqrt(Q**2)/G/front_end_scale if all([Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
+			self.magnitude = [ ((20.0*math.log10(x/(output_amp)) if output_amp != 0 else None) if dbscale else x) if x else None for x in self.magnitude]
+
+			self.phase = [ math.atan2(Q, I) if all ([I,Q]) else None for I,Q in zip(self.i_sig, self.q_sig)]
+
+			if len(self.magnitude) !=  len(gain_correction) or len(self.phase) !=  len(gain_correction) :
+				self.complete = False
+				log.debug('Inconsistent number of valid data points (frequency axis and data lengths do not match)')
+
+			# print len(self.magnitude)
+			# print len(self.phase)
+			# print len(self.i_sig)
+			# print len(gain_correction)
+
+		i_sig = []
+		q_sig = []
+		magnitude = []
+		phase = []
+	>>>>>>> PM-147 Added gain scaling"""
 	def __init__(self, scales):
 		super(NetAnFrame, self).__init__()
 
@@ -419,13 +456,44 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 		points_per_freq = [math.ceil(a*max(averaging_time, b)-1e-12) for (a,b) in zip(sweep_freq, cycles_time)]
 
+		average_gain = [0.0]*sweep_points
 		gain_scale = [0.0]*sweep_points
+
+		#Calculate gain scaling due to accumulator bit ranging:
+		for f in range(sweep_points) :
+
+			# Predict how many FPGA clock cycles each frequency averages for:
+			average_period_cycles = averaging_cycles * (sweep_freq[f]**-1) * 125e6
+			if (averaging_time % (sweep_freq[f]**-1)) == 0 :
+				average_period_time = averaging_time * 125e6
+			else :
+				average_period_time = (averaging_time + sweep_freq[f]**-1) * 125e6
+
+			if average_period_time >= average_period_cycles :
+				average_period = average_period_time
+			else :
+				average_period = average_period_cycles
+
+			# Scale according to the predicted accumulator counter size:
+			if average_period <= 2**16 :
+				average_gain[f] = 2**-1
+			elif average_period <= 2**21 :
+				average_gain[f] = 2**-6
+			elif average_period <= 2**26 :
+				average_gain[f] = 2**-11
+			elif average_period <= 2**31 :
+				average_gain[f] = 2**-16
+			elif average_period <= 2**36 :
+				average_gain[f] = 2**-21
+			else :
+				average_gain[f] = 2**-25
 
 		for f in range(sweep_points) :
 			if sweep_freq[f] > 0.0 :
-				gain_scale[f] =  math.ceil(points_per_freq[f]*(_NA_FPGA_CLOCK/sweep_freq[f]))
+				gain_scale[f] =  math.ceil(average_gain[f]*points_per_freq[f]*(_NA_FPGA_CLOCK/sweep_freq[f]))
+				#gain_scale[f] =  math.ceil(points_per_freq[f]*(_NA_FPGA_CLOCK/sweep_freq[f]))
 			else :
-				gain_scale[f] = 1.0
+				gain_scale[f] = 1.0 * average_gain[f]
 
 		# print 'Cycles per frequency: ', points_per_freq
 		# print 'Gain scale: ', gain_scale
