@@ -28,6 +28,22 @@ REG_SA_SOS2_A1		= 77
 REG_SA_SOS2_A2		= 78
 REG_SA_SOS2_B1		= 79
 
+REG_SA_TR1_AMP 		= 96
+REG_SA_TR1_START_H 	= 97
+REG_SA_TR1_START_L 	= 98
+REG_SA_TR1_STOP_H 	= 99
+REG_SA_TR1_STOP_L	= 100
+REG_SA_TR1_INCR_H	= 101
+REG_SA_TR1_INCR_L 	= 102
+
+REG_SA_TR2_AMP 		= 103
+REG_SA_TR2_START_H 	= 104
+REG_SA_TR2_START_L 	= 105
+REG_SA_TR2_STOP_H 	= 106
+REG_SA_TR2_STOP_L	= 107
+REG_SA_TR2_INCR_H	= 108
+REG_SA_TR2_INCR_L 	= 109
+
 SA_WIN_BH			= 0
 SA_WIN_FLATTOP		= 1
 SA_WIN_HANNING		= 2
@@ -37,10 +53,11 @@ _SA_ADC_SMPS		= 500e6
 _SA_BUFLEN			= 2**14
 _SA_SCREEN_WIDTH	= 1024
 _SA_SCREEN_STEPS	= _SA_SCREEN_WIDTH - 1
-_SA_FPS				= 2
+_SA_FPS				= 20
 _SA_FFT_LENGTH		= 8192/2
 _SA_FREQ_SCALE		= 2**32 / _SA_ADC_SMPS
 _SA_INT_VOLTS_SCALE = (1.437*pow(2.0,-8.0))
+_SA_SG_FREQ_SCALE	= 2**48 / (_SA_ADC_SMPS * 2.0)
 
 '''
 	FILTER GAINS AND CORRECTION FACTORS
@@ -343,6 +360,18 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 
 		self.set_dbmscale(True)
 
+
+		# Embedded signal generator configuration
+		self.en_out1 = False
+		self.en_out2 = False
+		# Local output sweep amplitudes
+		self._tr1_amp = 0
+		self._tr2_amp = 0
+		self.tr1_incr = 0
+		self.tr2_incr = 0
+		self.sweep1 = False
+		self.sweep2 = False
+
 	def _calculate_decimations(self, f1, f2):
 		# Computes the decimations given the input span
 		# Doesn't guarantee a total decimation of the ideal value, even if such an integer sequence exists
@@ -370,11 +399,10 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 
 			d4 = min(max(math.floor(dec), 1), 16)
 
-
 		return [d1, d2, d3, d4, ideal]
 
-	def _set_decimations(self):
-		d1, d2, d3, d4, ideal = self._calculate_decimations(self.f1, self.f2)
+	def _set_decimations(self, f1, f2):
+		d1, d2, d3, d4, ideal = self._calculate_decimations(f1, f2)
 
 		# d1 can only be x4 decimation
 		self.bs_cic2 = math.ceil(2 * math.log(d2, 2))
@@ -385,9 +413,10 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		self.dec_cic3 = d3
 		self.dec_iir  = d4
 
-		self._total_decimation = d1 * d2 * d3 * d4
+		total_decimation = d1 * d2 * d3 * d4
+		self._total_decimation = total_decimation
 
-		log.debug("Decimations: %d %d %d %d = %d (ideal %f)", d1, d2, d3, d4, self._total_decimation, ideal)
+		log.debug("Decimations: %d %d %d %d = %d (ideal %f)", d1, d2, d3, d4, total_decimation, ideal)
 
 	def _set_rbw_ratio(self, fspan):
 		# Sets the RBW ratio based on current device settings
@@ -407,7 +436,7 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		self.demod = self._f2_full
 
 		# Set the CIC decimations
-		self._set_decimations()
+		self._set_decimations(self.f1, self.f2)
 
 		# Set the filter gains based on the set CIC decimations
 		filter_set = _SA_IIR_COEFFS[self.dec_iir-1]
@@ -425,6 +454,10 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		rbw = self._set_rbw_ratio(fspan)
 
 		self.ref_level = 6
+
+		# Output signal generator sweep depends on the instrument parameters for optimal 
+		# increment vs screen update rate
+		self._set_sweep_increments(self.sweep1, self.sweep2, fspan, self._total_decimation, rbw, self.framerate)
 
 		log.debug("DM: %f FS: %f, BS: %f, RD: %f, W:%d, RBW: %f, RBR: %f", self.demod, fspan, buffer_span, self.render_dds, self.window, rbw, self.rbw_ratio)
 
@@ -512,9 +545,9 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		- **SA_WIN_NONE** No window
 
 		:type window: int
-		:param window: Window Function
+		:param window: Window Function """
 		self.window = window
-		"""
+		
 
 	def set_dbmscale(self,dbm=True):
 		""" Configures the Spectrum Analyser to use a logarithmic amplitude axis """
@@ -539,6 +572,17 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		self.set_frontend(2,fiftyr=False, atten=True, ac=False)
 		self.en_in_ch1 = True
 		self.en_in_ch2 = True
+
+		self.en_out1 = False
+		self.en_out2 = False
+		self.sweep1 = False
+		self.sweep2 = False
+		self.tr1_start = 100e6
+		self.tr1_stop = 0
+		self.tr2_start = 100e6
+		self.tr2_stop = 0
+		self.tr1_incr = 0
+		self.tr2_incr = 0
 
 		self.set_dbmscale(True)
 
@@ -611,6 +655,63 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 
 		return {'g1': g1, 'g2': g2, 'fs': freqs, 'fcorrs': fcorrs, 'fspan': [self._f1_full, self._f2_full], 'dbmscale': self.dbmscale}
 
+	def enable_output(self, ch, enable):
+		if ch == 1:
+			self.en_out1 = enable
+			self.tr1_amp = self._tr1_amp if enable else 0
+		elif ch == 2:
+			self.en_out2 = enable
+			self.tr2_amp = self._tr2_amp if enable else 0
+
+	def conf_output(self, ch, amp, freq, sweep=False):
+		"""
+			Configure the output DAC channels 
+			If sweep is True, frequency is ignored.
+		"""
+		# Taken from iPad library:
+		# time taken for FFT is W points at decimated rate plus 8192-w points at 125 MHz plus 1/1788.8 seconds
+		if ch == 1:
+			self.sweep1 = sweep
+			self._tr1_amp = amp
+			self.tr1_amp = amp if self.en_out1 else 0
+			if sweep:
+				self.tr1_start = self._f1_full
+				self.tr1_stop  = self._f2_full
+			else:
+				self.tr1_start = freq
+				self.tr1_stop = 0
+				self.tr1_incr = 0
+		elif ch == 2:
+			self.sweep2 = sweep
+			self._tr2_amp = amp
+			self.tr2_amp = amp if self.en_out2 else 0
+			if sweep:
+				self.tr2_start = self._f1_full
+				self.tr2_stop  = self._f2_full
+			else:
+				self.tr2_start = freq
+				self.tr2_stop = 0
+				self.tr2_incr = 0
+		else:
+			raise ValueOutOfRangeException("Invalid channel number")
+
+	def _set_sweep_increments(self, sweep1, sweep2, fspan, decimation, rbw, framerate):
+		increment = 0
+		if sweep1 or sweep2:
+			samplerate = _SA_ADC_SMPS / decimation
+			windowed_points = 2*_SA_FFT_LENGTH/rbw
+			fft_time = windowed_points / samplerate + (2*_SA_FFT_LENGTH - windowed_points)/125e6 + (1.0/1788.8)
+			screen_update_time = max(round(fft_time*framerate)/framerate, 1.0/framerate)
+
+			increment =  fspan / 100.5 * (fft_time / screen_update_time)
+			print "Increment", increment
+		
+		if sweep1:
+			self.tr1_incr = increment
+		if sweep2:
+			self.tr2_incr = increment
+
+		log.debug("SW1: %s, AMP1: %f, INCR1: %f, FREQ1: %f/%f, SW2: %s, AMP2: %f, INCR2: %f, FREQ2: %f/%f", self.sweep1, self.tr1_amp, self.tr1_incr, self.tr1_start, self.tr1_stop, self.sweep2, self.tr2_amp, self.tr2_incr, self.tr2_start, self.tr2_stop)
 
 	def commit(self):
 		# Compute remaining control register values based on window, rbw and fspan
@@ -660,4 +761,28 @@ _sa_reg_handlers = {
 	'a1_sos2':			(REG_SA_SOS2_A1,	to_reg_signed(0, 18),		from_reg_signed(0, 18)),
 	'a2_sos2':			(REG_SA_SOS2_A2,	to_reg_signed(0, 18),		from_reg_signed(0, 18)),
 	'b1_sos2':			(REG_SA_SOS2_B1,	to_reg_signed(0, 18),		from_reg_signed(0, 18)),
+
+	'tr1_amp'	:	(REG_SA_TR1_AMP,	to_reg_unsigned(0, 16, xform=lambda obj, p:p / obj.dac_gains()[0]),
+										from_reg_unsigned(0, 16, xform=lambda obj, p:p * obj.dac_gains()[0])),
+	'tr1_start'	:	((REG_SA_TR1_START_H, REG_SA_TR1_START_L),	
+										to_reg_unsigned(0, 48, xform=lambda obj, p:p * _SA_SG_FREQ_SCALE),
+										from_reg_unsigned(0, 48, xform=lambda obj, p:p / _SA_SG_FREQ_SCALE)),
+	'tr1_stop'	:	((REG_SA_TR1_STOP_H, REG_SA_TR1_STOP_L),	
+										to_reg_unsigned(0, 48, xform=lambda obj, p:p * _SA_SG_FREQ_SCALE),
+										from_reg_unsigned(0, 48, xform=lambda obj, p:p / _SA_SG_FREQ_SCALE)),
+	'tr1_incr'	:	((REG_SA_TR1_INCR_H, REG_SA_TR1_INCR_L),	
+										to_reg_unsigned(0, 48, xform=lambda obj, p:p * _SA_SG_FREQ_SCALE),
+										from_reg_unsigned(0, 48, xform=lambda obj, p:p / _SA_SG_FREQ_SCALE)),
+
+	'tr2_amp'	:	(REG_SA_TR2_AMP,	to_reg_unsigned(0, 16, xform=lambda obj, p:p / obj.dac_gains()[0]),
+										from_reg_unsigned(0, 16, xform=lambda obj, p:p * obj.dac_gains()[0])),
+	'tr2_start'	:	((REG_SA_TR2_START_H, REG_SA_TR2_START_L),	
+										to_reg_unsigned(0, 48, xform=lambda obj, p:p * _SA_SG_FREQ_SCALE),
+										from_reg_unsigned(0, 48, xform=lambda obj, p:p / _SA_SG_FREQ_SCALE)),
+	'tr2_stop'	:	((REG_SA_TR2_STOP_H, REG_SA_TR2_STOP_L),	
+										to_reg_unsigned(0, 48, xform=lambda obj, p:p * _SA_SG_FREQ_SCALE),
+										from_reg_unsigned(0, 48, xform=lambda obj, p:p / _SA_SG_FREQ_SCALE)),
+	'tr2_incr'	:	((REG_SA_TR2_INCR_H, REG_SA_TR2_INCR_L),	
+										to_reg_unsigned(0, 48, xform=lambda obj, p:p * _SA_SG_FREQ_SCALE),
+										from_reg_unsigned(0, 48, xform=lambda obj, p:p / _SA_SG_FREQ_SCALE))
 }

@@ -29,8 +29,8 @@ else:
 # Set power scale to dBm
 dbm = True
 
-# Set window type {NONE, BH, FLATTOP, HANNING}
-windowType = i.window_type('NONE')
+# [SA_WIN_HANNING, SA_WIN_FLATTOP, SA_WIN_NONE, SA_WIN_BH]
+window_type = SA_WIN_HANNING
 
 # Set FFT frequency span (Hz)
 start_freq = 0e6
@@ -40,9 +40,12 @@ stop_freq = 250e6
 #################################
 
 i.set_dbmscale(dbm)
-i.set_window(windowType)
+i.set_window(window_type)
 i.set_span(start_freq, stop_freq)
-
+i.conf_output(1, 0.5, 100e6, sweep=True)
+i.conf_output(2, 1.0, 3e6)
+i.enable_output(1, True)
+i.enable_output(2, True)
 # Push all new configuration to the Moku device
 i.commit()
 
