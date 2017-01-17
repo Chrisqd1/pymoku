@@ -29,10 +29,10 @@ m.attach_instrument(i)
 
 i.set_defaults()
 
-f_start = 1e2 # Hz
+f_start = 1e6 # Hz
 f_end = 2e7  # Hz
 
-sweep_order = 5
+sweep_order = 9
 sweep_length = 2**sweep_order
 log_scale = True
 single_sweep = False
@@ -42,8 +42,8 @@ amp_ch2 = 1.0 # Volts peak-to-peak (assuming 50 Ohm impedance)
 averaging_time = 1e-3 # seconds
 settling_time = 1e-3 # seconds
 
-averaging_cycles = 1
-settling_cycles = 1
+averaging_cycles = 100
+settling_cycles = 100
 
 i.set_dbscale(True)
 

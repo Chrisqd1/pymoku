@@ -467,7 +467,8 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 			if (averaging_time % (sweep_freq[f]**-1)) == 0 :
 				average_period_time = averaging_time * 125e6
 			else :
-				average_period_time = (averaging_time + sweep_freq[f]**-1) * 125e6
+				#average_period_time = (averaging_time + sweep_freq[f]**-1) * 125e6
+				average_period_time = ((math.floor(averaging_time/sweep_freq[f]**-1))*sweep_freq[f]**-1 + sweep_freq[f]**-1) * 125e6
 
 			if average_period_time >= average_period_cycles :
 				average_period = average_period_time
