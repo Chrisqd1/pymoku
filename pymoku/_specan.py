@@ -49,6 +49,10 @@ SA_WIN_FLATTOP		= 1
 SA_WIN_HANNING		= 2
 SA_WIN_NONE			= 3
 
+SA_RBW_AUTO			= 0
+SA_RBW_MANUAL 		= 1
+SA_RBW_MIN			= 2
+
 _SA_ADC_SMPS		= 500e6
 _SA_BUFLEN			= 2**14
 _SA_SCREEN_WIDTH	= 1024
@@ -325,7 +329,6 @@ class SpectrumFrame(_frame_instrument.DataFrame):
 		""" Function suitable to use as argument to a matplotlib FuncFormatter for Y (voltage) coordinate """
 		return self._get_yaxis_fmt(y,None)['ycoord']
 
-
 class SpecAn(_frame_instrument.FrameBasedInstrument):
 	""" Spectrum Analyser instrument object. This should be instantiated and attached to a :any:`Moku` instance.
 
@@ -355,11 +358,10 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		self.calibration = None
 
 		self.set_span(0, 250e6)
-		self.set_rbw(None)
+		self.set_rbw(0, mode=SA_RBW_AUTO)
 		self.set_window(SA_WIN_BH)
 
 		self.set_dbmscale(True)
-
 
 		# Embedded signal generator configuration
 		self.en_out1 = False
@@ -387,7 +389,6 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 			deci_idx = bisect_right(_DECIMATIONS_TABLE, (ideal,99,99,99,99))
 			deci, d1, d2, d3, d4 = _DECIMATIONS_TABLE[deci_idx - 1]
 			'''
-
 			d1 = 4
 			dec = ideal / d1
 
@@ -418,20 +419,39 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 
 		log.debug("Decimations: %d %d %d %d = %d (ideal %f)", d1, d2, d3, d4, total_decimation, ideal)
 
-	def _set_rbw_ratio(self, fspan):
-		# Sets the RBW ratio based on current device settings
-		window_factor = _SA_WINDOW_WIDTH[self.window]
-		fbin_resolution = _SA_ADC_SMPS / 2.0 / _SA_FFT_LENGTH / self._total_decimation
+	def _calculate_rbw(self, rbw, decimation, window, fspan, rbw_mode, sweep):
+		"""
+			Calculates the RBW value based on current mode
+		"""
+		if rbw_mode == SA_RBW_AUTO:
+			if sweep:
+				rbw = fspan / 50.0
+			else:
+				rbw = 5.0 * fspan / _SA_SCREEN_STEPS
 
-		# "Auto" RBW is 5 screen points
-		rbw = self.rbw or 5 * fspan / _SA_SCREEN_WIDTH
-		rbw = min(max(rbw, 17.0 / 16.0 * fbin_resolution * window_factor), 2.0**10.0 * fbin_resolution * window_factor)
+		elif rbw_mode == SA_RBW_MIN:
+			rbw = 0.0
+
+		window_factor = _SA_WINDOW_WIDTH[window]
+		fbin_resolution = ADC_SMP_RATE/2.0 /_SA_FFT_LENGTH/decimation
+
+		return min(max(rbw, (17.0/16.0) * fbin_resolution * window_factor), 2**10.0 * fbin_resolution * window_factor)
+
+	def _set_rbw_ratio(self, rbw, decimation, window, fspan, rbw_mode, sweep):
+		rbw = self._calculate_rbw(rbw, decimation, window, fspan, rbw_mode, sweep)
+
+		window_factor = _SA_WINDOW_WIDTH[window]
+		fbin_resolution = ADC_SMP_RATE/2.0/_SA_FFT_LENGTH/decimation
+
 		# To match the iPad code, we round the bitshifted ratio, then bitshift back again so the register accessor can do it
 		self.rbw_ratio = round(2**10*rbw / window_factor / fbin_resolution)/2**10
-
 		return rbw
 
-	def _setup_controls(self):
+	def _update_dependent_regs(self):
+		"""
+			This function is called at commit time to ensure a consistent Moku register state.
+			It sets all registers that are dependent on other register values (sensitive to ordering).
+		"""
 		# Set the demodulation frequency to mix down the signal to DC
 		self.demod = self._f2_full
 
@@ -451,7 +471,7 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		self.render_dds_alt = self.render_dds
 
 		# Calculate the Resolution Bandwidth (RBW)
-		rbw = self._set_rbw_ratio(fspan)
+		rbw = self._set_rbw_ratio(self.rbw, self._total_decimation, self.window, fspan, self.rbw_mode, self.sweep1 or self.sweep2)
 
 		self.ref_level = 6
 
@@ -526,13 +546,16 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		self._f1_full = new_f1
 		self._f2_full = new_f2
 
-	def set_rbw(self, rbw=None):
+	def set_rbw(self, rbw, mode=SA_RBW_AUTO):
 		""" Set Resolution Bandwidth
 
 		:type rbw: float
-		:param rbw: RBW (Hz) or *None* for "auto"
+		:param rbw: RBW (Hz) - ignored in AUTO and MIN modes
+
+		:type mode: **SA_RBW_AUTO**, **SA_RBW_MIN**, **SA_RBW_MANUAL**
 		"""
 		self.rbw = rbw
+		self.rbw_mode = mode
 
 	def set_window(self, window):
 		""" Set Window function
@@ -573,6 +596,7 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		self.en_in_ch1 = True
 		self.en_in_ch2 = True
 
+		# Signal generator defaults
 		self.en_out1 = False
 		self.en_out2 = False
 		self.sweep1 = False
@@ -585,6 +609,7 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		self.tr2_incr = 0
 
 		self.set_dbmscale(True)
+		self.set_rbw(0, mode=SA_RBW_AUTO)
 
 	def _calculate_freqStep(self, decimation, render_downsamp):
 		bufspan = _SA_ADC_SMPS / 2.0 / decimation
@@ -626,9 +651,6 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 			Parameters are based on current instrument state
 		"""
 		# Returns the bits-to-volts numbers for each channel in the current state
-
-		# TODO: Centralise the calibration parsing, shared with Oscilloscope
-
 		g1, g2 = self.adc_gains()
 
 		filt_gain2 = 2.0 ** (self.bs_cic2 - 2.0 * math.log(self.dec_cic2, 2))
@@ -665,9 +687,21 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 
 	def conf_output(self, ch, amp, freq, sweep=False):
 		"""
-			Configure the output DAC channels 
-			If sweep is True, frequency is ignored.
+		Configure the output sinewaves on DAC channels
+
+		:type ch: 1, 2
+		:param ch: Output DAC channel to configure
+
+		:type amp: float, 0.0 - 2.0 volts
+		:param amp: Peak-to-peak output voltage
+
+		:type freq: float, 0 - 250e6 Hertz
+		:param freq: Frequency of output sinewave (ignored if sweep=True)
+
+		:type sweep: bool
+		:param sweep: Sweep current frequency span (ignores freq parameter if True). Defaults to False.
 		"""
+
 		# Taken from iPad library:
 		# time taken for FFT is W points at decimated rate plus 8192-w points at 125 MHz plus 1/1788.8 seconds
 		if ch == 1:
@@ -696,6 +730,10 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 			raise ValueOutOfRangeException("Invalid channel number")
 
 	def _set_sweep_increments(self, sweep1, sweep2, fspan, decimation, rbw, framerate):
+		"""
+			Calculates the optimal frequency increment for the generated output sinewaves sweep
+			based on FFT computation time and framerate.
+		"""
 		increment = 0
 		if sweep1 or sweep2:
 			samplerate = _SA_ADC_SMPS / decimation
@@ -704,7 +742,6 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 			screen_update_time = max(round(fft_time*framerate)/framerate, 1.0/framerate)
 
 			increment =  fspan / 100.5 * (fft_time / screen_update_time)
-			print "Increment", increment
 		
 		if sweep1:
 			self.tr1_incr = increment
@@ -714,8 +751,8 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		log.debug("SW1: %s, AMP1: %f, INCR1: %f, FREQ1: %f/%f, SW2: %s, AMP2: %f, INCR2: %f, FREQ2: %f/%f", self.sweep1, self.tr1_amp, self.tr1_incr, self.tr1_start, self.tr1_stop, self.sweep2, self.tr2_amp, self.tr2_incr, self.tr2_start, self.tr2_stop)
 
 	def commit(self):
-		# Compute remaining control register values based on window, rbw and fspan
-		self._setup_controls()
+		# Update registers that depend on others being calculated
+		self._update_dependent_regs()
 
 		# Push the controls through to the device
 		super(SpecAn, self).commit()
