@@ -571,7 +571,6 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		:param window: Window Function """
 		self.window = window
 		
-
 	def set_dbmscale(self,dbm=True):
 		""" Configures the Spectrum Analyser to use a logarithmic amplitude axis """
 		self.dbmscale = dbm
@@ -653,11 +652,12 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		# Returns the bits-to-volts numbers for each channel in the current state
 		g1, g2 = self.adc_gains()
 
+		filt_gain1 = 2 ** (-5.0) if self.dec_enable else 1.0
 		filt_gain2 = 2.0 ** (self.bs_cic2 - 2.0 * math.log(self.dec_cic2, 2))
 		filt_gain3 = 2.0 ** (self.bs_cic3 - 3.0 * math.log(self.dec_cic3, 2))
 		filt_gain4 = pow(2.0,-8.0) if (self.dec_iir-1) else 1.0
 
-		filt_gain = filt_gain2 * filt_gain3 * filt_gain4
+		filt_gain = filt_gain1 * filt_gain2 * filt_gain3 * filt_gain4
 		window_gain = 1.0 / _SA_WINDOW_POWER[self.window]
 
 		g1 *= _SA_INT_VOLTS_SCALE * filt_gain * window_gain * self.rbw_ratio * (2**10)
@@ -811,8 +811,8 @@ _sa_reg_handlers = {
 										to_reg_unsigned(0, 48, xform=lambda obj, p:p * _SA_SG_FREQ_SCALE),
 										from_reg_unsigned(0, 48, xform=lambda obj, p:p / _SA_SG_FREQ_SCALE)),
 
-	'tr2_amp'	:	(REG_SA_TR2_AMP,	to_reg_unsigned(0, 16, xform=lambda obj, p:p / obj.dac_gains()[0]),
-										from_reg_unsigned(0, 16, xform=lambda obj, p:p * obj.dac_gains()[0])),
+	'tr2_amp'	:	(REG_SA_TR2_AMP,	to_reg_unsigned(0, 16, xform=lambda obj, p:p / obj.dac_gains()[1]),
+										from_reg_unsigned(0, 16, xform=lambda obj, p:p * obj.dac_gains()[1])),
 	'tr2_start'	:	((REG_SA_TR2_START_H, REG_SA_TR2_START_L),	
 										to_reg_unsigned(0, 48, xform=lambda obj, p:p * _SA_SG_FREQ_SCALE),
 										from_reg_unsigned(0, 48, xform=lambda obj, p:p / _SA_SG_FREQ_SCALE)),
