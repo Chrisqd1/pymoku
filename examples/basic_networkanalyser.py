@@ -1,5 +1,7 @@
 from pymoku import Moku
 from pymoku.instruments import *
+from datetime import datetime
+
 import time, logging
 
 import matplotlib
@@ -30,8 +32,7 @@ m.attach_instrument(i)
 i.set_defaults()
 
 f_start = 1e6 # Hz
-f_end = 2e7  # Hz
-
+f_end = 1e8  # Hz
 sweep_order = 9
 sweep_length = 2**sweep_order
 log_scale = True
@@ -52,17 +53,22 @@ i.set_sweep_parameters(f_start, f_end, sweep_length, log_scale, single_sweep, am
 i.set_frontend(1, fiftyr=True, atten=False, ac=False)
 i.set_frontend(2, fiftyr=True, atten=True, ac=False)
 
+acq_filename = "../NetworkAnalyser_analysis/1_kHz_to_100_MHz_tests/BBP-21.4+/BLP-50+_moku_test.csv"
+
 #################################
 # END Instrument Configuration
 #################################
 
 i.commit()
 
-
 i.set_calibration()
 
 
 # Set up basic plot configurations
+# plt.subplots_adjust(hspace=0.4)
+
+## Create empty line vectors for ch1 and ch2 magnitude plots
+plt.subplot(211)
 line1, = plt.semilogx([])
 line2, = plt.semilogx([])
 
@@ -71,19 +77,27 @@ plt.show()
 
 plt.grid(b=True)
 
+## Create empty line vectors for ch1 and ch2 phase plots
+plt.subplot(212)
+line3, = plt.semilogx([])
+line4, = plt.semilogx([])
+
 try:
 	# Get an initial frame to set any frame-specific plot parameters
 	frame = i.get_frame()
 	
-	print "frame", frame
+	# print "frame", frame
 
 	# Format the x-axis as a frequency scale 
-	ax = plt.gca()
+	plt.subplot(211)
+	ax_1 = plt.gca()
+
+	plt.subplot(212)
+	ax_2 = plt.gca()
 	# ax.xaxis.set_major_formatter(FuncFormatter(frame.get_xaxis_fmt))
 	# ax.yaxis.set_major_formatter(FuncFormatter(frame.get_yaxis_fmt))
 	# ax.fmt_xdata = frame.get_xcoord_fmt
 	# ax.fmt_ydata = frame.get_ycoord_fmt
-
 
 	# Start drawing new frames
 	while True:
@@ -91,27 +105,80 @@ try:
 		plt.pause(0.001)
 
 		# Set the frame data for each channel plot
+		plt.subplot(211)
 		line1.set_ydata(frame.ch1.magnitude)
-		# line2.set_ydata(frame.ch1.phase)
+		line2.set_ydata(frame.ch2.magnitude)
 
-		print 'Magnitude: ', frame.ch1.magnitude
-		print 'Input frame: ', frame.ch1.input
-		
-		# Frequency axis shouldn't change, but to be sure
 		line1.set_xdata(frame.ch1_fs)
-		# line2.set_xdata(frame.ch2_fs)
+		line2.set_xdata(frame.ch2_fs)
+
+
+		# Phase	
+		plt.subplot(212)
+		line3.set_ydata(frame.ch1.phase)
+		line4.set_ydata(frame.ch2.phase)
+
+		line3.set_xdata(frame.ch1_fs)
+		line4.set_xdata(frame.ch2_fs)
 		
-		print "ch1_axis", frame.ch1_fs
-		print "Sweep frequency delta: ", i.get_sweep_freq_delta()
-		print "Minimum frequency: ", i.get_sweep_freq_min()
-		print "Channel 1 Amplitude: ", i.sweep_amp_volts_ch1
+		# print "Frequency: ", frame.ch1_fs
+		# print "Sweep frequency delta: ", i.get_sweep_freq_delta()
+		# print "Minimum frequency: ", i.get_sweep_freq_min()
+		# print "Channel 1 Amplitude: ", i.sweep_amp_volts_ch1
 		
 		# Ensure the frequency axis is a tight fit
-		ax.relim()
-		ax.autoscale_view()
+		ax_1.relim()
+		ax_1.autoscale_view()
+
+		ax_2.relim()
+		ax_2.autoscale_view()
 
 		# Redraw the lines
 		plt.draw()
+
+		# Print magnitude and phase for channel 1
+		print 'Magnitude: ', frame.ch1.magnitude
+		print 'Phase: ', frame.ch1.phase
+
+
+		# Print Network Analyser data to file.
+		file = open(acq_filename, "w")	
+
+		time_string = datetime.now().strftime("%c")
+		header =  "# Moku:NetworkAnalyser Acquisition\r\n"
+		header += "# Time: {T} \r\n".format(T=time_string)
+
+		header += "\n"	
+
+		ch1_frontend = i.get_frontend(1)
+		ch2_frontend = i.get_frontend(2)
+
+		header += "# Ch1 - {} coupling, {} Ohm impedance, {} dB attenuation\r\n".format("AC" if ch1_frontend[2] else "DC", "50" if ch1_frontend[0] else "1M", "20" if ch1_frontend[1] else "0")
+		header += "# Ch2 - {} coupling, {} Ohm impedance, {} dB attenuation\r\n".format("AC" if ch2_frontend[2] else "DC", "50" if ch2_frontend[0] else "1M", "20" if ch2_frontend[1] else "0")
+		
+		header += "# Sweep Parameters\n"
+		header += "# Start Frequency: {:.4e} Hz\n".format(f_start)
+		header += "# End Frequency: {:.4e} Hz\n".format(f_end)
+		header += "# Sweep Length: {:}\n".format(sweep_length)
+		header += "# Sweep Mode: {}\n".format("Logarithmic" if log_scale else "Linear")
+		header += "# Averaging Time: {:.4e} seconds \n".format(averaging_time)
+		header += "# Averaging Cycles: {:} cycles \n".format(averaging_cycles)
+		header += "# Settling Time: {:.4e} seconds \n".format(settling_time)
+		header += "# Settling Cycles: {:} cycles\n".format(settling_cycles)
+		header += "# Sweep Amplitude (Ch1): {:} Volts\n".format(amp_ch1)
+		header += "# Sweep Amplitude (Ch2): {:} Volts\n".format(amp_ch2)
+		
+		header += "\r\n"
+
+		file.write(header)
+
+		out_string = "Frequency (Hz), Magnitude (dB), Phase (Rad) \n"
+
+		for j in range(len(frame.ch1.magnitude)):
+			out_string += "{:}, {:}, {:} \n".format(str(frame.ch1_fs[j]), str(frame.ch1.magnitude[j]), str(frame.ch1.phase[j]))
+
+		file.write(out_string)
+		file.close()
 
 finally:
 	m.close()

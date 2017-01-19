@@ -52,7 +52,7 @@ def calculate_freq_axis(start_freq, freq_step, sweep_length, log_scale):
 
 	for k in range(1, sweep_length) :
 		if log_scale:
-			F_axis.append(math.floor(math.floor(F_axis[k-1] * freq_step/_NA_FXP_SCALE) + F_axis[k-1]))
+			F_axis.append(math.floor(F_axis[k-1] * (freq_step/_NA_FXP_SCALE)) + F_axis[k-1])
 		else :
 			F_axis.append(F_axis[k-1] + freq_step)
 
