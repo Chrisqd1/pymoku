@@ -26,6 +26,8 @@ REG_PM_INTSHIFT = 66
 REG_PM_CSHIFT = 66
 REG_PM_OUTDEC = 67
 REG_PM_OUTSHIFT = 67
+REG_PM_BW1 = 124
+REG_PM_BW2 = 125
 
 REG_PM_SG_EN = 96
 REG_PM_SG_FREQ1_L = 97
@@ -52,8 +54,8 @@ _PM_SG_AMPSCALE = 2**16 / 4.0
 _PM_SG_FREQSCALE = _PM_FREQSCALE
 
 
-PM_LOGRATE_FAST = 200
-PM_LOGRATE_SLOW = 15
+PM_LOGRATE_FAST = 120
+PM_LOGRATE_SLOW = 30
 
 class PhaseMeter_SignalGenerator(MokuInstrument):
 	def __init__(self):
@@ -90,6 +92,7 @@ class PhaseMeter_SignalGenerator(MokuInstrument):
 		if(ch==1):
 			self.pm_out1_enable = enable
 			self.pm_out1_amplitude = self._pm_out1_amplitude if enable else 0
+
 		if(ch==2):
 			self.pm_out2_enable = enable
 			self.pm_out2_amplitude = self._pm_out2_amplitude if enable else 0
@@ -101,10 +104,10 @@ _pm_siggen_reg_hdl = {
 	'pm_out2_frequency':	((REG_PM_SG_FREQ2_H, REG_PM_SG_FREQ2_L),
 											to_reg_unsigned(0, 48, xform=lambda obj, f:f * _PM_SG_FREQSCALE ),
 											from_reg_unsigned(0, 48, xform=lambda obj, f: f /_PM_FREQSCALE )),
-	'pm_out1_amplitude':	(REG_PM_SG_AMP, to_reg_unsigned(0, 16, xform=lambda obj, a: a * obj.adc_gains()[0]),
-											from_reg_unsigned(0,16, xform=lambda obj, a: a / obj.adc_gains()[0])),
-	'pm_out2_amplitude':	(REG_PM_SG_AMP, to_reg_unsigned(16, 16, xform=lambda obj, a: a * obj.adc_gains()[1]),
-											from_reg_unsigned(16,16, xform=lambda obj, a: a / obj.adc_gains()[1]))
+	'pm_out1_amplitude':	(REG_PM_SG_AMP, to_reg_unsigned(0, 16, xform=lambda obj, a: a / obj.dac_gains()[0]),
+											from_reg_unsigned(0,16, xform=lambda obj, a: a * obj.dac_gains()[0])),
+	'pm_out2_amplitude':	(REG_PM_SG_AMP, to_reg_unsigned(16, 16, xform=lambda obj, a: a / obj.dac_gains()[1]),
+											from_reg_unsigned(16,16, xform=lambda obj, a: a * obj.dac_gains()[1]))
 }
 
 class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenerator): #TODO Frame instrument may not be appropriate when we get streaming going.
@@ -164,7 +167,6 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 
 		log.debug("Output decimation: %f, Shift: %f, Samplerate: %f" % (self.output_decimation, shift, _PM_UPDATE_RATE/self.output_decimation))
 
-
 	def get_samplerate(self):
 		"""
 		Get the current output sample rate of the phase meter.
@@ -208,6 +210,29 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 
 	def get_controlgain(self):
 		return self.control_gain
+
+	def set_bandwidth(self, ch, bw):
+		"""
+			Set the bandwidth of an ADC channel
+
+			:type ch: int; *{1,2}*
+			:param ch: ADC channel number to set bandwidth of.
+
+			:type bw: float; Hz
+			:param n: Desired bandwidth (will be rounded up to to the nearest multiple 10kHz * 2^N)
+		"""
+		if bw <= 0:
+			raise ValueError("Invalid bandwidth (must be positive).")
+		print bw
+		n = min(max(math.ceil(math.log(bw/10e3,2)),-16),15)
+
+		if ch == 1:
+			self.bandwidth_ch1 = n
+		elif ch == 2:
+			self.bandwidth_ch2 = n
+
+	def get_bandwidth(self, ch):
+		return 10e3 * (2**(self.bandwidth_ch1 if ch == 1 else self.bandwidth_ch2))
 
 	def get_hdrstr(self, ch1, ch2):
 		chs = [ch1, ch2]
@@ -270,6 +295,9 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 		self.en_in_ch1 = True
 		self.en_in_ch2 = True
 
+		print self.adc_gains()
+
+		# TODO: Headers assume registers have been committed with current values
 	def datalogger_start(self, start, duration, use_sd, ch1, ch2, filetype):
 		self._update_datalogger_params(ch1, ch2)
 		super(PhaseMeter, self).datalogger_start(start=start, duration=duration, use_sd=use_sd, ch1=ch1, ch2=ch2, filetype=filetype)
@@ -294,5 +322,9 @@ _pm_reg_handlers = {
 	'output_decimation':	(REG_PM_OUTDEC,	to_reg_unsigned(0,17),
 											from_reg_unsigned(0,17)),
 	'output_shift':			(REG_PM_OUTSHIFT, to_reg_unsigned(17,5),
-											from_reg_unsigned(17,5))
+											from_reg_unsigned(17,5)),
+	'bandwidth_ch1':		(REG_PM_BW1, to_reg_signed(0,5, xform=lambda obj, b: b),
+											from_reg_signed(0,5, xform=lambda obj, b: b)),
+	'bandwidth_ch2':		(REG_PM_BW2, to_reg_signed(0,5, xform=lambda obj, b: b),
+											from_reg_signed(0,5, xform=lambda obj, b: b))
 }
