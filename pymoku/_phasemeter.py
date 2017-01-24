@@ -28,6 +28,8 @@ REG_PM_OUTDEC = 67
 REG_PM_OUTSHIFT = 67
 REG_PM_BW1 = 124
 REG_PM_BW2 = 125
+REG_PM_AUTOA1 = 126
+REG_PM_AUTOA2 = 127
 
 REG_PM_SG_EN = 96
 REG_PM_SG_FREQ1_L = 97
@@ -197,6 +199,13 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 			raise ValueError("Initial frequency is not within the valid range.")
 
 	def get_initfreq(self, ch):
+		"""
+			Reads the seed frequency register of the phase tracking loop
+			Valid if auto acquire has not been used
+
+			:type ch: int; *{1,2}*
+			:param ch: Channel number to read the initial frequency of.
+		"""
 		if ch == 1:
 			return self.init_freq_ch1
 		elif ch == 2:
@@ -204,11 +213,11 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 		else:
 			raise ValueError("Invalid channel number.")
 
-	def set_controlgain(self, v):
+	def _set_controlgain(self, v):
 		#TODO: Put limits on the range of 'v'
 		self.control_gain = v
 
-	def get_controlgain(self):
+	def _get_controlgain(self):
 		return self.control_gain
 
 	def set_bandwidth(self, ch, bw):
@@ -219,12 +228,11 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 			:param ch: ADC channel number to set bandwidth of.
 
 			:type bw: float; Hz
-			:param n: Desired bandwidth (will be rounded up to to the nearest multiple 10kHz * 2^N)
+			:param n: Desired bandwidth (will be rounded up to to the nearest multiple 10kHz * 2^N with N = [-6,0])
 		"""
 		if bw <= 0:
 			raise ValueError("Invalid bandwidth (must be positive).")
-		print bw
-		n = min(max(math.ceil(math.log(bw/10e3,2)),-16),15)
+		n = min(max(math.ceil(math.log(bw/10e3,2)),-6),0)
 
 		if ch == 1:
 			self.bandwidth_ch1 = n
@@ -233,6 +241,17 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 
 	def get_bandwidth(self, ch):
 		return 10e3 * (2**(self.bandwidth_ch1 if ch == 1 else self.bandwidth_ch2))
+
+	def set_auto_acquire(self, ch, enable=True):
+		"""
+			Strobes the auto acquire
+		"""
+		if ch == 1:
+			self.autoacquire_ch1 = enable
+		elif ch == 2:
+			self.autoacquire_ch2 = enable
+		else:
+			raise ValueError("Invalid channel")
 
 	def get_hdrstr(self, ch1, ch2):
 		chs = [ch1, ch2]
@@ -243,7 +262,7 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 				r = self.get_frontend(i+1)
 				hdr += "# Ch {i} - {} coupling, {} Ohm impedance, {} dB attenuation\r\n".format("AC" if r[2] else "DC", "50" if r[0] else "1M", "20" if r[1] else "0", i=i+1 )
 
-		hdr += "# Loop gain {:d}".format(self.get_controlgain())
+		hdr += "# Loop gain {:d}".format(self._get_controlgain())
 
 		for i,c in enumerate(chs):
 			if c:
@@ -283,7 +302,7 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 		self.set_initfreq(2, 10e6)
 
 		# Set PI controller gains
-		self.set_controlgain(100)
+		self._set_controlgain(100)
 		self.control_shift = 0
 		self.integrator_shift = 0
 		self.output_shift = math.log(self.output_decimation,2)
@@ -294,8 +313,6 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 
 		self.en_in_ch1 = True
 		self.en_in_ch2 = True
-
-		print self.adc_gains()
 
 		# TODO: Headers assume registers have been committed with current values
 	def datalogger_start(self, start, duration, use_sd, ch1, ch2, filetype):
@@ -326,5 +343,7 @@ _pm_reg_handlers = {
 	'bandwidth_ch1':		(REG_PM_BW1, to_reg_signed(0,5, xform=lambda obj, b: b),
 											from_reg_signed(0,5, xform=lambda obj, b: b)),
 	'bandwidth_ch2':		(REG_PM_BW2, to_reg_signed(0,5, xform=lambda obj, b: b),
-											from_reg_signed(0,5, xform=lambda obj, b: b))
+											from_reg_signed(0,5, xform=lambda obj, b: b)),
+	'autoacquire_ch1':		(REG_PM_AUTOA1, to_reg_bool(0), from_reg_bool(0)),
+	'autoacquire_ch2': 		(REG_PM_AUTOA2, to_reg_bool(0), from_reg_bool(0))
 }
