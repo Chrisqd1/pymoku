@@ -147,8 +147,8 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 		self.timestep = 1.0/self.get_samplerate()
 
 		# Call this function when any instrument configuration parameters are set
-		self.hdrstr = self.get_hdrstr(ch1,ch2)
-		self.fmtstr = self.get_fmtstr(ch1,ch2)
+		self.hdrstr = self._get_hdrstr(ch1,ch2)
+		self.fmtstr = self._get_fmtstr(ch1,ch2)
 
 	def set_samplerate(self, samplerate):
 		""" Manually set the sample rate of the instrument.
@@ -245,6 +245,13 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 	def set_auto_acquire(self, ch, enable=True):
 		"""
 			Strobes the auto acquire
+
+			:type ch: int; *{1,2}*
+			:param ch: Input channel to auto-acquire the seed frequency on
+
+			:type enable: bool
+			:param enable: Enable or disable auto-acquire on the selected channel
+			 
 		"""
 		if ch == 1:
 			self.autoacquire_ch1 = enable
@@ -253,7 +260,7 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 		else:
 			raise ValueError("Invalid channel")
 
-	def get_hdrstr(self, ch1, ch2):
+	def _get_hdrstr(self, ch1, ch2):
 		chs = [ch1, ch2]
 
 		hdr =  "# Moku:Phasemeter acquisition at {T}\r\n"
@@ -280,7 +287,7 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 
 		return hdr
 
-	def get_fmtstr(self, ch1, ch2):
+	def _get_fmtstr(self, ch1, ch2):
 		fmtstr = "{t:.10e}"
 		if ch1:
 			fmtstr += ", {ch1[1]:.16e}, {ch1[3]:.16e}, {ch1[4]:.16e}, {ch1[5]:.16e}, {ch1[0]:.16e}, {ch1[2]:.16e}"
