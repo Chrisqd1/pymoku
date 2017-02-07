@@ -204,7 +204,7 @@ class VoltsFrame(_frame_instrument.DataFrame):
 		return self._get_yaxis_fmt(y,None)['ycoord']
 
 
-class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerator):
+class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGenerator):
 	""" Oscilloscope instrument object. This should be instantiated and attached to a :any:`Moku` instance.
 
 	.. automethod:: pymoku.instruments.Oscilloscope.__init__
