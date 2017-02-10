@@ -840,17 +840,18 @@ class Moku(object):
 		self.external_reference = use_external
 
 		if self._instrument:
-			self._instrument.set_running(False)
+			self._instrument.set_instrument_active(False)
 
 		self.take_ownership()
 		self._instrument = instrument
 		self._instrument.attach_moku(self)
-		self._instrument.set_running(False)
+		self._instrument.set_instrument_active(False)
 
 		bsv = self._deploy(partial_index=0, use_external=use_external)
 		log.debug("Bitstream version %d", bsv)
 		self._instrument.sync_registers()
 		self._instrument.set_running(True)
+		self._instrument.set_instrument_active(True)
 
 		if set_default:
 			self._instrument.set_defaults()
@@ -898,5 +899,8 @@ class Moku(object):
 
 	def close(self):
 		"""Close connection to the Moku:Lab."""
+
+		self._instrument.set_running(False)
+
 		self._conn.close()
 		self._ctx.destroy()
