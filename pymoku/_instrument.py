@@ -476,6 +476,9 @@ class MokuInstrument(object):
 		"""
 		self.pause = pause
 
+	def get_pause(self):
+		return self.pause
+
 	def load_feature(self, index):
 		# For now we don't support switching clock modes during a partial deploy
 		self._moku._deploy(use_external=self._moku.external_reference, partial_index=index)

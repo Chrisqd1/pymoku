@@ -68,6 +68,17 @@ class FrameQueue(Queue):
 	def _init(self, maxsize):
 		self.queue = deque(maxlen=maxsize)
 
+class DataBuffer(object):
+	"""
+		Holds data from the internal buffer (prior to rendering)
+	"""
+
+	def __init__(self, ch1, ch2, xs, stateid, scales):
+		self.ch1 = ch1
+		self.ch2 = ch2
+		self.xs = xs
+		self.stateid = stateid
+		self.scales = scales
 
 class DataFrame(object):
 	"""
@@ -201,6 +212,56 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 					log.debug("Incorrect state received: %d/%d", frame.trigstate, self._stateid)
 		except Empty:
 			raise FrameTimeout()
+
+	def get_buffer(self, timeout=None):
+		""" Get a :any:`DataBuffer` from the internal data channel buffer """
+		
+		# Pause even if it already is
+		if self.get_pause():
+			# Instrument has already been paused, assume it is in the desired
+			# state for buffer capture
+			frame = self.get_frame(timeout=timeout, wait=False)
+		else:
+			# Wait on current state to propagate through to device
+			frame = self.get_frame(timeout=timeout, wait=True)
+
+		# Can't be sure device pause has been committed so we enforce it 
+		self.set_pause(True)
+		self.commit()
+
+		# Record what state the buffer has been captured in
+		state = frame.stateid
+
+		# Get buffer data using a network stream
+		self.datalogger_start_single(use_sd=False, ch1=True, ch2=True, filetype='net')
+		
+		ch1 = []
+		ch2 = []
+
+		try:
+			while True:
+				ch, idx, data = self.datalogger_get_samples()
+				if ch == 1:
+					ch1 += data
+				elif ch == 2:
+					ch2 += data
+
+		except NoDataException as e:
+			self.datalogger_stop()
+
+		# Restart acquisition
+		self.set_pause(False)
+		self.commit()
+
+		_buff = DataBuffer(ch1=ch1, ch2=ch2, xs=None, stateid=state, scales=None)
+
+		# Allow children to post-process the buffer first
+		return self._process_buffer(_buff)
+
+	def _process_buffer(self, buff):
+		# Expected to be overwritten by child class in the case of 
+		# post-processing a buffer object
+		return buff
 
 	def _dlsub_init(self, tag):
 		ctx = zmq.Context.instance()
@@ -584,8 +645,6 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 			return ch, start, coeff, data
 		else:
 			raise FrameTimeout("Data log timed out after %d seconds", timeout)
-
-
 
 	def set_running(self, state):
 		prev_state = self._running

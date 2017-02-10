@@ -246,6 +246,8 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		self.trig_volts = 0
 		self.hysteresis_volts = 0.0
 
+		self.pause = False
+
 	def _calculate_decimation(self, t1, t2):
 
 		# Calculate time the buffer should contain
@@ -275,7 +277,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 		# Enforce a maximum ADC sampling rate
 		screen_smp_rate = min(_OSC_SCREEN_WIDTH/tspan, ADC_SMP_RATE)
-		
+
 		# Clamp the render downsampling ratio between 1.0 and ~16.0
 		render_downsample = min(max(buffer_smp_rate/screen_smp_rate, 1.0), _cubic_int_to_scale(0x077E))
 		return render_downsample
@@ -301,6 +303,12 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 	def _calculate_frame_timestep(self, decimation, render_decimation):
 		return decimation*render_decimation/ADC_SMP_RATE
+
+	def _calculate_buffer_timestep(self, decimation):
+		return float(decimation)/float(ADC_SMP_RATE)
+
+	def _calculate_buffer_start_time(self, decimation, buffer_offset):
+		return self._calculate_buffer_timestep(decimation) * (-1.0 * buffer_offset) * 4.0
 
 	def _deci_gain(self):
 		if self.decimation_rate == 0:
@@ -538,6 +546,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		self.set_trigger(OSC_TRIG_CH1, OSC_EDGE_RISING, 0)
 		self.set_precision_mode(False)
 		self.set_timebase(-1, 1)
+		self.set_pause(False)
 
 		self.framerate = _OSC_FPS
 		self.frame_length = _OSC_SCREEN_WIDTH
@@ -563,10 +572,13 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 			log.warning("ADCs appear to be turned off or decimation unset")
 			t1 = 0
 			t2 = 1
+			bt1 = 0
+			bts = 1
 		else:
 			t1 = self._calculate_frame_start_time(self.decimation_rate, self.render_deci, self.offset)
 			t2 = t1 + self._calculate_frame_timestep(self.decimation_rate, self.render_deci) * (_OSC_SCREEN_WIDTH - 1)
-
+			bt1 = self._calculate_buffer_start_time(self.decimation_rate, self.pretrigger)
+			bts = self._calculate_buffer_timestep(self.decimation_rate)
 		if self.ain_mode == _OSC_AIN_DECI:
 			g1 /= self._deci_gain()
 			g2 /= self._deci_gain()
@@ -582,8 +594,18 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 				'gain_loopback1': l1,
 				'gain_loopback2': l2,
 				'time_min': t1,
-				'time_max': t2}
+				'time_max': t2,
+				'buff_time_min': bt1,
+				'buff_time_step': bts}
 
+	def _process_buffer(self, buff):
+		# Compute the x-axis of the buffer
+		if buff.stateid not in self.scales:
+			log.error("Can't process buffer - haven't saved calibration for state %d", self.stateid)
+			return
+		buff.scales = self.scales[buff.stateid]
+		buff.xs = [buff.scales['buff_time_min'] + (buff.scales['buff_time_step'] * x) for x in range(_OSC_BUFLEN)]
+		return buff
 
 	def _update_dependent_regs(self, scales):
 		# Trigger level must be scaled depending on the current relay settings and chosen trigger source
