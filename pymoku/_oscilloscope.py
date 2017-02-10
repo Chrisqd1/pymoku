@@ -271,10 +271,11 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 		def _cubic_int_to_scale(integer):
 			# Integer to cubic scaling ratio (see Wiki)
-			return float(integer/(2**7)) + 1
+			return float(integer/(2.0**7)) + 1
 
 		# Enforce a maximum ADC sampling rate
 		screen_smp_rate = min(_OSC_SCREEN_WIDTH/tspan, ADC_SMP_RATE)
+		
 		# Clamp the render downsampling ratio between 1.0 and ~16.0
 		render_downsample = min(max(buffer_smp_rate/screen_smp_rate, 1.0), _cubic_int_to_scale(0x077E))
 		return render_downsample
