@@ -106,7 +106,7 @@ class VoltsFrame(_frame_instrument.DataFrame):
 		l1 = scales['gain_loopback1']
 		l2 = scales['gain_loopback2']
 		t1 = scales['time_min']
-		t2 = scales['time_max']
+		ts = scales['time_step']
 
 		def _compute_scaling_factor(adc,dac,src,lmode):
 			# Change scaling factor depending on the source type
@@ -145,6 +145,9 @@ class VoltsFrame(_frame_instrument.DataFrame):
 			self.frameid = None
 			self.complete = False
 
+
+		self.xs = [ t1 + (x * ts) for x in range(_OSC_SCREEN_WIDTH)]
+
 		return True
 
 
@@ -178,11 +181,10 @@ class VoltsFrame(_frame_instrument.DataFrame):
 
 		scales = self.scales[self.stateid]
 		t1 = scales['time_min']
-		t2 = scales['time_max']
-		ts = abs(t2 - t1) / _OSC_SCREEN_WIDTH
-		tscale_str, tscale_const = self._get_timescale(abs(t2-t1))
+		ts = scales['time_step']
+		tscale_str, tscale_const = self._get_timescale(ts*_OSC_SCREEN_WIDTH)
 
-		return {'xaxis': '%.1f %s' % ((t1 + x*ts)*tscale_const, tscale_str), 'xcoord': '%.3f %s' % ((t1 + x*ts)*tscale_const, tscale_str)}
+		return {'xaxis': '%.1f %s' % (x*tscale_const, tscale_str), 'xcoord': '%.3f %s' % (x*tscale_const, tscale_str)}
 
 	def get_xaxis_fmt(self, x, pos):
 		""" Function suitable to use as argument to a matplotlib FuncFormatter for X (time) axis """
@@ -571,12 +573,12 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		if(self.decimation_rate == 0 or self.render_deci == 0):
 			log.warning("ADCs appear to be turned off or decimation unset")
 			t1 = 0
-			t2 = 1
+			ts = 1
 			bt1 = 0
 			bts = 1
 		else:
 			t1 = self._calculate_frame_start_time(self.decimation_rate, self.render_deci, self.offset)
-			t2 = t1 + self._calculate_frame_timestep(self.decimation_rate, self.render_deci) * (_OSC_SCREEN_WIDTH - 1)
+			ts = self._calculate_frame_timestep(self.decimation_rate, self.render_deci)
 			bt1 = self._calculate_buffer_start_time(self.decimation_rate, self.pretrigger)
 			bts = self._calculate_buffer_timestep(self.decimation_rate)
 		if self.ain_mode == _OSC_AIN_DECI:
@@ -594,7 +596,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 				'gain_loopback1': l1,
 				'gain_loopback2': l2,
 				'time_min': t1,
-				'time_max': t2,
+				'time_step': ts,
 				'buff_time_min': bt1,
 				'buff_time_step': bts}
 
