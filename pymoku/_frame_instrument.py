@@ -10,7 +10,7 @@ import zmq
 from collections import deque
 from queue import Queue, Empty
 
-from pymoku import Moku, FrameTimeout, NotDeployedException, InvalidOperationException, NoDataException, StreamException, dataparser
+from pymoku import Moku, FrameTimeout, BufferTimeout, NotDeployedException, InvalidOperationException, NoDataException, StreamException, dataparser
 
 from . import _instrument
 
@@ -215,23 +215,19 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 	def get_buffer(self, timeout=None):
 		""" Get a :any:`DataBuffer` from the internal data channel buffer """
-		
-		# Pause even if it already is
-		if self.get_pause():
-			# Instrument has already been paused, assume it is in the desired
-			# state for buffer capture
-			frame = self.get_frame(timeout=timeout, wait=False)
-		else:
-			# Wait on current state to propagate through to device
-			frame = self.get_frame(timeout=timeout, wait=True)
-
-		# Can't be sure device pause has been committed so we enforce it 
+		# Force a pause even if it already has happened
 		self.set_pause(True)
 		self.commit()
 
-		# Record what state the buffer has been captured in
-		state = frame.stateid
-
+		state_propagated = False
+		# Wait on the pause to propagate through
+		while not state_propagated:
+			try:
+				frame = self.get_frame(timeout=timeout, wait=False)
+				state_propagated = (self._stateid == frame.stateid)
+			except FrameTimeout:
+				raise BufferTimeout()
+				
 		# Get buffer data using a network stream
 		self.datalogger_start_single(use_sd=False, ch1=True, ch2=True, filetype='net')
 		
@@ -248,10 +244,6 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 		except NoDataException as e:
 			self.datalogger_stop()
-
-		# Restart acquisition
-		self.set_pause(False)
-		self.commit()
 
 		_buff = DataBuffer(ch1=ch1, ch2=ch2, xs=None, stateid=state, scales=None)
 
