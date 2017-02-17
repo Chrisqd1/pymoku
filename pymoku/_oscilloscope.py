@@ -400,7 +400,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		fmtstr += "\r\n"
 		return fmtstr
 
-	def datalogger_start(self, start=0, duration=0, use_sd=True, ch1=True, ch2=False, filetype='csv'):
+	def datalogger_start(self, start=0, duration=10, use_sd=True, ch1=True, ch2=False, filetype='csv'):
 		self._update_datalogger_params(ch1, ch2)
 		super(Oscilloscope, self).datalogger_start(start=start, duration=duration, use_sd=use_sd, ch1=ch1, ch2=ch2, filetype=filetype)
 
@@ -444,7 +444,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		""" :return: The current instrument sample rate """
 		if(self.decimation_rate == 0):
 			raise Exception("Decimation rate appears to be unset.")
-		return _OSC_ADC_SMPS / self.decimation_rate
+		return _OSC_ADC_SMPS / float(self.decimation_rate)
 
 	def set_xmode(self, xmode):
 		"""
@@ -546,7 +546,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		self.set_source(1,OSC_SOURCE_ADC)
 		self.set_source(2,OSC_SOURCE_ADC)
 		self.set_trigger(OSC_TRIG_CH1, OSC_EDGE_RISING, 0)
-		self.set_precision_mode(False)
+		self.set_precision_mode(True)
 		self.set_timebase(-1, 1)
 		self.set_pause(False)
 

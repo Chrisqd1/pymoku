@@ -163,6 +163,7 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		self._hb_forced = False
 		self._dlserial = 0
 		self._dlskt = None
+		self.logfile = None
 
 		self.binstr = ''
 		self.procstr = ''
@@ -273,7 +274,7 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 			self._dlskt = None
 
 
-	def datalogger_start(self, start=0, duration=0, use_sd=True, ch1=True, ch2=False, filetype='csv'):
+	def datalogger_start(self, start=0, duration=10, use_sd=True, ch1=True, ch2=True, filetype='csv'):
 		""" Start recording data with the current settings.
 
 		Device must be in ROLL mode (via a call to :any:`set_xmode`) and the sample rate must be appropriate
@@ -300,6 +301,9 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		- **bin** -- LI Binary file, 10ksmps max rate
 		- **net** -- Log to network, retrieve data with :any:`datalogger_get_samples`. 100smps max rate
 		"""
+		if duration <= 0:
+			raise InvalidOperationException("Invalid duration %d", duration)
+		
 		from datetime import datetime
 		if self._moku is None: raise NotDeployedException()
 		# TODO: rest of the options, handle errors
@@ -307,22 +311,19 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 		self.tag = "%04d" % self._dlserial
 
-		self.nch = 0
 		self.ch1 = bool(ch1)
-		self.ch2 = bool(ch2)
-		if ch1:
-			self.nch += 1
-		if ch2:
-			self.nch += 1
+		self.ch2 = bool(ch2)		
+		self.nch = int(self.ch1) + int(self.ch2)
 
 		fname = datetime.now().strftime(self.logname + "_%Y%m%d_%H%M%S")
 
 		# Currently the data stream genesis is from the x_mode commit below, meaning that delayed start
 		# doesn't work properly. Once this is fixed in the FPGA/daemon, remove this check and the note
 		# in the documentation above.
-		if start:
-			raise InvalidOperationException("Logging start time parameter currently not supported")
+		#if start:
+		#	raise InvalidOperationException("Logging start time parameter currently not supported")
 
+		# TODO: Store this in an instrument-dependent hash as this won't be valid for Phasemeter
 		# Logging rates depend on which storage medium, and the filetype as well
 		if(ch1 and ch2):
 			if(use_sd):
@@ -358,6 +359,7 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 		self._moku._stream_start()
 
+		# This may not actually exist as a file (e.g. if a 'net' session was run)
 		self.logfile = str(self.datalogger_status()[4]).strip()
 
 
@@ -389,14 +391,11 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 		self.tag = "%04d" % self._dlserial
 
-		self.nch = 0
 		self.ch1 = bool(ch1)
-		self.ch2 = bool(ch2)
-		if ch1:
-			self.nch += 1
-		if ch2:
-			self.nch += 1
+		self.ch2 = bool(ch2)		
+		self.nch = int(self.ch1) + int(self.ch2)
 
+		# Determine what the log file name will be (if any)
 		fname = datetime.now().strftime(self.logname + "_%Y%m%d_%H%M%S")
 
 		if not all([ len(s) for s in [self.binstr, self.procstr, self.fmtstr, self.hdrstr]]):
@@ -441,7 +440,7 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		- **logged** -- Number of samples recorded so far. If more than one channel is active, this is the sum of all points across all channels.
 		- **to start** -- Number of seconds until/since start. Time until start is positive, a negative number indicates that the record has started already.
 		- **to end** -- Number of seconds until/since end.
-		- **filename** -- Base filename of current log session (without filename)
+		- **filename** -- Base filename of current log session (without filetype)
 
 		Status is one of:
 
@@ -502,6 +501,19 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		:returns: Whether the current session has finished running. """
 		return self.datalogger_status()[0] not in [DL_STATE_RUNNING, DL_STATE_WAITING]
 
+	def datalogger_wait(self, upload=False):
+		""" 
+		Returns when logging is complete, returning an array of samples in case of a network
+		stream, or uploading the file in case of use_sd = False
+
+		:raises StreamException:
+		"""
+		while not datalogger_completed():
+			datalogger_error()
+
+
+		return 
+
 	def datalogger_filename(self):
 		""" Returns the current base filename of the logging session.
 
@@ -510,22 +522,32 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 		:rtype: str
 		:returns: The file name of the current, or most recent, log file."""
-		return self.logfile.split(':')[1]
+		if self.logfile:
+			return self.logfile.split(':')[1]
+		else:
+			return None
 
 	def datalogger_error(self):
-		""" Returns a string representing the current error, or *None* if the session is not in error."""
+		""" Check the current datalogging session for errors 
+
+		:raises StreamException: if the session is in error."""
 		code = self.datalogger_status()[0]
+		msg = None
 
 		if code in [DL_STATE_NONE, DL_STATE_RUNNING, DL_STATE_WAITING, DL_STATE_STOPPED]:
-			return None
+			msg = None
 		elif code == DL_STATE_INVAL:
-			return "Invalid Parameters for Datalogger Operation"
+			msg = "Invalid Parameters for Datalogger Operation"
 		elif code == DL_STATE_FSFULL:
-			return "Target Filesystem Full"
+			msg = "Target Filesystem Full"
 		elif code == DL_STATE_OVERFLOW:
-			return "Session overflowed, sample rate too fast."
+			msg ="Session overflowed, sample rate too fast."
 		elif code == DL_STATE_BUSY:
-			return "Tried to start a logging session while one was already running."
+			msg = "Tried to start a logging session while one was already running."
+
+		if msg:
+			raise StreamException(msg)
+
 
 	def datalogger_upload(self):
 		""" Load most recently recorded data files from the Moku to the local PC.
@@ -538,6 +560,9 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 		uploaded = 0
 		target = self.datalogger_filename()
+
+		if not target:
+			raise InvalidOperationException("No data has been logged in current session.")
 		# Check internal and external storage
 		for mp in ['i', 'e']:
 			for f in self._moku._fs_list(mp):
@@ -575,9 +600,9 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		for mp in ['e', 'i']:
 			files = self._moku._fs_list(mp)
 			for f in files:
-				if re.match("datalog-.*\.[a-z]{2,3}", f[0]):
+				if re.match(self.logname + ".*\.[a-z]{2,3}", f[0]):
 					# Data length of zero uploads the whole file
-					self._moku._receive_file(mp, f, 0)
+					self._moku._receive_file(mp, f[0], 0)
 					uploaded += 1
 
 		if not uploaded:
@@ -608,7 +633,11 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 		:raises NoDataException: if the logging session has stopped
 		:raises FrameTimeout: if the timeout expired """
-
+		
+		# If no network session exists, can't get samples
+		if not self._dlskt:
+			raise InvalidOperationException("No samples are being streamed to the network.")
+		
 		ch, start, coeff, raw = self._dl_get_samples_raw(timeout)
 
 		self._strparser.set_coeff(ch, coeff)
