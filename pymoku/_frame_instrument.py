@@ -219,18 +219,9 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		# Force a pause even if it already has happened
 		self.set_pause(True)
 		self.commit()
-
-		state_propagated = False
-		# Wait on the pause to propagate through
-		while not state_propagated:
-			try:
-				frame = self.get_frame(timeout=timeout, wait=False)
-				state_propagated = (self._stateid == frame.stateid)
-			except FrameTimeout:
-				raise BufferTimeout()
 				
 		# Get buffer data using a network stream
-		self.datalogger_start_single(use_sd=False, ch1=True, ch2=True, filetype='net')
+		self.datalogger_start_single(filetype='net')
 		
 		ch1 = []
 		ch2 = []
@@ -246,7 +237,7 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		except NoDataException as e:
 			self.datalogger_stop()
 
-		_buff = DataBuffer(ch1=ch1, ch2=ch2, xs=None, stateid=state, scales=None)
+		_buff = DataBuffer(ch1=ch1, ch2=ch2, xs=None, stateid=frame.stateid, scales=None)
 
 		# Allow children to post-process the buffer first
 		return self._process_buffer(_buff)
