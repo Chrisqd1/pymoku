@@ -163,6 +163,7 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		self._hb_forced = False
 		self._dlserial = 0
 		self._dlskt = None
+		self._dlftype = None
 		self.logfile = None
 
 		self.binstr = ''
@@ -300,6 +301,8 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		- **bin** -- LI Binary file, 10ksmps max rate
 		- **net** -- Log to network, retrieve data with :any:`datalogger_get_samples`. 100smps max rate
 		"""
+		if not (bool(ch1) or bool(ch2)):
+			raise InvalidOperationException("No channels were selected for logging")
 		if duration <= 0:
 			raise InvalidOperationException("Invalid duration %d", duration)
 		
@@ -352,7 +355,7 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		self._moku._stream_prep(ch1=ch1, ch2=ch2, start=start, end=start + duration, offset=0, timestep=self.timestep,
 			binstr=self.binstr, procstr=self.procstr, fmtstr=self.fmtstr, hdrstr=self.hdrstr,
 			fname=fname, ftype=filetype, tag=self.tag, use_sd=use_sd)
-
+		
 		if filetype == 'net':
 			self._dlsub_init(self.tag)
 
@@ -361,8 +364,10 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		# This may not actually exist as a file (e.g. if a 'net' session was run)
 		self.logfile = str(self.datalogger_status()[4]).strip()
 
+		# Store the requested filetype in the case of a "wait" call
+		self._dlftype = filetype
 
-	def datalogger_start_single(self, use_sd=False, ch1=True, ch2=False, filetype='csv'):
+	def datalogger_start_single(self, use_sd=False, ch1=True, ch2=True, filetype='csv'):
 		""" Grab all currently-recorded data at full rate.
 
 		Unlike a normal datalogger session, this will log only the data that has *already* been aquired through
@@ -383,6 +388,9 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		- **bin** -- LI Binary file, 10ksmps max rate
 		- **net** -- Log to network, retrieve data with :any:`datalogger_get_samples`. 100smps max rate
 		"""
+		if not (bool(ch1) or bool(ch2)):
+			raise InvalidOperationException("No channels were selected for logging")
+			
 		from datetime import datetime
 		if self._moku is None: raise NotDeployedException()
 		# TODO: rest of the options, handle errors
@@ -411,6 +419,52 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		self._moku._stream_start()
 
 		self.logfile = str(self.datalogger_status()[4]).strip()
+
+		# Store the requested filetype in the case of a "wait" call
+		self._dlftype = filetype
+
+	def datalogger_wait(self, timeout=None, upload=False):
+		""" 
+		Waits for the current datalogging session to complete. If data is being streamed 
+		using the 'net' filetype, an object will be returned containing the streamed channel
+		data. If a 'csv' or 'bin' file is being logged, 'upload' can be set to automatically
+		upload the log file to the current directory.
+
+		:type timeout: float
+		:param timeout: Timeout period
+
+		:type upload: bool
+		:type upload: Upload 'bin' or 'csv' log file when complete
+
+		:rtype: Object {'ch1','ch2'} or None
+		:return: Object containing channel 1 and 2 streamed data, otherwise None
+
+		:raises StreamException:
+		:raises InvalidOperationException:
+		"""
+		if self._dlftype is None:
+			raise InvalidOperationException('No datalogging session has been run')
+			
+		elif self._dlftype == 'net':
+			try:
+				ch1 = []
+				ch2 = []
+				while True:
+					self.datalogger_error()
+					ch, idx, samples = self.datalogger_get_samples(timeout=timeout)
+					print ch, idx
+					if ch == 1:
+						ch1 += samples
+					if ch == 2:
+						ch2 += samples
+			except NoDataException:
+				return type('',(object,), {"ch1":ch1, "ch2":ch2})
+		elif self._dlftype in ['csv', 'bin']:
+			while not self.datalogger_completed():
+				self.datalogger_error()
+				time.sleep(0.1)
+			if upload:
+				self.datalogger_upload()
 
 	def datalogger_stop(self):
 		""" Stop a recording session previously started with :py:func:`datalogger_start`
@@ -500,19 +554,6 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		:returns: Whether the current session has finished running. """
 		return self.datalogger_status()[0] not in [DL_STATE_RUNNING, DL_STATE_WAITING]
 
-	def datalogger_wait(self, upload=False):
-		""" 
-		Returns when logging is complete, returning an array of samples in case of a network
-		stream, or uploading the file in case of use_sd = False
-
-		:raises StreamException:
-		"""
-		while not datalogger_completed():
-			datalogger_error()
-
-
-		return 
-
 	def datalogger_filename(self):
 		""" Returns the current base filename of the logging session.
 
@@ -578,6 +619,7 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 					# Data length of zero uploads the whole file
 					self._moku._receive_file(mp, f[0], 0)
+					log.debug('Uploaded file %s',f[0])
 					uploaded += 1
 
 		if not uploaded:
