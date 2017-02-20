@@ -432,8 +432,7 @@ class Moku(object):
 		pkt = struct.pack("<BBB", 0x53, 0, 1) #TODO: Proper sequence number
 		pkt += tag.encode('ascii')
 		pkt += mp.encode('ascii')
-		#pkt += struct.pack("<IIdBd", start, end, offset, flags, timestep)
-		pkt += struct.pack("<IIBd", start, end, flags, timestep)
+		pkt += struct.pack("<IIdBd", start, end, offset, flags, timestep)
 		pkt += struct.pack("<H", len(fname))
 		pkt += fname.encode('ascii')
 		pkt += struct.pack("<H", len(binstr))
