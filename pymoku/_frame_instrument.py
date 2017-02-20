@@ -215,14 +215,15 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 			raise FrameTimeout()
 
 	def get_buffer(self, timeout=None):
-		""" Get a :any:`DataBuffer` from the internal data channel buffer """
+		""" Get a :any:`DataBuffer` from the internal data channel buffer. This will commit any outstanding
+		 	device settings and pause acquisition. """
+
 		# Force a pause even if it already has happened
 		self.set_pause(True)
 		self.commit()
 				
 		# Get buffer data using a network stream
 		self.datalogger_start_single(filetype='net')
-		
 		ch1 = []
 		ch2 = []
 
@@ -237,7 +238,14 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		except NoDataException as e:
 			self.datalogger_stop()
 
-		_buff = DataBuffer(ch1=ch1, ch2=ch2, xs=None, stateid=frame.stateid, scales=None)
+		# Get a frame to see what the acquisition state was for the current buffer
+		# TODO: Need a way of getting buffer state information without frames
+		try:
+			frame = self.get_frame(timeout=timeout, wait=False)
+		except FrameTimeout:
+			raise BufferTimeout('Unable to retrieve buffer acquisition state')
+
+		_buff = DataBuffer(ch1=ch1, ch2=ch2, xs=None, stateid=frame.trigstate, scales=None)
 
 		# Allow children to post-process the buffer first
 		return self._process_buffer(_buff)
