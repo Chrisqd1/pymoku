@@ -226,7 +226,7 @@ class LIDataFileReader(object):
 		if element.which() != 'data':
 			raise InvalidFileException("Unexpected element type %s", element.which())
 
-		ch = element.data.channel
+		ch = element.data.channel - 1
 		d = element.data.data
 
 		return ch, d
@@ -433,7 +433,7 @@ class LIDataFileWriterV2(object):
 		"""
 		element = schema.LIFileElement.new_message()
 		element.init('data')
-		element.data.channel = ch
+		element.data.channel = ch + 1
 		element.data.data = data
 
 		self.file.write(element.to_bytes())
