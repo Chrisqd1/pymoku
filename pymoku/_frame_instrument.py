@@ -416,7 +416,11 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		if filetype == 'net':
 			self._dlsub_init(self.tag)
 
-		self._moku._stream_start()
+		# Catch a stream start exception and print nice error message
+		try:
+			self._moku._stream_start()
+		except StreamException as e:
+			self._datalogger_error(status=e.err)
 
 		self.logfile = str(self.datalogger_status()[4]).strip()
 
@@ -465,6 +469,68 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 				time.sleep(0.1)
 			if upload:
 				self.datalogger_upload()
+			print self.datalogger_completed()
+		else:
+			raise InvalidOperationException('Logging session run with invalid filetype %s' % self._dlftype)
+
+	def datalogger_wait_file(self, timeout=None, upload=False):
+		""" 
+		Handles the current 'csv' or 'bin' datalogging session.
+
+		:type timeout: float
+		:param timeout: Timeout period
+
+		:type upload: bool
+		:type upload: Upload log file to local directory when complete
+
+		:raises Streamxception:
+		:raises InvalidOperationException: 
+		:raises FrameTimeout: Timed out waiting for samples
+		"""
+		if self._dlftype in ['csv', 'bin']:
+			while not self.datalogger_completed():
+				self.datalogger_error()
+				time.sleep(0.1)
+			if upload:
+				self.datalogger_upload()
+			print 'Done'
+		elif self._dlftype is None:
+			raise InvalidOperationException('No datalogging session has been run')
+		else:
+			raise InvalidOperationException('Datalogging session run with invalid filetype {csv,bin}: %s' % self._dlftype)
+
+	def datalogger_wait_net(self, timeout=None):
+		""" 
+		Handles the current datalogging network stream and collates streamed channel data.
+
+		:type timeout: float
+		:param timeout: Timeout period
+
+		:rtype: Object {'ch1','ch2'} or None
+		:return: Object containing channel 1 and 2 streamed data
+
+		:raises Streamxception:
+		:raises InvalidOperationException: 
+		:raises FrameTimeout: Timed out waiting for samples
+		"""
+		if self._dlftype is None:
+			raise InvalidOperationException('No datalogging session has been run')
+		elif self._dlftype == 'net':
+			try:
+				ch1 = []
+				ch2 = []
+				while True:
+					self.datalogger_error()
+					ch, idx, samples = self.datalogger_get_samples(timeout=timeout)
+					if ch == 1:
+						ch1 += samples
+					if ch == 2:
+						ch2 += samples
+			except NoDataException:
+				return type('',(object,), {"ch1":ch1, "ch2":ch2})
+		else:
+			raise InvalidOperationException('Datalogging session is not a network stream: %s' % self._dlftype)
+
 
 	def datalogger_stop(self):
 		""" Stop a recording session previously started with :py:func:`datalogger_start`
@@ -550,9 +616,15 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		read off the SD card. At most one subsequent :any:`datalogger_get_samples` call
 		will return without timeout.
 
+		If the datalogger has entered an error state, a StreamException is raised.
+
 		:rtype: bool
-		:returns: Whether the current session has finished running. """
-		return self.datalogger_status()[0] not in [DL_STATE_RUNNING, DL_STATE_WAITING]
+		:returns: Whether the current session has finished running. 
+
+		:raises StreamException: if the session has entered an error state"""
+		status = self.datalogger_status()[0]
+		self.datalogger_error(status=status)
+		return status not in [DL_STATE_RUNNING, DL_STATE_WAITING]
 
 	def datalogger_filename(self):
 		""" Returns the current base filename of the logging session.
@@ -567,26 +639,32 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		else:
 			return None
 
-	def datalogger_error(self):
-		""" Check the current datalogging session for errors 
+	def datalogger_error(self, status=None):
+		""" Checks the current datalogger session for errors. Alternatively, the status
+		parameter returned by :any:`datalogger_status` call can be translated to the 
+		associated exception (if any).
 
-		:raises StreamException: if the session is in error."""
-		code = self.datalogger_status()[0]
+		:raises StreamException: if the session is in error.
+		:raises InvalidArgument"""
+		if not status:
+			status = self.datalogger_status()[0]
 		msg = None
 
-		if code in [DL_STATE_NONE, DL_STATE_RUNNING, DL_STATE_WAITING, DL_STATE_STOPPED]:
+		if status in [DL_STATE_NONE, DL_STATE_RUNNING, DL_STATE_WAITING, DL_STATE_STOPPED]:
 			msg = None
-		elif code == DL_STATE_INVAL:
+		elif status == DL_STATE_INVAL:
 			msg = "Invalid Parameters for Datalogger Operation"
-		elif code == DL_STATE_FSFULL:
+		elif status == DL_STATE_FSFULL:
 			msg = "Target Filesystem Full"
-		elif code == DL_STATE_OVERFLOW:
+		elif status == DL_STATE_OVERFLOW:
 			msg ="Session overflowed, sample rate too fast."
-		elif code == DL_STATE_BUSY:
+		elif status == DL_STATE_BUSY:
 			msg = "Tried to start a logging session while one was already running."
+		else:
+			raise ValueError('Invalid status argument')
 
 		if msg:
-			raise StreamException(msg)
+			raise StreamException(msg, status)
 
 
 	def datalogger_upload(self):
