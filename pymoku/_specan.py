@@ -49,10 +49,6 @@ SA_WIN_FLATTOP		= 1
 SA_WIN_HANNING		= 2
 SA_WIN_NONE			= 3
 
-SA_RBW_AUTO			= 0
-SA_RBW_MANUAL 		= 1
-SA_RBW_MIN			= 2
-
 _SA_ADC_SMPS		= 500e6
 _SA_BUFLEN			= 2**14
 _SA_SCREEN_WIDTH	= 1024
@@ -358,7 +354,7 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		self.calibration = None
 
 		self.set_span(0, 250e6)
-		self.set_rbw(0, mode=SA_RBW_AUTO)
+		self.set_rbw()
 		self.set_window(SA_WIN_BH)
 
 		self.set_dbmscale(True)
@@ -419,26 +415,23 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 
 		log.debug("Decimations: %d %d %d %d = %d (ideal %f)", d1, d2, d3, d4, total_decimation, ideal)
 
-	def _calculate_rbw(self, rbw, decimation, window, fspan, rbw_mode, sweep):
+	def _calculate_rbw(self, rbw, decimation, window, fspan, sweep):
 		"""
 			Calculates the RBW value based on current mode
 		"""
-		if rbw_mode == SA_RBW_AUTO:
+		if rbw == None:
 			if sweep:
 				rbw = fspan / 50.0
 			else:
 				rbw = 5.0 * fspan / _SA_SCREEN_STEPS
-
-		elif rbw_mode == SA_RBW_MIN:
-			rbw = 0.0
 
 		window_factor = _SA_WINDOW_WIDTH[window]
 		fbin_resolution = ADC_SMP_RATE/2.0 /_SA_FFT_LENGTH/decimation
 
 		return min(max(rbw, (17.0/16.0) * fbin_resolution * window_factor), 2**10.0 * fbin_resolution * window_factor)
 
-	def _set_rbw_ratio(self, rbw, decimation, window, fspan, rbw_mode, sweep):
-		rbw = self._calculate_rbw(rbw, decimation, window, fspan, rbw_mode, sweep)
+	def _set_rbw_ratio(self, rbw, decimation, window, fspan, sweep):
+		rbw = self._calculate_rbw(rbw, decimation, window, fspan, sweep)
 
 		window_factor = _SA_WINDOW_WIDTH[window]
 		fbin_resolution = ADC_SMP_RATE/2.0/_SA_FFT_LENGTH/decimation
@@ -471,7 +464,7 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		self.render_dds_alt = self.render_dds
 
 		# Calculate the Resolution Bandwidth (RBW)
-		rbw = self._set_rbw_ratio(self.rbw, self._total_decimation, self.window, fspan, self.rbw_mode, self.sweep1 or self.sweep2)
+		rbw = self._set_rbw_ratio(self.rbw, self._total_decimation, self.window, fspan, self.sweep1 or self.sweep2)
 
 		self.ref_level = 6
 
@@ -546,16 +539,16 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		self._f1_full = new_f1
 		self._f2_full = new_f2
 
-	def set_rbw(self, rbw, mode=SA_RBW_AUTO):
+	def set_rbw(self, rbw=None):
 		""" Set Resolution Bandwidth
 
 		:type rbw: float
-		:param rbw: RBW (Hz) - ignored in AUTO and MIN modes
-
-		:type mode: **SA_RBW_AUTO**, **SA_RBW_MIN**, **SA_RBW_MANUAL**
+		:param rbw: Resolution bandwidth (Hz), or ``None`` for auto-mode
 		"""
+		if rbw and rbw < 0:
+			raise ValueOutOfRangeException("Invalid RBW (should be >= 0 or None) %d", rbw)
+
 		self.rbw = rbw
-		self.rbw_mode = mode
 
 	def set_window(self, window):
 		""" Set Window function
@@ -608,7 +601,7 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		self.tr2_incr = 0
 
 		self.set_dbmscale(True)
-		self.set_rbw(0, mode=SA_RBW_AUTO)
+		self.set_rbw()
 
 	def _calculate_freqStep(self, decimation, render_downsamp):
 		bufspan = _SA_ADC_SMPS / 2.0 / decimation

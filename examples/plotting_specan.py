@@ -20,13 +20,12 @@ if i is None or i.type != 'specan':
 else:
 	print("Attached to existing Spectrum Analyser")
 	m.take_ownership()
-
+"""
 # Set spectrum analyser configuration
-dbm = False
-i.set_dbmscale(dbm)
-i.set_window(window_type)
-i.set_span(100e6, 250e6)
-i.set_rbw(None, mode=SA_RBW_AUTO)
+i.set_defaults()
+i.set_dbmscale(True)
+i.set_window(SA_WIN_BH)
+i.set_rbw()
 
 # Set up the embedded signal generator
 i.conf_output(1, 1.0, None, sweep=True)
