@@ -42,8 +42,8 @@ OSC_ROLL			= ROLL
 OSC_SWEEP			= SWEEP
 OSC_FULL_FRAME		= FULL_FRAME
 
-_OSC_LB_ROUND		= 0
-_OSC_LB_CLIP		= 1
+OSC_LB_ROUND		= 0
+OSC_LB_CLIP			= 1
 
 _OSC_AIN_DDS		= 0
 _OSC_AIN_DECI		= 1
@@ -52,6 +52,9 @@ _OSC_ADC_SMPS		= ADC_SMP_RATE
 _OSC_BUFLEN			= CHN_BUFLEN
 _OSC_SCREEN_WIDTH	= 1024
 _OSC_FPS			= 10
+
+_OSC_MAX_PRETRIGGER = (2**12)-1
+_OSC_MAX_POSTTRIGGER = -2**28
 
 class VoltsFrame(_frame_instrument.DataFrame):
 	"""
@@ -110,7 +113,7 @@ class VoltsFrame(_frame_instrument.DataFrame):
 			if (src == OSC_SOURCE_ADC):
 				scale = adc
 			elif (src == OSC_SOURCE_DAC):
-				if(lmode == _OSC_LB_CLIP):
+				if(lmode == OSC_LB_CLIP):
 					scale = dac 
 				else: # Rounding mode
 					scale = dac * 16
@@ -201,7 +204,7 @@ class VoltsFrame(_frame_instrument.DataFrame):
 		return self._get_yaxis_fmt(y,None)['ycoord']
 
 
-class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerator):
+class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGenerator):
 	""" Oscilloscope instrument object. This should be instantiated and attached to a :any:`Moku` instance.
 
 	.. automethod:: pymoku.instruments.Oscilloscope.__init__
@@ -241,17 +244,23 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		# Define any (non- register-mapped) properties that are used when committing
 		# as a commit is called when the instrument is set running
 		self.trig_volts = 0
+		self.hysteresis_volts = 0.0
 
-	def _calculate_decimation(self, tspan):
+	def _calculate_decimation(self, t1, t2):
 
 		# Calculate time the buffer should contain
 		# Want one frame to be approximately 1/3 of a buffer (RD ~ 5)
 		# or the full buffer if it would take longer than 100ms
 
 		# TODO: Put some limits on what the span/decimation can be
-		buffer_span = float(tspan) 
+		if (t2 < 0):
+			buffer_span = -float(t1)
+		else:
+			buffer_span = float(t2 - t1)
 
-		return math.ceil(ADC_SMP_RATE * buffer_span / _OSC_BUFLEN)
+		deci = math.ceil(ADC_SMP_RATE * buffer_span / _OSC_BUFLEN)
+		
+		return deci
 
 
 	def _calculate_render_downsample(self, t1, t2, decimation):
@@ -274,7 +283,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		# Calculate the number of pretrigger samples and offset it by an additional (CubicRatio) samples
 		buffer_smp_rate = ADC_SMP_RATE/decimation
 		buffer_offset_secs = -1.0 * t1
-		buffer_offset = math.ceil(min(max(math.ceil(buffer_offset_secs * buffer_smp_rate / 4.0), -2**28), (2**12)-1))
+		buffer_offset = math.ceil(min(max(math.ceil(buffer_offset_secs * buffer_smp_rate / 4.0), _OSC_MAX_POSTTRIGGER), _OSC_MAX_PRETRIGGER))
 
 		# Apply a correction in pretrigger because of the way cubic interpolation occurs when rendering
 		return buffer_offset
@@ -317,7 +326,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		if(t2 <= t1):
 			raise Exception("Timebase must be non-zero, with t1 < t2. Attempted to set t1=%f and t2=%f" % (t1, t2))
 
-		decimation = self._calculate_decimation(t2-t1)
+		decimation = self._calculate_decimation(t1,t2)
 		render_decimation = self._calculate_render_downsample(t1, t2, decimation)
 		buffer_offset = self._calculate_buffer_offset(t1, decimation)
 		frame_offset = self._calculate_render_offset(t1, decimation)
@@ -327,10 +336,10 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		self.pretrigger = buffer_offset
 		self.offset = frame_offset
 
-
-	def _trigger_level(self, amplitude, source, scales):
-		# An amplitude in volts is scaled to an ADC level depending on the trigger input source 
-		# and its current configuration
+	def _source_volts_to_bits(self, amplitude, source, scales):
+		"""
+			Converts volts to bits depending on the source (ADC1/2, DAC1/2)
+		"""
 		if (source == OSC_TRIG_CH1):
 			level = amplitude/scales['gain_adc1']
 		elif (source == OSC_TRIG_CH2):
@@ -392,19 +401,33 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 
 	datalogger_start_single.__doc__ = _frame_instrument.FrameBasedInstrument.datalogger_start_single.__doc__
 
-	def set_samplerate(self, samplerate):
+	def set_samplerate(self, samplerate, trigger_offset=0):
 		""" Manually set the sample rate of the instrument.
 
-		The sample rate is automatically calcluated and set in :any:`set_timebase`; setting it through this
-		interface if you've previously set the scales through that will have unexpected results.
+		The sample rate is automatically calcluated and set in :any:`set_timebase`.
 
-		This interface is most useful for datalogging and similar aquisition where one will not be looking
-		at data frames.
+		This interface allows you to specify the rate at which data is sampled, and set 
+		a trigger offset in number of samples. This interface is useful for datalogging and capturing
+		of data frames. 
+
+		NOTE: Triggered starts are not currently implemented for datalogging.
 
 		:type samplerate: float; *0 < samplerate < 500MSPS*
 		:param samplerate: Target samples per second. Will get rounded to the nearest allowable unit.
+
+		:type trigger_offset: int; *-2^16 + 1 < trigger_offset < 2^32*
+		:param trigger_offset: Number of samples before (-) or after (+) the trigger point to start capturing.
+
 		"""
-		self.decimation_rate = _OSC_ADC_SMPS / samplerate
+		decimation = _OSC_ADC_SMPS / samplerate
+
+		self.decimation_rate = decimation
+		# Ensure the buffer offset is large enough to incorporate the desired pretrigger/posttrigger data
+		self.pretrigger = - math.ceil(trigger_offset/4.0) if trigger_offset > 0 else - math.floor(trigger_offset/4.0)
+		# We don't want any rendering as each sample is already at the desired samplerate
+		self.render_deci = 1
+		# The render offset needs to be corrected for cubic downsampling (even with unity decimation)
+		self.offset = - round(trigger_offset) + self.render_deci
 
 	def get_samplerate(self):
 		""" :return: The current instrument sample rate """
@@ -430,6 +453,8 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 
 		:param state: Select Precision Mode
 		:type state: bool """
+		if state and self.hysteresis_volts > 0 :
+			raise InvalidConfigurationException("Precision mode and Hysteresis can't be set at the same time.")
 		self.ain_mode = _OSC_AIN_DECI if state else _OSC_AIN_DDS
 
 	
@@ -469,12 +494,16 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 		:param hysteresis: Hysteresis to apply around trigger point."""
 		self.trig_ch = source
 		self.trig_edge = edge
-		self.hysteresis = hysteresis
+		# Precision mode should be off if hysteresis is being used
+		if self.ain_mode == _OSC_AIN_DECI and hysteresis > 0:
+			raise InvalidConfigurationException("Precision mode and Hysteresis can't be set at the same time.")
+		self.hysteresis_volts = hysteresis
+
 		self.hf_reject = hf_reject
 		self.trig_mode = mode
 		self.trig_volts = level # Save the desired trigger voltage
 
-	def set_source(self, ch, source):
+	def set_source(self, ch, source, lmode=OSC_LB_ROUND):
 		""" Sets the source of the channel data to either the ADC input or internally looped-back DAC output.
 
 		This feature allows the user to preview the Signal Generator outputs.
@@ -484,11 +513,18 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 
 		:type source: OSC_SOURCE_ADC, OSC_SOURCE_DAC
 		:param source: Data source
+
+		:type lmode: OSC_LB_ROUND, OSC_LB_CLIP
+		:param lmode: DAC Loopback mode (ignored for ADC sources)
 		"""
 		if ch == 1:
 			self.source_ch1 = source
+			if source == OSC_SOURCE_DAC:
+				self.loopback_mode_ch1 = lmode
 		elif ch == 2:
 			self.source_ch2 = source
+			if source == OSC_SOURCE_DAC:
+				self.loopback_mode_ch2 = lmode
 		else:
 			raise ValueOutOfRangeException("Incorrect channel number %d", ch)
 
@@ -550,7 +586,8 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.SignalGenerat
 
 	def _update_dependent_regs(self, scales):
 		# Trigger level must be scaled depending on the current relay settings and chosen trigger source
-		self.trigger_level = self._trigger_level(self.trig_volts, self.trig_ch, scales)
+		self.trigger_level = self._source_volts_to_bits(self.trig_volts, self.trig_ch, scales)
+		self.hysteresis = self._source_volts_to_bits(self.hysteresis_volts, self.trig_ch, scales)
 		
 	def commit(self):
 		scales = self._calculate_scales()
@@ -584,11 +621,13 @@ _osc_reg_handlers = {
 
 	'hf_reject':		(REG_OSC_TRIGCTL,	to_reg_bool(12),			from_reg_bool(12)),
 	'hysteresis':		(REG_OSC_TRIGCTL,	to_reg_unsigned(16, 16),	from_reg_unsigned(16, 16)),
+	# The conversion of trigger level value to register value is dependent on the trigger source
+	# and therefore is performed in the _trigger_level() function above.
 	'trigger_level':	(REG_OSC_TRIGLVL,	to_reg_signed(0, 32),		from_reg_signed(0, 32)),
 
-	'loopback_mode_ch1':	(REG_OSC_ACTL,	to_reg_unsigned(0, 1, allow_set=[_OSC_LB_CLIP, _OSC_LB_ROUND]),
+	'loopback_mode_ch1':	(REG_OSC_ACTL,	to_reg_unsigned(0, 1, allow_set=[OSC_LB_CLIP, OSC_LB_ROUND]),
 											from_reg_unsigned(0, 1)),
-	'loopback_mode_ch2':	(REG_OSC_ACTL,	to_reg_unsigned(1, 1, allow_set=[_OSC_LB_CLIP, _OSC_LB_ROUND]),
+	'loopback_mode_ch2':	(REG_OSC_ACTL,	to_reg_unsigned(1, 1, allow_set=[OSC_LB_CLIP, OSC_LB_ROUND]),
 											from_reg_unsigned(1, 1)),
 	'ain_mode':			(REG_OSC_ACTL,		to_reg_unsigned(16,2, allow_set=[_OSC_AIN_DDS, _OSC_AIN_DECI]),
 											from_reg_unsigned(16,2)),

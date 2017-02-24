@@ -4,7 +4,7 @@ import threading, collections, time, struct, socket, logging
 from functools import partial
 from types import MethodType
 
-from pymoku import NotDeployedException, ValueOutOfRangeException
+from pymoku import NotDeployedException, ValueOutOfRangeException, InvalidConfigurationException
 
 REG_CTL 	= 0
 REG_STAT	= 1

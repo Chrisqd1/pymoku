@@ -58,13 +58,14 @@ SG_MODSOURCE_ADC	= 1
 SG_MODSOURCE_DAC	= 2
 
 _SG_FREQSCALE		= 1e9 / 2**48
-_SG_PHASESCALE		= 1.0 / (2**32 - 1)
+_SG_PHASESCALE		= 360.0 / (2**32) # Wraps
 _SG_RISESCALE		= 1e9 / 2**48
 _SG_AMPSCALE		= 4.0 / (2**15 - 1)
 _SG_DEPTHSCALE		= 1.0 / 2**15
 _SG_MAX_RISE		= 1e9 - 1
+_SG_TIMESCALE 		= 1.0 / (2**32 - 1) # Doesn't wrap
 
-class SignalGenerator(MokuInstrument):
+class BasicSignalGenerator(MokuInstrument):
 	"""
 
 	.. automethod:: pymoku.instruments.SignalGenerator.__init__
@@ -77,7 +78,7 @@ class SignalGenerator(MokuInstrument):
 	"""
 	def __init__(self):
 		""" Create a new SignalGenerator instance, ready to be attached to a Moku."""
-		super(SignalGenerator, self).__init__()
+		super(BasicSignalGenerator, self).__init__()
 		self._register_accessors(_siggen_reg_handlers)
 
 		self.id = 4
@@ -86,7 +87,7 @@ class SignalGenerator(MokuInstrument):
 	def set_defaults(self):
 		""" Set sane defaults.
 		Defaults are outputs off, amplitudes and frequencies zero."""
-		super(SignalGenerator, self).set_defaults()
+		super(BasicSignalGenerator, self).set_defaults()
 		self.out1_enable = False
 		self.out2_enable = False
 		self.out1_amplitude = 0
@@ -98,7 +99,7 @@ class SignalGenerator(MokuInstrument):
 		self.en_in_ch1 = False
 		self.en_in_ch2 = False
 
-	def synth_sinewave(self, ch, amplitude, frequency, offset=0):
+	def synth_sinewave(self, ch, amplitude, frequency, offset=0, phase=0.0):
 		""" Generate a Sine Wave with the given parameters on the given channel.
 
 		:type ch: int
@@ -111,7 +112,11 @@ class SignalGenerator(MokuInstrument):
 		:param frequency: Freqency of the wave
 
 		:type offset: float, volts
-		:param offset: DC offset applied to the waveform"""
+		:param offset: DC offset applied to the waveform
+
+		:type phase: float, degrees 0-360
+		:param phase: Phase offset of the wave
+		"""
 
 		if ch == 1:
 			self.out1_waveform = SG_WAVE_SINE
@@ -119,16 +124,18 @@ class SignalGenerator(MokuInstrument):
 			self.out1_amplitude = amplitude
 			self.out1_frequency = frequency
 			self.out1_offset = offset
+			self.out1_phase =  phase
 		elif ch == 2:
 			self.out2_waveform = SG_WAVE_SINE
 			self.out2_enable = True
 			self.out2_amplitude = amplitude
 			self.out2_frequency = frequency
 			self.out2_offset = offset
+			self.out2_phase = phase
 		else:
 			raise ValueOutOfRangeException("Invalid Channel")
 
-	def synth_squarewave(self, ch, amplitude, frequency, offset=0, duty=0.5, risetime=0, falltime=0):
+	def synth_squarewave(self, ch, amplitude, frequency, offset=0, duty=0.5, risetime=0, falltime=0, phase=0.0):
 		""" Generate a Square Wave with given parameters on the given channel.
 
 		:type ch: int
@@ -150,7 +157,12 @@ class SignalGenerator(MokuInstrument):
 		:param risetime: Fraction of a cycle taken for the waveform to rise
 
 		:type falltime: float 0-1
-		:param falltime: Fraction of a cycle taken for the waveform to fall"""
+		:param falltime: Fraction of a cycle taken for the waveform to fall
+
+		:type phase: float, degrees 0-360
+		:param phase: Phase offset of the wave
+
+		"""
 
 		if duty < risetime:
 			raise ValueOutOfRangeException("Duty too small for given rise rate")
@@ -171,6 +183,7 @@ class SignalGenerator(MokuInstrument):
 			self.out1_t2 = duty + falltime
 			self.out1_riserate = frequency / risetime if risetime else _SG_MAX_RISE
 			self.out1_fallrate = frequency / falltime if falltime else _SG_MAX_RISE
+			self.out1_phase =  phase
 		elif ch == 2:
 			self.out2_waveform = SG_WAVE_SQUARE
 			self.out2_enable = True
@@ -183,10 +196,11 @@ class SignalGenerator(MokuInstrument):
 			self.out2_t2 = duty + falltime
 			self.out2_riserate = frequency / risetime if risetime else _SG_MAX_RISE
 			self.out2_fallrate = frequency / falltime if falltime else _SG_MAX_RISE
+			self.out2_phase = phase
 		else:
 			raise ValueOutOfRangeException("Invalid Channel")
 
-	def synth_rampwave(self, ch, amplitude, frequency, offset=0, symmetry=0.5):
+	def synth_rampwave(self, ch, amplitude, frequency, offset=0, symmetry=0.5, phase= 0.0):
 		""" Generate a Ramp with the given parameters on the given channel.
 
 		This is a wrapper around the Square Wave generator, using the *riserate* and *fallrate*
@@ -205,11 +219,23 @@ class SignalGenerator(MokuInstrument):
 		:param offset: DC offset applied to the waveform
 
 		:type symmetry: float, 0-1
-		:param symmetry: Fraction of the cycle rising."""
+		:param symmetry: Fraction of the cycle rising.
+
+		:type phase: float, degrees 0-360
+		:param phase: Phase offset of the wave
+		"""
 		self.synth_squarewave(ch, amplitude, frequency,
 			offset = offset, duty = symmetry,
 			risetime = symmetry,
-			falltime = 1 - symmetry)
+			falltime = 1 - symmetry,
+			phase = phase)
+
+class SignalGenerator(BasicSignalGenerator):
+
+	def __init__(self):
+		""" Create a new SignalGenerator instance, ready to be attached to a Moku."""
+		super(SignalGenerator, self).__init__()
+		self._register_accessors(_siggen_mod_reg_handlers)
 
 	def synth_modulate(self, ch, type, source, depth, frequency=0.0):
 		"""
@@ -224,51 +250,83 @@ class SignalGenerator(MokuInstrument):
 		:type source: SG_MODSOURCE_INT, SG_MODSOURCE_ADC, SG_MODSOURCE_DAC
 		:param source: Modulation source. Respectively Internal Sinewave, Associated ADC Channel or Opposite DAC Channel.
 
-		:type depth: float 0-1
-		:param depth: Fractional modulation depth
+		:type depth: float 0-1, 0-125MHz, 0 - 360 deg
+		:param depth: Fractional modulation depth, Frequency Deviation/Volt, Phase shift
 
 		:type frequency: float
 		:param frequency: Frequency of internally-generated sine wave modulation. This parameter is ignored if the source is set to ADC or DAC.
 		"""
 		# Get the calibration coefficients of the front end and output
-		dac1, dac2, adc1, adc2 = self._get_calibration()
+		dac1, dac2 = self.dac_gains()
+		adc1, adc2 = self.adc_gains()
 
 		if ch == 1:
 			self.out1_modulation = type
 			self.out1_modsource = source
 			self.mod1_frequency = frequency
-
-			# Modulation depth
-			depth_parameter = 0.0
-			if(source == SG_MODSOURCE_INT):
-				depth_parameter = depth # No change in depth
-			elif(source == SG_MODSOURCE_DAC):
-				# Check what the DAC scaling factor is
-				depth_parameter = depth * pow(2.0,15.0) / dac2
-			elif(source == SG_MODSOURCE_ADC):
-				# The input 1 is being used as Output 2 modulation signal
-				depth_parameter = depth * pow(2.0,9.0) / adc1
-			res = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
-
-			self.mod1_amplitude = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
-
 		elif ch == 2:
 			self.out2_modulation = type
 			self.out2_modsource = source
 			self.mod2_frequency = frequency
 
-			# Modulation depth
-			depth_parameter = 0.0
-			if(source == SG_MODSOURCE_INT):
-				depth_parameter = depth * 1.0 # No change in depth
-			elif(source == SG_MODSOURCE_DAC):
-				# Check what the DAC scaling factor is
-				depth_parameter = depth * pow(2.0,15.0) / dac1
-			elif(source == SG_MODSOURCE_ADC):
-				# The input 1 is being used as Output 2 modulation signal
-				depth_parameter = depth * pow(2.0,9.0) / adc2
-			res = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
+		# Calculate the depth value depending on modulation source and type
+		depth_parameter = 0.0
+		if type == SG_MOD_AMPL:
+			depth_parameter = depth
+			if not 0 <= depth_parameter <= 1.0:
+				raise ValueOutOfRangeException("Invalid amplitude modulation depth [0.0-1.0]: %s" % depth)
+		elif type == SG_MOD_FREQ:
+			depth_parameter = depth/(DAC_SMP_RATE/8.0)
+			if not 0 <= depth_parameter <= 1.0:
+				raise ValueOutOfRangeException("Invalid frequency modulation deviation [0-125MHz]: %s" % depth)
+		elif type == SG_MOD_PHASE:
+			depth_parameter = depth/360.0
+			if not 0 <= depth_parameter <= 1.0:
+				raise ValueOutOfRangeException("Invalid phase modulation shift [0-360deg]: %s" % depth)
+
+		# Calibrate the depth value depending on the source
+		if(source == SG_MODSOURCE_INT):
+			depth_parameter *= 1.0 # No change in depth
+		elif(source == SG_MODSOURCE_DAC):
+			# Opposite DAC is used
+			depth_parameter = depth_parameter * pow(2.0,15.0) * (dac2 if ch == 1 else dac1)
+		elif(source == SG_MODSOURCE_ADC):
+			# Associated ADC for current channel
+			depth_parameter =  depth_parameter * pow(2.0,9.0) * (adc1 if ch == 1 else adc2)
+
+		if ch == 1:
+			self.mod1_amplitude = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
+		elif ch == 2:
 			self.mod2_amplitude = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
+
+_siggen_mod_reg_handlers = {
+	'out1_modulation':	(REG_SG_WAVEFORMS,	to_reg_unsigned(16, 8, allow_range=[SG_MOD_NONE, SG_MOD_AMPL | SG_MOD_FREQ | SG_MOD_PHASE]),
+											from_reg_unsigned(16, 8)),
+
+	'out2_modulation':	(REG_SG_WAVEFORMS,	to_reg_unsigned(24, 8, allow_range=[SG_MOD_NONE, SG_MOD_AMPL | SG_MOD_FREQ | SG_MOD_PHASE]),
+											from_reg_unsigned(24, 8)),
+
+	'mod1_frequency':	((REG_SG_MODF1_H, REG_SG_MODF1_L),
+											lambda obj, f, old: ((old[0] & 0x0000FFFF) | (_usgn(f/_SG_FREQSCALE, 48) >> 16) & 0xFFFF0000, _usgn(f/_SG_FREQSCALE, 48) & 0xFFFFFFFF),
+											lambda obj, rval: _SG_FREQSCALE * ((rval[0] & 0xFFFF0000) << 16 | rval[1])),
+
+	'mod2_frequency':	((REG_SG_MODF2_H, REG_SG_MODF2_L),
+											lambda obj, f, old: ((old[0] & 0x0000FFFF) | (_usgn(f/_SG_FREQSCALE, 48) >> 16) & 0xFFFF0000, _usgn(f/_SG_FREQSCALE, 48) & 0xFFFFFFFF),
+											lambda obj, rval: _SG_FREQSCALE * ((rval[0] & 0xFFFF0000) << 16 | rval[1])),
+	# The meaning of this amplitude field is complicated enough that the conversion to register value is done in the
+	# main code above rather than inline
+	'mod1_amplitude':	(REG_SG_MODA1,		to_reg_unsigned(0, 32),
+											from_reg_unsigned(0, 32)),
+
+	'mod2_amplitude':	(REG_SG_MODA2,		to_reg_unsigned(0, 32),
+											from_reg_unsigned(0, 32)),
+
+	'out1_modsource':	(REG_SG_MODSOURCE,	to_reg_unsigned(1, 2, allow_set=[SG_MODSOURCE_INT, SG_MODSOURCE_ADC, SG_MODSOURCE_DAC]),
+											from_reg_unsigned(1, 2)),
+
+	'out2_modsource':	(REG_SG_MODSOURCE,	to_reg_unsigned(3, 2, allow_set=[SG_MODSOURCE_INT, SG_MODSOURCE_ADC, SG_MODSOURCE_DAC]),
+											from_reg_unsigned(3, 2))
+}
 
 _siggen_reg_handlers = {
 	'out1_enable':		(REG_SG_WAVEFORMS,	to_reg_bool(0),		from_reg_bool(0)),
@@ -282,13 +340,6 @@ _siggen_reg_handlers = {
 
 	'out1_clipsine':	(REG_SG_WAVEFORMS,	to_reg_bool(7),		from_reg_bool(7)),
 	'out2_clipsine':	(REG_SG_WAVEFORMS,	to_reg_bool(11),		from_reg_bool(11)),
-
-	'out1_modulation':	(REG_SG_WAVEFORMS,	to_reg_unsigned(16, 8, allow_range=[SG_MOD_NONE, SG_MOD_AMPL | SG_MOD_FREQ | SG_MOD_PHASE]),
-											from_reg_unsigned(16, 8)),
-
-	'out2_modulation':	(REG_SG_WAVEFORMS,	to_reg_unsigned(24, 8, allow_range=[SG_MOD_NONE, SG_MOD_AMPL | SG_MOD_FREQ | SG_MOD_PHASE]),
-											from_reg_unsigned(24, 8)),
-
 	'out1_frequency':	((REG_SG_FREQ1_H, REG_SG_FREQ1_L),
 											to_reg_unsigned(0, 48, xform=lambda obj, f:f / _SG_FREQSCALE),
 											from_reg_unsigned(0, 48, xform=lambda obj, f: f * _SG_FREQSCALE)),
@@ -303,10 +354,10 @@ _siggen_reg_handlers = {
 	'out2_offset':		(REG_SG_MODF2_H,	to_reg_signed(0, 16, xform=lambda obj, o:o / obj.dac_gains()[1]),
 											from_reg_signed(0, 16, xform=lambda obj, o: o * obj.dac_gains()[1])),
 
-	'out1_phase':		(REG_SG_PHASE1,		to_reg_unsigned(0, 32, xform=lambda obj, p:p / _SG_PHASESCALE),
+	'out1_phase':		(REG_SG_PHASE1,		to_reg_unsigned(0, 32, xform=lambda obj, p: (p / _SG_PHASESCALE) % (2**32)),
 											from_reg_unsigned(0, 32, xform=lambda obj, p:p * _SG_PHASESCALE)),
 
-	'out2_phase':		(REG_SG_PHASE2,		to_reg_unsigned(0, 32, xform=lambda obj, p:p / _SG_PHASESCALE),
+	'out2_phase':		(REG_SG_PHASE2,		to_reg_unsigned(0, 32, xform=lambda obj, p: (p / _SG_PHASESCALE) % (2**32)),
 											from_reg_unsigned(0, 32, xform=lambda obj, p:p * _SG_PHASESCALE)),
 
 	'out1_amplitude':	(REG_SG_AMP1,		to_reg_unsigned(0, 32, xform=lambda obj, p:p / obj.dac_gains()[0]),
@@ -315,31 +366,23 @@ _siggen_reg_handlers = {
 	'out2_amplitude':	(REG_SG_AMP2,		to_reg_unsigned(0, 32, xform=lambda obj, p:p / obj.dac_gains()[1]),
 											from_reg_unsigned(0, 32, xform=lambda obj, p:p * obj.dac_gains()[1])),
 
-	'mod1_frequency':	((REG_SG_MODF1_H, REG_SG_MODF1_L),
-											lambda obj, f, old: ((old[0] & 0x0000FFFF) | (_usgn(f/_SG_FREQSCALE, 48) >> 16) & 0xFFFF0000, _usgn(f/_SG_FREQSCALE, 48) & 0xFFFFFFFF),
-											lambda obj, rval: _SG_FREQSCALE * ((rval[0] & 0xFFFF0000) << 16 | rval[1])),
+	'out1_t0':			(REG_SG_T01,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_TIMESCALE),
+											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_TIMESCALE)),
 
-	'mod2_frequency':	((REG_SG_MODF2_H, REG_SG_MODF2_L),
-											lambda obj, f, old: ((old[0] & 0x0000FFFF) | (_usgn(f/_SG_FREQSCALE, 48) >> 16) & 0xFFFF0000, _usgn(f/_SG_FREQSCALE, 48) & 0xFFFFFFFF),
-											lambda obj, rval: _SG_FREQSCALE * ((rval[0] & 0xFFFF0000) << 16 | rval[1])),
+	'out1_t1':			(REG_SG_T11,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_TIMESCALE),
+											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_TIMESCALE)),
 
-	'out1_t0':			(REG_SG_T01,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
-											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
+	'out1_t2':			(REG_SG_T21,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_TIMESCALE) ,
+											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_TIMESCALE)),
 
-	'out1_t1':			(REG_SG_T11,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
-											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
+	'out2_t0':			(REG_SG_T02,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_TIMESCALE),
+											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_TIMESCALE)),
 
-	'out1_t2':			(REG_SG_T21,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
-											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
+	'out2_t1':			(REG_SG_T12,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_TIMESCALE),
+											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_TIMESCALE )),
 
-	'out2_t0':			(REG_SG_T02,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
-											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
-
-	'out2_t1':			(REG_SG_T12,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
-											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
-
-	'out2_t2':			(REG_SG_T22,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_PHASESCALE),
-											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_PHASESCALE)),
+	'out2_t2':			(REG_SG_T22,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_TIMESCALE ),
+											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_TIMESCALE )),
 
 	'out1_riserate':	((REG_SG_RFRATE1_H, REG_SG_RISERATE1_L),
 											to_reg_unsigned(0, 48, xform=lambda obj, r: r / _SG_FREQSCALE),
@@ -356,20 +399,6 @@ _siggen_reg_handlers = {
 	'out2_fallrate':	((REG_SG_RFRATE2_H, REG_SG_FALLRATE2_L),
 											lambda obj, f, old: ((old[0] & 0x0000FFFF) | (_usgn(f/_SG_FREQSCALE, 48) >> 16) & 0xFFFF0000, _usgn(f/_SG_FREQSCALE, 48) & 0xFFFFFFFF),
 											lambda obj, rval: _SG_FREQSCALE * ((rval[0] & 0xFFFF0000) << 16 | rval[1])),
-
-	# The meaning of this amplitude field is complicated enough that the conversion to register value is done in the
-	# main code above rather than inline
-	'mod1_amplitude':	(REG_SG_MODA1,		to_reg_unsigned(0, 32),
-											from_reg_unsigned(0, 32)),
-
-	'mod2_amplitude':	(REG_SG_MODA2,		to_reg_unsigned(0, 32),
-											from_reg_unsigned(0, 32)),
-
-	'out1_modsource':	(REG_SG_MODSOURCE,	to_reg_unsigned(1, 2, allow_set=[SG_MODSOURCE_INT, SG_MODSOURCE_ADC, SG_MODSOURCE_DAC]),
-											from_reg_unsigned(1, 2)),
-
-	'out2_modsource':	(REG_SG_MODSOURCE,	to_reg_unsigned(3, 2, allow_set=[SG_MODSOURCE_INT, SG_MODSOURCE_ADC, SG_MODSOURCE_DAC]),
-											from_reg_unsigned(3, 2)),
 
 	'out1_amp_pc':		(REG_SG_PRECLIP,	to_reg_unsigned(0, 16, xform=lambda obj, a: a / obj.dac_gains()[0]),
 											from_reg_unsigned(0, 16, xform=lambda obj, a: a * obj.dac_gains()[0])),

@@ -21,6 +21,7 @@ class ValueOutOfRangeException(MokuException): """Invalid value for this operati
 class NotDeployedException(MokuException): """Tried to perform an action on an Instrument before it was deployed to a Moku"""; pass
 class FrameTimeout(MokuException): """No new :any:`DataFrame` arrived within the given timeout"""; pass
 class NoDataException(MokuException): """A request has been made for data but none will be generated """; pass
+class InvalidConfigurationException(MokuException): """A request for an invalid instrument configuration has been made."""; pass
 
 # Network status codes
 _ERR_OK = 0
@@ -895,11 +896,6 @@ class Moku(object):
 		return running
 
 	def close(self):
-		"""Close connection to the Moku:Lab.
-
-		This should be called before any user script terminates."""
-		if self._instrument is not None:
-			self._instrument.set_running(False)
-
+		"""Close connection to the Moku:Lab."""
 		self._conn.close()
 		self._ctx.destroy()
