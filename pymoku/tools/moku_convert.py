@@ -72,7 +72,7 @@ def main():
 
 	reader = LIDataFileReader(args.input_file)
 
-	func, extension = type_map(args.format)
+	func, extension = type_map[args.format]
 	fname = args.input_file[:-3] + extension #trim off .li, add new extension
 
 	return func(reader, fname)
