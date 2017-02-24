@@ -24,6 +24,7 @@ REG_AINCTL	= 13
 REG_PRETRIG	= 15
 REG_CAL1, REG_CAL2, REG_CAL3, REG_CAL4, REG_CAL5, REG_CAL6, REG_CAL7, REG_CAL8 = list(range(16, 24))
 REG_CAL9, REG_CAL10 = list(range(24, 26))
+REG_TEMP_DAC = 27
 REG_STATE	= 63
 
 # Common instrument parameters
@@ -73,7 +74,7 @@ def _sgn(i, width):
 
 	if i >= 0:
 		return int(i)
-		
+
 	return int(2**width + i)
 
 def _upsgn(i, width):
@@ -531,4 +532,6 @@ _instr_reg_handlers = {
 
 	'state_id':			(REG_STATE,	 	to_reg_unsigned(0, 8),		from_reg_unsigned(0, 8)),
 	'state_id_alt':		(REG_STATE,	 	to_reg_unsigned(16, 8),		from_reg_unsigned(16, 8)),
+	'temp_dac':			(REG_TEMP_DAC,	None,		from_reg_signed(0, 12, xform=lambda obj, f: f * 0.0625)),
+	'temp_adc':			(REG_AINCTL,	None,		from_reg_signed(20, 12, xform=lambda obj, f: f * 0.0625)),
 }

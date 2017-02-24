@@ -44,8 +44,25 @@ for attr, val in _phasemeter.__dict__.items():
 	if attr.startswith('PM_'):
 		setattr(_this_module, attr, val)
 
+# Re-export all constants from Spectrum Analyser that start with SA_
+for attr, val in _specan.__dict__.items():
+	if attr.startswith('SA_'):
+		setattr(_this_module, attr, val)
+
+
 id_table = {
 	1: Oscilloscope,
+	2: SpecAn,
 	3: PhaseMeter,
 	4: SignalGenerator,
+	5: None, # PID Controller
+	6: None, # IIR Filter Box
+	7: Oscilloscope, # Datalogger
+	8: None, # Lock-in Amp
+	9: None, # Bode Analyser
+	10: None, # FIR Filter Box
+	11: None, # PDH Locking
+	12: None, # Software Defined Radio
+	13: None, # Frequency Counter
+	14: None # BoxCar Averager
 }

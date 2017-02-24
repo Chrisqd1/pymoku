@@ -20,28 +20,22 @@ if i is None or i.type != 'specan':
 else:
 	print("Attached to existing Spectrum Analyser")
 	m.take_ownership()
+"""
+# Set spectrum analyser configuration
+i.set_defaults()
+i.set_dbmscale(True)
+i.set_window(SA_WIN_BH)
+i.set_rbw()
 
-#################################
-# BEGIN Instrument Configuration
-# ------------------------------
-# Set these parameters
-#################################
-# Set power scale to dBm
-dbm = True
+# Set up the embedded signal generator
+i.conf_output(1, 1.0, None, sweep=True)
+i.conf_output(2, 0.5, 20e6)
+i.enable_output(1, True)
+i.enable_output(2, True)
 
-# Set window type {NONE, BH, FLATTOP, HANNING}
-windowType = i.window_type('NONE')
-
-# Set FFT frequency span (Hz)
-start_freq = 0e6
-stop_freq = 250e6
-#################################
-# END Instrument Configuration
-#################################
-
-i.set_dbmscale(dbm)
-i.set_window(windowType)
-i.set_span(start_freq, stop_freq)
+# Configure ADC inputs
+i.set_frontend(1, fiftyr=True)
+i.set_frontend(2, fiftyr=True)
 
 # Push all new configuration to the Moku device
 i.commit()
@@ -55,7 +49,7 @@ plt.grid(b=True)
 if(dbm):
 	plt.ylim([-200, 100])
 else:
-	plt.ylim([-0.5,1])
+	plt.ylim([-0.5,1.0])
 plt.autoscale(axis='x',tight=True)
 
 try:
