@@ -713,16 +713,16 @@ class Moku(object):
 
 		:raises NetworkError: if the upload fails verification.
 		"""
-		return self.load_persistent(path, remotename)
+		return self.load_persistent(path, remotename, mp='b')
 
-	def load_persistent(self, path, remotename=None):
+	def load_persistent(self, path, remotename=None, mp='p'):
 		import zlib
 
-		rname = self._send_file('b', path, remotename)
+		rname = self._send_file(mp, path, remotename)
 
 		log.debug("Verifying upload")
 
-		chk = self._fs_chk('b', rname)
+		chk = self._fs_chk(mp, rname)
 
 		with open(path, 'rb') as fp:
 			chk2 = zlib.crc32(fp.read()) & 0xffffffff
@@ -733,7 +733,7 @@ class Moku(object):
 		return chk
 
 	def list_persistent(self):
-		fs = self._fs_list('b')
+		fs = self._fs_list('p')
 		return list(zip(*fs))[0]
 
 	def list_bitstreams(self, include_version=True):
