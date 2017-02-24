@@ -46,6 +46,17 @@ for attr, val in _phasemeter.__dict__.items():
 
 id_table = {
 	1: Oscilloscope,
+	2: SpecAn,
 	3: PhaseMeter,
 	4: SignalGenerator,
+	5: None, # PID Controller
+	6: None, # IIR Filter Box
+	7: Oscilloscope, # Datalogger
+	8: None, # Lock-in Amp
+	9: None, # Bode Analyser
+	10: None, # FIR Filter Box
+	11: None, # PDH Locking
+	12: None, # Software Defined Radio
+	13: None, # Frequency Counter
+	14: None # BoxCar Averager
 }
