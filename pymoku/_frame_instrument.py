@@ -274,6 +274,34 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 			self._dlskt = None
 
 
+	def _max_stream_rates(instr, nch, use_sd):
+		"""
+		Returns the maximum rate at which the instrument can be streamed for the given
+		streaming configuration
+
+		Currently only specified for the Oscilloscope instrument
+		"""
+
+		# These are checked on the client side too but sanity-check here as an invalid
+		# rate can hard-hang the Moku. These rates are approximate and experimentally
+		# derived, should be updated as we test and optimize things.
+
+		# Logging rates depend on which storage medium, and the filetype as well
+		maxrates = None
+		if nch == 2:
+			if(use_sd):
+				maxrates = { 'bin' : 150e3, 'csv' : 1e3, 'net' : 20e3, 'plot' : 10}
+			else:
+				maxrates = { 'bin' : 1e6, 'csv' : 1e3, 'net' : 20e3, 'plot' : 10}
+		else:
+			if(use_sd):
+				maxrates = { 'bin' : 250e3, 'csv' : 3e3, 'net' : 40e3, 'plot' : 10}
+			else:
+				maxrates = { 'bin' : 1e6, 'csv' : 3e3, 'net' : 40e3, 'plot' : 10}
+
+		return maxrates
+
+
 	def datalogger_start(self, start=0, duration=10, use_sd=True, ch1=True, ch2=True, filetype='csv'):
 		""" Start recording data with the current settings.
 
@@ -315,28 +343,17 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 		self.ch1 = bool(ch1)
 		self.ch2 = bool(ch2)		
-		self.nch = int(self.ch1) + int(self.ch2)
+		self.nch = bool(self.ch1) + bool(self.ch2)
 
 		fname = datetime.now().strftime(self.logname + "_%Y%m%d_%H%M%S")
 
 		# Currently the data stream genesis is from the x_mode commit below, meaning that delayed start
 		# doesn't work properly. Once this is fixed in the FPGA/daemon, remove this check and the note
 		# in the documentation above.
-		#if start:
-		#	raise InvalidOperationException("Logging start time parameter currently not supported")
+		if start:
+			raise InvalidOperationException("Logging start time parameter currently not supported")
 
-		# TODO: Store this in an instrument-dependent hash as this won't be valid for Phasemeter
-		# Logging rates depend on which storage medium, and the filetype as well
-		if(ch1 and ch2):
-			if(use_sd):
-				maxrates = { 'bin' : 150e3, 'csv' : 1e3, 'net' : 20e3, 'plot' : 10}
-			else:
-				maxrates = { 'bin' : 1e6, 'csv' : 1e3, 'net' : 20e3, 'plot' : 10}
-		else:
-			if(use_sd):
-				maxrates = { 'bin' : 250e3, 'csv' : 3e3, 'net' : 40e3, 'plot' : 10}
-			else:
-				maxrates = { 'bin' : 1e6, 'csv' : 3e3, 'net' : 40e3, 'plot' : 10}
+		maxrates = self._max_stream_rates(instr=None, nch=self.nch,use_sd=use_sd)
 
 		if 1 / self.timestep > maxrates[filetype]:
 			raise InvalidOperationException("Sample Rate %d too high for file type %s" % (1 / self.timestep, filetype))
