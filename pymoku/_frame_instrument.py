@@ -273,7 +273,7 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 			self._dlskt.close()
 			self._dlskt = None
 
-
+	@staticmethod
 	def _max_stream_rates(instr, nch, use_sd):
 		"""
 		Returns the maximum rate at which the instrument can be streamed for the given
@@ -353,10 +353,10 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		if start:
 			raise InvalidOperationException("Logging start time parameter currently not supported")
 
-		maxrates = self._max_stream_rates(instr=None, nch=self.nch,use_sd=use_sd)
+		maxrates = self._max_stream_rates(instr=None, nch=self.nch, use_sd=use_sd)
 
 		if 1 / self.timestep > maxrates[filetype]:
-			raise InvalidOperationException("Sample Rate %d too high for file type %s" % (1 / self.timestep, filetype))
+			raise InvalidOperationException("Sample Rate %d too high for file type %s. Maximum rate: %d" % (1.0 / self.timestep, filetype, maxrates[filetype]))
 
 		if self.x_mode != _instrument.ROLL:
 			raise InvalidOperationException("Instrument must be in roll mode to perform data logging")
@@ -369,9 +369,12 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		self.x_mode = _instrument.ROLL
 		self.commit()
 
-		self._moku._stream_prep(ch1=ch1, ch2=ch2, start=start, end=start + duration, offset=0, timestep=self.timestep,
+		try:
+			self._moku._stream_prep(ch1=ch1, ch2=ch2, start=start, end=start + duration, offset=0, timestep=self.timestep,
 			binstr=self.binstr, procstr=self.procstr, fmtstr=self.fmtstr, hdrstr=self.hdrstr,
 			fname=fname, ftype=filetype, tag=self.tag, use_sd=use_sd)
+		except StreamException as e:
+			self.datalogger_error(status=e.err)
 		
 		if filetype == 'net':
 			self._dlsub_init(self.tag)
@@ -426,18 +429,17 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 			raise InvalidOperationException("Instrument currently doesn't support data logging")
 
 		#TODO: Work out the offset from current span (instrument dependent?)
-		self._moku._stream_prep(ch1=ch1, ch2=ch2, start=0, end=0, timestep=self.timestep, offset=0,
+		try:
+			self._moku._stream_prep(ch1=ch1, ch2=ch2, start=0, end=0, timestep=self.timestep, offset=0,
 			binstr=self.binstr, procstr=self.procstr, fmtstr=self.fmtstr, hdrstr=self.hdrstr,
 			fname=fname, ftype=filetype, tag=self.tag, use_sd=use_sd)
+		except StreamException as e:
+			self.datalogger_error(status=e.err)
 
 		if filetype == 'net':
 			self._dlsub_init(self.tag)
 
-		# Catch a stream start exception and print nice error message
-		try:
-			self._moku._stream_start()
-		except StreamException as e:
-			self._datalogger_error(status=e.err)
+		self._moku._stream_start()
 
 		self.logfile = str(self.datalogger_status()[4]).strip()
 
