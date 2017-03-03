@@ -447,60 +447,41 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		self._dlftype = filetype
 
 	def datalogger_wait(self, timeout=None, upload=False):
-		""" 
-		Waits for the current datalogging session to complete. If data is being streamed 
-		using the 'net' filetype, an object will be returned containing the streamed channel
-		data. If a 'csv' or 'bin' file is being logged, 'upload' can be set to automatically
-		upload the log file to the current directory.
+		"""
+		Handles the current datalogging session. 
 
 		:type timeout: float
 		:param timeout: Timeout period
 
 		:type upload: bool
-		:type upload: Upload 'bin' or 'csv' log file when complete
+		:param upload: Upload log file to local directory when complete (ignored if `net` stream)
 
-		:rtype: Object {'ch1','ch2'} or None
-		:return: Object containing channel 1 and 2 streamed data, otherwise None
+		:rtype: dict
+		:return: If `net` stream was run, returns a dictionary containing `ch1` and `ch2` streamed data. Else `None`.
 
-		:raises StreamException:
-		:raises InvalidOperationException:
+		:raises Streamxception:
+		:raises InvalidOperationException: 
+		:raises FrameTimeout: Timed out waiting for samples
+
 		"""
-		if self._dlftype is None:
-			raise InvalidOperationException('No datalogging session has been run')
-			
-		elif self._dlftype == 'net':
-			try:
-				ch1 = []
-				ch2 = []
-				while True:
-					self.datalogger_error()
-					ch, idx, samples = self.datalogger_get_samples(timeout=timeout)
-					print ch, idx
-					if ch == 1:
-						ch1 += samples
-					if ch == 2:
-						ch2 += samples
-			except NoDataException:
-				return type('',(object,), {"ch1":ch1, "ch2":ch2})
-		elif self._dlftype in ['csv', 'bin']:
-			while not self.datalogger_completed():
-				self.datalogger_error()
-				time.sleep(0.1)
-			if upload:
-				self.datalogger_upload()
-			print self.datalogger_completed()
+		if self._dlftype is 'net':
+			return self.datalogger_wait_net(timeout=timeout)
+		elif self._dlftype in ['csv','bin']:
+			self.datalogger_wait_file(timeout=timeout, upload=upload)
+			return None
 		else:
-			raise InvalidOperationException('Logging session run with invalid filetype %s' % self._dlftype)
+			raise InvalidOperationException('No valid datalogging session has been run')
+
 
 	def datalogger_wait_file(self, timeout=None, upload=False):
 		""" 
-		Handles the current 'csv' or 'bin' datalogging session.
+		Handles the current `csv` or `bin` datalogging session.
 
 		:type timeout: float
 		:param timeout: Timeout period
 
 		:type upload: bool
-		:type upload: Upload log file to local directory when complete
+		:param upload: Upload log file to local directory when complete
 
 		:raises Streamxception:
 		:raises InvalidOperationException: 
@@ -525,8 +506,8 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		:type timeout: float
 		:param timeout: Timeout period
 
-		:rtype: Object {'ch1','ch2'} or None
-		:return: Object containing channel 1 and 2 streamed data
+		:rtype: dict
+		:return: Dictionary containing `ch1` and `ch2` streamed data.
 
 		:raises Streamxception:
 		:raises InvalidOperationException: 
@@ -546,10 +527,9 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 					if ch == 2:
 						ch2 += samples
 			except NoDataException:
-				return type('',(object,), {"ch1":ch1, "ch2":ch2})
+				return {"ch1":ch1, "ch2":ch2}
 		else:
 			raise InvalidOperationException('Datalogging session is not a network stream: %s' % self._dlftype)
-
 
 	def datalogger_stop(self):
 		""" Stop a recording session previously started with :py:func:`datalogger_start`

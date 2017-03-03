@@ -86,10 +86,13 @@ class VoltsFrame(_frame_instrument.DataFrame):
 		#: Channel 2 data array in units of Volts.
 		self.ch2 = []
 
+		#: Timebase
+		self.xs = []
+
 		self.scales = scales
 
 	def __json__(self):
-		return { 'ch1': self.ch1, 'ch2' : self.ch2 }
+		return { 'ch1': self.ch1, 'ch2' : self.ch2, 'xs' : self.xs }
 
 	def process_complete(self):
 		if self.stateid not in self.scales:
