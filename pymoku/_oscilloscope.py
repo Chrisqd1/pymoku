@@ -549,7 +549,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		self.set_source(1,OSC_SOURCE_ADC)
 		self.set_source(2,OSC_SOURCE_ADC)
 		self.set_trigger(OSC_TRIG_CH1, OSC_EDGE_RISING, 0)
-		self.set_precision_mode(True)
+		self.set_precision_mode(False)
 		self.set_timebase(-1, 1)
 		self.set_pause(False)
 
