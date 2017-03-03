@@ -282,8 +282,8 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 			else:
 				maxrates = { 'bin' : 1e6, 'csv' : 3e3, 'net' : 40e3, 'plot' : 10}
 
-		if 1 / self.timestep > maxrates[filetype]:
-			raise InvalidOperationException("Sample Rate %d too high for file type %s" % (1 / self.timestep, filetype))
+		if round(1.0 / self.timestep) > maxrates[filetype]:
+			raise InvalidOperationException("Sample Rate %d too high for file type %s. Maximum rate: %d" % (1.0 / self.timestep, filetype, maxrates[filetype]))
 
 		if self.x_mode != _instrument.ROLL:
 			raise InvalidOperationException("Instrument must be in roll mode to perform data logging")
