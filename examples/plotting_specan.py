@@ -20,7 +20,7 @@ if i is None or i.type != 'specan':
 else:
 	print("Attached to existing Spectrum Analyser")
 	m.take_ownership()
-"""
+
 # Set spectrum analyser configuration
 i.set_defaults()
 i.set_dbmscale(True)
