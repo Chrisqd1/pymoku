@@ -359,7 +359,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 			decimation = self.decimation_rate
 
 		samplerate = _OSC_ADC_SMPS / float(decimation)
-		self.timestep = float(1.0 / float(samplerate))
+		self.timestep = 1.0 / samplerate
 
 		if self.ain_mode == _OSC_AIN_DECI:
 			self.procstr[0] = "*C/{:f}".format(self._deci_gain())
