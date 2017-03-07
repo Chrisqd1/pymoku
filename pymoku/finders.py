@@ -32,7 +32,7 @@ class BonjourFinder(object):
 			return
 
 		hw, pver, dummy = hosttarget.split('_')
-		if hw != 'moku10' or pver != self.pversion:
+		if not hw.startswith('moku') or pver != self.pversion:
 			return
 
 		query_sdRef = \
@@ -82,7 +82,7 @@ class BonjourFinder(object):
 			resolve_sdRef.close()
 
 
-	def find_all(self, protocol_version='6', timeout=5, max_results=0, filter_callback=None):
+	def find_all(self, protocol_version='7', timeout=5, max_results=0, filter_callback=None):
 		self.pversion = protocol_version
 		self.timeout = timeout
 		self.max_results = max_results
