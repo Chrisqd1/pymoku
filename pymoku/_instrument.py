@@ -324,17 +324,6 @@ class MokuInstrument(object):
 		except:
 			log.warning("Can't read calibration values.")
 
-		try:
-			self.calibration = dict(self._moku._get_property_section("calibration"))
-		except:
-			log.warning("Can't read calibration values.")
-
-
-		try:
-			self.calibration = dict(self._moku._get_property_section("calibration"))
-		except:
-			log.warning("Can't read calibration values.")
-
 
 	def commit(self):
 		"""
