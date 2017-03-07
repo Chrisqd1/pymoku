@@ -905,7 +905,8 @@ class Moku(object):
 	def close(self):
 		"""Close connection to the Moku:Lab."""
 
-		self._instrument.set_running(False)
+		if self._instrument is not None:
+			self._instrument.set_running(False)
 
 		self._conn.close()
 		self._ctx.destroy()
