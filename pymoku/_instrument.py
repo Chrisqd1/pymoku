@@ -305,7 +305,7 @@ class MokuInstrument(object):
 		""" Can be extended in implementations to set initial state """
 
 		# Base implementation: load DAC calibration values in to the bitstream.
-		o1, o1t, o2, ot2 = self.dac_offsets()
+		o1, o1t, o2, o2t = self.dac_offsets()
 		self.dac1_offset = o1
 		self.dac1_offset_t = o1t
 		self.dac2_offset = o2
@@ -444,7 +444,7 @@ class MokuInstrument(object):
 		except (KeyError, TypeError):
 			log.warning("Moku appears uncalibrated")
 			g1 = g2 = 1
-			g1t = g2t = 0
+			gt1 = gt2 = 0
 
 		log.debug("DAC gain values for sections %s, %s, %s, %s = %f, %f, %f, %f", g1s, g2s, gt1s, gt2s, g1, g2, gt1, gt2)
 
@@ -474,7 +474,7 @@ class MokuInstrument(object):
 		except (KeyError, TypeError):
 			log.warning("Moku appears uncalibrated")
 			o1 = o2 = 0
-			o1t = o2t = 0
+			ot1 = ot2 = 0
 
 		log.debug("DAC offset values for sections %s, %s, %s, %s = %f, %f, %f, %f", o1s, o2s, ot1s, ot2s, o1, o2, ot1, ot2)
 
@@ -504,7 +504,7 @@ class MokuInstrument(object):
 		except (KeyError, TypeError):
 			log.warning("Moku appears uncalibrated")
 			g1 = g2 = 1
-			g1t = g2t = 0
+			gt1 = gt2 = 0
 
 		log.debug("ADC gain values for sections %s, %s, %s, %s = %f, %f, %f, %f", g1s, g2s, gt1s, gt2s, g1, g2, gt1, gt2)
 
@@ -543,9 +543,9 @@ class MokuInstrument(object):
 		except (KeyError, TypeError):
 			log.warning("Moku appears uncalibrated")
 			o1 = o2 = 0
-			o1t = o2t = 0
+			ot1 = ot2 = 0
 
-		log.debug("DAC offset values for sections %s, %s, %s, %s = %f, %f, %f, %f", o1s, o2s, ot1s, ot2s, o1, o2, ot1, ot2)
+		log.debug("ADC offset values for sections %s, %s, %s, %s = %f, %f, %f, %f", o1s, o2s, ot1s, ot2s, o1, o2, ot1, ot2)
 
 		return o1, ot1, o2, ot2
 
