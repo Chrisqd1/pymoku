@@ -10,7 +10,7 @@ import zmq
 from collections import deque
 from queue import Queue, Empty
 
-from pymoku import Moku, FrameTimeout, NotDeployedException, InvalidOperationException, NoDataException, StreamException, dataparser
+from pymoku import Moku, FrameTimeout, BufferTimeout, NotDeployedException, InvalidOperationException, NoDataException, StreamException, dataparser
 
 from . import _instrument
 
@@ -68,6 +68,17 @@ class FrameQueue(Queue):
 	def _init(self, maxsize):
 		self.queue = deque(maxlen=maxsize)
 
+class DataBuffer(object):
+	"""
+		Holds data from the internal buffer (prior to rendering)
+	"""
+
+	def __init__(self, ch1, ch2, xs, stateid, scales):
+		self.ch1 = ch1
+		self.ch2 = ch2
+		self.xs = xs
+		self.stateid = stateid
+		self.scales = scales
 
 class DataFrame(object):
 	"""
@@ -152,6 +163,8 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		self._hb_forced = False
 		self._dlserial = 0
 		self._dlskt = None
+		self._dlftype = None
+		self.logfile = None
 
 		self.binstr = ''
 		self.procstr = ''
@@ -202,6 +215,47 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		except Empty:
 			raise FrameTimeout()
 
+	def get_buffer(self, timeout=None):
+		""" Get a :any:`DataBuffer` from the internal data channel buffer. This will commit any outstanding
+		 	device settings and pause acquisition. """
+
+		# Force a pause even if it already has happened
+		self.set_pause(True)
+		self.commit()
+				
+		# Get buffer data using a network stream
+		self.datalogger_start_single(filetype='net')
+		ch1 = []
+		ch2 = []
+
+		try:
+			while True:
+				ch, idx, data = self.datalogger_get_samples()
+				if ch == 1:
+					ch1 += data
+				elif ch == 2:
+					ch2 += data
+
+		except NoDataException as e:
+			self.datalogger_stop()
+
+		# Get a frame to see what the acquisition state was for the current buffer
+		# TODO: Need a way of getting buffer state information without frames
+		try:
+			frame = self.get_frame(timeout=timeout, wait=False)
+		except FrameTimeout:
+			raise BufferTimeout('Unable to retrieve buffer acquisition state')
+
+		_buff = DataBuffer(ch1=ch1, ch2=ch2, xs=None, stateid=frame.trigstate, scales=None)
+
+		# Allow children to post-process the buffer first
+		return self._process_buffer(_buff)
+
+	def _process_buffer(self, buff):
+		# Expected to be overwritten by child class in the case of 
+		# post-processing a buffer object
+		return buff
+
 	def _dlsub_init(self, tag):
 		ctx = zmq.Context.instance()
 		self._dlskt = ctx.socket(zmq.SUB)
@@ -219,8 +273,36 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 			self._dlskt.close()
 			self._dlskt = None
 
+	@staticmethod
+	def _max_stream_rates(instr, nch, use_sd):
+		"""
+		Returns the maximum rate at which the instrument can be streamed for the given
+		streaming configuration
 
-	def datalogger_start(self, start=0, duration=0, use_sd=True, ch1=True, ch2=False, filetype='csv'):
+		Currently only specified for the Oscilloscope instrument
+		"""
+
+		# These are checked on the client side too but sanity-check here as an invalid
+		# rate can hard-hang the Moku. These rates are approximate and experimentally
+		# derived, should be updated as we test and optimize things.
+
+		# Logging rates depend on which storage medium, and the filetype as well
+		maxrates = None
+		if nch == 2:
+			if(use_sd):
+				maxrates = { 'bin' : 150e3, 'csv' : 1e3, 'net' : 20e3, 'plot' : 10}
+			else:
+				maxrates = { 'bin' : 1e6, 'csv' : 1e3, 'net' : 20e3, 'plot' : 10}
+		else:
+			if(use_sd):
+				maxrates = { 'bin' : 250e3, 'csv' : 3e3, 'net' : 40e3, 'plot' : 10}
+			else:
+				maxrates = { 'bin' : 1e6, 'csv' : 3e3, 'net' : 40e3, 'plot' : 10}
+
+		return maxrates
+
+
+	def datalogger_start(self, start=0, duration=10, use_sd=True, ch1=True, ch2=True, filetype='csv'):
 		""" Start recording data with the current settings.
 
 		Device must be in ROLL mode (via a call to :any:`set_xmode`) and the sample rate must be appropriate
@@ -247,6 +329,11 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		- **bin** -- LI Binary file, 10ksmps max rate
 		- **net** -- Log to network, retrieve data with :any:`datalogger_get_samples`. 100smps max rate
 		"""
+		if not (bool(ch1) or bool(ch2)):
+			raise InvalidOperationException("No channels were selected for logging")
+		if duration <= 0:
+			raise InvalidOperationException("Invalid duration %d", duration)
+		
 		from datetime import datetime
 		if self._moku is None: raise NotDeployedException()
 		# TODO: rest of the options, handle errors
@@ -254,13 +341,9 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 		self.tag = "%04d" % self._dlserial
 
-		self.nch = 0
 		self.ch1 = bool(ch1)
-		self.ch2 = bool(ch2)
-		if ch1:
-			self.nch += 1
-		if ch2:
-			self.nch += 1
+		self.ch2 = bool(ch2)		
+		self.nch = bool(self.ch1) + bool(self.ch2)
 
 		fname = datetime.now().strftime(self.logname + "_%Y%m%d_%H%M%S")
 
@@ -270,20 +353,10 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		if start:
 			raise InvalidOperationException("Logging start time parameter currently not supported")
 
-		# Logging rates depend on which storage medium, and the filetype as well
-		if(ch1 and ch2):
-			if(use_sd):
-				maxrates = { 'bin' : 150e3, 'csv' : 1e3, 'net' : 20e3, 'plot' : 10}
-			else:
-				maxrates = { 'bin' : 1e6, 'csv' : 1e3, 'net' : 20e3, 'plot' : 10}
-		else:
-			if(use_sd):
-				maxrates = { 'bin' : 250e3, 'csv' : 3e3, 'net' : 40e3, 'plot' : 10}
-			else:
-				maxrates = { 'bin' : 1e6, 'csv' : 3e3, 'net' : 40e3, 'plot' : 10}
+		maxrates = self._max_stream_rates(instr=None, nch=self.nch, use_sd=use_sd)
 
 		if 1 / self.timestep > maxrates[filetype]:
-			raise InvalidOperationException("Sample Rate %d too high for file type %s" % (1 / self.timestep, filetype))
+			raise InvalidOperationException("Sample Rate %d too high for file type %s. Maximum rate: %d" % (1.0 / self.timestep, filetype, maxrates[filetype]))
 
 		if self.x_mode != _instrument.ROLL:
 			raise InvalidOperationException("Instrument must be in roll mode to perform data logging")
@@ -296,19 +369,25 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		self.x_mode = _instrument.ROLL
 		self.commit()
 
-		self._moku._stream_prep(ch1=ch1, ch2=ch2, start=start, end=start + duration, offset=0, timestep=self.timestep,
+		try:
+			self._moku._stream_prep(ch1=ch1, ch2=ch2, start=start, end=start + duration, offset=0, timestep=self.timestep,
 			binstr=self.binstr, procstr=self.procstr, fmtstr=self.fmtstr, hdrstr=self.hdrstr,
 			fname=fname, ftype=filetype, tag=self.tag, use_sd=use_sd)
-
+		except StreamException as e:
+			self.datalogger_error(status=e.err)
+		
 		if filetype == 'net':
 			self._dlsub_init(self.tag)
 
 		self._moku._stream_start()
 
+		# This may not actually exist as a file (e.g. if a 'net' session was run)
 		self.logfile = str(self.datalogger_status()[4]).strip()
 
+		# Store the requested filetype in the case of a "wait" call
+		self._dlftype = filetype
 
-	def datalogger_start_single(self, use_sd=False, ch1=True, ch2=False, filetype='csv'):
+	def datalogger_start_single(self, use_sd=False, ch1=True, ch2=True, filetype='csv'):
 		""" Grab all currently-recorded data at full rate.
 
 		Unlike a normal datalogger session, this will log only the data that has *already* been aquired through
@@ -329,6 +408,9 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		- **bin** -- LI Binary file, 10ksmps max rate
 		- **net** -- Log to network, retrieve data with :any:`datalogger_get_samples`. 100smps max rate
 		"""
+		if not (bool(ch1) or bool(ch2)):
+			raise InvalidOperationException("No channels were selected for logging")
+			
 		from datetime import datetime
 		if self._moku is None: raise NotDeployedException()
 		# TODO: rest of the options, handle errors
@@ -336,23 +418,23 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 		self.tag = "%04d" % self._dlserial
 
-		self.nch = 0
 		self.ch1 = bool(ch1)
-		self.ch2 = bool(ch2)
-		if ch1:
-			self.nch += 1
-		if ch2:
-			self.nch += 1
+		self.ch2 = bool(ch2)		
+		self.nch = int(self.ch1) + int(self.ch2)
 
+		# Determine what the log file name will be (if any)
 		fname = datetime.now().strftime(self.logname + "_%Y%m%d_%H%M%S")
 
 		if not all([ len(s) for s in [self.binstr, self.procstr, self.fmtstr, self.hdrstr]]):
 			raise InvalidOperationException("Instrument currently doesn't support data logging")
 
 		#TODO: Work out the offset from current span (instrument dependent?)
-		self._moku._stream_prep(ch1=ch1, ch2=ch2, start=0, end=0, timestep=self.timestep, offset=0,
+		try:
+			self._moku._stream_prep(ch1=ch1, ch2=ch2, start=0, end=0, timestep=self.timestep, offset=0,
 			binstr=self.binstr, procstr=self.procstr, fmtstr=self.fmtstr, hdrstr=self.hdrstr,
 			fname=fname, ftype=filetype, tag=self.tag, use_sd=use_sd)
+		except StreamException as e:
+			self.datalogger_error(status=e.err)
 
 		if filetype == 'net':
 			self._dlsub_init(self.tag)
@@ -360,6 +442,94 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		self._moku._stream_start()
 
 		self.logfile = str(self.datalogger_status()[4]).strip()
+
+		# Store the requested filetype in the case of a "wait" call
+		self._dlftype = filetype
+
+	def datalogger_wait(self, timeout=None, upload=False):
+		"""
+		Handles the current datalogging session. 
+
+		:type timeout: float
+		:param timeout: Timeout period
+
+		:type upload: bool
+		:param upload: Upload log file to local directory when complete (ignored if `net` stream)
+
+		:rtype: dict
+		:return: If `net` stream was run, returns a dictionary containing `ch1` and `ch2` streamed data. Else `None`.
+
+		:raises Streamxception:
+		:raises InvalidOperationException: 
+		:raises FrameTimeout: Timed out waiting for samples
+
+		"""
+		if self._dlftype is 'net':
+			return self.datalogger_wait_net(timeout=timeout)
+		elif self._dlftype in ['csv','bin']:
+			self.datalogger_wait_file(timeout=timeout, upload=upload)
+			return None
+		else:
+			raise InvalidOperationException('No valid datalogging session has been run')
+
+
+	def datalogger_wait_file(self, timeout=None, upload=False):
+		""" 
+		Handles the current `csv` or `bin` datalogging session.
+
+		:type timeout: float
+		:param timeout: Timeout period
+
+		:type upload: bool
+		:param upload: Upload log file to local directory when complete
+
+		:raises Streamxception:
+		:raises InvalidOperationException: 
+		:raises FrameTimeout: Timed out waiting for samples
+		"""
+		if self._dlftype in ['csv', 'bin']:
+			while not self.datalogger_completed():
+				self.datalogger_error()
+				time.sleep(0.1)
+			if upload:
+				self.datalogger_upload()
+			print 'Done'
+		elif self._dlftype is None:
+			raise InvalidOperationException('No datalogging session has been run')
+		else:
+			raise InvalidOperationException('Datalogging session run with invalid filetype {csv,bin}: %s' % self._dlftype)
+
+	def datalogger_wait_net(self, timeout=None):
+		""" 
+		Handles the current datalogging network stream and collates streamed channel data.
+
+		:type timeout: float
+		:param timeout: Timeout period
+
+		:rtype: dict
+		:return: Dictionary containing `ch1` and `ch2` streamed data.
+
+		:raises Streamxception:
+		:raises InvalidOperationException: 
+		:raises FrameTimeout: Timed out waiting for samples
+		"""
+		if self._dlftype is None:
+			raise InvalidOperationException('No datalogging session has been run')
+		elif self._dlftype == 'net':
+			try:
+				ch1 = []
+				ch2 = []
+				while True:
+					self.datalogger_error()
+					ch, idx, samples = self.datalogger_get_samples(timeout=timeout)
+					if ch == 1:
+						ch1 += samples
+					if ch == 2:
+						ch2 += samples
+			except NoDataException:
+				return {"ch1":ch1, "ch2":ch2}
+		else:
+			raise InvalidOperationException('Datalogging session is not a network stream: %s' % self._dlftype)
 
 	def datalogger_stop(self):
 		""" Stop a recording session previously started with :py:func:`datalogger_start`
@@ -388,7 +558,7 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		- **logged** -- Number of samples recorded so far. If more than one channel is active, this is the sum of all points across all channels.
 		- **to start** -- Number of seconds until/since start. Time until start is positive, a negative number indicates that the record has started already.
 		- **to end** -- Number of seconds until/since end.
-		- **filename** -- Base filename of current log session (without filename)
+		- **filename** -- Base filename of current log session (without filetype)
 
 		Status is one of:
 
@@ -445,9 +615,15 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		read off the SD card. At most one subsequent :any:`datalogger_get_samples` call
 		will return without timeout.
 
+		If the datalogger has entered an error state, a StreamException is raised.
+
 		:rtype: bool
-		:returns: Whether the current session has finished running. """
-		return self.datalogger_status()[0] not in [DL_STATE_RUNNING, DL_STATE_WAITING]
+		:returns: Whether the current session has finished running. 
+
+		:raises StreamException: if the session has entered an error state"""
+		status = self.datalogger_status()[0]
+		self.datalogger_error(status=status)
+		return status not in [DL_STATE_RUNNING, DL_STATE_WAITING]
 
 	def datalogger_filename(self):
 		""" Returns the current base filename of the logging session.
@@ -457,22 +633,38 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 		:rtype: str
 		:returns: The file name of the current, or most recent, log file."""
-		return self.logfile.split(':')[1]
-
-	def datalogger_error(self):
-		""" Returns a string representing the current error, or *None* if the session is not in error."""
-		code = self.datalogger_status()[0]
-
-		if code in [DL_STATE_NONE, DL_STATE_RUNNING, DL_STATE_WAITING, DL_STATE_STOPPED]:
+		if self.logfile:
+			return self.logfile.split(':')[1]
+		else:
 			return None
-		elif code == DL_STATE_INVAL:
-			return "Invalid Parameters for Datalogger Operation"
-		elif code == DL_STATE_FSFULL:
-			return "Target Filesystem Full"
-		elif code == DL_STATE_OVERFLOW:
-			return "Session overflowed, sample rate too fast."
-		elif code == DL_STATE_BUSY:
-			return "Tried to start a logging session while one was already running."
+
+	def datalogger_error(self, status=None):
+		""" Checks the current datalogger session for errors. Alternatively, the status
+		parameter returned by :any:`datalogger_status` call can be translated to the 
+		associated exception (if any).
+
+		:raises StreamException: if the session is in error.
+		:raises InvalidArgument"""
+		if not status:
+			status = self.datalogger_status()[0]
+		msg = None
+
+		if status in [DL_STATE_NONE, DL_STATE_RUNNING, DL_STATE_WAITING, DL_STATE_STOPPED]:
+			msg = None
+		elif status == DL_STATE_INVAL:
+			msg = "Invalid Parameters for Datalogger Operation"
+		elif status == DL_STATE_FSFULL:
+			msg = "Target Filesystem Full"
+		elif status == DL_STATE_OVERFLOW:
+			msg ="Session overflowed, sample rate too fast."
+		elif status == DL_STATE_BUSY:
+			msg = "Tried to start a logging session while one was already running."
+		else:
+			raise ValueError('Invalid status argument')
+
+		if msg:
+			raise StreamException(msg, status)
+
 
 	def datalogger_upload(self):
 		""" Load most recently recorded data files from the Moku to the local PC.
@@ -485,6 +677,9 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 		uploaded = 0
 		target = self.datalogger_filename()
+
+		if not target:
+			raise InvalidOperationException("No data has been logged in current session.")
 		# Check internal and external storage
 		for mp in ['i', 'e']:
 			for f in self._moku._fs_list(mp):
@@ -501,6 +696,7 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 					# Data length of zero uploads the whole file
 					self._moku._receive_file(mp, f[0], 0)
+					log.debug('Uploaded file %s',f[0])
 					uploaded += 1
 
 		if not uploaded:
@@ -522,9 +718,9 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		for mp in ['e', 'i']:
 			files = self._moku._fs_list(mp)
 			for f in files:
-				if re.match("datalog-.*\.[a-z]{2,3}", f[0]):
+				if re.match(self.logname + ".*\.[a-z]{2,3}", f[0]):
 					# Data length of zero uploads the whole file
-					self._moku._receive_file(mp, f, 0)
+					self._moku._receive_file(mp, f[0], 0)
 					uploaded += 1
 
 		if not uploaded:
@@ -555,7 +751,11 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 		:raises NoDataException: if the logging session has stopped
 		:raises FrameTimeout: if the timeout expired """
-
+		
+		# If no network session exists, can't get samples
+		if not self._dlskt:
+			raise InvalidOperationException("No samples are being streamed to the network.")
+		
 		ch, start, coeff, raw = self._dl_get_samples_raw(timeout)
 
 		self._strparser.set_coeff(ch, coeff)
@@ -584,8 +784,6 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 			return ch, start, coeff, data
 		else:
 			raise FrameTimeout("Data log timed out after %d seconds", timeout)
-
-
 
 	def set_running(self, state):
 		prev_state = self._running

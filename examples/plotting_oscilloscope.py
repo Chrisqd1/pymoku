@@ -41,12 +41,11 @@ try:
 	plt.ion()
 	plt.show()
 	plt.grid(b=True)
-	plt.ylim([-10, 10])
-	plt.xlim([0,len(frame.ch1)])
+	plt.ylim([-1,1])
+	plt.xlim([frame.xs[0], frame.xs[-1]])
 
 	line1, = plt.plot([])
 	line2, = plt.plot([])
-
 
 	ax = plt.gca()
 	ax.xaxis.set_major_formatter(FuncFormatter(frame.get_xaxis_fmt))
@@ -59,8 +58,8 @@ try:
 		plt.pause(0.001)
 		line1.set_ydata(frame.ch1)
 		line2.set_ydata(frame.ch2)
-		line1.set_xdata(list(range(len(frame.ch1))))
-		line2.set_xdata(list(range(len(frame.ch2))))
+		line1.set_xdata(frame.xs[0:len(frame.ch1)])
+		line2.set_xdata(frame.xs[0:len(frame.ch2)])
 
 finally:
 	m.close()

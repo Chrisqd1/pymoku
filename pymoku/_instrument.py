@@ -23,7 +23,7 @@ REG_AINCTL	= 13
 # 14 was Decimation before that moved in to instrument space
 REG_PRETRIG	= 15
 REG_CAL_ADC0, REG_CAL_ADC1, REG_CAL_DAC0, REG_CAL_DAC1 = list(range(16, 20))
-REG_TEMP_DAC = 27
+REG_TEMP_DAC = 14
 REG_STATE	= 63
 
 # Common instrument parameters
@@ -373,14 +373,21 @@ class MokuInstrument(object):
 
 	def set_running(self, state):
 		"""
-		Assert or release the intrument reset line.
+		Set the local instrument object running state
+
+		This is used to clean up helper threads and sockets. Should never be called explicitly.
+		"""
+		self._running = state
+
+	def set_instrument_active(self, active):
+		"""
+		Assert or release the intrument reset line on the device.
 
 		This should never have to be called explicitly, as the instrument is correctly reset when
 		it is attached and detached. In advanced operation, this can be used to force the instrument
 		in to its initial state without a redeploy.
 		"""
-		self._running = state
-		reg = (INSTR_RST if not state else 0)
+		reg = (INSTR_RST if not active else 0)
 		self._localregs[REG_CTL] = reg
 		self.commit()
 
@@ -560,6 +567,9 @@ class MokuInstrument(object):
 		:param pause: Paused
 		"""
 		self.pause = pause
+
+	def get_pause(self):
+		return self.pause
 
 	def load_feature(self, index):
 		# For now we don't support switching clock modes during a partial deploy

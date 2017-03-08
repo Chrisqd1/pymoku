@@ -86,10 +86,13 @@ class VoltsFrame(_frame_instrument.DataFrame):
 		#: Channel 2 data array in units of Volts.
 		self.ch2 = []
 
+		#: Timebase
+		self.xs = []
+
 		self.scales = scales
 
 	def __json__(self):
-		return { 'ch1': self.ch1, 'ch2' : self.ch2 }
+		return { 'ch1': self.ch1, 'ch2' : self.ch2, 'xs' : self.xs }
 
 	def process_complete(self):
 		if self.stateid not in self.scales:
@@ -106,7 +109,7 @@ class VoltsFrame(_frame_instrument.DataFrame):
 		l1 = scales['gain_loopback1']
 		l2 = scales['gain_loopback2']
 		t1 = scales['time_min']
-		t2 = scales['time_max']
+		ts = scales['time_step']
 
 		def _compute_scaling_factor(adc,dac,src,lmode):
 			# Change scaling factor depending on the source type
@@ -145,6 +148,9 @@ class VoltsFrame(_frame_instrument.DataFrame):
 			self.frameid = None
 			self.complete = False
 
+
+		self.xs = [ t1 + (x * ts) for x in range(_OSC_SCREEN_WIDTH)]
+
 		return True
 
 
@@ -178,11 +184,10 @@ class VoltsFrame(_frame_instrument.DataFrame):
 
 		scales = self.scales[self.stateid]
 		t1 = scales['time_min']
-		t2 = scales['time_max']
-		ts = abs(t2 - t1) / _OSC_SCREEN_WIDTH
-		tscale_str, tscale_const = self._get_timescale(abs(t2-t1))
+		ts = scales['time_step']
+		tscale_str, tscale_const = self._get_timescale(ts*_OSC_SCREEN_WIDTH)
 
-		return {'xaxis': '%.1f %s' % ((t1 + x*ts)*tscale_const, tscale_str), 'xcoord': '%.3f %s' % ((t1 + x*ts)*tscale_const, tscale_str)}
+		return {'xaxis': '%.1f %s' % (x*tscale_const, tscale_str), 'xcoord': '%.3f %s' % (x*tscale_const, tscale_str)}
 
 	def get_xaxis_fmt(self, x, pos):
 		""" Function suitable to use as argument to a matplotlib FuncFormatter for X (time) axis """
@@ -246,6 +251,8 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		self.trig_volts = 0
 		self.hysteresis_volts = 0.0
 
+		self.pause = False
+
 	def _calculate_decimation(self, t1, t2):
 
 		# Calculate time the buffer should contain
@@ -271,10 +278,11 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 		def _cubic_int_to_scale(integer):
 			# Integer to cubic scaling ratio (see Wiki)
-			return float(integer/(2**7)) + 1
+			return float(integer/(2.0**7)) + 1
 
 		# Enforce a maximum ADC sampling rate
 		screen_smp_rate = min(_OSC_SCREEN_WIDTH/tspan, ADC_SMP_RATE)
+
 		# Clamp the render downsampling ratio between 1.0 and ~16.0
 		render_downsample = min(max(buffer_smp_rate/screen_smp_rate, 1.0), _cubic_int_to_scale(0x077E))
 		return render_downsample
@@ -300,6 +308,12 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 	def _calculate_frame_timestep(self, decimation, render_decimation):
 		return decimation*render_decimation/ADC_SMP_RATE
+
+	def _calculate_buffer_timestep(self, decimation):
+		return float(decimation)/float(ADC_SMP_RATE)
+
+	def _calculate_buffer_start_time(self, decimation, buffer_offset):
+		return self._calculate_buffer_timestep(decimation) * (-1.0 * buffer_offset) * 4.0
 
 	def _deci_gain(self):
 		if self.decimation_rate == 0:
@@ -358,8 +372,8 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		else:
 			decimation = self.decimation_rate
 
-		samplerate = _OSC_ADC_SMPS / decimation
-		self.timestep = 1 / samplerate
+		samplerate = _OSC_ADC_SMPS / float(decimation)
+		self.timestep = 1 / float(samplerate)
 
 		if self.ain_mode == _OSC_AIN_DECI:
 			self.procstr[0] = "*C/{:f}".format(self._deci_gain())
@@ -389,13 +403,13 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		fmtstr += "\r\n"
 		return fmtstr
 
-	def datalogger_start(self, start=0, duration=0, use_sd=True, ch1=True, ch2=False, filetype='csv'):
+	def datalogger_start(self, start=0, duration=10, use_sd=True, ch1=True, ch2=True, filetype='csv'):
 		self._update_datalogger_params(ch1, ch2)
 		super(Oscilloscope, self).datalogger_start(start=start, duration=duration, use_sd=use_sd, ch1=ch1, ch2=ch2, filetype=filetype)
 
 	datalogger_start.__doc__ = _frame_instrument.FrameBasedInstrument.datalogger_start.__doc__
 
-	def datalogger_start_single(self, use_sd=True, ch1=True, ch2=False, filetype='csv'):
+	def datalogger_start_single(self, use_sd=True, ch1=True, ch2=True, filetype='csv'):
 		self._update_datalogger_params(ch1, ch2)
 		super(Oscilloscope, self).datalogger_start_single(use_sd=use_sd, ch1=ch1, ch2=ch2, filetype=filetype)
 
@@ -433,7 +447,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		""" :return: The current instrument sample rate """
 		if(self.decimation_rate == 0):
 			raise Exception("Decimation rate appears to be unset.")
-		return _OSC_ADC_SMPS / self.decimation_rate
+		return _OSC_ADC_SMPS / float(self.decimation_rate)
 
 	def set_xmode(self, xmode):
 		"""
@@ -537,6 +551,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		self.set_trigger(OSC_TRIG_CH1, OSC_EDGE_RISING, 0)
 		self.set_precision_mode(False)
 		self.set_timebase(-1, 1)
+		self.set_pause(False)
 
 		self.framerate = _OSC_FPS
 		self.frame_length = _OSC_SCREEN_WIDTH
@@ -561,11 +576,14 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		if(self.decimation_rate == 0 or self.render_deci == 0):
 			log.warning("ADCs appear to be turned off or decimation unset")
 			t1 = 0
-			t2 = 1
+			ts = 1
+			bt1 = 0
+			bts = 1
 		else:
 			t1 = self._calculate_frame_start_time(self.decimation_rate, self.render_deci, self.offset)
-			t2 = t1 + self._calculate_frame_timestep(self.decimation_rate, self.render_deci) * (_OSC_SCREEN_WIDTH - 1)
-
+			ts = self._calculate_frame_timestep(self.decimation_rate, self.render_deci)
+			bt1 = self._calculate_buffer_start_time(self.decimation_rate, self.pretrigger)
+			bts = self._calculate_buffer_timestep(self.decimation_rate)
 		if self.ain_mode == _OSC_AIN_DECI:
 			g1 /= self._deci_gain()
 			g2 /= self._deci_gain()
@@ -581,8 +599,18 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 				'gain_loopback1': l1,
 				'gain_loopback2': l2,
 				'time_min': t1,
-				'time_max': t2}
+				'time_step': ts,
+				'buff_time_min': bt1,
+				'buff_time_step': bts}
 
+	def _process_buffer(self, buff):
+		# Compute the x-axis of the buffer
+		if buff.stateid not in self.scales:
+			log.error("Can't process buffer - haven't saved calibration for state %d", self.stateid)
+			return
+		buff.scales = self.scales[buff.stateid]
+		buff.xs = [buff.scales['buff_time_min'] + (buff.scales['buff_time_step'] * x) for x in range(_OSC_BUFLEN)]
+		return buff
 
 	def _update_dependent_regs(self, scales):
 		# Trigger level must be scaled depending on the current relay settings and chosen trigger source
