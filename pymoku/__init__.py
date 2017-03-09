@@ -63,7 +63,7 @@ class Moku(object):
 		self._instrument = None
 		self._known_mokus = []
 
-		self._ctx = zmq.Context()
+		self._ctx = zmq.Context.instance()
 		self._conn = self._ctx.socket(zmq.REQ)
 		self._conn.setsockopt(zmq.LINGER, 5000)
 		self._conn.connect("tcp://%s:%d" % (self._ip, Moku.PORT))
