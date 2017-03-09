@@ -1,11 +1,13 @@
 import sys
 
-from . import _instrument
-from . import _oscilloscope
-from . import _siggen
-from . import _phasemeter
-from . import _specan
-from . import _frame_instrument
+import _instrument
+import _oscilloscope
+import _siggen
+import _phasemeter
+import _specan
+import _lockinamp
+import _frame_instrument
+
 
 ''' Preferred import point. Aggregates the separate instruments and helper classes
     to flatten the import heirarchy (e.g. pymoku.instruments.Oscilloscope rather
@@ -23,6 +25,7 @@ Oscilloscope = _oscilloscope.Oscilloscope
 SignalGenerator = _siggen.SignalGenerator
 PhaseMeter = _phasemeter.PhaseMeter
 SpecAn = _specan.SpecAn
+LockInAmp = _lockinamp.LockInAmp
 
 # Re-export all constants from Oscilloscope that start with OSC_
 for attr, val in _oscilloscope.__dict__.items():
@@ -58,7 +61,7 @@ id_table = {
 	5: None, # PID Controller
 	6: None, # IIR Filter Box
 	7: Oscilloscope, # Datalogger
-	8: None, # Lock-in Amp
+	8: LockInAmp,
 	9: None, # Bode Analyser
 	10: None, # FIR Filter Box
 	11: None, # PDH Locking
