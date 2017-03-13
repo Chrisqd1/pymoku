@@ -285,7 +285,6 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		# These are checked on the client side too but sanity-check here as an invalid
 		# rate can hard-hang the Moku. These rates are approximate and experimentally
 		# derived, should be updated as we test and optimize things.
-
 		# Logging rates depend on which storage medium, and the filetype as well
 		maxrates = None
 		if nch == 2:
@@ -353,9 +352,9 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		if start:
 			raise InvalidOperationException("Logging start time parameter currently not supported")
 
-		maxrates = self._max_stream_rates(instr=None, nch=self.nch, use_sd=use_sd)
-
-		if 1 / self.timestep > maxrates[filetype]:
+		# Logging rates depend on which storage medium, and the filetype as well
+		maxrates = FrameBasedInstrument._max_stream_rates(None, self.nch, use_sd)
+		if floor(1.0 / self.timestep) > maxrates[filetype]:
 			raise InvalidOperationException("Sample Rate %d too high for file type %s. Maximum rate: %d" % (1.0 / self.timestep, filetype, maxrates[filetype]))
 
 		if self.x_mode != _instrument.ROLL:
