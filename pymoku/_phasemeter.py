@@ -301,7 +301,7 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 		if ch1:
 			fmtstr += ", {ch1[1]:.16e}, {ch1[3]:.16e}, {ch1[4]:.16e}, {ch1[5]:.16e}, {ch1[0]:.16e}, {ch1[2]:.16e}"
 		if ch2:
-			fmtstr += ", {ch1[1]:.16e}, {ch1[3]:.16e}, {ch1[4]:.16e}, {ch1[5]:.16e}, {ch1[0]:.16e}, {ch1[2]:.16e}"
+			fmtstr += ", {ch2[1]:.16e}, {ch2[3]:.16e}, {ch2[4]:.16e}, {ch2[5]:.16e}, {ch2[0]:.16e}, {ch2[2]:.16e}"
 		fmtstr += "\r\n"
 		return fmtstr
 
