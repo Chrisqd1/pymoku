@@ -4,7 +4,7 @@ from builtins import str
 
 import select, socket, struct, sys
 import os, os.path
-import logging, time, threading
+import logging, time, threading, math
 import zmq
 
 from collections import deque
@@ -354,7 +354,7 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 		# Logging rates depend on which storage medium, and the filetype as well
 		maxrates = FrameBasedInstrument._max_stream_rates(None, self.nch, use_sd)
-		if floor(1.0 / self.timestep) > maxrates[filetype]:
+		if math.floor(1.0 / self.timestep) > maxrates[filetype]:
 			raise InvalidOperationException("Sample Rate %d too high for file type %s. Maximum rate: %d" % (1.0 / self.timestep, filetype, maxrates[filetype]))
 
 		if self.x_mode != _instrument.ROLL:
@@ -492,7 +492,6 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 				time.sleep(0.1)
 			if upload:
 				self.datalogger_upload()
-			print 'Done'
 		elif self._dlftype is None:
 			raise InvalidOperationException('No datalogging session has been run')
 		else:
