@@ -8,10 +8,6 @@ import _instrument
 import _frame_instrument
 import _siggen
 
-# Annoying that import * doesn't pick up function defs??
-_sgn = _instrument._sgn
-_usgn = _instrument._usgn
-
 log = logging.getLogger(__name__)
 
 
@@ -141,7 +137,6 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 	def __init__(self):
 		"""Create a new Lock-In-Amplifier instrument, ready to be attached to a Moku."""
 	
-
 		super(LockInAmp, self).__init__()
 		self._register_accessors(_lia_reg_hdl)
 
@@ -181,6 +176,8 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 	def commit(self):
 		super(LockInAmp, self).commit()
 		self.scales[self._stateid] = self._calculate_scales()
+
+	commit.__doc__ = _frame_instrument.FrameBasedInstrument.commit.__doc__
 
 	def set_defaults(self):
 		""" Reset the lockinamp to sane defaults. """
@@ -235,18 +232,17 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		self.monitor_select0 = 2
 		self.monitor_select1 = 2
 		self.trigger_level = 0
-		
-	
-		# self.pid1_in_offset  = 0
-		# self.pid1_out_offset = 0
-		# self.pid2_in_offset = 0
-		# self.pid2_out_offset = 0
 
 		self.input_gain = 1
 		self.set_lo_output_amp(.5)
 		self.set_lo_offset(0)
 
 	def set_filter_parameters(self, Gain_dB, ReqCorner, Order):
+		"""
+		:param Gain_dB: Overall gain of the low-pass filter
+		:param ReqCorner: Corner frequency of the low-pass filter
+		:param Order: 1 or 2, first- or second-order filter used
+		"""
 		DSPCoeff = 1-(2*math.pi*ReqCorner)/_LIA_CONTROL_FS
 		print DSPCoeff
 		self.pid1_int_ifb_gain = DSPCoeff
@@ -301,6 +297,10 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 			raise InvalidOperationException("Signal Mode not set : defaulted to HIGH RANGE MODE")
 
 	def set_pid_offset(self, offset):
+		"""
+		:param offset: Offset in volts
+		"""
+		# TODO: Use the new instrument reference in the lambda function to do conversion
 		if self.slope == 1:
 			self.pid1_out_offset = offset * self._get_dac_calibration()[0]
 			self.pid2_out_offset = 0
@@ -314,11 +314,19 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 			raise InvalidOperationException("PID slope not set : defaulted to slope = %s" % self.slope)
 
 	def set_lo_output_amp(self,amplitude):
-		# converts amplitude (V) into the bits required for the register
+		"""
+		:param amplitude: Amplitude of local oscillator signal
+		"""
+		# converts amplitude (V) into the bits required for the register.
+		# TODO: Use the new instrument reference in the lambda function to do this
 		self.sineout_amp = amplitude * self._get_dac_calibration()[1]
 
 	def set_lo_offset(self, offset):
+		"""
+		:param offset: offset in volts of the local oscillator
+		"""
 		# converts the offset in volts to the bits required for the offset register
+		# TODO: Use the new instrument reference in the lambda function to do this
 		self.sineout_offset = offset * self._get_dac_calibration()[1] 
 			 
 	def _get_dac_calibration(self):
@@ -433,9 +441,13 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		self._update_datalogger_params(ch1, ch2)
 		super(LockInAmp, self).datalogger_start(start=start, duration=duration, use_sd=use_sd, ch1=ch1, ch2=ch2, filetype=filetype)
 
+	datalogger_start.__doc__ = _frame_instrument.FrameBasedInstrument.datalogger_start.__doc__
+
 	def datalogger_start_single(self, use_sd, ch1, ch2, filetype):
 		self._update_datalogger_params(ch1, ch2)
 		super(LockInAmp, self).datalogger_start_single(use_sd=use_sd, ch1=ch1, ch2=ch2, filetype=filetype)
+
+	datalogger_start_single.__doc__ = _frame_instrument.FrameBasedInstrument.datalogger_start_single.__doc__
 
 	def _set_render(self, t1, t2, decimation):
 		self.render_mode = RDR_CUBIC #TODO: Support other
@@ -492,14 +504,6 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		"""
 		self.x_mode = xmode
 
-	def set_precision_mode(self, state):
-		""" Change aquisition mode between downsampling and decimation.
-		Precision mode, a.k.a Decimation, samples at full rate and applies a low-pass filter to the data. This improves
-		precision. Normal mode works by direct downsampling, throwing away points it doesn't need.
-
-		:param state: Select Precision Mode
-		:type state: bool """
-
 	def set_trigger(self, source, edge, level, hysteresis=0, hf_reject=False, mode=LIA_TRIG_AUTO):
 		""" Sets trigger source and parameters.
 
@@ -513,7 +517,8 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		:param level: Trigger level
 
 		:type hysteresis: float, volts
-		:param hysteresis: Hysteresis to apply around trigger point."""
+		:param hysteresis: Hysteresis to apply around trigger point.
+		"""
 		self.trig_ch = source
 		self.trig_edge = edge
 		self.hysteresis = hysteresis

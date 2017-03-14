@@ -99,7 +99,8 @@ def to_reg_signed(_offset, _len, allow_set=None, allow_range=None, xform=lambda 
 	:param _len: Length of data field in the register (set)
 	:param allow_set: Set containing all valid values of the data field.
 	:param allow_range: a two-tuple specifying the bounds of the data value.
-	:param xform: a callable that translates the user value written to the attribute to the register value"""
+	:param xform: a callable that translates the user value written to the attribute to the register value
+	"""
 	# TODO: This signed and the below unsigned share all but one line of code, should consolidate
 	def __ss(obj, val, old):
 		val = xform(obj, val)
@@ -140,7 +141,8 @@ def to_reg_unsigned(_offset, _len, allow_set=None, allow_range=None, xform=lambd
 	:param _len: Length of data field in the register (set)
 	:param allow_set: Set containing all valid values of the data field.
 	:param allow_range: a two-tuple specifying the bounds of the data value.
-	:param xform: a callable that translates the user value written to the attribute to the register value"""
+	:param xform: a callable that translates the user value written to the attribute to the register value
+	"""
 
 	def __us(obj, val, old):
 		val = xform(obj, val)
@@ -176,7 +178,8 @@ def to_reg_bool(_offset):
 	Designed as shorthand for common use in instrument register accessor lists. Equivalent to
 	:any:`to_reg_unsigned(_offset, 1, allow_set=[0, 1], xform=int)`
 
-	:param _offset: Offset of bit in the register (set)"""
+	:param _offset: Offset of bit in the register (set)
+	"""
 	return to_reg_unsigned(_offset, 1, allow_set=[0,1], xform=lambda obj, x: int(x))
 
 
@@ -187,7 +190,8 @@ def from_reg_signed(_offset, _len, xform=lambda obj, x: x):
 
 	:param _offset: Offset of data field in the register (set)
 	:param _len: Length of data field in the register (set)
-	:param xform: a callable that translates the register value to the user attribute's natural units"""
+	:param xform: a callable that translates the register value to the user attribute's natural units
+	"""
 	# TODO: As above, this and the unsigned version share all but one line of code, should consolidate.
 	mask = ((1 << _len) - 1) << _offset
 
@@ -212,7 +216,8 @@ def from_reg_unsigned(_offset, _len, xform=lambda obj, x: x):
 
 	:param _offset: Offset of data field in the register (set)
 	:param _len: Length of data field in the register (set)
-	:param xform: a callable that translates the register value to the user attribute's natural units"""
+	:param xform: a callable that translates the register value to the user attribute's natural units
+	"""
 	mask = ((1 << _len) - 1) << _offset
 
 	def __ug(obj, reg):
@@ -234,7 +239,8 @@ def from_reg_bool(_offset):
 	Designed as shorthand for common use in instrument register accessor lists.
 	Equivalent to :any:`from_reg_unsigned(_offset, 1, xform=bool)`.
 
-	:param _offset: Offset of data field in the register (set)"""
+	:param _offset: Offset of data field in the register (set)
+	"""
 	return from_reg_unsigned(_offset, 1, xform=lambda obj, x: bool(x))
 
 
@@ -243,7 +249,8 @@ class MokuInstrument(object):
 	"""Superclass for all Instruments that may be attached to a :any:`Moku` object.
 
 	Should never be instantiated directly; instead, instantiate the subclass of the instrument
-	you wish to run (e.g. :any:`Oscilloscope`, :any:`SignalGenerator`)"""
+	you wish to run (e.g. :any:`Oscilloscope`, :any:`SignalGenerator`)
+	"""
 
 	def __init__(self):
 		""" Must be called as the first line from any child implementations. """
@@ -404,7 +411,8 @@ class MokuInstrument(object):
 		:param atten: Turn on 10x attenuation. Changes the dynamic range between 1Vpp and 10Vpp.
 
 		:type ac: bool
-		:param ac: AC-couple; default DC. """
+		:param ac: AC-couple; default DC.
+		"""
 		relays =  RELAY_LOWZ if fiftyr else 0
 		relays |= RELAY_LOWG if atten else 0
 		relays |= RELAY_DC if not ac else 0

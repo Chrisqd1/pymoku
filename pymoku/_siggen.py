@@ -86,7 +86,8 @@ class BasicSignalGenerator(MokuInstrument):
 
 	def set_defaults(self):
 		""" Set sane defaults.
-		Defaults are outputs off, amplitudes and frequencies zero."""
+		Defaults are outputs off, amplitudes and frequencies zero.
+		"""
 		super(BasicSignalGenerator, self).set_defaults()
 		self.out1_enable = False
 		self.out2_enable = False

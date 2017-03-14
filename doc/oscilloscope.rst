@@ -1,6 +1,6 @@
 
-Moku:Lab Oscilloscope
-=====================
+Oscilloscope Instrument
+=======================
 
 The Oscilloscope instrument provides time-domain views of voltages. It contains a built-in Waveform Synthesiser/ Signal Generator that can control the Moku:Lab DAC outputs as well.
 
@@ -47,6 +47,14 @@ The VoltsFrame Class
 --------------------
 
 .. autoclass:: pymoku.instruments.VoltsFrame
+
+	.. Don't use :members: as it doesn't handle instance attributes well. Directives in the source code list required attributes directly.
+
+
+The DataBuffer Class
+--------------------
+
+.. autoclass:: pymoku.instruments.DataBuffer
 
 	.. Don't use :members: as it doesn't handle instance attributes well. Directives in the source code list required attributes directly.
 

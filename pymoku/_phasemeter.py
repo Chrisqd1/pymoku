@@ -80,6 +80,11 @@ class PhaseMeter_SignalGenerator(MokuInstrument):
 		self.set_frontend(2, fiftyr=True, atten=False, ac=True)
 
 	def synth_sinewave(self, ch, amplitude, frequency):
+		"""
+		:param ch: Channel number
+		:param amplitude: Signal amplitude in volts
+		:param frequency: Frequency in Hz
+		"""
 		if ch == 1:
 			self._pm_out1_amplitude = amplitude
 			self.pm_out1_frequency = frequency
@@ -90,6 +95,10 @@ class PhaseMeter_SignalGenerator(MokuInstrument):
 			self.pm_out2_amplitude = self._pm_out2_amplitude if self.pm_out2_enable else 0
 
 	def enable_output(self, ch, enable):
+		"""
+		:param ch: Channel to enable or disable
+		:param enable: boolean state of channel
+		"""
 		# Recalculate amplitude if the channel is enabled
 		if(ch==1):
 			self.pm_out1_enable = enable
@@ -200,11 +209,11 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 
 	def get_initfreq(self, ch):
 		"""
-			Reads the seed frequency register of the phase tracking loop
-			Valid if auto acquire has not been used
+		Reads the seed frequency register of the phase tracking loop
+		Valid if auto acquire has not been used
 
-			:type ch: int; *{1,2}*
-			:param ch: Channel number to read the initial frequency of.
+		:type ch: int; *{1,2}*
+		:param ch: Channel number to read the initial frequency of.
 		"""
 		if ch == 1:
 			return self.init_freq_ch1
@@ -222,13 +231,13 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 
 	def set_bandwidth(self, ch, bw):
 		"""
-			Set the bandwidth of an ADC channel
+		Set the bandwidth of an ADC channel
 
-			:type ch: int; *{1,2}*
-			:param ch: ADC channel number to set bandwidth of.
+		:type ch: int; *{1,2}*
+		:param ch: ADC channel number to set bandwidth of.
 
-			:type bw: float; Hz
-			:param n: Desired bandwidth (will be rounded up to to the nearest multiple 10kHz * 2^N with N = [-6,0])
+		:type bw: float; Hz
+		:param n: Desired bandwidth (will be rounded up to to the nearest multiple 10kHz * 2^N with N = [-6,0])
 		"""
 		if bw <= 0:
 			raise ValueError("Invalid bandwidth (must be positive).")
@@ -244,13 +253,13 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 
 	def set_auto_acquire(self, ch, enable=True):
 		"""
-			Strobes the auto acquire
+		Strobes the auto acquire
 
-			:type ch: int; *{1,2}*
-			:param ch: Input channel to auto-acquire the seed frequency on
+		:type ch: int; *{1,2}*
+		:param ch: Input channel to auto-acquire the seed frequency on
 
-			:type enable: bool
-			:param enable: Enable or disable auto-acquire on the selected channel
+		:type enable: bool
+		:param enable: Enable or disable auto-acquire on the selected channel
 			 
 		"""
 		if ch == 1:
@@ -326,9 +335,13 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 		self._update_datalogger_params(ch1, ch2)
 		super(PhaseMeter, self).datalogger_start(start=start, duration=duration, use_sd=use_sd, ch1=ch1, ch2=ch2, filetype=filetype)
 
+	datalogger_start.__doc__ = _frame_instrument.FrameBasedInstrument.datalogger_start.__doc__
+
 	def datalogger_start_single(self, use_sd, ch1, ch2, filetype):
 		self._update_datalogger_params(ch1, ch2)
 		super(PhaseMeter, self).datalogger_start_single(use_sd=use_sd, ch1=ch1, ch2=ch2, filetype=filetype)
+
+	datalogger_start_single.__doc__ = _frame_instrument.FrameBasedInstrument.datalogger_start_single.__doc__
 
 _pm_reg_handlers = {
 	'init_freq_ch1':		((REG_PM_INITF1_H, REG_PM_INITF1_L), 

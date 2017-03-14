@@ -1,6 +1,6 @@
 
-Moku:Lab Spectrum Analyser
-==========================
+Spectrum Analyser Instrument
+============================
 
 Spectrum Analyser Instrument class.
 
@@ -38,6 +38,14 @@ The SpectrumFrame Class
 .. autoclass:: pymoku.instruments.SpectrumFrame
 
 	.. Don't use :members: as it doesn't handle instance attributes well. Directives in the source code list required attributes directly.
+
+The DataBuffer Class
+--------------------
+
+.. autoclass:: pymoku.instruments.DataBuffer
+
+	.. Don't use :members: as it doesn't handle instance attributes well. Directives in the source code list required attributes directly.
+
 
 The SpecAn Class
 ----------------

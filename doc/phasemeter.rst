@@ -1,6 +1,6 @@
 
-Moku:Lab Phasemeter
-===================
+Phasemeter Instrument
+=====================
 
 Phasemeter Instrument class.
 
@@ -64,6 +64,14 @@ Example Usage
 		print(e)
 	finally:
 		m.close()
+
+
+The DataBuffer Class
+--------------------
+
+.. autoclass:: pymoku.instruments.DataBuffer
+
+	.. Don't use :members: as it doesn't handle instance attributes well. Directives in the source code list required attributes directly.
 
 
 The Phasemeter Class

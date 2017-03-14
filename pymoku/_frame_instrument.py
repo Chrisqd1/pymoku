@@ -27,8 +27,8 @@ DL_STATE_STOPPED	= 7
 
 class FrameQueue(Queue):
 	def put(self, item, block=True, timeout=None):
-		""" Behaves the same way as default except that instead of raising Full, it
-		    just pushes the item on to the deque anyway, throwing away old frames."""
+		# Behaves the same way as default except that instead of raising Full, it
+		# just pushes the item on to the deque anyway, throwing away old frames.
 		self.not_full.acquire()
 		try:
 			if self.maxsize > 0 and block:
@@ -70,7 +70,7 @@ class FrameQueue(Queue):
 
 class DataBuffer(object):
 	"""
-		Holds data from the internal buffer (prior to rendering)
+	Holds data from the internal buffer (prior to rendering)
 	"""
 
 	def __init__(self, ch1, ch2, xs, stateid, scales):
@@ -182,7 +182,8 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 	def flush(self):
 		""" Clear the Frame Buffer.
 		This is normally not required as one can simply wait for the correctly-generated frames to propagate through
-		using the appropriate arguments to :any:`get_frame`."""
+		using the appropriate arguments to :any:`get_frame`.
+		"""
 		with self._queue.mutex:
 			self._queue.queue.clear()
 
@@ -192,11 +193,13 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		self._queue = FrameQueue(maxsize=buflen)
 
 	def get_buffer_length(self):
-		""" Return the current length of the internal frame buffer """
+		""" Return the current length of the internal frame buffer
+		"""
 		return self._buflen
 
 	def get_frame(self, timeout=None, wait=True):
-		""" Get a :any:`DataFrame` from the internal frame buffer"""
+		""" Get a :any:`DataFrame` from the internal frame buffer
+		"""
 		try:
 			# Dodgy hack, infinite timeout gets translated in to just an exceedingly long one
 			endtime = time.time() + (timeout or sys.maxsize)
@@ -216,8 +219,9 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 			raise FrameTimeout()
 
 	def get_buffer(self, timeout=None):
-		""" Get a :any:`DataBuffer` from the internal data channel buffer. This will commit any outstanding
-		 	device settings and pause acquisition. """
+		""" Get a :any:`DataBuffer` from the internal data channel buffer.
+		This will commit any outstanding device settings and pause acquisition.
+		"""
 
 		# Force a pause even if it already has happened
 		self.set_pause(True)
@@ -308,9 +312,10 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		to the file type (see below).
 
 		:raises InvalidOperationException: if the sample rate is too high for the selected filetype or if the
-		device *x_mode* isn't set to *ROLL*.
+			device *x_mode* isn't set to *ROLL*.
 
-		:note: Start parameter not currently implemented!
+
+		.. warning:: Start parameter not currently implemented, must be set to zero
 
 		:param start: Start time in seconds from the time of function call
 		:param duration: Log duration in seconds
@@ -538,7 +543,8 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		that start attempt will fail with a "busy" error.
 
 		:rtype: int
-		:return: final status code (see :py:func:`datalogger_status`"""
+		:return: final status code (see :py:func:`datalogger_status`
+		"""
 		if self._moku is None: raise NotDeployedException()
 
 		stat = self._moku._stream_stop()
@@ -571,7 +577,8 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		- **DL_STATE_STOPPED** -- A session has successfully completed.
 
 		:rtype: int, int, int, int
-		:return: status, logged, to start, to end."""
+		:return: status, logged, to start, to end.
+		"""
 		if self._moku is None: raise NotDeployedException()
 		return self._moku._stream_status()
 
@@ -582,7 +589,8 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		- **to end** -- Number of seconds until/since end.
 
 		:rtype: int, int
-		:return: to start, to end"""
+		:return: to start, to end
+		"""
 		d1, d2, start, end, fname = self.datalogger_status()
 		return start, end
 
@@ -590,7 +598,8 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		""" Returns number of samples captures in this datalogging session.
 
 		:rtype: int
-		:returns: sample count"""
+		:returns: sample count
+		"""
 		return self.datalogger_status()[1]
 
 	def datalogger_busy(self):
@@ -604,7 +613,8 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		:any:`datalogger_stop`.
 
 		:rtype: bool
-		:returns: Whether or not a new session can be started. """
+		:returns: Whether or not a new session can be started.
+		"""
 		return self.datalogger_status()[0] != DL_STATE_NONE
 
 	def datalogger_completed(self):
@@ -619,7 +629,8 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		:rtype: bool
 		:returns: Whether the current session has finished running. 
 
-		:raises StreamException: if the session has entered an error state"""
+		:raises StreamException: if the session has entered an error state
+		"""
 		status = self.datalogger_status()[0]
 		self.datalogger_error(status=status)
 		return status not in [DL_STATE_RUNNING, DL_STATE_WAITING]
@@ -631,7 +642,8 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		recorded simultaneously with different extensions.
 
 		:rtype: str
-		:returns: The file name of the current, or most recent, log file."""
+		:returns: The file name of the current, or most recent, log file.
+		"""
 		if self.logfile:
 			return self.logfile.split(':')[1]
 		else:
@@ -643,7 +655,8 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		associated exception (if any).
 
 		:raises StreamException: if the session is in error.
-		:raises InvalidArgument"""
+		:raises InvalidArgument:
+		"""
 		if not status:
 			status = self.datalogger_status()[0]
 		msg = None
@@ -669,7 +682,8 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		""" Load most recently recorded data files from the Moku to the local PC.
 
 		:raises NotDeployedException: if the instrument is not yet operational.
-		:raises InvalidOperationException: if no files are present."""
+		:raises InvalidOperationException: if no files are present.
+		"""
 		import re
 
 		if self._moku is None: raise NotDeployedException()
@@ -707,7 +721,8 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		""" Load all recorded data files from the Moku to the local PC.
 
 		:raises NotDeployedException: if the instrument is not yet operational.
-		:raises InvalidOperationException: if no files are present."""
+		:raises InvalidOperationException: if no files are present.
+		"""
 		import re
 
 		if self._moku is None: raise NotDeployedException()
@@ -749,7 +764,8 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		:return: The channel number, starting sample index, sample data array
 
 		:raises NoDataException: if the logging session has stopped
-		:raises FrameTimeout: if the timeout expired """
+		:raises FrameTimeout: if the timeout expired
+		"""
 		
 		# If no network session exists, can't get samples
 		if not self._dlskt:

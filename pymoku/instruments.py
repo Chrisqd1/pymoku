@@ -19,6 +19,8 @@ DataFrame = _frame_instrument.DataFrame
 VoltsFrame = _oscilloscope.VoltsFrame
 SpectrumFrame = _specan.SpectrumFrame
 
+DataBuffer = _frame_instrument.DataBuffer
+
 MokuInstrument = _instrument.MokuInstrument
 
 Oscilloscope = _oscilloscope.Oscilloscope

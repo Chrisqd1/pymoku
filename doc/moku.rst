@@ -1,6 +1,6 @@
 
-Moku:Lab
-========
+Moku:Lab Device Class
+=====================
 
 All interaction with pymoku starts with the creation of a :any:`Moku` object. This can be done directly
 if one already knows the IP address of the target, or by using one of the *get_by_* functions to look

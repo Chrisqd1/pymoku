@@ -466,7 +466,8 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		precision. Normal mode works by direct downsampling, throwing away points it doesn't need.
 
 		:param state: Select Precision Mode
-		:type state: bool """
+		:type state: bool
+		"""
 		if state and self.hysteresis_volts > 0 :
 			raise InvalidConfigurationException("Precision mode and Hysteresis can't be set at the same time.")
 		self.ain_mode = _OSC_AIN_DECI if state else _OSC_AIN_DDS
@@ -505,7 +506,8 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		:param level: Trigger level
 
 		:type hysteresis: float, volts
-		:param hysteresis: Hysteresis to apply around trigger point."""
+		:param hysteresis: Hysteresis to apply around trigger point.
+		"""
 		self.trig_ch = source
 		self.trig_edge = edge
 		# Precision mode should be off if hysteresis is being used

@@ -488,7 +488,8 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		:type f1: float
 		:param f1: Left-most frequency (Hz)
 		:type f2: float
-		:param f2: Right-most frequency (Hz)"""
+		:param f2: Right-most frequency (Hz)
+		"""
 
 		# TODO: Enforce f2 > f1
 		self.f1 = f1
@@ -512,7 +513,8 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		:type f1: float
 		:param f1: Left-most frequency (Hz)
 		:type f2: float
-		:param f2: Right-most frequency (Hz)"""
+		:param f2: Right-most frequency (Hz)
+		"""
 
 		# Set the actual input frequencies
 		self.f1 = f1
@@ -561,7 +563,8 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		- **SA_WIN_NONE** No window
 
 		:type window: int
-		:param window: Window Function """
+		:param window: Window Function
+		"""
 		self.window = window
 		
 	def set_dbmscale(self,dbm=True):
@@ -639,8 +642,8 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 
 	def _calculate_scales(self):
 		"""
-			Returns per-channel correction and scaling parameters required for interpretation of incoming bit frames
-			Parameters are based on current instrument state
+		Returns per-channel correction and scaling parameters required for interpretation of incoming bit frames
+		Parameters are based on current instrument state
 		"""
 		# Returns the bits-to-volts numbers for each channel in the current state
 		g1, g2 = self.adc_gains()
@@ -724,8 +727,8 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 
 	def _set_sweep_increments(self, sweep1, sweep2, fspan, decimation, rbw, framerate):
 		"""
-			Calculates the optimal frequency increment for the generated output sinewaves sweep
-			based on FFT computation time and framerate.
+		Calculates the optimal frequency increment for the generated output sinewaves sweep
+		based on FFT computation time and framerate.
 		"""
 		increment = 0
 		if sweep1 or sweep2:
