@@ -55,9 +55,9 @@ _PM_VOLTS_SCALE = 2.0 / (_PM_ADC_SMPS * _PM_ADC_SMPS / _PM_UPDATE_RATE / _PM_UPD
 _PM_SG_AMPSCALE = 2**16 / 4.0
 _PM_SG_FREQSCALE = _PM_FREQSCALE
 
-
-PM_LOGRATE_FAST = 120
-PM_LOGRATE_SLOW = 30
+# Pre-defined log rates which ensure samplerate will set to ~120Hz or ~30Hz
+PM_LOGRATE_FAST = 123
+PM_LOGRATE_SLOW = 31
 
 class PhaseMeter_SignalGenerator(MokuInstrument):
 	def __init__(self):
@@ -160,16 +160,16 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 		self.fmtstr = self._get_fmtstr(ch1,ch2)
 
 	def set_samplerate(self, samplerate):
-		""" Manually set the sample rate of the instrument.
+		""" Manually set the sample rate of the Phasemeter. 
 
-		The sample rate is automatically calcluated and set in :any:`set_timebase`; setting it through this
-		interface if you've previously set the scales through that will have unexpected results.
+		The chosen samplerate will be rounded down to nearest allowable rate 
+		based on R(Hz) = 1e6/(2^N) where N in range [13,16].
 
-		This interface is most useful for datalogging and similar aquisition where one will not be looking
-		at data frames.
+		Alternatively use samplerate = {PM_LOGRATE_SLOW, PM_LOGRATE_FAST} 
+		to set ~30Hz or ~120Hz.
 
-		:type samplerate: {PM_LOGRATE_SLOW, PM_LOGRATE_FAST}
-		:param samplerate: Choose between ~15Hz or ~120Hz
+		:type samplerate: float
+		:param samplerate: Desired sample rate
 		"""
 		new_samplerate = _PM_UPDATE_RATE/min(max(1,samplerate),200)
 		shift = min(math.ceil(math.log(new_samplerate,2)),16)
@@ -251,21 +251,17 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 	def get_bandwidth(self, ch):
 		return 10e3 * (2**(self.bandwidth_ch1 if ch == 1 else self.bandwidth_ch2))
 
-	def set_auto_acquire(self, ch, enable=True):
+	def auto_acquire(self, ch):
 		"""
-		Strobes the auto acquire
+		Auto-acquire the initial frequency of the specified channel
 
 		:type ch: int; *{1,2}*
-		:param ch: Input channel to auto-acquire the seed frequency on
-
-		:type enable: bool
-		:param enable: Enable or disable auto-acquire on the selected channel
-			 
+		:param ch: Channel number
 		"""
 		if ch == 1:
-			self.autoacquire_ch1 = enable
+			self.autoacquire_ch1 = True
 		elif ch == 2:
-			self.autoacquire_ch2 = enable
+			self.autoacquire_ch2 = True
 		else:
 			raise ValueError("Invalid channel")
 
