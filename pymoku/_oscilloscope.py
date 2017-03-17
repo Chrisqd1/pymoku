@@ -5,6 +5,7 @@ import logging
 from ._instrument import *
 from . import _frame_instrument
 from . import _siggen
+from ._utils import *
 
 log = logging.getLogger(__name__)
 
@@ -387,10 +388,18 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 	def get_hdrstr(self, ch1, ch2):
 		chs = [ch1, ch2]
 
-		hdr = "Moku:Lab Data Logger\r\nStart,{{T}}\r\nSample Rate {} Hz\r\nTime".format(self.get_samplerate())
+		hdr = "Moku:DataLogger\r\n"
 		for i,c in enumerate(chs):
 			if c:
-				hdr += ", Channel {i}".format(i=i+1)
+				r = self.get_frontend(i+1)
+				hdr += "% Ch {i} - {} coupling, {} Ohm impedance, {} V range\r\n".format("AC" if r[2] else "DC", "50" if r[0] else "1M", "10" if r[1] else "1", i=i+1 )
+		hdr += "% Acquisition rate: {:.10e} Hz, {} mode\r\n".format(self.get_samplerate(), "Precision" if self.is_precision_mode() else "Normal")
+		hdr += "% {} 10 MHz clock\r\n".format("External" if self._moku._get_actual_extclock() else "Internal")
+		hdr += "% Acquired {}\r\n".format(formatted_timestamp())
+		hdr += "% Time"
+		for i,c in enumerate(chs):
+			if c:
+				hdr += ", Ch {i} voltage (V)".format(i=i+1)
 		hdr += "\r\n"
 		return hdr
 
@@ -472,6 +481,8 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 			raise InvalidConfigurationException("Precision mode and Hysteresis can't be set at the same time.")
 		self.ain_mode = _OSC_AIN_DECI if state else _OSC_AIN_DDS
 
+	def is_precision_mode(self):
+		return self.ain_mode is _OSC_AIN_DECI
 	
 	def set_source(self, ch, source=OSC_SOURCE_ADC):
 		""" Sets input source for given channel

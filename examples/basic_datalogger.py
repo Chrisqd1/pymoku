@@ -1,4 +1,4 @@
-from pymoku import Moku
+from pymoku import Moku, StreamException
 from pymoku.instruments import *
 import time
 
@@ -18,30 +18,16 @@ try:
 	# SD Card (rather than internal storage). Use the Moku's binary file format for better speed
 	# and size performance.
 	i.datalogger_stop()
-	i.datalogger_start(start=0, duration=10, use_sd=True, ch1=True, ch2=True, filetype='bin')
+	i.datalogger_start(duration=10, use_sd=True, ch1=True, ch2=True, filetype='bin')
 
-	# Poll to see how the log is progressing. Note that the "time to end" might become negative
-	# as the log will take a bit of time to finalise things once the duration has expired.
-	while True:
-		time.sleep(1)
-		trems, treme = i.datalogger_remaining()
-		samples = i.datalogger_samples()
-		print("Captured (%d samples); %d seconds from start, %d from end" % (samples, trems, treme))
+	# Wait until logging session has completed and upload file to current directory
+	# Implicitly checks for logging session errors
+	i.datalogger_wait(upload=True)
 
-		if i.datalogger_completed():
-			break
-
-	e = i.datalogger_error()
-	if e:
-		print("Error occured: %s" % e)
-
+except StreamException as e:
+	print("Error occured: %s" % e.message)
+finally:
 	# "stop" does have a purpose if the logging session has already completed: It signals that
 	# we no longer care about error messages and so on.
 	i.datalogger_stop()
-
-	# Upload the recorded file off the SD Card to our current directory.
-	i.datalogger_upload()
-except Exception as e:
-	print(e)
-finally:
 	m.close()
