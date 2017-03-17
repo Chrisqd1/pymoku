@@ -328,13 +328,13 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 		self.en_in_ch2 = True
 
 		# TODO: Headers assume registers have been committed with current values
-	def datalogger_start(self, start, duration, use_sd, ch1, ch2, filetype):
+	def datalogger_start(self, start=0, duration=10, use_sd=True, ch1=True, ch2=True, filetype='csv'):
 		self._update_datalogger_params(ch1, ch2)
 		super(PhaseMeter, self).datalogger_start(start=start, duration=duration, use_sd=use_sd, ch1=ch1, ch2=ch2, filetype=filetype)
 
 	datalogger_start.__doc__ = _frame_instrument.FrameBasedInstrument.datalogger_start.__doc__
 
-	def datalogger_start_single(self, use_sd, ch1, ch2, filetype):
+	def datalogger_start_single(self, use_sd=True, ch1=True, ch2=True, filetype='csv'):
 		self._update_datalogger_params(ch1, ch2)
 		super(PhaseMeter, self).datalogger_start_single(use_sd=use_sd, ch1=ch1, ch2=ch2, filetype=filetype)
 
