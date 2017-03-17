@@ -283,7 +283,7 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 
 		hdr += "% Acquisition rate: {:.10e} Hz\r\n".format(self.get_samplerate())
 		hdr += "% {} 10 MHz clock\r\n".format("External" if self._moku._get_actual_extclock() else "Internal")
-		hdr += "% Acquired {}\r\n".format(LI_get_timestamp())
+		hdr += "% Acquired {}\r\n".format(formatted_timestamp())
 		hdr += "% Time,"
 		for i,c in enumerate(chs):
 			if c:

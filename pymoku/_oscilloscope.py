@@ -395,7 +395,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 				hdr += "% Ch {i} - {} coupling, {} Ohm impedance, {} V range\r\n".format("AC" if r[2] else "DC", "50" if r[0] else "1M", "10" if r[1] else "1", i=i+1 )
 		hdr += "% Acquisition rate: {:.10e} Hz, {} mode\r\n".format(self.get_samplerate(), "Precision" if self.is_precision_mode() else "Normal")
 		hdr += "% {} 10 MHz clock\r\n".format("External" if self._moku._get_actual_extclock() else "Internal")
-		hdr += "% Acquired {}\r\n".format(LI_get_timestamp())
+		hdr += "% Acquired {}\r\n".format(formatted_timestamp())
 		hdr += "% Time"
 		for i,c in enumerate(chs):
 			if c:
