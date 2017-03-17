@@ -6,6 +6,7 @@ from ._instrument import *
 from . import _instrument
 from . import _frame_instrument
 from . import _siggen
+from ._utils import *
 
 from struct import unpack
 
@@ -268,25 +269,25 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 	def _get_hdrstr(self, ch1, ch2):
 		chs = [ch1, ch2]
 
-		hdr =  "# Moku:Phasemeter acquisition at {T}\r\n"
+		hdr =  "% Moku:Phasemeter \r\n"
 		for i,c in enumerate(chs):
 			if c:
 				r = self.get_frontend(i+1)
-				hdr += "# Ch {i} - {} coupling, {} Ohm impedance, {} dB attenuation\r\n".format("AC" if r[2] else "DC", "50" if r[0] else "1M", "20" if r[1] else "0", i=i+1 )
+				hdr += "% Ch {i} - {} coupling, {} Ohm impedance, {} V range\r\n".format("AC" if r[2] else "DC", "50" if r[0] else "1M", "10" if r[1] else "1", i=i+1 )
 
-		hdr += "# Loop gain {:d}".format(self._get_controlgain())
-
+		hdr += "%"
 		for i,c in enumerate(chs):
 			if c:
-				hdr += ", Ch {i} frequency = {:.10e}".format(self.get_initfreq(i+1), i=i+1)
+				hdr += "{} Ch {i} bandwidth = {:.10e} (Hz)".format("," if ((ch1 and ch2) and i == 1) else "", self.get_bandwidth(i+1), i=i+1)
 		hdr += "\r\n"
 
-		hdr += "# Acquisition rate: {}\r\n#\r\n".format(self.get_samplerate())
-		hdr += "# Time"
-
+		hdr += "% Acquisition rate: {:.10e} Hz\r\n".format(self.get_samplerate())
+		hdr += "% {} 10 MHz clock\r\n".format("External" if self._moku._get_actual_extclock() else "Internal")
+		hdr += "% Acquired {}\r\n".format(LI_get_timestamp())
+		hdr += "% Time,"
 		for i,c in enumerate(chs):
 			if c:
-				hdr += ", Absolute Frequency {i}, Phase {i} (cyc), I {i} (V), Q {i} (V), Seed Frequency {i} (Hz), Ctr {i}".format(i=i+1)
+				hdr += "{} Set frequency {i} (Hz), Frequency {i} (Hz), Phase {i} (cyc), I {i} (V), Q {i} (V)".format("," if ((ch1 and ch2) and i == 1) else "", i=i+1)
 
 		hdr += "\r\n"
 
@@ -295,9 +296,9 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 	def _get_fmtstr(self, ch1, ch2):
 		fmtstr = "{t:.10e}"
 		if ch1:
-			fmtstr += ", {ch1[1]:.16e}, {ch1[3]:.16e}, {ch1[4]:.16e}, {ch1[5]:.16e}, {ch1[0]:.16e}, {ch1[2]:.16e}"
+			fmtstr += ", {ch1[0]:.16e}, {ch1[1]:.16e}, {ch1[3]:.16e}, {ch1[4]:.10e}, {ch1[5]:.10e}"
 		if ch2:
-			fmtstr += ", {ch2[1]:.16e}, {ch2[3]:.16e}, {ch2[4]:.16e}, {ch2[5]:.16e}, {ch2[0]:.16e}, {ch2[2]:.16e}"
+			fmtstr += ", {ch2[0]:.16e}, {ch2[1]:.16e}, {ch2[3]:.16e}, {ch2[4]:.10e}, {ch2[5]:.10e}"
 		fmtstr += "\r\n"
 		return fmtstr
 
