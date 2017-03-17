@@ -187,11 +187,13 @@ class Moku(object):
 
 		raise MokuNotFound("Couldn't find Moku: %s" % name)
 
-	def _set_timeout(self, short=True):
-		base = 5000
-
-		if not short:
-			base *= 2
+	def _set_timeout(self, short=True, seconds=None):
+		if seconds is not None:
+			base = seconds
+		else:
+			base = 5000
+			if not short:
+				base *= 2
 
 		self._conn.setsockopt(zmq.SNDTIMEO, base) # A send should always be quick
 		self._conn.setsockopt(zmq.RCVTIMEO, 2 * base) # A receive might need to wait on processing
@@ -759,9 +761,10 @@ class Moku(object):
 			return [b.split('.')[0] for b, c, s in fs if b.endswith('.hgp')]
 
 	def _trigger_fwload(self):
+		self._set_timeout(seconds=20)
 		self._conn.send(bytearray([0x52, 0x01]))
 		hdr, reply = struct.unpack("<BB", self._conn.recv())
-
+		self._set_timeout()
 		if reply:
 			raise InvalidOperationException("Firmware update failure %d", reply)
 
