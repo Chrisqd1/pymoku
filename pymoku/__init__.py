@@ -27,8 +27,9 @@ class StreamException(MokuException):
 		"""Data logging was interrupted or failed"""
 		super(StreamException, self).__init__(message)
 		self.err = err
-
-
+class FileNotFound(MokuException): """Requested file or directory could not be found"""; pass
+class InsufficientSpace(MokuException): """There is insufficient memory/disk space for the action being performed"""; pass
+class MPNotMounted(MokuException): """The requested mount point has not been mounted"""; pass
 # Network status codes
 _ERR_OK = 0
 _ERR_INVAL = 1
@@ -38,7 +39,7 @@ _ERR_NOMP = 4
 _ERR_ACTION = 5
 _ERR_BUSY = 6
 _ERR_RO = 7
-_ERR_UNKOWN = 99
+_ERR_UNKNOWN = 99
 
 # Chosen to trade off number of network transactions with memory usage.
 # 4MB is a little larger than a bitstream so those uploads aren't chunked.
@@ -512,7 +513,24 @@ class Moku(object):
 		act, status = struct.unpack("BB", pkt[:2])
 
 		if status:
-			ex = NetworkError("File receive error %d" % status)
+			if status == _ERR_INAL:
+				raise InvalidConfigurationException() 
+			elif status == _ERR_NOTFOUND:
+				raise FileNotFound()
+			elif status == _ERR_NOSPC:
+				raise InsufficientSpace()
+			elif status == _ERR_NOMP:
+				msg = "Mount point not mounted"
+			elif status == _ERR_ACTION:
+				msg = "Unknown action requested"
+			elif status == _ERR_BUSY:
+				msg = "Fileserver busy"
+			elif status == _ERR_RO:
+				msg = "Mount point read only"
+			elif status == _ERR_UNKNOWN:
+				msg = "Unknown error"
+
+			ex = NetworkError("File server error %d: %s" % (status,msg))
 			ex.dat = pkt[2:]
 			raise ex
 
