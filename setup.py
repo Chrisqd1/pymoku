@@ -1,21 +1,24 @@
 from distutils.core import setup
 import subprocess, os
 
-from pymoku import version
+version = open('pymoku/version.txt').read()
 
 setup(
 	name='pymoku',
-	version=version.release,
+	version=version,
 	author='Ben Nizette',
 	author_email='ben.nizette@liquidinstruments.com',
 	packages=['pymoku', 'pymoku.schema'],
 	package_dir={'pymoku.schema': 'pymoku/schema'},
-	package_data={'pymoku.schema': ['*.capnp']},
+	package_data={
+		'pymoku' : ['version.txt'],
+		'pymoku.schema': ['*.capnp']
+	},
 	license='MIT',
-	long_description=open('README.md').read(),
+	long_description="Python scripting interface to the Liquid Instruments Moku:Lab",
 
 	url="https://github.com/liquidinstruments/pymoku",
-	download_url="https://github.com/liquidinstruments/pymoku/archive/%s.tar.gz" % version.release,
+	download_url="https://github.com/liquidinstruments/pymoku/archive/%s.tar.gz" % version,
 
 	keywords=['moku', 'liquid instruments', 'test', 'measurement', 'lab', 'equipment'],
 
