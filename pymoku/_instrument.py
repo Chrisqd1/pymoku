@@ -22,8 +22,7 @@ REG_STRCTL1	= 12
 REG_AINCTL	= 13
 # 14 was Decimation before that moved in to instrument space
 REG_PRETRIG	= 15
-REG_CAL1, REG_CAL2, REG_CAL3, REG_CAL4, REG_CAL5, REG_CAL6, REG_CAL7, REG_CAL8 = list(range(16, 24))
-REG_CAL9, REG_CAL10 = list(range(24, 26))
+REG_CAL_ADC0, REG_CAL_ADC1, REG_CAL_DAC0, REG_CAL_DAC1 = list(range(16, 20))
 REG_TEMP_DAC = 14
 REG_STATE	= 63
 
@@ -311,21 +310,22 @@ class MokuInstrument(object):
 
 	def set_defaults(self):
 		""" Can be extended in implementations to set initial state """
-		pass
+
+		# Base implementation: load DAC calibration values in to the bitstream.
+		o1, o1t, o2, o2t = self.dac_offsets()
+		self.dac1_offset = o1
+		self.dac1_offset_t = o1t
+		self.dac2_offset = o2
+		self.dac2_offset_t = o2t
+
+		# These may be called again in the instrument's implementation to overwrite this,
+		# however they must be called at least once to load the initial calibration values
+		self.set_frontend(1)
+		self.set_frontend(2)
+
 
 	def attach_moku(self, moku):
 		self._moku = moku
-		try:
-			self.calibration = dict(self._moku._get_property_section("calibration"))
-		except:
-			log.warning("Can't read calibration values.")
-
-		try:
-			self.calibration = dict(self._moku._get_property_section("calibration"))
-		except:
-			log.warning("Can't read calibration values.")
-
-
 		try:
 			self.calibration = dict(self._moku._get_property_section("calibration"))
 		except:
@@ -380,7 +380,7 @@ class MokuInstrument(object):
 
 	def set_running(self, state):
 		"""
-		Set the local instrument object running state 
+		Set the local instrument object running state
 
 		This is used to clean up helper threads and sockets. Should never be called explicitly.
 		"""
@@ -417,10 +417,16 @@ class MokuInstrument(object):
 		relays |= RELAY_LOWG if atten else 0
 		relays |= RELAY_DC if not ac else 0
 
+		off1, off1_t, off2, off2_t = self.adc_offsets()
+
 		if channel == 1:
 			self.relays_ch1 = relays
+			self.adc1_offset = off1
+			self.adc1_offset_t = off1_t
 		elif channel == 2:
 			self.relays_ch2 = relays
+			self.adc2_offset = off2
+			self.adc2_offset_t = off2_t
 
 	def get_frontend(self, channel):
 		"""
@@ -440,39 +446,124 @@ class MokuInstrument(object):
 		return [bool(r & RELAY_LOWZ), bool(r & RELAY_LOWG), not bool(r & RELAY_DC)]
 
 	def dac_gains(self):
-		sect1 = "calibration.DG-1"
-		sect2 = "calibration.DG-2"
+		g1s = "calibration.DG-1"
+		g2s = "calibration.DG-2"
+		gt1s = "calibration.DGT-1"
+		gt2s = "calibration.DGT-2"
 
 		try:
-			g1 = 1 / float(self.calibration[sect1])
-			g2 = 1 / float(self.calibration[sect2])
+			g1  = float(self.calibration[g1s])
+			g2  = float(self.calibration[g2s])
+			gt1 = float(self.calibration[gt1s])
+			gt2 = float(self.calibration[gt2s])
 		except (KeyError, TypeError):
 			log.warning("Moku appears uncalibrated")
 			g1 = g2 = 1
+			gt1 = gt2 = 0
 
-		log.debug("gain values for sections %s, %s = %f, %f", sect1, sect2, g1, g2)
+		log.debug("DAC gain values for sections %s, %s, %s, %s = %f, %f, %f, %f", g1s, g2s, gt1s, gt2s, g1, g2, gt1, gt2)
+
+		# For now, assume a fixed 48 degrees C board temperature. In future, should read temperature registers
+		g1 += gt1 * 48.0
+		g2 += gt2 * 48.0
+
+		log.debug("Calculated temperature corrected gains as %f, %f", g1, g2)
+
+		# The sense of these parameters as used in pymoku is inverted from the storage on the Moku
+		g1 = 1 / g1
+		g2 = 1 / g2
 
 		return g1, g2
+
+	def dac_offsets(self):
+		o1s = "calibration.DO-1"
+		o2s = "calibration.DO-2"
+		ot1s = "calibration.DOT-1"
+		ot2s = "calibration.DOT-2"
+
+		try:
+			o1  = float(self.calibration[o1s])
+			o2  = float(self.calibration[o2s])
+			ot1 = float(self.calibration[ot1s])
+			ot2 = float(self.calibration[ot2s])
+		except (KeyError, TypeError):
+			log.warning("Moku appears uncalibrated")
+			o1 = o2 = 0
+			ot1 = ot2 = 0
+
+		log.debug("DAC offset values for sections %s, %s, %s, %s = %f, %f, %f, %f", o1s, o2s, ot1s, ot2s, o1, o2, ot1, ot2)
+
+		return o1, ot1, o2, ot2
 
 
 	def adc_gains(self):
-		sect1 = "calibration.AG-%s-%s-%s-1" % ( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
+		relay_string_1 = '-'.join(( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
 								  "L" if self.relays_ch1 & RELAY_LOWG else "H",
-								  "D" if self.relays_ch1 & RELAY_DC else "A")
+								  "D" if self.relays_ch1 & RELAY_DC else "A"))
 
-		sect2 = "calibration.AG-%s-%s-%s-2" % ( "50" if self.relays_ch2 & RELAY_LOWZ else "1M",
+		relay_string_2 = '-'.join(( "50" if self.relays_ch2 & RELAY_LOWZ else "1M",
 								  "L" if self.relays_ch2 & RELAY_LOWG else "H",
-								  "D" if self.relays_ch2 & RELAY_DC else "A")
+								  "D" if self.relays_ch2 & RELAY_DC else "A"))
+
+		g1s = "calibration.AG-%s-1" % relay_string_1
+		g2s = "calibration.AG-%s-2" % relay_string_2
+
+		gt1s = "calibration.AGT-%s-1" % relay_string_1
+		gt2s = "calibration.AGT-%s-2" % relay_string_2
+
 		try:
-			g1 = 1 / float(self.calibration[sect1])
-			g2 = 1 / float(self.calibration[sect2])
+			g1  = float(self.calibration[g1s])
+			g2  = float(self.calibration[g2s])
+			gt1 = float(self.calibration[gt1s])
+			gt2 = float(self.calibration[gt2s])
 		except (KeyError, TypeError):
 			log.warning("Moku appears uncalibrated")
 			g1 = g2 = 1
+			gt1 = gt2 = 0
 
-		log.debug("gain values for sections %s, %s = %f, %f", sect1, sect2, g1, g2)
+		log.debug("ADC gain values for sections %s, %s, %s, %s = %f, %f, %f, %f", g1s, g2s, gt1s, gt2s, g1, g2, gt1, gt2)
+
+		# For now, assume a fixed 48 degrees C board temperature. In future, should read temperature registers
+		g1 += gt1 * 48.0
+		g2 += gt2 * 48.0
+
+		log.debug("Calculated temperature corrected gains as %f, %f", g1, g2)
+
+		# The sense of these parameters as used in pymoku is inverted from the storage on the Moku
+		g1 = 1 / g1
+		g2 = 1 / g2
 
 		return g1, g2
+
+
+	def adc_offsets(self):
+		relay_string_1 = '-'.join(( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
+								  "L" if self.relays_ch1 & RELAY_LOWG else "H",
+								  "D" if self.relays_ch1 & RELAY_DC else "A"))
+
+		relay_string_2 = '-'.join(( "50" if self.relays_ch2 & RELAY_LOWZ else "1M",
+								  "L" if self.relays_ch2 & RELAY_LOWG else "H",
+								  "D" if self.relays_ch2 & RELAY_DC else "A"))
+
+		o1s = "calibration.AO-%s-1" % relay_string_1
+		o2s = "calibration.AO-%s-2" % relay_string_2
+		ot1s = "calibration.AOT-%s-1" % relay_string_1
+		ot2s = "calibration.AOT-%s-2" % relay_string_2
+
+		try:
+			o1  = float(self.calibration[o1s])
+			o2  = float(self.calibration[o2s])
+			ot1 = float(self.calibration[ot1s])
+			ot2 = float(self.calibration[ot2s])
+		except (KeyError, TypeError):
+			log.warning("Moku appears uncalibrated")
+			o1 = o2 = 0
+			ot1 = ot2 = 0
+
+		log.debug("ADC offset values for sections %s, %s, %s, %s = %f, %f, %f, %f", o1s, o2s, ot1s, ot2s, o1, o2, ot1, ot2)
+
+		return o1, ot1, o2, ot2
+
 
 	def set_pause(self, pause):
 		"""
@@ -537,6 +628,22 @@ _instr_reg_handlers = {
 	'en_in_ch1':		(REG_AINCTL,	to_reg_bool(6),				from_reg_bool(6)),
 	'en_in_ch2':		(REG_AINCTL,	to_reg_bool(7),				from_reg_bool(7)),
 	'pretrigger':		(REG_PRETRIG,	to_reg_signed(0, 32),		from_reg_signed(0, 32)),
+
+	'adc1_offset':		(REG_CAL_ADC0,	to_reg_signed(0, 7),		from_reg_signed(0, 7)),
+	'adc1_offset_t':	(REG_CAL_ADC0,	to_reg_signed(16, 16, xform=lambda obj, x: round(x * 2.0**13)),
+										from_reg_signed(16, 16, xform=lambda obj, x: round(x / 2.0**13))),
+
+	'adc2_offset':		(REG_CAL_ADC1,	to_reg_signed(0, 7),		from_reg_signed(0, 7)),
+	'adc2_offset_t':	(REG_CAL_ADC1,	to_reg_signed(16, 16, xform=lambda obj, x: round(x * 2.0**13)),
+										from_reg_signed(16, 16, xform=lambda obj, x: round(x / 2.0**13))),
+
+	'dac1_offset':		(REG_CAL_DAC0,	to_reg_signed(0, 11),		from_reg_signed(0, 11)),
+	'dac1_offset_t':	(REG_CAL_DAC0,	to_reg_signed(16, 16, xform=lambda obj, x: x * 2.0**13),
+										from_reg_signed(16, 16, xform=lambda obj, x: x / 2.0**13)),
+
+	'dac2_offset':		(REG_CAL_DAC1,	to_reg_signed(0, 11),		from_reg_signed(0, 11)),
+	'dac2_offset_t':	(REG_CAL_DAC1,	to_reg_signed(16, 16, xform=lambda obj, x: x * 2.0**13),
+										from_reg_signed(16, 16, xform=lambda obj, x: x / 2.0**13)),
 
 	'state_id':			(REG_STATE,	 	to_reg_unsigned(0, 8),		from_reg_unsigned(0, 8)),
 	'state_id_alt':		(REG_STATE,	 	to_reg_unsigned(16, 8),		from_reg_unsigned(16, 8)),

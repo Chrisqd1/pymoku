@@ -6,6 +6,7 @@ from ._instrument import *
 from . import _instrument
 from . import _frame_instrument
 from . import _siggen
+from ._utils import *
 
 from struct import unpack
 
@@ -55,9 +56,9 @@ _PM_VOLTS_SCALE = 2.0 / (_PM_ADC_SMPS * _PM_ADC_SMPS / _PM_UPDATE_RATE / _PM_UPD
 _PM_SG_AMPSCALE = 2**16 / 4.0
 _PM_SG_FREQSCALE = _PM_FREQSCALE
 
-
-PM_LOGRATE_FAST = 120
-PM_LOGRATE_SLOW = 30
+# Pre-defined log rates which ensure samplerate will set to ~120Hz or ~30Hz
+PM_LOGRATE_FAST = 123
+PM_LOGRATE_SLOW = 31
 
 class PhaseMeter_SignalGenerator(MokuInstrument):
 	def __init__(self):
@@ -160,16 +161,16 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 		self.fmtstr = self._get_fmtstr(ch1,ch2)
 
 	def set_samplerate(self, samplerate):
-		""" Manually set the sample rate of the instrument.
+		""" Manually set the sample rate of the Phasemeter. 
 
-		The sample rate is automatically calcluated and set in :any:`set_timebase`; setting it through this
-		interface if you've previously set the scales through that will have unexpected results.
+		The chosen samplerate will be rounded down to nearest allowable rate 
+		based on R(Hz) = 1e6/(2^N) where N in range [13,16].
 
-		This interface is most useful for datalogging and similar aquisition where one will not be looking
-		at data frames.
+		Alternatively use samplerate = {PM_LOGRATE_SLOW, PM_LOGRATE_FAST} 
+		to set ~30Hz or ~120Hz.
 
-		:type samplerate: {PM_LOGRATE_SLOW, PM_LOGRATE_FAST}
-		:param samplerate: Choose between ~15Hz or ~120Hz
+		:type samplerate: float
+		:param samplerate: Desired sample rate
 		"""
 		new_samplerate = _PM_UPDATE_RATE/min(max(1,samplerate),200)
 		shift = min(math.ceil(math.log(new_samplerate,2)),16)
@@ -251,46 +252,42 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 	def get_bandwidth(self, ch):
 		return 10e3 * (2**(self.bandwidth_ch1 if ch == 1 else self.bandwidth_ch2))
 
-	def set_auto_acquire(self, ch, enable=True):
+	def auto_acquire(self, ch):
 		"""
-		Strobes the auto acquire
+		Auto-acquire the initial frequency of the specified channel
 
 		:type ch: int; *{1,2}*
-		:param ch: Input channel to auto-acquire the seed frequency on
-
-		:type enable: bool
-		:param enable: Enable or disable auto-acquire on the selected channel
-			 
+		:param ch: Channel number
 		"""
 		if ch == 1:
-			self.autoacquire_ch1 = enable
+			self.autoacquire_ch1 = True
 		elif ch == 2:
-			self.autoacquire_ch2 = enable
+			self.autoacquire_ch2 = True
 		else:
 			raise ValueError("Invalid channel")
 
 	def _get_hdrstr(self, ch1, ch2):
 		chs = [ch1, ch2]
 
-		hdr =  "# Moku:Phasemeter acquisition at {T}\r\n"
+		hdr =  "% Moku:Phasemeter \r\n"
 		for i,c in enumerate(chs):
 			if c:
 				r = self.get_frontend(i+1)
-				hdr += "# Ch {i} - {} coupling, {} Ohm impedance, {} dB attenuation\r\n".format("AC" if r[2] else "DC", "50" if r[0] else "1M", "20" if r[1] else "0", i=i+1 )
+				hdr += "% Ch {i} - {} coupling, {} Ohm impedance, {} V range\r\n".format("AC" if r[2] else "DC", "50" if r[0] else "1M", "10" if r[1] else "1", i=i+1 )
 
-		hdr += "# Loop gain {:d}".format(self._get_controlgain())
-
+		hdr += "%"
 		for i,c in enumerate(chs):
 			if c:
-				hdr += ", Ch {i} frequency = {:.10e}".format(self.get_initfreq(i+1), i=i+1)
+				hdr += "{} Ch {i} bandwidth = {:.10e} (Hz)".format("," if ((ch1 and ch2) and i == 1) else "", self.get_bandwidth(i+1), i=i+1)
 		hdr += "\r\n"
 
-		hdr += "# Acquisition rate: {}\r\n#\r\n".format(self.get_samplerate())
-		hdr += "# Time"
-
+		hdr += "% Acquisition rate: {:.10e} Hz\r\n".format(self.get_samplerate())
+		hdr += "% {} 10 MHz clock\r\n".format("External" if self._moku._get_actual_extclock() else "Internal")
+		hdr += "% Acquired {}\r\n".format(formatted_timestamp())
+		hdr += "% Time,"
 		for i,c in enumerate(chs):
 			if c:
-				hdr += ", Absolute Frequency {i}, Phase {i} (cyc), I {i} (V), Q {i} (V), Seed Frequency {i} (Hz), Ctr {i}".format(i=i+1)
+				hdr += "{} Set frequency {i} (Hz), Frequency {i} (Hz), Phase {i} (cyc), I {i} (V), Q {i} (V)".format("," if ((ch1 and ch2) and i == 1) else "", i=i+1)
 
 		hdr += "\r\n"
 
@@ -299,9 +296,9 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 	def _get_fmtstr(self, ch1, ch2):
 		fmtstr = "{t:.10e}"
 		if ch1:
-			fmtstr += ", {ch1[1]:.16e}, {ch1[3]:.16e}, {ch1[4]:.16e}, {ch1[5]:.16e}, {ch1[0]:.16e}, {ch1[2]:.16e}"
+			fmtstr += ", {ch1[0]:.16e}, {ch1[1]:.16e}, {ch1[3]:.16e}, {ch1[4]:.10e}, {ch1[5]:.10e}"
 		if ch2:
-			fmtstr += ", {ch1[1]:.16e}, {ch1[3]:.16e}, {ch1[4]:.16e}, {ch1[5]:.16e}, {ch1[0]:.16e}, {ch1[2]:.16e}"
+			fmtstr += ", {ch2[0]:.16e}, {ch2[1]:.16e}, {ch2[3]:.16e}, {ch2[4]:.10e}, {ch2[5]:.10e}"
 		fmtstr += "\r\n"
 		return fmtstr
 
@@ -331,13 +328,13 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 		self.en_in_ch2 = True
 
 		# TODO: Headers assume registers have been committed with current values
-	def datalogger_start(self, start, duration, use_sd, ch1, ch2, filetype):
+	def datalogger_start(self, start=0, duration=10, use_sd=True, ch1=True, ch2=True, filetype='csv'):
 		self._update_datalogger_params(ch1, ch2)
 		super(PhaseMeter, self).datalogger_start(start=start, duration=duration, use_sd=use_sd, ch1=ch1, ch2=ch2, filetype=filetype)
 
 	datalogger_start.__doc__ = _frame_instrument.FrameBasedInstrument.datalogger_start.__doc__
 
-	def datalogger_start_single(self, use_sd, ch1, ch2, filetype):
+	def datalogger_start_single(self, use_sd=True, ch1=True, ch2=True, filetype='csv'):
 		self._update_datalogger_params(ch1, ch2)
 		super(PhaseMeter, self).datalogger_start_single(use_sd=use_sd, ch1=ch1, ch2=ch2, filetype=filetype)
 

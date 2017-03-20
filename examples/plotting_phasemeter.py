@@ -3,7 +3,7 @@
 #
 # This example provides a network stream of Phasemeter
 # data samples from Channel 1 and Channel 2. These samples
-# are output in the form (I,Q,F,phi,counter) for each channel.
+# are output in the form [fs, f, count, phase, I, Q] for each channel.
 #
 # (c) 2016 Liquid Instruments Pty. Ltd.
 #
@@ -14,7 +14,7 @@
 # file, but this example streams the samples over the network so they can be accessed,
 # processed and plotted in real time.
 
-from pymoku import Moku, NoDataException
+from pymoku import Moku, NoDataException, FrameTimeout
 from pymoku.instruments import *
 import time, logging, math, numpy
 import matplotlib.pyplot as plt
@@ -41,7 +41,7 @@ try:
 	# Set these parameters
 	#################################
 
-	# Which channels are ON?
+	# Which input channels are ON?
 	ch1 = True
 	ch2 = True
 
@@ -71,7 +71,7 @@ try:
 	i.set_initfreq(1, ch1_freq)
 	i.set_initfreq(2, ch2_freq)
 
-	# The sample rate must be set <=100Hz to avoid data loss so we set it to 10Hz
+	# Set samplerate to slow mode ~30Hz
 	i.set_samplerate(PM_LOGRATE_SLOW)
 
 	# Set up signal generator for enabled channels
@@ -95,7 +95,7 @@ try:
 	#		Channel 1 - ON, Channel 2 - ON
 	#		Log file type - Network Stream
 	i.datalogger_stop()
-	i.datalogger_start(start=0, duration=duration, use_sd=True, ch1=ch1, ch2=ch2, filetype='net')
+	i.datalogger_start(duration=duration, ch1=ch1, ch2=ch2, filetype='net')
 
 	# Set up basic plot configurations
 	if ch1:
@@ -118,9 +118,13 @@ try:
 	plt.xlabel('Time (s)')
 	
 	while True:
+
+		# Check for errors
+		i.datalogger_error()
+
 		# Get samples
 		try:
-			ch, idx, samp = i.datalogger_get_samples(timeout=5)
+			ch, idx, samp = i.datalogger_get_samples(timeout=10)
 		except NoDataException as e:
 			print("Data stream complete")
 			break
@@ -155,14 +159,10 @@ try:
 		plt.pause(0.001)
 		plt.draw()
 
-	# Check if there were any errors
-	e = i.datalogger_error()
-
-	if e:
-		print("Error occured: %s" % e)
-
-	i.datalogger_stop()
-except Exception as e:
-	print(e)
+except StreamException as e:
+	print("Error occured: %s" % e.message)
+except FrameTimeout:
+	print("Logging session timed out")
 finally:
+	i.datalogger_stop()
 	m.close()
