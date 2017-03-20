@@ -30,6 +30,10 @@ class StreamException(MokuException):
 class FileNotFound(MokuException): """Requested file or directory could not be found"""; pass
 class InsufficientSpace(MokuException): """There is insufficient memory/disk space for the action being performed"""; pass
 class MPNotMounted(MokuException): """The requested mount point has not been mounted"""; pass
+class MPReadOnly(MokuException): """The requested mount point is Read Only"""; pass
+class UnknownAction(MokuException): """The request was unknown"""; pass
+class MokuBusy(MokuException): """The Moku is busy"""; pass
+
 # Network status codes
 _ERR_OK = 0
 _ERR_INVAL = 1
@@ -513,24 +517,25 @@ class Moku(object):
 		act, status = struct.unpack("BB", pkt[:2])
 
 		if status:
-			if status == _ERR_INAL:
-				raise InvalidConfigurationException() 
+			if status == _ERR_INVAL:
+				ex = InvalidConfigurationException("Invalid fileserver request parameters.") 
 			elif status == _ERR_NOTFOUND:
-				raise FileNotFound()
+				ex = FileNotFound("Could not find directory or file.")
 			elif status == _ERR_NOSPC:
-				raise InsufficientSpace()
+				ex = InsufficientSpace("Insufficient space to perform action.")
 			elif status == _ERR_NOMP:
-				msg = "Mount point not mounted"
+				ex = MPNotMounted("Mount point has not been mounted.")
 			elif status == _ERR_ACTION:
-				msg = "Unknown action requested"
+				ex = InvalidOperationException("Unknown fileserver action requested.")
 			elif status == _ERR_BUSY:
-				msg = "Fileserver busy"
+				ex = MokuBusy("Fileserver busy")
 			elif status == _ERR_RO:
-				msg = "Mount point read only"
+				ex = MPReadOnly("Requested mount point was Read-Only.")
 			elif status == _ERR_UNKNOWN:
-				msg = "Unknown error"
+				ex = UnknownAction("Unknown fileserver action requested: %d" % act)
+			else:
+				ex = NetworkError("Received invalid status ID: %d" % stat)
 
-			ex = NetworkError("File server error %d: %s" % (status,msg))
 			ex.dat = pkt[2:]
 			raise ex
 

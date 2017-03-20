@@ -304,6 +304,21 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 		return maxrates
 
+	
+	def _estimate_logsize(self, ch1, ch2, duration, timestep, filetype):
+		"""
+		Returns a rough estimate of log size for disk space checking. 
+		Currently ssumes instrument is the Oscilloscope.
+		"""
+		if filetype is 'bin':
+			sample_size_bytes = 4 * (ch1 + ch2)
+			return duration / timestep * sample_size_bytes
+		elif filetype is 'csv':
+			characters_per_sample = 14 # Digits, decimal and exponent
+			characters_per_timestep = max(len(str(timestep)), len(str(60*60*1/timestep)))
+			characters_per_line = (ch1 + ch2) * characters_per_sample + characters_per_timestep
+			return duration / timestep *  characters_per_line
+	
 
 	def datalogger_start(self, start=0, duration=10, use_sd=True, ch1=True, ch2=True, filetype='csv'):
 		""" Start recording data with the current settings.
