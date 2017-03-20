@@ -11,8 +11,13 @@ setup(
 	packages=['pymoku', 'pymoku.schema'],
 	package_dir={'pymoku.schema': 'pymoku/schema'},
 	package_data={'pymoku.schema': ['*.capnp']},
-	license='Commercial',
+	license='MIT',
 	long_description=open('README.md').read(),
+
+	url="https://github.com/liquidinstruments/pymoku",
+	download_url="https://github.com/liquidinstruments/pymoku/archive/%s.tar.gz" % version.release,
+
+	keywords=['moku', 'liquid instruments', 'test', 'measurement', 'lab', 'equipment'],
 
 	entry_points={
 		'console_scripts' : [
