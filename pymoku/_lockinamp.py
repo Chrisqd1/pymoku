@@ -2,11 +2,11 @@
 import math
 import logging
 
-from _instrument import *
-from _oscilloscope import VoltsFrame
-import _instrument
-import _frame_instrument
-import _siggen
+from pymoku._instrument import *
+from pymoku._oscilloscope import VoltsFrame
+from . import _instrument
+from . import _frame_instrument
+from . import _siggen
 
 log = logging.getLogger(__name__)
 
@@ -244,7 +244,6 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		:param Order: 1 or 2, first- or second-order filter used
 		"""
 		DSPCoeff = 1-(2*math.pi*ReqCorner)/_LIA_CONTROL_FS
-		print DSPCoeff
 		self.pid1_int_ifb_gain = DSPCoeff
 		self.pid2_int_ifb_gain = DSPCoeff
 
