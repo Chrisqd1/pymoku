@@ -388,7 +388,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 	def get_hdrstr(self, ch1, ch2):
 		chs = [ch1, ch2]
 
-		hdr = "Moku:DataLogger\r\n"
+		hdr = "% Moku:DataLogger\r\n"
 		for i,c in enumerate(chs):
 			if c:
 				r = self.get_frontend(i+1)
@@ -405,10 +405,10 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 	def get_fmtstr(self, ch1, ch2):
 		chs = [ch1, ch2]
-		fmtstr = "{t}"
+		fmtstr = "{t:.10e}"
 		for i,c in enumerate(chs):
 			if c:
-				fmtstr += ",{{ch{i}:.8e}}".format(i=i+1)
+				fmtstr += ",{{ch{i}:.10e}}".format(i=i+1)
 		fmtstr += "\r\n"
 		return fmtstr
 

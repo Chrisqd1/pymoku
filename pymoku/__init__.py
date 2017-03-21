@@ -27,7 +27,12 @@ class StreamException(MokuException):
 		"""Data logging was interrupted or failed"""
 		super(StreamException, self).__init__(message)
 		self.err = err
-
+class FileNotFound(MokuException): """Requested file or directory could not be found"""; pass
+class InsufficientSpace(MokuException): """There is insufficient memory/disk space for the action being performed"""; pass
+class MPNotMounted(MokuException): """The requested mount point has not been mounted"""; pass
+class MPReadOnly(MokuException): """The requested mount point is Read Only"""; pass
+class UnknownAction(MokuException): """The request was unknown"""; pass
+class MokuBusy(MokuException): """The Moku is busy"""; pass
 
 # Network status codes
 _ERR_OK = 0
@@ -38,7 +43,7 @@ _ERR_NOMP = 4
 _ERR_ACTION = 5
 _ERR_BUSY = 6
 _ERR_RO = 7
-_ERR_UNKOWN = 99
+_ERR_UNKNOWN = 99
 
 # Chosen to trade off number of network transactions with memory usage.
 # 4MB is a little larger than a bitstream so those uploads aren't chunked.
@@ -514,7 +519,25 @@ class Moku(object):
 		act, status = struct.unpack("BB", pkt[:2])
 
 		if status:
-			ex = NetworkError("File receive error %d" % status)
+			if status == _ERR_INVAL:
+				ex = InvalidConfigurationException("Invalid fileserver request parameters.") 
+			elif status == _ERR_NOTFOUND:
+				ex = FileNotFound("Could not find directory or file.")
+			elif status == _ERR_NOSPC:
+				ex = InsufficientSpace("Insufficient space to perform action.")
+			elif status == _ERR_NOMP:
+				ex = MPNotMounted("Mount point has not been mounted.")
+			elif status == _ERR_ACTION:
+				ex = InvalidOperationException("Unknown fileserver action requested.")
+			elif status == _ERR_BUSY:
+				ex = MokuBusy("Fileserver busy")
+			elif status == _ERR_RO:
+				ex = MPReadOnly("Requested mount point was Read-Only.")
+			elif status == _ERR_UNKNOWN:
+				ex = UnknownAction("Unknown fileserver action requested: %d" % act)
+			else:
+				ex = NetworkError("Received invalid status ID: %d" % stat)
+
 			ex.dat = pkt[2:]
 			raise ex
 
