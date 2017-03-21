@@ -4,7 +4,6 @@ channels: !!python/tuple
   - liquidinstruments
   - defaults
 dependencies:
-  - python ==2.7
   - conda-forge::ca-certificates=2017.1.23=0
   - conda-forge::certifi=2017.1.23=py27_0
   - conda-forge::future=0.16.0=py27_0
