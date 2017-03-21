@@ -383,13 +383,12 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 			raise InvalidOperationException("Instrument currently doesn't support data logging")
 
 		# Check mount point here
-		
 		mp = 'e' if use_sd else 'i'
 		try:
 			t , f = self._moku._fs_free(mp)
-			
-			if f < self._estimate_logsize(ch1, ch2, duration, self.timestep, filetype):
-				raise InsufficientSpace("Insufficient disk space for requested log file.")
+			logsize = self._estimate_logsize(ch1, ch2, duration, self.timestep, filetype)
+			if f < logsize:
+				raise InsufficientSpace("Insufficient disk space for requested log file (require %d kB, available %d kB - %f)" % (logsize/(2**10), f/(2**10)))
 		except MPReadOnly as e:
 			if use_sd:
 				e.message = "SD Card is read only."
@@ -398,9 +397,6 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 			if use_sd:
 				e.message = "SD Card not mounted."
 			raise e
-
-		#log.debug(self._moku._fs_free(mp + ":" + fname)) 
-		#log.debug(self._estimate_logsize(ch1, ch2, duration, self.timestep, filetype))
 
 		# We have to be in this mode anyway because of the above check, but rewriting this register and committing
 		# is necessary in order to reset the channel buffers on the device and flush them of old data.
@@ -465,6 +461,23 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 		if not all([ len(s) for s in [self.binstr, self.procstr, self.fmtstr, self.hdrstr]]):
 			raise InvalidOperationException("Instrument currently doesn't support data logging")
+
+		# Check mount point here
+		mp = 'e' if use_sd else 'i'
+		try:
+			t , f = self._moku._fs_free(mp)
+			# Fake a "duration" for 16k samples
+			logsize = self._estimate_logsize(ch1, ch2, (2**14) * self.timestep , self.timestep, filetype)
+			if f < logsize:
+				raise InsufficientSpace("Insufficient disk space for requested log file (require %d kB, available %d kB - %f)" % (logsize/(2**10), f/(2**10)))
+		except MPReadOnly as e:
+			if use_sd:
+				e.message = "SD Card is read only."
+			raise e
+		except MPNotMounted as e:
+			if use_sd:
+				e.message = "SD Card not mounted."
+			raise e
 
 		#TODO: Work out the offset from current span (instrument dependent?)
 		try:
