@@ -391,11 +391,11 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 				raise InsufficientSpace("Insufficient disk space for requested log file (require %d kB, available %d kB)" % (logsize/(2**10), f/(2**10)))
 		except MPReadOnly as e:
 			if use_sd:
-				e.message = "SD Card is read only."
+				raise MPReadOnly("SD Card is read only.")
 			raise e
 		except MPNotMounted as e:
 			if use_sd:
-				e.message = "SD Card not mounted."
+				raise MPNotMounted("SD Card is unmounted.")
 			raise e
 
 		# We have to be in this mode anyway because of the above check, but rewriting this register and committing
@@ -472,11 +472,11 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 				raise InsufficientSpace("Insufficient disk space for requested log file (require %d kB, available %d kB)" % (logsize/(2**10), f/(2**10)))
 		except MPReadOnly as e:
 			if use_sd:
-				e.message = "SD Card is read only."
+				raise MPReadOnly("SD Card is read only.")
 			raise e
 		except MPNotMounted as e:
 			if use_sd:
-				e.message = "SD Card not mounted."
+				raise MPNotMounted("SD Card is unmounted.")
 			raise e
 
 		#TODO: Work out the offset from current span (instrument dependent?)
