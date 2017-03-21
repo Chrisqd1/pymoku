@@ -388,7 +388,7 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 			t , f = self._moku._fs_free(mp)
 			logsize = self._estimate_logsize(ch1, ch2, duration, self.timestep, filetype)
 			if f < logsize:
-				raise InsufficientSpace("Insufficient disk space for requested log file (require %d kB, available %d kB - %f)" % (logsize/(2**10), f/(2**10)))
+				raise InsufficientSpace("Insufficient disk space for requested log file (require %d kB, available %d kB)" % (logsize/(2**10), f/(2**10)))
 		except MPReadOnly as e:
 			if use_sd:
 				e.message = "SD Card is read only."
@@ -469,7 +469,7 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 			# Fake a "duration" for 16k samples
 			logsize = self._estimate_logsize(ch1, ch2, (2**14) * self.timestep , self.timestep, filetype)
 			if f < logsize:
-				raise InsufficientSpace("Insufficient disk space for requested log file (require %d kB, available %d kB - %f)" % (logsize/(2**10), f/(2**10)))
+				raise InsufficientSpace("Insufficient disk space for requested log file (require %d kB, available %d kB)" % (logsize/(2**10), f/(2**10)))
 		except MPReadOnly as e:
 			if use_sd:
 				e.message = "SD Card is read only."
