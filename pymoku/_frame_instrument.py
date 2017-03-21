@@ -10,7 +10,7 @@ import zmq
 from collections import deque
 from queue import Queue, Empty
 
-from pymoku import Moku, FrameTimeout, BufferTimeout, NotDeployedException, InvalidOperationException, NoDataException, StreamException, dataparser
+from pymoku import Moku, FrameTimeout, BufferTimeout, NotDeployedException, InvalidOperationException, NoDataException, StreamException, InsufficientSpace, MPNotMounted, MPReadOnly, dataparser
 
 from . import _instrument
 
@@ -308,16 +308,15 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 	def _estimate_logsize(self, ch1, ch2, duration, timestep, filetype):
 		"""
 		Returns a rough estimate of log size for disk space checking. 
-		Currently ssumes instrument is the Oscilloscope.
+		Currently assumes instrument is the Oscilloscope.
 		"""
 		if filetype is 'bin':
 			sample_size_bytes = 4 * (ch1 + ch2)
-			return duration / timestep * sample_size_bytes
+			return (duration / timestep) * sample_size_bytes
 		elif filetype is 'csv':
-			characters_per_sample = 14 # Digits, decimal and exponent
-			characters_per_timestep = max(len(str(timestep)), len(str(60*60*1/timestep)))
-			characters_per_line = (ch1 + ch2) * characters_per_sample + characters_per_timestep
-			return duration / timestep *  characters_per_line
+			# one byte per character: time, data (assume negative half the time), newline
+			characters_per_line = 16 + ( 2 + 16.5 )*(ch1 + ch2) + 2
+			return (duration / timestep) *  characters_per_line
 	
 
 	def datalogger_start(self, start=0, duration=10, use_sd=True, ch1=True, ch2=True, filetype='csv'):
@@ -382,6 +381,26 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 		if not all([ len(s) for s in [self.binstr, self.procstr, self.fmtstr, self.hdrstr]]):
 			raise InvalidOperationException("Instrument currently doesn't support data logging")
+
+		# Check mount point here
+		
+		mp = 'e' if use_sd else 'i'
+		try:
+			t , f = self._moku._fs_free(mp)
+			
+			if f < self._estimate_logsize(ch1, ch2, duration, self.timestep, filetype):
+				raise InsufficientSpace("Insufficient disk space for requested log file.")
+		except MPReadOnly as e:
+			if use_sd:
+				e.message = "SD Card is read only."
+			raise e
+		except MPNotMounted as e:
+			if use_sd:
+				e.message = "SD Card not mounted."
+			raise e
+
+		#log.debug(self._moku._fs_free(mp + ":" + fname)) 
+		#log.debug(self._estimate_logsize(ch1, ch2, duration, self.timestep, filetype))
 
 		# We have to be in this mode anyway because of the above check, but rewriting this register and committing
 		# is necessary in order to reset the channel buffers on the device and flush them of old data.
@@ -709,22 +728,25 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 			raise InvalidOperationException("No data has been logged in current session.")
 		# Check internal and external storage
 		for mp in ['i', 'e']:
-			for f in self._moku._fs_list(mp):
-				if str(f[0]).startswith(target):
-					# Don't overwrite existing files of the name name. This would be nicer
-					# if we could pass receive_file a local filename to save to, but until
-					# that change is made, just move the clashing file out of the way.
-					if os.path.exists(f[0]):
-						i = 1
-						while os.path.exists(f[0] + ("-%d" % i)):
-							i += 1
+			try:
+				for f in self._moku._fs_list(mp):
+					if str(f[0]).startswith(target):
+						# Don't overwrite existing files of the name name. This would be nicer
+						# if we could pass receive_file a local filename to save to, but until
+						# that change is made, just move the clashing file out of the way.
+						if os.path.exists(f[0]):
+							i = 1
+							while os.path.exists(f[0] + ("-%d" % i)):
+								i += 1
 
-						os.rename(f[0], f[0] + ("-%d" % i))
+							os.rename(f[0], f[0] + ("-%d" % i))
 
-					# Data length of zero uploads the whole file
-					self._moku._receive_file(mp, f[0], 0)
-					log.debug('Uploaded file %s',f[0])
-					uploaded += 1
+						# Data length of zero uploads the whole file
+						self._moku._receive_file(mp, f[0], 0)
+						log.debug('Uploaded file %s',f[0])
+						uploaded += 1
+			except MPNotMounted:
+				log.debug("Attempted to list files on unmounted device '%s'" % mp)
 
 		if not uploaded:
 			raise InvalidOperationException("Log files not present")
@@ -744,12 +766,15 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		uploaded = 0
 
 		for mp in ['e', 'i']:
-			files = self._moku._fs_list(mp)
-			for f in files:
-				if re.match(self.logname + ".*\.[a-z]{2,3}", f[0]):
-					# Data length of zero uploads the whole file
-					self._moku._receive_file(mp, f[0], 0)
-					uploaded += 1
+			try:
+				files = self._moku._fs_list(mp)
+				for f in files:
+					if re.match(self.logname + ".*\.[a-z]{2,3}", f[0]):
+						# Data length of zero uploads the whole file
+						self._moku._receive_file(mp, f[0], 0)
+						uploaded += 1
+			except MPNotMounted:
+				log.debug("Attempted to list files on unmounted device '%s'" % mp)
 
 		if not uploaded:
 			raise InvalidOperationException("Log files not present")
