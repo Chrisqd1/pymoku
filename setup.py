@@ -1,4 +1,4 @@
-from distutils.core import setup
+from setuptools import setup
 import subprocess, os
 
 version = open('pymoku/version.txt').read()
@@ -27,5 +27,17 @@ setup(
 			'moku=pymoku.tools.moku:main',
 			'moku_convert=pymoku.tools.moku_convert:main',
 		]
-	}
+	},
+
+	install_requires=[
+		'future',
+		'pyzmq>=15.3.0',
+		'six',
+		'urllib3',
+		'pyzmq',
+		'rfc6266',
+		'requests',
+		'pycapnp',
+	],
+	zip_safe=False,
 )
