@@ -818,7 +818,7 @@ class Moku(object):
 
 	def get_version(self):
 		""" :return: Version of connected Moku:Lab """
-		return '.'.join(self._get_properties(['device.major','device.minor','device.micro']))
+		return self._get_property_single('system.micro')
 
 	def set_name(self, name):
 		""" :param name: Set new name for the Moku:Lab. This can make it easier to discover the device if multiple Moku:Labs are on a network"""
