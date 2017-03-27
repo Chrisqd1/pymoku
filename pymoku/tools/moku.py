@@ -34,14 +34,27 @@ def _hgdep_compat_configs(server, username, password):
 	return r.json()
 
 def _download_request(url, local_dir, local_fname=None, **params):
-	import rfc6266
-	request = requests.get(url, params=params)
+	import rfc6266, posixpath
+	request = requests.get(url, stream=True, params=params)
 
-	fname = local_fname or rfc6266.parse_requests_response(request).filename_sanitized
+	fname = local_fname or rfc6266.parse_requests_response(request).filename_unsafe
+	if fname is None:
+		raise Exception("Unknown download name")
+
+	# Don't use the rfc6566 filename_sanitized as that requires that we know the extension
+	# up front (and this function is generic enough not to know that). The following sanitation
+	# is ^C^V'd from that function, without the extension check.
+	fname = posixpath.basename(fname)
+	fname = os.path.basename(fname)
+	fname = fname.lstrip('.')
+
+	if not fname:
+		raise Exception("Invalid download name")
+
 	fname = os.path.join(local_dir, fname)
 
 	with open(fname, 'wb') as f:
-		for chunk in request.iter_content(chunk=1024):
+		for chunk in request.iter_content(chunk_size=1024):
 			if chunk:
 				f.write(chunk)
 
@@ -93,12 +106,12 @@ def instrument(moku, args):
 		tmpdir = tempfile.mkdtemp()
 
 		for t in types:
-			newest = max((c['bitstream'] for c in compat_configs if c['bitstream']['type'] == t), key=lambda b: b['build_id'])
-			fpath = _download_request(server + '/versions/artefact/' + newest['hash'], tmpdir)
+			newest = max((c['bitstream'] for c in compat_configs.values() if c['bitstream']['type'] == t), key=lambda b: b['build_id'])
+			fpath = _download_request(args.server + '/versions/artefact/' + newest['hash'], tmpdir)
 			fname = os.path.basename(fpath)
 			moku.load_bitstream(fpath)
 
-			print("Loaded {:s}-t{:s}".format(fname, newest['hash'][:8]))
+			print("Loaded {:s}".format(fname.split('_')[0]))
 
 		shutil.rmtree(tmpdir)
 
@@ -158,20 +171,20 @@ def firmware(moku, args):
 		moku.load_firmware(args.file)
 		print("Successfully started firmware update. Your Moku will shut down automatically when complete.")
 	elif args.action == 'update':
-		build = int(moku.get_version().split('.')[-1])
+		build = int(moku.get_version())
 		compat_configs = _hgdep_compat_configs(args.server, args.username, args.password)
-		fws = [ c['firmware'] for c in compat_configs ]
-		newwest = max(fws, key=lambda f: int(f['build_id']))
+		fws = [ c['firmware'] for c in compat_configs.values() ]
+		newest = max(fws, key=lambda f: int(f['build_id']))
 
-		if int(newwest['build_id']) > build:
-			print("New Firmware available, build {build_id:d}.".format(**newwest))
+		if int(newest['build_id']) > build:
+			print("New Firmware available, build {build_id:d}.".format(**newest))
 		else:
-			print("No new Firmware available")
+			print("No new Firmware available, {build_id:d} on the server and {build:d} on the device.".format(build=build, **newest))
 			return
 
 		print("Downloading...")
 		tempdir = tempfile.mkdtemp()
-		fpath = _download_request(server + '/versions/artefact/' + newest['hash'], tempdir)
+		fpath = _download_request(args.server + '/versions/artefact/' + newest['hash'], tempdir)
 		fname = os.path.basename(fpath)
 		print("Installing...")
 		moku.load_firmware(fpath)
