@@ -11,7 +11,7 @@ setup(
 	packages=['pymoku', 'pymoku.schema'],
 	package_dir={'pymoku.schema': 'pymoku/schema'},
 	package_data={
-		'pymoku' : ['version.txt'],
+		'pymoku' : ['version.txt', 'build.txt'],
 		'pymoku.schema': ['*.capnp']
 	},
 	license='MIT',
