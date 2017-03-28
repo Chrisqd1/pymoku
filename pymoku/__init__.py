@@ -802,7 +802,7 @@ class Moku(object):
 		:raises InvalidOperationException: if the firmware is not compatible.
 		"""
 		log.debug("Sending firmware file")
-		self._send_file('f', path)
+		self._send_file('f', path, 'moku.fw')
 		log.debug("Updating firmware")
 		self._trigger_fwload()
 
