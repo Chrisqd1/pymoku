@@ -789,7 +789,7 @@ class Moku(object):
 		hdr, reply = struct.unpack("<BB", self._conn.recv())
 		self._set_timeout()
 		if reply:
-			raise InvalidOperationException("Firmware update failure %d", reply)
+			raise InvalidOperationException("Firmware update failure %d" % reply)
 
 	def load_firmware(self, path):
 		"""
