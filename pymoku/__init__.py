@@ -194,7 +194,7 @@ class Moku(object):
 
 	def _set_timeout(self, short=True, seconds=None):
 		if seconds is not None:
-			base = seconds
+			base = seconds * 1000
 		else:
 			base = 5000
 			if not short:
