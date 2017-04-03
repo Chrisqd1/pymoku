@@ -26,7 +26,7 @@ else:
 try:
 	i.set_trigger(OSC_TRIG_CH1, OSC_EDGE_RISING, 0)
 
-	i.synth_sinewave(2, 0.5, 10, 0) # Channel 2, 500mVpp, 10Hz, 0V offset
+	i.gen_sinewave(2, 0.5, 10, 0) # Channel 2, 500mVpp, 10Hz, 0V offset
 	i.set_source(2, OSC_SOURCE_DAC) # View this generated waveform on CH2
 
 	i.set_timebase(-1, 1) # View +- 1 second, i.e. trigger in the centre

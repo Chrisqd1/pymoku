@@ -8,12 +8,12 @@ i = SignalGenerator()
 m.deploy_instrument(i)
 
 try:
-	i.synth_sinewave(1, 1.0, 1000000)
-	i.synth_squarewave(2, 1.0, 2000000, risetime=0.1, falltime=0.1, duty=0.3)
+	i.gen_sinewave(1, 1.0, 1000000)
+	i.gen_squarewave(2, 1.0, 2000000, risetime=0.1, falltime=0.1, duty=0.3)
 
 	# Amplitude modulate the CH1 sinewave with another internally-generated sinewave.
 	# 100% modulation depth at 10Hz.
-	i.synth_modulate(1, SG_MOD_AMPL, SG_MODSOURCE_INT, 1, 10)
+	i.gen_modulate(1, SG_MOD_AMPL, SG_MODSOURCE_INT, 1, 10)
 	i.commit()
 finally:
 	m.close()

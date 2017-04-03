@@ -72,15 +72,15 @@ class PhaseMeter_SignalGenerator(MokuInstrument):
 		self._pm_out2_amplitude = 0
 
 	def set_defaults(self):
-		self.synth_sinewave(1,0,0)
-		self.synth_sinewave(2,0,0)
+		self.gen_sinewave(1,0,0)
+		self.gen_sinewave(2,0,0)
 		self.enable_output(1,False)
 		self.enable_output(2,False)
 
 		self.set_frontend(1, fiftyr=True, atten=False, ac=True)
 		self.set_frontend(2, fiftyr=True, atten=False, ac=True)
 
-	def synth_sinewave(self, ch, amplitude, frequency):
+	def gen_sinewave(self, ch, amplitude, frequency):
 		"""
 		:param ch: Channel number
 		:param amplitude: Signal amplitude in volts

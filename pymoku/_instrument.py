@@ -338,7 +338,7 @@ class MokuInstrument(object):
 
 		.. note::
 
-		    This **must** be called after any *set_* or *synth_* function has been called, or control
+		    This **must** be called after any *set_* or *gen_* function has been called, or control
 		    attributes have been directly set. This allows you to, for example, set multiple attributes
 		    controlling rendering or signal generation in separate calls but have them all take effect at once.
 		"""

@@ -33,10 +33,10 @@ else:
 	print("Attached to existing Oscilloscope")
 
 # Channe 1: 1Vp-p Square Wave, 1Hz, 40% duty cycle with 10% slew rate limit on both edges
-i.synth_squarewave(1, 1.0, 1, risetime=0.1, falltime=0.1, duty=0.4)
+i.gen_squarewave(1, 1.0, 1, risetime=0.1, falltime=0.1, duty=0.4)
 
 # Channel 2: 0.5Vp-p Sine Wave, 2Hz.
-i.synth_sinewave(2, 0.5, 2)
+i.gen_sinewave(2, 0.5, 2)
 
 # The default is 10fps but the blitting below means we can actually
 # run much faster.

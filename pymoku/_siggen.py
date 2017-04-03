@@ -100,7 +100,7 @@ class BasicSignalGenerator(MokuInstrument):
 		self.en_in_ch1 = False
 		self.en_in_ch2 = False
 
-	def synth_sinewave(self, ch, amplitude, frequency, offset=0, phase=0.0):
+	def gen_sinewave(self, ch, amplitude, frequency, offset=0, phase=0.0):
 		""" Generate a Sine Wave with the given parameters on the given channel.
 
 		:type ch: int
@@ -136,7 +136,7 @@ class BasicSignalGenerator(MokuInstrument):
 		else:
 			raise ValueOutOfRangeException("Invalid Channel")
 
-	def synth_squarewave(self, ch, amplitude, frequency, offset=0, duty=0.5, risetime=0, falltime=0, phase=0.0):
+	def gen_squarewave(self, ch, amplitude, frequency, offset=0, duty=0.5, risetime=0, falltime=0, phase=0.0):
 		""" Generate a Square Wave with given parameters on the given channel.
 
 		:type ch: int
@@ -201,7 +201,7 @@ class BasicSignalGenerator(MokuInstrument):
 		else:
 			raise ValueOutOfRangeException("Invalid Channel")
 
-	def synth_rampwave(self, ch, amplitude, frequency, offset=0, symmetry=0.5, phase= 0.0):
+	def gen_rampwave(self, ch, amplitude, frequency, offset=0, symmetry=0.5, phase= 0.0):
 		""" Generate a Ramp with the given parameters on the given channel.
 
 		This is a wrapper around the Square Wave generator, using the *riserate* and *fallrate*
@@ -225,7 +225,7 @@ class BasicSignalGenerator(MokuInstrument):
 		:type phase: float, degrees 0-360
 		:param phase: Phase offset of the wave
 		"""
-		self.synth_squarewave(ch, amplitude, frequency,
+		self.gen_squarewave(ch, amplitude, frequency,
 			offset = offset, duty = symmetry,
 			risetime = symmetry,
 			falltime = 1 - symmetry,
@@ -238,7 +238,7 @@ class SignalGenerator(BasicSignalGenerator):
 		super(SignalGenerator, self).__init__()
 		self._register_accessors(_siggen_mod_reg_handlers)
 
-	def synth_modulate(self, ch, type, source, depth, frequency=0.0):
+	def gen_modulate(self, ch, type, source, depth, frequency=0.0):
 		"""
 		Set up modulation on an output channel.
 

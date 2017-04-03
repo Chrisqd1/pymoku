@@ -22,7 +22,7 @@ Where:
 The stream is accessed using the *datalogger_* functions; especially :any:`datalogger_start` and, if streaming
 in real-time to pymoku over the network (rather than to a file), :any:`datalogger_get_samples`.
 
-.. note:: The requirement to :any:`commit() <pymoku.instruments.Oscilloscope.commit>` before a change takes effect is the most common cause of program malfunctions when interfacing with the Moku:Lab. Any *set_* or *synth_* function, or any direct manipulation of attributes such as :any:`framerate`, must be explicitly committed.
+.. note:: The requirement to :any:`commit() <pymoku.instruments.Oscilloscope.commit>` before a change takes effect is the most common cause of program malfunctions when interfacing with the Moku:Lab. Any *set_* or *gen_* function, or any direct manipulation of attributes such as :any:`framerate`, must be explicitly committed.
 
 Example Usage
 -------------
