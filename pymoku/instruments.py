@@ -54,6 +54,11 @@ for attr, val in _specan.__dict__.items():
 	if attr.startswith('SA_'):
 		setattr(_this_module, attr, val)
 
+# Re-export all constants from Lock-in Amplifier that start with LIA_
+for attr, val in _lockinamp.__dict__.items():
+	if attr.startswith('LIA_'):
+		setattr(_this_module, attr, val)	
+
 
 id_table = {
 	1: Oscilloscope,
