@@ -90,7 +90,7 @@ class Moku(object):
 	def list_mokus(timeout=5):
 		""" Discovers all compatible Moku instances on the network.
 
-		For most applications, the user should use the *get_by_* functions below. These
+		For most applications, the user should use the *get_by_* functions. These
 		functions are faster to return as they don't have to wait to find and validate
 		all Moku devices on the network, they can look for a specific one.
 
@@ -127,6 +127,8 @@ class Moku(object):
 		:param ip_addr: target IP address
 		:type timeout: float
 		:param timeout: operation timeout
+		:rtype: :any:`Moku`
+		:return: Moku with given IP address
 		:raises *MokuNotFound*: if no such Moku is found within the timeout"""
 		def _filter(ip):
 			return ip == ip_addr
@@ -147,6 +149,8 @@ class Moku(object):
 		:param ip_addr: target serial
 		:type timeout: float
 		:param timeout: operation timeout
+		:rtype: :any:`Moku`
+		:return: Moku with given serial number
 		:raises *MokuNotFound*: if no such Moku is found within the timeout"""
 		def _filter(ip):
 			m = None
@@ -177,6 +181,8 @@ class Moku(object):
 		:param ip_addr: target device name
 		:type timeout: float
 		:param timeout: operation timeout
+		:rtype: :any:`Moku`
+		:return: Moku with given device name
 		:raises *MokuNotFound*: if no such Moku is found within the timeout"""
 		def _filter(ip):
 			m = None
@@ -223,9 +229,17 @@ class Moku(object):
 		return ack[1] == 1
 
 	def take_ownership(self):
+		""" 
+		Register your ownership of the connected Moku:Lab device.
+
+		Having ownership enables you to send commands to and receive data from the corresponding Moku:Lab.
+		"""
 		return self._ownership(0x40)
 
 	def is_owner(self):
+		"""
+		Checks if you are the current owner of the Moku:Lab device.
+		"""
 		return self._ownership(0x41)
 
 
@@ -741,7 +755,7 @@ class Moku(object):
 	def delete_file(self, mp, path):
 		self._fs_finalise(mp, path, 0)
 
-	def load_bitstream(self, path, remotename=None):
+	def _load_bitstream(self, path, remotename=None):
 		"""
 		Load a bitstream file to the Moku, ready for deployment.
 
@@ -750,9 +764,9 @@ class Moku(object):
 
 		:raises NetworkError: if the upload fails verification.
 		"""
-		return self.load_persistent(path, remotename, mp='b')
+		return self._load_persistent(path, remotename, mp='b')
 
-	def load_persistent(self, path, remotename=None, mp='p'):
+	def _load_persistent(self, path, remotename=None, mp='p'):
 		import zlib
 
 		rname = self._send_file(mp, path, remotename)
@@ -769,11 +783,11 @@ class Moku(object):
 
 		return chk
 
-	def list_persistent(self):
+	def _list_persistent(self):
 		fs = self._fs_list('p')
 		return list(zip(*fs))[0]
 
-	def list_bitstreams(self, include_version=True):
+	def _list_bitstreams(self, include_version=True):
 		fs = self._fs_list('b', calculate_sha=include_version)
 
 		if include_version:
@@ -781,7 +795,7 @@ class Moku(object):
 		else:
 			return [b.split('.')[0] for b, c, s in fs if b.endswith('.bit')]
 
-	def list_package(self, include_version=False):
+	def _list_package(self, include_version=False):
 		fs = self._fs_list('p', calculate_checksums=include_version)
 
 		if include_version:
@@ -797,7 +811,7 @@ class Moku(object):
 		if reply:
 			raise InvalidOperationException("Firmware update failure %d" % reply)
 
-	def load_firmware(self, path):
+	def _load_firmware(self, path):
 		"""
 		Updates the firmware on the Moku.
 
@@ -894,9 +908,6 @@ class Moku(object):
 			self._instrument.set_defaults()
 			self._instrument.commit()
 
-	set_instrument = deploy_instrument
-	""" alias for :any:`deploy_instrument`"""
-
 	def detach_instrument(self):
 		"""
 		Detaches the :any:`MokuInstrument` from this Moku.
@@ -918,8 +929,9 @@ class Moku(object):
 	def discover_instrument(self):
 		"""Query a Moku:Lab device to see what instrument, if any, is currently running.
 
-		If an instrument is found, return a new :any:`MokuInstrument` subclass representing that instrument, ready
-		to be controlled."""
+		:rtype: :any:`MokuInstrument` or `None`
+		:returns: The detected instrument ready to be controlled, otherwise None. 
+		"""
 		import pymoku.instruments
 		i = int(self._get_property_single('system.instrument'))
 		try:
