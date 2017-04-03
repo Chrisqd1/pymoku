@@ -861,7 +861,7 @@ class Moku(object):
 		""":return: True if the Moku currently is connected and has an instrument deployed and operating"""
 		return self._instrument is not None and self._instrument.is_active()
 
-	def attach_instrument(self, instrument, set_default=True, use_external=False):
+	def deploy_instrument(self, instrument, set_default=True, use_external=False):
 		"""
 		Attaches a :any:`MokuInstrument` subclass to the Moku, deploying and activating an instrument.
 
@@ -894,8 +894,8 @@ class Moku(object):
 			self._instrument.set_defaults()
 			self._instrument.commit()
 
-	set_instrument = attach_instrument
-	""" alias for :any:`attach_instrument`"""
+	set_instrument = deploy_instrument
+	""" alias for :any:`deploy_instrument`"""
 
 	def detach_instrument(self):
 		"""

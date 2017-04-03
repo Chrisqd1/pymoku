@@ -17,7 +17,7 @@ i = m.discover_instrument()
 if i is None or i.type != 'oscilloscope':
 	print("No or wrong instrument deployed")
 	i = Oscilloscope()
-	m.attach_instrument(i)
+	m.deploy_instrument(i)
 else:
 	print("Attached to existing Oscilloscope")
 	m.take_ownership()

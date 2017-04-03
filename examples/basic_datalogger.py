@@ -6,7 +6,7 @@ m = Moku.get_by_name('example')
 
 # Data logger is actually a mode of the Oscilloscope instrument
 i = Oscilloscope()
-m.attach_instrument(i)
+m.deploy_instrument(i)
 
 try:
 	# 10 samples per second. Data logging must use the Oscilloscope's ROLL mode.

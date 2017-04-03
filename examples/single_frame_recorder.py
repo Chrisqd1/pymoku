@@ -5,7 +5,7 @@ import time
 # Use Moku.get_by_serial() or get_by_name() if you don't know the IP
 m = Moku.get_by_name('example')
 i = Oscilloscope()
-m.attach_instrument(i)
+m.deploy_instrument(i)
 
 try:
 	# In this case, we set the underlying oscilloscope in to Roll mode then wait a bit to

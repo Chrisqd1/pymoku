@@ -32,7 +32,7 @@ Example Usage
 	from pymoku.instruments import SignalGenerator
 	m = Moku.get_by_name("Example")
 	i = SignalGenerator()
-	m.attach_instrument(i)
+	m.deploy_instrument(i)
 
 	i.synth_sinewave(1, 1.0, 1000) # Channel 1 Sine wave, 1Vpp, 1kHz
 	i.synth_squarewave(2, 0.5, 2000, duty=0.1) # Channel 2 Square Wave, 0.5Vpp, 2kHz, 10% duty cycle

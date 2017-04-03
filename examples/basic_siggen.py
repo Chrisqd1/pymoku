@@ -5,7 +5,7 @@ import time
 # Use Moku.get_by_serial() or get_by_name() if you don't know the IP
 m = Moku.get_by_name("example")
 i = SignalGenerator()
-m.attach_instrument(i)
+m.deploy_instrument(i)
 
 try:
 	i.synth_sinewave(1, 1.0, 1000000)

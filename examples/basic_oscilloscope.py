@@ -5,7 +5,7 @@ from pymoku.instruments import *
 # get_by_name or get_by_serial for autodiscovery.
 m = Moku.get_by_name('Moku')
 i = Oscilloscope()
-m.attach_instrument(i)
+m.deploy_instrument(i)
 
 try:
 	# Span from -1s to 1s i.e. trigger point centred

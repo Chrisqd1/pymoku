@@ -242,7 +242,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		self.timestep = 1
 
 		# NOTE: Register mapped properties will be overwritten in sync registers call
-		# on attach_instrument(). No point setting them here.
+		# on deploy_instrument(). No point setting them here.
 		self.scales = {}
 
 		self.set_frame_class(VoltsFrame, scales=self.scales)

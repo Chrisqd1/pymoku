@@ -20,7 +20,7 @@ import math
 
 m = Moku.get_by_name('example')
 i = PhaseMeter()
-m.attach_instrument(i, use_external=False)
+m.deploy_instrument(i, use_external=False)
 
 try:
 	# Set the initial phase-lock loop frequency to 10MHz and measurement rate to ~120Hz

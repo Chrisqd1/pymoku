@@ -29,7 +29,7 @@ i = m.discover_instrument()
 if i is None or i.type != 'phasemeter':
 	print("No or wrong instrument deployed")
 	i = PhaseMeter()
-	m.attach_instrument(i)
+	m.deploy_instrument(i)
 else:
 	print("Attached to existing Phasemeter")
 	m.take_ownership()

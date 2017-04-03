@@ -5,7 +5,7 @@ import time
 # Use Moku.get_by_serial() or get_by_name() if you don't know the IP
 m = Moku.get_by_name('example')
 i = Oscilloscope()
-m.attach_instrument(i)
+m.deploy_instrument(i)
 
 try:
 	# 10Hz sample rate. The datalogger is actually just a mode of the Oscilloscope

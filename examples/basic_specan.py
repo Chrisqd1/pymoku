@@ -6,7 +6,7 @@ from pymoku.instruments import *
 # get_by_* functions to perform auto-discovery.
 m = Moku.get_by_name('example')
 i = SpecAn()
-m.attach_instrument(i)
+m.deploy_instrument(i)
 
 # DC to 100MHz span, apply changes
 i.set_span(0, 10000000)

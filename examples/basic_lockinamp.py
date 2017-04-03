@@ -16,7 +16,7 @@ print i
 # if i is None or i.type != 'lockinamp':
 	# print "No or wrong instrument deployed"
 i = LockInAmp()
-m.attach_instrument(i)
+m.deploy_instrument(i)
 # else:
 	# print "Attached to existing Lockin Amplifier"
 
