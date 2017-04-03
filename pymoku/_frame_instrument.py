@@ -343,8 +343,8 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 		*File Types*
 
-		- **csv** -- CSV file, 1ksmps max rate
-		- **bin** -- LI Binary file, 10ksmps max rate
+		- **csv** -- CSV file, 1kS/s max rate
+		- **bin** -- LI Binary file, 10kS/s max rate
 		- **net** -- Log to network, retrieve data with :any:`datalogger_get_samples`. 100smps max rate
 		"""
 		if not (bool(ch1) or bool(ch2)):
@@ -438,8 +438,8 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 		*File Types*
 
-		- **csv** -- CSV file, 1ksmps max rate
-		- **bin** -- LI Binary file, 10ksmps max rate
+		- **csv** -- CSV file, 1kS/s max rate
+		- **bin** -- LI Binary file, 10kS/s max rate
 		- **net** -- Log to network, retrieve data with :any:`datalogger_get_samples`. 100smps max rate
 		"""
 		if not (bool(ch1) or bool(ch2)):

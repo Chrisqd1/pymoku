@@ -1,3 +1,4 @@
+.. currentmodule:: pymoku
 
 Moku:Lab Device Class
 =====================
@@ -14,8 +15,6 @@ up a Moku by Name or Serial Number.
 A :any:`Moku` object is useful only for flashing lights until an instrument is deployed to it. The deployment process 
 defines the functionality of the Moku:Lab. For examples on how to deploy an instrument, see the examples
 on each of the `Instruments`_ pages below.
-
-.. currentmodule:: pymoku
 
 --------------
 The Moku Class
