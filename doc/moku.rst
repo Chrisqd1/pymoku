@@ -6,14 +6,14 @@ All interaction with pymoku starts with the creation of a :any:`Moku` object. Th
 if one already knows the IP address of the target, or by using one of the *get_by_* functions to look
 up a Moku by Name or Serial Number.
 
-.. note:: Use of the *get_by_* functions require that your platform has access to *libdnssd*. This
-	is provided on Linux by the Avahi libdnssd compatibility library. For example, on Ubuntu::
+.. note:: If you are running on a Linux OS, use of the *get_by_* functions require that your platform has access to *libdnssd*. This
+	is provided by the Avahi libdnssd compatibility library. For example, on Ubuntu::
 
 		sudo apt-get install libavahi-compat-libdnssd1
 
-A :any:`Moku` object is useful only for flashing lights until it's bound to an instrument. This process
-defines the functionality of the Moku:Lab. For examples on how to bind an instrument, see the examples
-on each of the instrument pages below.
+A :any:`Moku` object is useful only for flashing lights until an instrument is deployed to it. The deployment process 
+defines the functionality of the Moku:Lab. For examples on how to deploy an instrument, see the examples
+on each of the `Instruments`_ pages below.
 
 .. currentmodule:: pymoku
 
@@ -24,6 +24,7 @@ The Moku Class
 .. autoclass:: pymoku.Moku
 	:members:
 
+.. _instruments-contents:
 -----------
 Instruments
 -----------
@@ -35,29 +36,30 @@ Instruments
 	siggen
 	specan
 	phasemeter
-
-------------------
-Instrument Classes
-------------------
-
-.. autoclass:: pymoku.instruments.MokuInstrument
-
-.. autoclass:: pymoku.instruments.DataFrame
-
+	lockin
 
 ----------
 Exceptions
 ----------
 
 .. Can't get automodule to work properly for this..
-
 .. autoexception:: MokuException
-.. autoexception:: MokuNotFound
-.. autoexception:: NetworkError
+.. autoexception:: BufferTimeout
 .. autoexception:: DeployException
-.. autoexception:: StreamException
-.. autoexception:: InvalidOperationException
-.. autoexception:: ValueOutOfRangeException
-.. autoexception:: NotDeployedException
+.. autoexception:: FileNotFound
 .. autoexception:: FrameTimeout
+.. autoexception:: InsufficientSpace
+.. autoexception:: InvalidConfigurationException
+.. autoexception:: InvalidOperationException
+.. autoexception:: MokuBusy
+.. autoexception:: MokuNotFound
+.. autoexception:: MPNotMounted
+.. autoexception:: MPReadOnly
+.. autoexception:: NetworkError
+.. autoexception:: NoDataException
+.. autoexception:: NotDeployedException
+.. autoexception:: StreamException
+.. autoexception:: UnknownAction
+.. autoexception:: ValueOutOfRangeException
+
 
