@@ -2,5 +2,7 @@ future
 pyzmq>=15.3.0
 six
 urllib3
-zmq
+pyzmq
 rfc6266
+requests
+pycapnp

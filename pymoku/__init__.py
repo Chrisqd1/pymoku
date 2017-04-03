@@ -15,12 +15,24 @@ class MokuException(Exception):	"""Base class for other Exceptions""";	pass
 class MokuNotFound(MokuException): """Can't find Moku. Raised from discovery factory functions."""; pass
 class NetworkError(MokuException): """Network connection to Moku failed"""; pass
 class DeployException(MokuException): """Couldn't start instrument. Moku may not be licenced to use that instrument"""; pass
-class StreamException(MokuException): """Data logging was interrupted or failed"""; pass
 class InvalidOperationException(MokuException): """Can't perform that operation at this time"""; pass
 class ValueOutOfRangeException(MokuException): """Invalid value for this operation"""; pass
 class NotDeployedException(MokuException): """Tried to perform an action on an Instrument before it was deployed to a Moku"""; pass
 class FrameTimeout(MokuException): """No new :any:`DataFrame` arrived within the given timeout"""; pass
+class BufferTimeout(MokuException): """No new :any:`DataBuffer` arrived within the given timeout"""; pass
 class NoDataException(MokuException): """A request has been made for data but none will be generated """; pass
+class InvalidConfigurationException(MokuException): """A request for an invalid instrument configuration has been made."""; pass
+class StreamException(MokuException): 
+	def __init__(self, message, err=None):
+		"""Data logging was interrupted or failed"""
+		super(StreamException, self).__init__(message)
+		self.err = err
+class FileNotFound(MokuException): """Requested file or directory could not be found"""; pass
+class InsufficientSpace(MokuException): """There is insufficient memory/disk space for the action being performed"""; pass
+class MPNotMounted(MokuException): """The requested mount point has not been mounted"""; pass
+class MPReadOnly(MokuException): """The requested mount point is Read Only"""; pass
+class UnknownAction(MokuException): """The request was unknown"""; pass
+class MokuBusy(MokuException): """The Moku is busy"""; pass
 
 # Network status codes
 _ERR_OK = 0
@@ -31,7 +43,7 @@ _ERR_NOMP = 4
 _ERR_ACTION = 5
 _ERR_BUSY = 6
 _ERR_RO = 7
-_ERR_UNKOWN = 99
+_ERR_UNKNOWN = 99
 
 # Chosen to trade off number of network transactions with memory usage.
 # 4MB is a little larger than a bitstream so those uploads aren't chunked.
@@ -56,7 +68,7 @@ class Moku(object):
 		self._instrument = None
 		self._known_mokus = []
 
-		self._ctx = zmq.Context()
+		self._ctx = zmq.Context.instance()
 		self._conn = self._ctx.socket(zmq.REQ)
 		self._conn.setsockopt(zmq.LINGER, 5000)
 		self._conn.connect("tcp://%s:%d" % (self._ip, Moku.PORT))
@@ -180,11 +192,13 @@ class Moku(object):
 
 		raise MokuNotFound("Couldn't find Moku: %s" % name)
 
-	def _set_timeout(self, short=True):
-		base = 5000
-
-		if not short:
-			base *= 2
+	def _set_timeout(self, short=True, seconds=None):
+		if seconds is not None:
+			base = seconds
+		else:
+			base = 5000
+			if not short:
+				base *= 2
 
 		self._conn.setsockopt(zmq.SNDTIMEO, base) # A send should always be quick
 		self._conn.setsockopt(zmq.RCVTIMEO, 2 * base) # A receive might need to wait on processing
@@ -200,7 +214,7 @@ class Moku(object):
 		self._conn.send(packet_data)
 
 		ack = self._conn.recv()
-		return ord(ack[1]) == 1
+		return ack[1] == 1
 
 	def take_ownership(self):
 		return self._ownership(0x40)
@@ -244,7 +258,6 @@ class Moku(object):
 		# Deploy doesn't return until the deploy has completed which can take several
 		# seconds on the device. Set an appropriately long timeout for this case.
 		self._set_timeout(short=False)
-
 		if partial_index < 0 or partial_index > 2**7:
 			raise DeployException("Invalid partial index %d" % partial_index)
 
@@ -413,7 +426,7 @@ class Moku(object):
 		return r[0][1]
 
 
-	def _stream_prep(self, ch1, ch2, start, end, timestep, tag, binstr, procstr, fmtstr, hdrstr, fname, ftype='csv', use_sd=True):
+	def _stream_prep(self, ch1, ch2, start, end, offset, timestep, tag, binstr, procstr, fmtstr, hdrstr, fname, ftype='csv', use_sd=True):
 		mp = 'e' if use_sd else 'i'
 
 		if start < 0 or end < start:
@@ -432,7 +445,7 @@ class Moku(object):
 		pkt = struct.pack("<BBB", 0x53, 0, 1) #TODO: Proper sequence number
 		pkt += tag.encode('ascii')
 		pkt += mp.encode('ascii')
-		pkt += struct.pack("<IIBd", start, end, flags, timestep)
+		pkt += struct.pack("<IIdBd", start, end, offset, flags, timestep)
 		pkt += struct.pack("<H", len(fname))
 		pkt += fname.encode('ascii')
 		pkt += struct.pack("<H", len(binstr))
@@ -461,7 +474,7 @@ class Moku(object):
 		hdr, seq, ae, stat = struct.unpack("<BBBB", reply[:4])
 
 		if stat not in [ 1, 2 ]:
-			raise StreamException("Stream start exception %d" % stat)
+			raise StreamException("Stream start exception %d" % stat, stat)
 
 	def _stream_start(self):
 		pkt = struct.pack("<BBB", 0x53, 0, 4)
@@ -506,7 +519,25 @@ class Moku(object):
 		act, status = struct.unpack("BB", pkt[:2])
 
 		if status:
-			ex = NetworkError("File receive error %d" % status)
+			if status == _ERR_INVAL:
+				ex = InvalidConfigurationException("Invalid fileserver request parameters.") 
+			elif status == _ERR_NOTFOUND:
+				ex = FileNotFound("Could not find directory or file.")
+			elif status == _ERR_NOSPC:
+				ex = InsufficientSpace("Insufficient space to perform action.")
+			elif status == _ERR_NOMP:
+				ex = MPNotMounted("Mount point has not been mounted.")
+			elif status == _ERR_ACTION:
+				ex = InvalidOperationException("Unknown fileserver action requested.")
+			elif status == _ERR_BUSY:
+				ex = MokuBusy("Fileserver busy")
+			elif status == _ERR_RO:
+				ex = MPReadOnly("Requested mount point was Read-Only.")
+			elif status == _ERR_UNKNOWN:
+				ex = UnknownAction("Unknown fileserver action requested: %d" % act)
+			else:
+				ex = NetworkError("Received invalid status ID: %d" % stat)
+
 			ex.dat = pkt[2:]
 			raise ex
 
@@ -625,13 +656,15 @@ class Moku(object):
 			if calculate_sha:
 				chk = reply[:64].decode('ascii')
 				reply = reply[64:]
-			else:
+			elif calculate_crc:
 				chk = struct.unpack("<I", reply[:4])
 				reply = reply[4:]
+			else:
+				chk = ''
 
 			bl, fl = struct.unpack("<QB", reply[:9])
 			reply = reply[9:]
-			names.append((reply[:fl].decode('ascii'), chk, bl))
+			names.append((reply[:fl].decode(), chk, bl))
 			reply = reply[fl:]
 
 		return names
@@ -711,16 +744,16 @@ class Moku(object):
 
 		:raises NetworkError: if the upload fails verification.
 		"""
-		return self.load_persistent(path, remotename)
+		return self.load_persistent(path, remotename, mp='b')
 
-	def load_persistent(self, path, remotename=None):
+	def load_persistent(self, path, remotename=None, mp='p'):
 		import zlib
 
-		rname = self._send_file('b', path, remotename)
+		rname = self._send_file(mp, path, remotename)
 
 		log.debug("Verifying upload")
 
-		chk = self._fs_chk('b', rname)
+		chk = self._fs_chk(mp, rname)
 
 		with open(path, 'rb') as fp:
 			chk2 = zlib.crc32(fp.read()) & 0xffffffff
@@ -731,7 +764,7 @@ class Moku(object):
 		return chk
 
 	def list_persistent(self):
-		fs = self._fs_list('b')
+		fs = self._fs_list('p')
 		return list(zip(*fs))[0]
 
 	def list_bitstreams(self, include_version=True):
@@ -751,9 +784,10 @@ class Moku(object):
 			return [b.split('.')[0] for b, c, s in fs if b.endswith('.hgp')]
 
 	def _trigger_fwload(self):
+		self._set_timeout(seconds=20)
 		self._conn.send(bytearray([0x52, 0x01]))
 		hdr, reply = struct.unpack("<BB", self._conn.recv())
-
+		self._set_timeout()
 		if reply:
 			raise InvalidOperationException("Firmware update failure %d", reply)
 
@@ -837,16 +871,18 @@ class Moku(object):
 		self.external_reference = use_external
 
 		if self._instrument:
-			self._instrument.set_running(False)
+			self._instrument.set_instrument_active(False)
 
 		self.take_ownership()
 		self._instrument = instrument
 		self._instrument.attach_moku(self)
-		self._instrument.set_running(False)
+		self._instrument.set_instrument_active(False)
+
 		bsv = self._deploy(partial_index=0, use_external=use_external)
 		log.debug("Bitstream version %d", bsv)
 		self._instrument.sync_registers()
 		self._instrument.set_running(True)
+		self._instrument.set_instrument_active(True)
 
 		if set_default:
 			self._instrument.set_defaults()
@@ -879,13 +915,11 @@ class Moku(object):
 		If an instrument is found, return a new :any:`MokuInstrument` subclass representing that instrument, ready
 		to be controlled."""
 		import pymoku.instruments
-		i = int(self._get_property_single('system.instrument').split(',')[0])
+		i = int(self._get_property_single('system.instrument'))
 		try:
 			instr = pymoku.instruments.id_table[i]
 		except KeyError:
-			instr = None
-
-		if instr is None: return None
+			return None
 
 		running = instr()
 		running.attach_moku(self)
@@ -895,9 +929,8 @@ class Moku(object):
 		return running
 
 	def close(self):
-		"""Close connection to the Moku:Lab.
+		"""Close connection to the Moku:Lab."""
 
-		This should be called before any user script terminates."""
 		if self._instrument is not None:
 			self._instrument.set_running(False)
 

@@ -1,44 +1,20 @@
 from pymoku import Moku
 from pymoku.instruments import *
-import time, logging
 
-import matplotlib
-import matplotlib.pyplot as plt
-
-logging.basicConfig(format='%(asctime)s:%(name)s:%(levelname)s::%(message)s')
-logging.getLogger('pymoku').setLevel(logging.DEBUG)
-
-# Use Moku.get_by_serial() or get_by_name() if you don't know the IP
+# Can directly call the constructor with an IP address, or use
+# get_by_name or get_by_serial for autodiscovery.
 m = Moku.get_by_name('Moku')
-
-i = m.discover_instrument()
-
-if i is None or i.type != 'oscilloscope':
-	print("No or wrong instrument deployed")
-	i = Oscilloscope()
-	m.attach_instrument(i)
-else:
-	print("Attached to existing Oscilloscope")
-	m.take_ownership()
-
-line1, = plt.plot([])
-line2, = plt.plot([])
-plt.ion()
-plt.show()
-plt.grid(b=True)
-plt.ylim([-10, 10])
-plt.xlim([0,1024])
+i = Oscilloscope()
+m.attach_instrument(i)
 
 try:
-	last = 0
-	while True:
-		frame = i.get_frame()
-		plt.pause(0.001)
-		line1.set_ydata(frame.ch1)
-		line2.set_ydata(frame.ch2)
-		line1.set_xdata(list(range(1024)))
-		line2.set_xdata(list(range(1024)))
+	# Span from -1s to 1s i.e. trigger point centred
+	i.set_timebase(-1, 1)
+	i.commit()
 
-		plt.draw()
+	# Get and print a single frame's worth of data (time series
+	# of voltage per channel)
+	print(i.get_frame())
+
 finally:
 	m.close()

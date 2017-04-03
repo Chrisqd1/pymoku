@@ -1,7 +1,3 @@
-.. pymoku documentation master file, created by
-   sphinx-quickstart on Mon Nov 23 17:40:59 2015.
-   You can adapt this file completely to your liking, but it should at least
-   contain the root `toctree` directive.
 
 Moku:Lab Python Interface
 =========================
@@ -24,6 +20,9 @@ pymoku is currently only supported on Linux platforms though is expected to work
 
 pymoku depends on the *pyzmq* and *future* libraries. It also packages the *pybonjour* library internally. These can be automatically installed from the requirements.txt as below.
 
+In order to support automatic discovery of Moku:Lab devices, a DNS-SD compatible library must be installed. On
+Linux platforms the relevant library is likely to be called *libavahi-compat-dnssd*.
+
 No package exists for pymoku at the time of writing, source code should be downloaded from the Liquid Instruments `github page <https://github.com/liquidinstruments/pymoku>`_ (`direct download <https://github.com/liquidinstruments/pymoku/archive/master.zip>`_).
 
 .. code-block:: shell
@@ -37,11 +36,14 @@ Contents
 ========
 
 .. toctree::
-   :maxdepth: 2
+   :maxdepth: 1
 
    moku
    oscilloscope
    siggen
+   specan
+   phasemeter
+   lockin
 
 
 Indices and tables

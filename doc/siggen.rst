@@ -1,6 +1,6 @@
 
-Moku:Lab Waveform Generator
-===========================
+Waveform Generator Instrument
+=============================
 
 
 Waveform Synthesis Instrument.

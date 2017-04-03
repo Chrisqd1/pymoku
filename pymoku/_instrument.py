@@ -4,7 +4,7 @@ import threading, collections, time, struct, socket, logging
 from functools import partial
 from types import MethodType
 
-from pymoku import NotDeployedException, ValueOutOfRangeException
+from pymoku import NotDeployedException, ValueOutOfRangeException, InvalidConfigurationException
 
 REG_CTL 	= 0
 REG_STAT	= 1
@@ -22,8 +22,8 @@ REG_STRCTL1	= 12
 REG_AINCTL	= 13
 # 14 was Decimation before that moved in to instrument space
 REG_PRETRIG	= 15
-REG_CAL1, REG_CAL2, REG_CAL3, REG_CAL4, REG_CAL5, REG_CAL6, REG_CAL7, REG_CAL8 = list(range(16, 24))
-REG_CAL9, REG_CAL10 = list(range(24, 26))
+REG_CAL_ADC0, REG_CAL_ADC1, REG_CAL_DAC0, REG_CAL_DAC1 = list(range(16, 20))
+REG_TEMP_DAC = 14
 REG_STATE	= 63
 
 # Common instrument parameters
@@ -73,7 +73,7 @@ def _sgn(i, width):
 
 	if i >= 0:
 		return int(i)
-		
+
 	return int(2**width + i)
 
 def _upsgn(i, width):
@@ -98,7 +98,8 @@ def to_reg_signed(_offset, _len, allow_set=None, allow_range=None, xform=lambda 
 	:param _len: Length of data field in the register (set)
 	:param allow_set: Set containing all valid values of the data field.
 	:param allow_range: a two-tuple specifying the bounds of the data value.
-	:param xform: a callable that translates the user value written to the attribute to the register value"""
+	:param xform: a callable that translates the user value written to the attribute to the register value
+	"""
 	# TODO: This signed and the below unsigned share all but one line of code, should consolidate
 	def __ss(obj, val, old):
 		val = xform(obj, val)
@@ -139,7 +140,8 @@ def to_reg_unsigned(_offset, _len, allow_set=None, allow_range=None, xform=lambd
 	:param _len: Length of data field in the register (set)
 	:param allow_set: Set containing all valid values of the data field.
 	:param allow_range: a two-tuple specifying the bounds of the data value.
-	:param xform: a callable that translates the user value written to the attribute to the register value"""
+	:param xform: a callable that translates the user value written to the attribute to the register value
+	"""
 
 	def __us(obj, val, old):
 		val = xform(obj, val)
@@ -175,7 +177,8 @@ def to_reg_bool(_offset):
 	Designed as shorthand for common use in instrument register accessor lists. Equivalent to
 	:any:`to_reg_unsigned(_offset, 1, allow_set=[0, 1], xform=int)`
 
-	:param _offset: Offset of bit in the register (set)"""
+	:param _offset: Offset of bit in the register (set)
+	"""
 	return to_reg_unsigned(_offset, 1, allow_set=[0,1], xform=lambda obj, x: int(x))
 
 
@@ -186,7 +189,8 @@ def from_reg_signed(_offset, _len, xform=lambda obj, x: x):
 
 	:param _offset: Offset of data field in the register (set)
 	:param _len: Length of data field in the register (set)
-	:param xform: a callable that translates the register value to the user attribute's natural units"""
+	:param xform: a callable that translates the register value to the user attribute's natural units
+	"""
 	# TODO: As above, this and the unsigned version share all but one line of code, should consolidate.
 	mask = ((1 << _len) - 1) << _offset
 
@@ -211,7 +215,8 @@ def from_reg_unsigned(_offset, _len, xform=lambda obj, x: x):
 
 	:param _offset: Offset of data field in the register (set)
 	:param _len: Length of data field in the register (set)
-	:param xform: a callable that translates the register value to the user attribute's natural units"""
+	:param xform: a callable that translates the register value to the user attribute's natural units
+	"""
 	mask = ((1 << _len) - 1) << _offset
 
 	def __ug(obj, reg):
@@ -233,7 +238,8 @@ def from_reg_bool(_offset):
 	Designed as shorthand for common use in instrument register accessor lists.
 	Equivalent to :any:`from_reg_unsigned(_offset, 1, xform=bool)`.
 
-	:param _offset: Offset of data field in the register (set)"""
+	:param _offset: Offset of data field in the register (set)
+	"""
 	return from_reg_unsigned(_offset, 1, xform=lambda obj, x: bool(x))
 
 
@@ -242,7 +248,8 @@ class MokuInstrument(object):
 	"""Superclass for all Instruments that may be attached to a :any:`Moku` object.
 
 	Should never be instantiated directly; instead, instantiate the subclass of the instrument
-	you wish to run (e.g. :any:`Oscilloscope`, :any:`SignalGenerator`)"""
+	you wish to run (e.g. :any:`Oscilloscope`, :any:`SignalGenerator`)
+	"""
 
 	def __init__(self):
 		""" Must be called as the first line from any child implementations. """
@@ -303,11 +310,22 @@ class MokuInstrument(object):
 
 	def set_defaults(self):
 		""" Can be extended in implementations to set initial state """
-		pass
+
+		# Base implementation: load DAC calibration values in to the bitstream.
+		o1, o1t, o2, o2t = self.dac_offsets()
+		self.dac1_offset = o1
+		self.dac1_offset_t = o1t
+		self.dac2_offset = o2
+		self.dac2_offset_t = o2t
+
+		# These may be called again in the instrument's implementation to overwrite this,
+		# however they must be called at least once to load the initial calibration values
+		self.set_frontend(1)
+		self.set_frontend(2)
+
 
 	def attach_moku(self, moku):
 		self._moku = moku
-
 		try:
 			self.calibration = dict(self._moku._get_property_section("calibration"))
 		except:
@@ -362,14 +380,21 @@ class MokuInstrument(object):
 
 	def set_running(self, state):
 		"""
-		Assert or release the intrument reset line.
+		Set the local instrument object running state
+
+		This is used to clean up helper threads and sockets. Should never be called explicitly.
+		"""
+		self._running = state
+
+	def set_instrument_active(self, active):
+		"""
+		Assert or release the intrument reset line on the device.
 
 		This should never have to be called explicitly, as the instrument is correctly reset when
 		it is attached and detached. In advanced operation, this can be used to force the instrument
 		in to its initial state without a redeploy.
 		"""
-		self._running = state
-		reg = (INSTR_RST if not state else 0)
+		reg = (INSTR_RST if not active else 0)
 		self._localregs[REG_CTL] = reg
 		self.commit()
 
@@ -386,15 +411,22 @@ class MokuInstrument(object):
 		:param atten: Turn on 10x attenuation. Changes the dynamic range between 1Vpp and 10Vpp.
 
 		:type ac: bool
-		:param ac: AC-couple; default DC. """
+		:param ac: AC-couple; default DC.
+		"""
 		relays =  RELAY_LOWZ if fiftyr else 0
 		relays |= RELAY_LOWG if atten else 0
 		relays |= RELAY_DC if not ac else 0
 
+		off1, off1_t, off2, off2_t = self.adc_offsets()
+
 		if channel == 1:
 			self.relays_ch1 = relays
+			self.adc1_offset = off1
+			self.adc1_offset_t = off1_t
 		elif channel == 2:
 			self.relays_ch2 = relays
+			self.adc2_offset = off2
+			self.adc2_offset_t = off2_t
 
 	def get_frontend(self, channel):
 		"""
@@ -414,39 +446,124 @@ class MokuInstrument(object):
 		return [bool(r & RELAY_LOWZ), bool(r & RELAY_LOWG), not bool(r & RELAY_DC)]
 
 	def dac_gains(self):
-		sect1 = "calibration.DG-1"
-		sect2 = "calibration.DG-2"
+		g1s = "calibration.DG-1"
+		g2s = "calibration.DG-2"
+		gt1s = "calibration.DGT-1"
+		gt2s = "calibration.DGT-2"
 
 		try:
-			g1 = 1 / float(self.calibration[sect1])
-			g2 = 1 / float(self.calibration[sect2])
+			g1  = float(self.calibration[g1s])
+			g2  = float(self.calibration[g2s])
+			gt1 = float(self.calibration[gt1s])
+			gt2 = float(self.calibration[gt2s])
 		except (KeyError, TypeError):
 			log.warning("Moku appears uncalibrated")
 			g1 = g2 = 1
+			gt1 = gt2 = 0
 
-		log.debug("gain values for sections %s, %s = %f, %f", sect1, sect2, g1, g2)
+		log.debug("DAC gain values for sections %s, %s, %s, %s = %f, %f, %f, %f", g1s, g2s, gt1s, gt2s, g1, g2, gt1, gt2)
+
+		# For now, assume a fixed 48 degrees C board temperature. In future, should read temperature registers
+		g1 += gt1 * 48.0
+		g2 += gt2 * 48.0
+
+		log.debug("Calculated temperature corrected gains as %f, %f", g1, g2)
+
+		# The sense of these parameters as used in pymoku is inverted from the storage on the Moku
+		g1 = 1 / g1
+		g2 = 1 / g2
 
 		return g1, g2
+
+	def dac_offsets(self):
+		o1s = "calibration.DO-1"
+		o2s = "calibration.DO-2"
+		ot1s = "calibration.DOT-1"
+		ot2s = "calibration.DOT-2"
+
+		try:
+			o1  = float(self.calibration[o1s])
+			o2  = float(self.calibration[o2s])
+			ot1 = float(self.calibration[ot1s])
+			ot2 = float(self.calibration[ot2s])
+		except (KeyError, TypeError):
+			log.warning("Moku appears uncalibrated")
+			o1 = o2 = 0
+			ot1 = ot2 = 0
+
+		log.debug("DAC offset values for sections %s, %s, %s, %s = %f, %f, %f, %f", o1s, o2s, ot1s, ot2s, o1, o2, ot1, ot2)
+
+		return o1, ot1, o2, ot2
 
 
 	def adc_gains(self):
-		sect1 = "calibration.AG-%s-%s-%s-1" % ( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
+		relay_string_1 = '-'.join(( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
 								  "L" if self.relays_ch1 & RELAY_LOWG else "H",
-								  "D" if self.relays_ch1 & RELAY_DC else "A")
+								  "D" if self.relays_ch1 & RELAY_DC else "A"))
 
-		sect2 = "calibration.AG-%s-%s-%s-2" % ( "50" if self.relays_ch2 & RELAY_LOWZ else "1M",
+		relay_string_2 = '-'.join(( "50" if self.relays_ch2 & RELAY_LOWZ else "1M",
 								  "L" if self.relays_ch2 & RELAY_LOWG else "H",
-								  "D" if self.relays_ch2 & RELAY_DC else "A")
+								  "D" if self.relays_ch2 & RELAY_DC else "A"))
+
+		g1s = "calibration.AG-%s-1" % relay_string_1
+		g2s = "calibration.AG-%s-2" % relay_string_2
+
+		gt1s = "calibration.AGT-%s-1" % relay_string_1
+		gt2s = "calibration.AGT-%s-2" % relay_string_2
+
 		try:
-			g1 = 1 / float(self.calibration[sect1])
-			g2 = 1 / float(self.calibration[sect2])
+			g1  = float(self.calibration[g1s])
+			g2  = float(self.calibration[g2s])
+			gt1 = float(self.calibration[gt1s])
+			gt2 = float(self.calibration[gt2s])
 		except (KeyError, TypeError):
 			log.warning("Moku appears uncalibrated")
 			g1 = g2 = 1
+			gt1 = gt2 = 0
 
-		log.debug("gain values for sections %s, %s = %f, %f", sect1, sect2, g1, g2)
+		log.debug("ADC gain values for sections %s, %s, %s, %s = %f, %f, %f, %f", g1s, g2s, gt1s, gt2s, g1, g2, gt1, gt2)
+
+		# For now, assume a fixed 48 degrees C board temperature. In future, should read temperature registers
+		g1 += gt1 * 48.0
+		g2 += gt2 * 48.0
+
+		log.debug("Calculated temperature corrected gains as %f, %f", g1, g2)
+
+		# The sense of these parameters as used in pymoku is inverted from the storage on the Moku
+		g1 = 1 / g1
+		g2 = 1 / g2
 
 		return g1, g2
+
+
+	def adc_offsets(self):
+		relay_string_1 = '-'.join(( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
+								  "L" if self.relays_ch1 & RELAY_LOWG else "H",
+								  "D" if self.relays_ch1 & RELAY_DC else "A"))
+
+		relay_string_2 = '-'.join(( "50" if self.relays_ch2 & RELAY_LOWZ else "1M",
+								  "L" if self.relays_ch2 & RELAY_LOWG else "H",
+								  "D" if self.relays_ch2 & RELAY_DC else "A"))
+
+		o1s = "calibration.AO-%s-1" % relay_string_1
+		o2s = "calibration.AO-%s-2" % relay_string_2
+		ot1s = "calibration.AOT-%s-1" % relay_string_1
+		ot2s = "calibration.AOT-%s-2" % relay_string_2
+
+		try:
+			o1  = float(self.calibration[o1s])
+			o2  = float(self.calibration[o2s])
+			ot1 = float(self.calibration[ot1s])
+			ot2 = float(self.calibration[ot2s])
+		except (KeyError, TypeError):
+			log.warning("Moku appears uncalibrated")
+			o1 = o2 = 0
+			ot1 = ot2 = 0
+
+		log.debug("ADC offset values for sections %s, %s, %s, %s = %f, %f, %f, %f", o1s, o2s, ot1s, ot2s, o1, o2, ot1, ot2)
+
+		return o1, ot1, o2, ot2
+
 
 	def set_pause(self, pause):
 		"""
@@ -459,18 +576,10 @@ class MokuInstrument(object):
 		"""
 		self.pause = pause
 
+	def get_pause(self):
+		return self.pause
+
 	def load_feature(self, index):
-		"""
-		Loads an optional feature in to an already-running instrument.
-
-		Some instruments have different features that can be loaded and configured at run-time
-		without disturbing the normal operation of the device. Refer to the specific instrument
-		documentation to determine what these features are and the index to use.
-
-		:type index: int
-		:param index: index of feature to load.
-		"""
-
 		# For now we don't support switching clock modes during a partial deploy
 		self._moku._deploy(use_external=self._moku.external_reference, partial_index=index)
 
@@ -498,12 +607,11 @@ _instr_reg_handlers = {
 										from_reg_unsigned(0, 8, xform=lambda obj, f: f / 256.0 * 477.0)),
 
 	# Cubic Downsampling accessors
-	'render_deci':		(REG_SCALE,		to_reg_unsigned(0, 16, xform=lambda obj, x: 128 * (x - 1)),
+	'render_deci':		(REG_SCALE,		to_reg_unsigned(0, 16, xform=lambda obj, x: 128 * (x - 1), allow_range=(0,0x077E)),
 										from_reg_unsigned(0, 16, xform=lambda obj, x: (x / 128.0) + 1)),
 
-	'render_deci_alt':	(REG_SCALE,		to_reg_unsigned(16, 16, xform=lambda obj, x: 128 * (x - 1)),
+	'render_deci_alt':	(REG_SCALE,		to_reg_unsigned(16, 16, xform=lambda obj, x: 128 * (x - 1), allow_range=(0,0x077E)),
 										from_reg_unsigned(16, 16, xform=lambda obj, x: (x / 128.0) + 1)),
-
 	# Direct Downsampling accessors
 	'render_dds':		(REG_SCALE,		to_reg_unsigned(0, 16, xform=lambda obj, x: x - 1),
 										from_reg_unsigned(0, 16, xform=lambda obj, x: x + 1)),
@@ -521,6 +629,24 @@ _instr_reg_handlers = {
 	'en_in_ch2':		(REG_AINCTL,	to_reg_bool(7),				from_reg_bool(7)),
 	'pretrigger':		(REG_PRETRIG,	to_reg_signed(0, 32),		from_reg_signed(0, 32)),
 
+	'adc1_offset':		(REG_CAL_ADC0,	to_reg_signed(0, 7),		from_reg_signed(0, 7)),
+	'adc1_offset_t':	(REG_CAL_ADC0,	to_reg_signed(16, 16, xform=lambda obj, x: round(x * 2.0**13)),
+										from_reg_signed(16, 16, xform=lambda obj, x: round(x / 2.0**13))),
+
+	'adc2_offset':		(REG_CAL_ADC1,	to_reg_signed(0, 7),		from_reg_signed(0, 7)),
+	'adc2_offset_t':	(REG_CAL_ADC1,	to_reg_signed(16, 16, xform=lambda obj, x: round(x * 2.0**13)),
+										from_reg_signed(16, 16, xform=lambda obj, x: round(x / 2.0**13))),
+
+	'dac1_offset':		(REG_CAL_DAC0,	to_reg_signed(0, 11),		from_reg_signed(0, 11)),
+	'dac1_offset_t':	(REG_CAL_DAC0,	to_reg_signed(16, 16, xform=lambda obj, x: x * 2.0**13),
+										from_reg_signed(16, 16, xform=lambda obj, x: x / 2.0**13)),
+
+	'dac2_offset':		(REG_CAL_DAC1,	to_reg_signed(0, 11),		from_reg_signed(0, 11)),
+	'dac2_offset_t':	(REG_CAL_DAC1,	to_reg_signed(16, 16, xform=lambda obj, x: x * 2.0**13),
+										from_reg_signed(16, 16, xform=lambda obj, x: x / 2.0**13)),
+
 	'state_id':			(REG_STATE,	 	to_reg_unsigned(0, 8),		from_reg_unsigned(0, 8)),
 	'state_id_alt':		(REG_STATE,	 	to_reg_unsigned(16, 8),		from_reg_unsigned(16, 8)),
+	'temp_dac':			(REG_TEMP_DAC,	None,		from_reg_signed(0, 12, xform=lambda obj, f: f * 0.0625)),
+	'temp_adc':			(REG_AINCTL,	None,		from_reg_signed(20, 12, xform=lambda obj, f: f * 0.0625)),
 }
