@@ -4,6 +4,8 @@ import socket, select, struct, logging
 import os.path
 import zmq
 
+from pymoku.tools import compat as cp
+
 log = logging.getLogger(__name__)
 
 try:
@@ -79,6 +81,10 @@ class Moku(object):
 		self.name = None
 		self.led = None
 		self.led_colours = None
+
+		build = self.get_version()
+		if cp.firmware_is_compatible(build) == False: # Might be None = unknown, don't print that.
+			print("Warning: The connected Moku appears to be incompatible with this version of pymoku. Please run 'moku --ip={} firmware check_compat' for more information.".format(self._ip))
 
 	@staticmethod
 	def list_mokus(timeout=5):
@@ -818,7 +824,7 @@ class Moku(object):
 
 	def get_version(self):
 		""" :return: Version of connected Moku:Lab """
-		return self._get_property_single('system.micro')
+		return int(self._get_property_single('system.micro'))
 
 	def set_name(self, name):
 		""" :param name: Set new name for the Moku:Lab. This can make it easier to discover the device if multiple Moku:Labs are on a network"""

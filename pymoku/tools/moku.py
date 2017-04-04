@@ -7,6 +7,8 @@ import requests
 from pymoku import *
 import pymoku.version
 
+from pymoku.tools.compat import *
+
 import logging
 logging.basicConfig(level=logging.WARNING)
 
@@ -21,17 +23,6 @@ parser.add_argument('--ip', default=None, help="IP Address of the Moku to connec
 parser.add_argument('--server', help='Override update server', default='http://updates.liquidinstruments.com:8000')
 parser.add_argument('--username', help='Update Server username, if any', default=None)
 parser.add_argument('--password', help='Update Server password, if any', default=None)
-
-
-def _hgdep_pm_updates(server, username, password):
-	params = { 'build_id__gte' : pymoku.version.build }
-	r = requests.get(server + '/versions/update/pymoku/', params=params, auth=(username, password))
-	return r.json()
-
-def _hgdep_compat_configs(server, username, password):
-	params = { 'build_id' : pymoku.version.build }
-	r = requests.get(server + '/versions/compat/pymoku/', params=params, auth=(username, password))
-	return r.json()
 
 def _download_request(url, local_dir, local_fname=None, **params):
 	import rfc6266, posixpath
@@ -63,7 +54,7 @@ def _download_request(url, local_dir, local_fname=None, **params):
 
 # View and download updates from a remote server
 def update(moku, args):
-	d = _hgdep_pm_updates(args.server, args.username, args.password)
+	d = pymoku_updates(args.server, args.username, args.password)
 	if not len(d):
 		print("No Pymoku updates available")
 	else:
@@ -95,13 +86,13 @@ def instrument(moku, args):
 		print("Successfully loaded new instrument {} version {:X}".format(fname, chk))
 	elif args.action == 'check_compat':
 		instrs = moku.list_bitstreams(include_version=True)
-		compat_configs = _hgdep_compat_configs(args.server, args.username, args.password)
+		compat_configs = compatible_configurations(args.server, args.username, args.password)
 		compat_hashes = [ c['bitstream']['hash'] for c in compat_configs.values() ]
 
 		for i, v in instrs:
 			print("\t{:<20}{}".format(i, "COMPATIBLE" if v in compat_hashes else "INCOMPATIBLE"))
 	elif args.action == 'update':
-		compat_configs = _hgdep_compat_configs(args.server, args.username, args.password)
+		compat_configs = compatible_configurations(args.server, args.username, args.password)
 		types = set(( c['bitstream']['type'] for c in compat_configs.values()))
 		tmpdir = tempfile.mkdtemp()
 
@@ -171,8 +162,8 @@ def firmware(moku, args):
 		moku.load_firmware(args.file)
 		print("Successfully started firmware update. Your Moku will shut down automatically when complete.")
 	elif args.action == 'update':
-		build = int(moku.get_version())
-		compat_configs = _hgdep_compat_configs(args.server, args.username, args.password)
+		build = moku.get_version()
+		compat_configs = compatible_configurations(args.server, args.username, args.password)
 		fws = [ c['firmware'] for c in compat_configs.values() ]
 		newest = max(fws, key=lambda f: int(f['build_id']))
 
@@ -191,12 +182,20 @@ def firmware(moku, args):
 		print("Your Moku will shut down automatically when complete.")
 
 		shutil.rmtree(tempdir)
+	elif args.action == 'check_compat':
+		build = moku.get_version()
 
+		compat = firmware_is_compatible(build, args.server, args.username, args.password)
+
+		if compat is None:
+			print("Unable to determine compatibility, perhaps you're running a development or pre-release build?")
+		else:
+			print("Compatible" if compat else "Incompatible, please run 'moku update' and 'moku firmware update' to get the latest firmware and libraries.")
 	else:
 		exit(1)
 
 parser_firmware = subparsers.add_parser('firmware', help="Check and update new firmware for your Moku.")
-parser_firmware.add_argument('action', help='Action to perform', choices=['version', 'load', 'update'])
+parser_firmware.add_argument('action', help='Action to perform', choices=['version', 'load', 'update', 'check_compat'])
 parser_firmware.add_argument('file', nargs='?', default=None, help="Path to local firmware file, if any")
 parser_firmware.set_defaults(func=firmware)
 
