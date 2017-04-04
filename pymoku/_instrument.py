@@ -1,9 +1,10 @@
-
 import threading, collections, time, struct, socket, logging
 
+from pymoku import _get_autocommit
+
+import decorator
 from functools import partial
 from types import MethodType
-
 from pymoku import NotDeployedException, ValueOutOfRangeException, InvalidConfigurationException
 
 REG_CTL 	= 0
@@ -242,7 +243,32 @@ def from_reg_bool(_offset):
 	"""
 	return from_reg_unsigned(_offset, 1, xform=lambda obj, x: bool(x))
 
+_awaiting_commit = False
 
+@decorator.decorator
+def needs_commit(func, self, *args, **kwargs):
+	""" Wrapper function which checks whether settings should be committed automatically.
+	"""
+	if not _get_autocommit():
+		# Not auto-committing
+		return func(self, *args, **kwargs)
+	else:
+		# Auto-committing
+		global _awaiting_commit
+
+		was_awaiting = _awaiting_commit # Remember if a commit was already being waited on
+		if not _awaiting_commit:
+			_awaiting_commit = True # Lock the commit 
+
+		res = func(self, *args, **kwargs)
+
+		# Commit if we weren't already waiting for one before
+		if not was_awaiting:
+			self.commit()
+			# Reset the intention to commit
+			_awaiting_commit = False
+
+		return res
 
 class MokuInstrument(object):
 	"""Superclass for all Instruments that may be attached to a :any:`Moku` object.
@@ -308,6 +334,7 @@ class MokuInstrument(object):
 		else:
 			return super(MokuInstrument, self).__setattr__(name, value)
 
+	@needs_commit
 	def set_defaults(self):
 		""" Can be extended in implementations to set initial state """
 
@@ -398,6 +425,7 @@ class MokuInstrument(object):
 		self._localregs[REG_CTL] = reg
 		self.commit()
 
+	@needs_commit
 	def set_frontend(self, channel, fiftyr=False, atten=True, ac=False):
 		""" Configures gain, coupling and termination for each channel.
 
@@ -564,7 +592,7 @@ class MokuInstrument(object):
 
 		return o1, ot1, o2, ot2
 
-
+	@needs_commit
 	def set_pause(self, pause):
 		"""
 		Pauses or unpauses the instrument's data output.

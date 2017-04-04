@@ -71,6 +71,7 @@ class PhaseMeter_SignalGenerator(MokuInstrument):
 		self._pm_out1_amplitude = 0
 		self._pm_out2_amplitude = 0
 
+	@needs_commit
 	def set_defaults(self):
 		self.gen_sinewave(1,0,0)
 		self.gen_sinewave(2,0,0)
@@ -80,6 +81,7 @@ class PhaseMeter_SignalGenerator(MokuInstrument):
 		self.set_frontend(1, fiftyr=True, atten=False, ac=True)
 		self.set_frontend(2, fiftyr=True, atten=False, ac=True)
 
+	@needs_commit
 	def gen_sinewave(self, ch, amplitude, frequency):
 		"""
 		:param ch: Channel number
@@ -95,6 +97,7 @@ class PhaseMeter_SignalGenerator(MokuInstrument):
 			self.pm_out2_frequency = frequency
 			self.pm_out2_amplitude = self._pm_out2_amplitude if self.pm_out2_enable else 0
 
+	@needs_commit
 	def enable_output(self, ch, enable):
 		"""
 		:param ch: Channel to enable or disable
@@ -160,6 +163,7 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 		self.hdrstr = self._get_hdrstr(ch1,ch2)
 		self.fmtstr = self._get_fmtstr(ch1,ch2)
 
+	@needs_commit
 	def set_samplerate(self, samplerate):
 		""" Manually set the sample rate of the Phasemeter. 
 
@@ -188,6 +192,7 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 	def get_timestep(self):
 		return self.timestep
 
+	@needs_commit
 	def set_initfreq(self, ch, f):
 		""" Manually set the initial frequency of the designated channel
 
@@ -230,6 +235,7 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 	def _get_controlgain(self):
 		return self.control_gain
 
+	@needs_commit
 	def set_bandwidth(self, ch, bw):
 		"""
 		Set the bandwidth of an ADC channel
@@ -252,6 +258,7 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 	def get_bandwidth(self, ch):
 		return 10e3 * (2**(self.bandwidth_ch1 if ch == 1 else self.bandwidth_ch2))
 
+	@needs_commit
 	def auto_acquire(self, ch):
 		"""
 		Auto-acquire the initial frequency of the specified channel
@@ -302,6 +309,7 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 		fmtstr += "\r\n"
 		return fmtstr
 
+	@needs_commit
 	def set_defaults(self):
 		super(PhaseMeter, self).set_defaults()
 

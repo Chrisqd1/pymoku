@@ -474,6 +474,7 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 
 		log.debug("DM: %f FS: %f, BS: %f, RD: %f, W:%d, RBW: %f, RBR: %f", self.demod, fspan, buffer_span, self.render_dds, self.window, rbw, self.rbw_ratio)
 
+	@needs_commit
 	def set_span(self, f1, f2):
 		""" Sets the frequency span to be analysed.
 
@@ -499,6 +500,7 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		self._f1_full = f1
 		self._f2_full = f2
 
+	@needs_commit
 	def set_fullspan(self,f1,f2):
 		""" Sets the frequency span to be analysed.
 
@@ -541,6 +543,7 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		self._f1_full = new_f1
 		self._f2_full = new_f2
 
+	@needs_commit
 	def set_rbw(self, rbw=None):
 		""" Set Resolution Bandwidth
 
@@ -552,6 +555,7 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 
 		self.rbw = rbw
 
+	@needs_commit
 	def set_window(self, window):
 		""" Set Window function
 
@@ -567,10 +571,12 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		"""
 		self.window = window
 		
+	@needs_commit
 	def set_dbmscale(self,dbm=True):
 		""" Configures the Spectrum Analyser to use a logarithmic amplitude axis """
 		self.dbmscale = dbm
 
+	@needs_commit
 	def set_defaults(self):
 		""" Reset the Spectrum Analyser to sane defaults. """
 		super(SpecAn, self).set_defaults()
@@ -673,6 +679,7 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 
 		return {'g1': g1, 'g2': g2, 'fs': freqs, 'fcorrs': fcorrs, 'fspan': [self._f1_full, self._f2_full], 'dbmscale': self.dbmscale}
 
+	@needs_commit
 	def enable_output(self, ch, enable):
 		if ch == 1:
 			self.en_out1 = enable
@@ -681,6 +688,7 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 			self.en_out2 = enable
 			self.tr2_amp = self._tr2_amp if enable else 0
 
+	@needs_commit
 	def conf_output(self, ch, amp, freq, sweep=False):
 		"""
 		Configure the output sinewaves on DAC channels

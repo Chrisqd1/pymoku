@@ -36,6 +36,7 @@ setup(
 		'pyzmq',
 		'rfc6266',
 		'requests',
+		'decorator',
 	],
 
 	zip_safe=False, # This isn't strictly true, but makes debugging easier on the device

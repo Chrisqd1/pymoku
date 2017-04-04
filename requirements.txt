@@ -6,3 +6,4 @@ pyzmq
 rfc6266
 requests
 pycapnp
+decorator

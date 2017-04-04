@@ -326,6 +326,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 			return self.decimation_rate / 2**10
 
 
+	@needs_commit
 	def set_timebase(self, t1, t2):
 		""" Set the left- and right-hand span for the time axis.
 		Units are seconds relative to the trigger point.
@@ -382,10 +383,10 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		else:
 			self.procstr[0] = "*C"
 			self.procstr[1] = "*C"
-		self.fmtstr = self.get_fmtstr(ch1,ch2)
-		self.hdrstr = self.get_hdrstr(ch1,ch2)
+		self.fmtstr = self._get_fmtstr(ch1,ch2)
+		self.hdrstr = self._get_hdrstr(ch1,ch2)
 
-	def get_hdrstr(self, ch1, ch2):
+	def _get_hdrstr(self, ch1, ch2):
 		chs = [ch1, ch2]
 
 		hdr = "% Moku:DataLogger\r\n"
@@ -403,7 +404,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		hdr += "\r\n"
 		return hdr
 
-	def get_fmtstr(self, ch1, ch2):
+	def _get_fmtstr(self, ch1, ch2):
 		chs = [ch1, ch2]
 		fmtstr = "{t:.10e}"
 		for i,c in enumerate(chs):
@@ -424,6 +425,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 	datalogger_start_single.__doc__ = _frame_instrument.FrameBasedInstrument.datalogger_start_single.__doc__
 
+	@needs_commit
 	def set_samplerate(self, samplerate, trigger_offset=0):
 		""" Manually set the sample rate of the instrument.
 
@@ -458,6 +460,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 			raise Exception("Decimation rate appears to be unset.")
 		return _OSC_ADC_SMPS / float(self.decimation_rate)
 
+	@needs_commit
 	def set_xmode(self, xmode):
 		"""
 		Set rendering mode for the horizontal axis.
@@ -469,6 +472,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		"""
 		self.x_mode = xmode
 
+	@needs_commit
 	def set_precision_mode(self, state):
 		""" Change aquisition mode between downsampling and decimation.
 		Precision mode, a.k.a Decimation, samples at full rate and applies a low-pass filter to the data. This improves
@@ -484,6 +488,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 	def is_precision_mode(self):
 		return self.ain_mode is _OSC_AIN_DECI
 	
+	@needs_commit
 	def set_source(self, ch, source=OSC_SOURCE_ADC):
 		""" Sets input source for given channel
 
@@ -504,6 +509,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		if(ch==2):
 			self.source_ch2 = source
 
+	@needs_commit
 	def set_trigger(self, source, edge, level, hysteresis=0, hf_reject=False, mode=OSC_TRIG_AUTO):
 		""" Sets trigger source and parameters.
 
@@ -530,6 +536,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		self.trig_mode = mode
 		self.trig_volts = level # Save the desired trigger voltage
 
+	@needs_commit
 	def set_source(self, ch, source, lmode=OSC_LB_ROUND):
 		""" Sets the source of the channel data to either the ADC input or internally looped-back DAC output.
 
@@ -555,6 +562,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		else:
 			raise ValueOutOfRangeException("Incorrect channel number %d", ch)
 
+	@needs_commit
 	def set_defaults(self):
 		""" Reset the Oscilloscope to sane defaults. """
 		super(Oscilloscope, self).set_defaults()

@@ -6,6 +6,7 @@ channels: !!python/tuple
 dependencies:
   - conda-forge::ca-certificates=2017.1.23=0
   - conda-forge::certifi=2017.1.23=py27_0
+  - conda-forge::decorator=4.0.11=py27_0
   - conda-forge::future=0.16.0=py27_0
   - conda-forge::libsodium=1.0.10=0
   - conda-forge::ncurses=5.9=10

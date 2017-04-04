@@ -36,6 +36,11 @@ class MPReadOnly(MokuException): """The requested mount point is Read Only"""; p
 class UnknownAction(MokuException): """The request was unknown"""; pass
 class MokuBusy(MokuException): """The Moku is busy"""; pass
 
+
+autocommit = True
+def _get_autocommit():
+	return autocommit
+
 # Network status codes
 _ERR_OK = 0
 _ERR_INVAL = 1
@@ -906,6 +911,7 @@ class Moku(object):
 
 		if set_default:
 			self._instrument.set_defaults()
+			# Ensure this always implicitly commits
 			self._instrument.commit()
 
 	def detach_instrument(self):
