@@ -54,31 +54,31 @@ REG_LIA_INPUT_GAIN = 126
 REG_LIA_SINEOUTOFF = 127
 
 # REG_LIA_OUTSEL constants
-LIA_SOURCE_ADC		= 0
-LIA_SOURCE_DAC		= 1
+_LIA_SOURCE_ADC		= 0
+_LIA_SOURCE_DAC		= 1
 
 # REG_LIA_TRIGMODE constants
-LIA_TRIG_AUTO		= 0
-LIA_TRIG_NORMAL		= 1
-LIA_TRIG_SINGLE		= 2
+_LIA_TRIG_AUTO		= 0
+_LIA_TRIG_NORMAL	= 1
+_LIA_TRIG_SINGLE	= 2
 
 # REG_LIA_TRIGLVL constants
-LIA_TRIG_CH1		= 0
-LIA_TRIG_CH2		= 1
-LIA_TRIG_DA1		= 2
-LIA_TRIG_DA2		= 3
+_LIA_TRIG_CH1		= 0
+_LIA_TRIG_CH2		= 1
+_LIA_TRIG_DA1		= 2
+_LIA_TRIG_DA2		= 3
 
-LIA_EDGE_RISING		= 0
-LIA_EDGE_FALLING	= 1
-LIA_EDGE_BOTH		= 2
+_LIA_EDGE_RISING	= 0
+_LIA_EDGE_FALLING	= 1
+_LIA_EDGE_BOTH		= 2
 
-LIA_ROLL			= _instrument.ROLL
-LIA_SWEEP			= _instrument.SWEEP
-LIA_FULL_FRAME		= _instrument.FULL_FRAME
+_LIA_ROLL			= _instrument.ROLL
+_LIA_SWEEP			= _instrument.SWEEP
+_LIA_FULL_FRAME		= _instrument.FULL_FRAME
 
 # SIGNAL PRECISION MODES
-LIA_HIGH_PRECISION	= 1
-LIA_HIGH_RANGE		= 0
+_LIA_HIGH_PRECISION	= 1
+_LIA_HIGH_RANGE		= 0
 
 _LIA_LB_ROUND		= 0
 _LIA_LB_CLIP		= 1
@@ -95,10 +95,10 @@ _LIA_FPS			= 10
 
 ### Every constant that starts with LIA_ will become an attribute of pymoku.instruments ###
 
-LIA_MONITOR_I		= 0
-LIA_MONITOR_Q		= 1
-LIA_MONITOR_PID		= 2
-LIA_MONITOR_INPUT	= 3
+_LIA_MONITOR_I		= 0
+_LIA_MONITOR_Q		= 1
+_LIA_MONITOR_PID	= 2
+_LIA_MONITOR_INPUT	= 3
 
 _LIA_CONTROL_FS 	= 25e6
 _LIA_SINE_FS		= 1e9
@@ -106,8 +106,6 @@ _LIA_COEFF_WIDTH	= 25
 _LIA_FREQSCALE		= float(1e9) / 2**48
 _LIA_PHASESCALE		= 1.0 / 2**48
 _LIA_AMPSCALE		= 1.0 / (2**15 - 1)
-
-
 
 
 class LockInAmp(_frame_instrument.FrameBasedInstrument):
@@ -147,6 +145,8 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		self.scales = {}
 		self.decimation_rate = 1
 		self._set_frame_class(VoltsFrame, scales=self.scales)
+		self.trig_volts = 0
+		self.hysteresis_volts = 0.0
 
 	def _calculate_scales(self):
 		# Returns the bits-to-volts numbers for each channel in the current state
@@ -185,14 +185,13 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		#TODO this should reset ALL registers
 		self.calibration = None
 
-		self.set_xmode(LIA_FULL_FRAME)
+		self.set_xmode("fullframe")
 		self.set_timebase(-0.25, 0.25)
 		self.set_precision_mode(False)
 		self.set_frontend(1, True, True, True)
 		self.framerate = _LIA_FPS
 		self.frame_length = _LIA_SCREEN_WIDTH
-		self.trig_mode = LIA_TRIG_AUTO
-		self.set_trigger(LIA_TRIG_CH1, LIA_EDGE_RISING, 0)
+		self.set_trigger("in1", "rising", 0, mode="auto")
 
 		self.pid1_en = 1
 		self.pid2_en = 1
@@ -210,7 +209,7 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		self.pid2_bypass = 1
 		self.lo_reset = 0
 		
-		self.signal_mode = LIA_HIGH_RANGE
+		self.signal_mode = _LIA_HIGH_RANGE
 		self.set_filter_parameters(20, 1000, 1)
 
 		self.set_pid_offset(0)
@@ -271,14 +270,14 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		gain_factor = ImpedenceGain * AttenGain * (10**(Gain_dB / 20.0)) * self._get_dac_calibration()[0] / self._get_adc_calibration()[0]
 		log.debug("AttenGain, %f, GainFactor, %f", AttenGain, gain_factor)
 
-		if self.signal_mode == LIA_HIGH_PRECISION:
+		if self.signal_mode == _LIA_HIGH_PRECISION:
 			if self.slope == 1:
 				self.input_gain = gain_factor
 				self.pid1_pidgain = self.pid2_pidgain = 1.0
 			else :
 				self.input_gain = self.pid1_pidgain =  math.sqrt(gain_factor)
 				self.pid2_pidgain = 1.0
-		elif self.signal_mode == LIA_HIGH_RANGE:
+		elif self.signal_mode == _LIA_HIGH_RANGE:
 			if self.slope == 1:
 				self.pid1_pidgain =  gain_factor
 				self.input_gain = self.pid2_pidgain = 1.0
@@ -292,7 +291,7 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 			else :
 				self.pid1_pidgain = self.pid2_pidgain = math.sqrt(gain_factor)
 				self.input_gain = 1.0
-			self.signal_mode = LIA_HIGH_RANGE
+			self.signal_mode = _LIA_HIGH_RANGE
 			raise InvalidOperationException("Signal Mode not set : defaulted to HIGH RANGE MODE")
 
 	def set_pid_offset(self, offset):
@@ -364,16 +363,6 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 			g1 = g2 = 1
 		log.debug("gain values for adc sections %s, %s = %f, %f", sect1, sect2, g1, g2)
 		return (g1, g2)
-
-	def attach_moku(self, moku):
-		super(LockInAmp, self).attach_moku(moku)
-
-		try:
-			self.calibration = dict(self._moku._get_property_section("calibration"))
-		except:
-			log.warning("Can't read calibration values.")
-
-	attach_moku.__doc__ = MokuInstrument.attach_moku.__doc__
 
 	def _optimal_decimation(self, t1, t2):
 		# Based on mercury_ipad/LISettings::OSCalculateOptimalADCDecimation
@@ -496,20 +485,29 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		"""
 		Set rendering mode for the horizontal axis.
 
-		:type xmode: *OSC_ROLL*, *OSC_SWEEP*, *OSC_FULL_FRAME*
+		:type xmode: string, {'roll','sweep','fullframe'}
 		:param xmode:
 			Respectively; Roll Mode (scrolling), Sweep Mode (normal oscilloscope trace sweeping across the screen)
 			or Full Frame (Like sweep, but waits for the frame to be completed).
 		"""
+		_str_to_xmode = {
+			'roll' : _LIA_ROLL,
+			'sweep' : _LIA_SWEEP,
+			'fullframe' : _LIA_FULL_FRAME
+		}
+		xmode = _utils.str_to_val(_str_to_xmode, xmode, 'X-mode')
 		self.x_mode = xmode
 
-	def set_trigger(self, source, edge, level, hysteresis=0, hf_reject=False, mode=LIA_TRIG_AUTO):
+
+	@needs_commit
+	def set_trigger(self, source, edge, level, hysteresis=0, hf_reject=False, mode='auto'):
 		""" Sets trigger source and parameters.
 
-		:type source: OSC_TRIG_CH1, OSC_TRIG_CH2, OSC_TRIG_DA1, OSC_TRIG_DA2
-		:param source: Trigger Source. May be either ADC Channel or either DAC Channel, allowing one to trigger off a synthesised waveform.
+		:type source: string, {'in1','in2','out1','out2'}
+		:param source: Trigger Source. May be either an input or output channel, 
+						allowing one to trigger off a synthesised waveform.
 
-		:type edge: OSC_EDGE_RISING, OSC_EDGE_FALLING, OSC_EDGE_BOTH
+		:type edge: string, {'rising','falling','both'}
 		:param edge: Which edge to trigger on.
 
 		:type level: float, volts
@@ -518,11 +516,37 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 		:type hysteresis: float, volts
 		:param hysteresis: Hysteresis to apply around trigger point.
 		"""
+		# Convert the input parameter strings to bit-value mappings
+		_str_to_trigger_source = {
+			'in1' : _LIA_TRIG_CH1,
+			'in2' : _LIA_TRIG_CH2,
+			'out1' : _LIA_TRIG_DA1,
+			'out2' : _LIA_TRIG_DA2
+		}
+		_str_to_edge = {
+			'rising' : _LIA_EDGE_RISING,
+			'falling' : _LIA_EDGE_FALLING,
+			'both'	: _LIA_EDGE_BOTH
+		}
+		_str_to_trigger_mode = {
+			'auto' : _LIA_TRIG_AUTO,
+			'normal' : _LIA_TRIG_NORMAL,
+			'single' : _LIA_TRIG_SINGLE
+		}
+		source = _utils.str_to_val(_str_to_trigger_source, source, 'trigger source')
+		edge = _utils.str_to_val(_str_to_edge, edge, 'edge type')
+		mode = _utils.str_to_val(_str_to_trigger_mode, mode,'trigger mode')
+
 		self.trig_ch = source
 		self.trig_edge = edge
-		self.hysteresis = hysteresis
+		# Precision mode should be off if hysteresis is being used
+		if self.ain_mode == __LIA_AIN_DECI and hysteresis > 0:
+			raise InvalidConfigurationException("Precision mode and Hysteresis can't be set at the same time.")
+		self.hysteresis_volts = hysteresis
+
 		self.hf_reject = hf_reject
 		self.trig_mode = mode
+		self.trig_volts = level # Save the desired trigger voltage
 
 	def attach_moku(self, moku):
 		super(LockInAmp, self).attach_moku(moku)
@@ -533,19 +557,19 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 			log.warning("Can't read calibration values.")
 
 _lia_reg_hdl = {
-	'source_ch1':		(REG_LIA_OUTSEL,	to_reg_unsigned(0, 1, allow_set=[LIA_SOURCE_ADC, LIA_SOURCE_DAC]),
+	'source_ch1':		(REG_LIA_OUTSEL,	to_reg_unsigned(0, 1, allow_set=[_LIA_SOURCE_ADC, _LIA_SOURCE_DAC]),
 											from_reg_unsigned(0, 1)),
 
-	'source_ch2':		(REG_LIA_OUTSEL,	to_reg_unsigned(1, 1, allow_set=[LIA_SOURCE_ADC, LIA_SOURCE_DAC]),
+	'source_ch2':		(REG_LIA_OUTSEL,	to_reg_unsigned(1, 1, allow_set=[_LIA_SOURCE_ADC, _LIA_SOURCE_DAC]),
 											from_reg_unsigned(1, 1)),
 
-	'trig_mode':		(REG_LIA_TRIGMODE,	to_reg_unsigned(0, 2, allow_set=[LIA_TRIG_AUTO, LIA_TRIG_NORMAL, LIA_TRIG_SINGLE]),
+	'trig_mode':		(REG_LIA_TRIGMODE,	to_reg_unsigned(0, 2, allow_set=[_LIA_TRIG_AUTO, _LIA_TRIG_NORMAL, _LIA_TRIG_SINGLE]),
 											from_reg_unsigned(0, 2)),
 
-	'trig_edge':		(REG_LIA_TRIGCTL,	to_reg_unsigned(0, 2, allow_set=[LIA_EDGE_RISING, LIA_EDGE_FALLING, LIA_EDGE_BOTH]),
+	'trig_edge':		(REG_LIA_TRIGCTL,	to_reg_unsigned(0, 2, allow_set=[_LIA_EDGE_RISING, _LIA_EDGE_FALLING, _LIA_EDGE_BOTH]),
 											from_reg_unsigned(0, 2)),
 
-	'trig_ch':			(REG_LIA_TRIGCTL,	to_reg_unsigned(4, 6, allow_set=[LIA_TRIG_CH1, LIA_TRIG_CH2, LIA_TRIG_DA1, LIA_TRIG_DA2]),
+	'trig_ch':			(REG_LIA_TRIGCTL,	to_reg_unsigned(4, 6, allow_set=[_LIA_TRIG_CH1, _LIA_TRIG_CH2, _LIA_TRIG_DA1, _LIA_TRIG_DA2]),
 											from_reg_unsigned(4, 6)),
 
 	'hf_reject':		(REG_LIA_TRIGCTL,	to_reg_bool(12),			from_reg_bool(12)),

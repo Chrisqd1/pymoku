@@ -1,11 +1,12 @@
 
 import math
 import logging
+import re
 
 from ._instrument import *
 from . import _frame_instrument
 from . import _siggen
-from ._utils import *
+import _utils
 
 log = logging.getLogger(__name__)
 
@@ -19,32 +20,32 @@ REG_OSC_DECIMATION	= 70
 ### Every constant that starts with OSC_ will become an attribute of pymoku.instruments ###
 
 # REG_OSC_OUTSEL constants
-OSC_SOURCE_ADC		= 0
-OSC_SOURCE_DAC		= 1
+_OSC_SOURCE_ADC		= 0
+_OSC_SOURCE_DAC		= 1
 
 # REG_OSC_TRIGMODE constants
-OSC_TRIG_AUTO		= 0
-OSC_TRIG_NORMAL		= 1
-OSC_TRIG_SINGLE		= 2
+_OSC_TRIG_AUTO		= 0
+_OSC_TRIG_NORMAL	= 1
+_OSC_TRIG_SINGLE	= 2
 
 # REG_OSC_TRIGLVL constants
-OSC_TRIG_CH1		= 0
-OSC_TRIG_CH2		= 1
-OSC_TRIG_DA1		= 2
-OSC_TRIG_DA2		= 3
+_OSC_TRIG_CH1		= 0
+_OSC_TRIG_CH2		= 1
+_OSC_TRIG_DA1		= 2
+_OSC_TRIG_DA2		= 3
 
-OSC_EDGE_RISING		= 0
-OSC_EDGE_FALLING	= 1
-OSC_EDGE_BOTH		= 2
+_OSC_EDGE_RISING	= 0
+_OSC_EDGE_FALLING	= 1
+_OSC_EDGE_BOTH		= 2
 
 # Re-export the top level attributes so they'll be picked up by pymoku.instruments, we
 # do actually want to give people access to these constants directly for Oscilloscope
-OSC_ROLL			= ROLL
-OSC_SWEEP			= SWEEP
-OSC_FULL_FRAME		= FULL_FRAME
+_OSC_ROLL			= ROLL
+_OSC_SWEEP			= SWEEP
+_OSC_FULL_FRAME		= FULL_FRAME
 
-OSC_LB_ROUND		= 0
-OSC_LB_CLIP			= 1
+_OSC_LB_ROUND		= 0
+_OSC_LB_CLIP		= 1
 
 _OSC_AIN_DDS		= 0
 _OSC_AIN_DECI		= 1
@@ -114,10 +115,10 @@ class VoltsFrame(_frame_instrument.DataFrame):
 
 		def _compute_scaling_factor(adc,dac,src,lmode):
 			# Change scaling factor depending on the source type
-			if (src == OSC_SOURCE_ADC):
+			if (src == _OSC_SOURCE_ADC):
 				scale = adc
-			elif (src == OSC_SOURCE_DAC):
-				if(lmode == OSC_LB_CLIP):
+			elif (src == _OSC_SOURCE_DAC):
+				if(lmode == _OSC_LB_CLIP):
 					scale = dac 
 				else: # Rounding mode
 					scale = dac * 16
@@ -356,13 +357,13 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		"""
 			Converts volts to bits depending on the source (ADC1/2, DAC1/2)
 		"""
-		if (source == OSC_TRIG_CH1):
+		if (source == _OSC_TRIG_CH1):
 			level = amplitude/scales['gain_adc1']
-		elif (source == OSC_TRIG_CH2):
+		elif (source == _OSC_TRIG_CH2):
 			level = amplitude/scales['gain_adc2']
-		elif (source == OSC_TRIG_DA1):
+		elif (source == _OSC_TRIG_DA1):
 			level = (amplitude/scales['gain_dac1'])/16
-		elif (source == OSC_TRIG_DA2):
+		elif (source == _OSC_TRIG_DA2):
 			level = (amplitude/scales['gain_dac2'])/16
 
 		return level
@@ -396,7 +397,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 				hdr += "% Ch {i} - {} coupling, {} Ohm impedance, {} V range\r\n".format("AC" if r[2] else "DC", "50" if r[0] else "1M", "10" if r[1] else "1", i=i+1 )
 		hdr += "% Acquisition rate: {:.10e} Hz, {} mode\r\n".format(self.get_samplerate(), "Precision" if self.is_precision_mode() else "Normal")
 		hdr += "% {} 10 MHz clock\r\n".format("External" if self._moku._get_actual_extclock() else "Internal")
-		hdr += "% Acquired {}\r\n".format(formatted_timestamp())
+		hdr += "% Acquired {}\r\n".format(_utils.formatted_timestamp())
 		hdr += "% Time"
 		for i,c in enumerate(chs):
 			if c:
@@ -465,11 +466,17 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		"""
 		Set rendering mode for the horizontal axis.
 
-		:type xmode: *OSC_ROLL*, *OSC_SWEEP*, *OSC_FULL_FRAME*
+		:type xmode: string, {'roll','sweep','fullframe'}
 		:param xmode:
 			Respectively; Roll Mode (scrolling), Sweep Mode (normal oscilloscope trace sweeping across the screen)
 			or Full Frame (Like sweep, but waits for the frame to be completed).
 		"""
+		_str_to_xmode = {
+			'roll' : _OSC_ROLL,
+			'sweep' : _OSC_SWEEP,
+			'fullframe' : _OSC_FULL_FRAME
+		}
+		xmode = _utils.str_to_val(_str_to_xmode, xmode, 'X-mode')
 		self.x_mode = xmode
 
 	@needs_commit
@@ -489,13 +496,14 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		return self.ain_mode is _OSC_AIN_DECI
 	
 	@needs_commit
-	def set_trigger(self, source, edge, level, hysteresis=0, hf_reject=False, mode=OSC_TRIG_AUTO):
+	def set_trigger(self, source, edge, level, hysteresis=0, hf_reject=False, mode='auto'):
 		""" Sets trigger source and parameters.
 
-		:type source: OSC_TRIG_CH1, OSC_TRIG_CH2, OSC_TRIG_DA1, OSC_TRIG_DA2
-		:param source: Trigger Source. May be either ADC Channel or either DAC Channel, allowing one to trigger off a synthesised waveform.
+		:type source: string, {'in1','in2','out1','out2'}
+		:param source: Trigger Source. May be either an input or output channel, 
+						allowing one to trigger off a synthesised waveform.
 
-		:type edge: OSC_EDGE_RISING, OSC_EDGE_FALLING, OSC_EDGE_BOTH
+		:type edge: string, {'rising','falling','both'}
 		:param edge: Which edge to trigger on.
 
 		:type level: float, volts
@@ -504,6 +512,27 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		:type hysteresis: float, volts
 		:param hysteresis: Hysteresis to apply around trigger point.
 		"""
+		# Convert the input parameter strings to bit-value mappings
+		_str_to_trigger_source = {
+			'in1' : _OSC_TRIG_CH1,
+			'in2' : _OSC_TRIG_CH2,
+			'out1' : _OSC_TRIG_DA1,
+			'out2' : _OSC_TRIG_DA2
+		}
+		_str_to_edge = {
+			'rising' : _OSC_EDGE_RISING,
+			'falling' : _OSC_EDGE_FALLING,
+			'both'	: _OSC_EDGE_BOTH
+		}
+		_str_to_trigger_mode = {
+			'auto' : _OSC_TRIG_AUTO,
+			'normal' : _OSC_TRIG_NORMAL,
+			'single' : _OSC_TRIG_SINGLE
+		}
+		source = _utils.str_to_val(_str_to_trigger_source, source, 'trigger source')
+		edge = _utils.str_to_val(_str_to_edge, edge, 'edge type')
+		mode = _utils.str_to_val(_str_to_trigger_mode, mode,'trigger mode')
+
 		self.trig_ch = source
 		self.trig_edge = edge
 		# Precision mode should be off if hysteresis is being used
@@ -516,31 +545,37 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		self.trig_volts = level # Save the desired trigger voltage
 
 	@needs_commit
-	def set_source(self, ch, source, lmode=OSC_LB_ROUND):
-		""" Sets the source of the channel data to either the ADC input or internally looped-back DAC output.
+	def set_source(self, ch, source, lmode='round'):
+		""" Sets the source of the channel data to either the analog input or internally looped-back digital output.
 
 		This feature allows the user to preview the Signal Generator outputs.
 
 		:type ch: int
 		:param ch: Channel Number
 
-		:type source: OSC_SOURCE_ADC, OSC_SOURCE_DAC
-		:param source: Data source
+		:type source: string, {'in','out'}
+		:param source: Where the specified channel should source data from (either the input or internally looped back output)
 
-		:type lmode: OSC_LB_ROUND, OSC_LB_CLIP
-		:param lmode: DAC Loopback mode (ignored for ADC sources)
+		:type lmode: string, {'clip','round'}
+		:param lmode: DAC Loopback mode (ignored 'in' sources)
 		"""
-		valid_sources = [OSC_SOURCE_ADC, OSC_SOURCE_DAC]
-		if source not in valid_sources:
-			raise ValueOutOfRangeException("Invalid input source of %d. Expected one of %s", source, valid_sources)
-
+		_str_to_lmode = {
+			'round' : _OSC_LB_ROUND,
+			'clip' : _OSC_LB_CLIP
+		}
+		_str_to_channel_data_source = {
+			'in' : _OSC_SOURCE_ADC,
+			'out' : _OSC_SOURCE_DAC
+		}
+		source = _utils.str_to_val(_str_to_channel_data_source, source, 'channel data source')
+		lmode = _utils.str_to_val(_str_to_lmode, lmode, 'DAC loopback mode')
 		if ch == 1:
 			self.source_ch1 = source
-			if source == OSC_SOURCE_DAC:
+			if source == _OSC_SOURCE_DAC:
 				self.loopback_mode_ch1 = lmode
 		elif ch == 2:
 			self.source_ch2 = source
-			if source == OSC_SOURCE_DAC:
+			if source == _OSC_SOURCE_DAC:
 				self.loopback_mode_ch2 = lmode
 		else:
 			raise ValueOutOfRangeException("Incorrect channel number %d", ch)
@@ -550,9 +585,9 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		""" Reset the Oscilloscope to sane defaults. """
 		super(Oscilloscope, self).set_defaults()
 		#TODO this should reset ALL registers
-		self.set_source(1,OSC_SOURCE_ADC)
-		self.set_source(2,OSC_SOURCE_ADC)
-		self.set_trigger(OSC_TRIG_CH1, OSC_EDGE_RISING, 0)
+		self.set_source(1,'in')
+		self.set_source(2,'in')
+		self.set_trigger('in1','rising', 0)
 		self.set_precision_mode(False)
 		self.set_timebase(-1, 1)
 		self.set_pause(False)
@@ -560,7 +595,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		self.framerate = _OSC_FPS
 		self.frame_length = _OSC_SCREEN_WIDTH
 		self._set_buffer_length(4)
-		self.set_xmode(OSC_FULL_FRAME)
+		self.set_xmode('fullframe')
 
 		self.set_frontend(1, fiftyr=True)
 		self.set_frontend(2, fiftyr=True)
@@ -636,19 +671,19 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 	commit.__doc__ = MokuInstrument.commit.__doc__
 
 _osc_reg_handlers = {
-	'source_ch1':		(REG_OSC_OUTSEL,	to_reg_unsigned(0, 1, allow_set=[OSC_SOURCE_ADC, OSC_SOURCE_DAC]),
+	'source_ch1':		(REG_OSC_OUTSEL,	to_reg_unsigned(0, 1, allow_set=[_OSC_SOURCE_ADC, _OSC_SOURCE_DAC]),
 											from_reg_unsigned(0, 1)),
 
-	'source_ch2':		(REG_OSC_OUTSEL,	to_reg_unsigned(1, 1, allow_set=[OSC_SOURCE_ADC, OSC_SOURCE_DAC]),
+	'source_ch2':		(REG_OSC_OUTSEL,	to_reg_unsigned(1, 1, allow_set=[_OSC_SOURCE_ADC, _OSC_SOURCE_DAC]),
 											from_reg_unsigned(1, 1)),
 
-	'trig_mode':		(REG_OSC_TRIGMODE,	to_reg_unsigned(0, 2, allow_set=[OSC_TRIG_AUTO, OSC_TRIG_NORMAL, OSC_TRIG_SINGLE]),
+	'trig_mode':		(REG_OSC_TRIGMODE,	to_reg_unsigned(0, 2, allow_set=[_OSC_TRIG_AUTO, _OSC_TRIG_NORMAL, _OSC_TRIG_SINGLE]),
 											from_reg_unsigned(0, 2)),
 
-	'trig_edge':		(REG_OSC_TRIGCTL,	to_reg_unsigned(0, 2, allow_set=[OSC_EDGE_RISING, OSC_EDGE_FALLING, OSC_EDGE_BOTH]),
+	'trig_edge':		(REG_OSC_TRIGCTL,	to_reg_unsigned(0, 2, allow_set=[_OSC_EDGE_RISING, _OSC_EDGE_FALLING, _OSC_EDGE_BOTH]),
 											from_reg_unsigned(0, 2)),
 
-	'trig_ch':			(REG_OSC_TRIGCTL,	to_reg_unsigned(4, 6, allow_set=[OSC_TRIG_CH1, OSC_TRIG_CH2, OSC_TRIG_DA1, OSC_TRIG_DA2]),
+	'trig_ch':			(REG_OSC_TRIGCTL,	to_reg_unsigned(4, 6, allow_set=[_OSC_TRIG_CH1, _OSC_TRIG_CH2, _OSC_TRIG_DA1, _OSC_TRIG_DA2]),
 											from_reg_unsigned(4, 6)),
 
 	'hf_reject':		(REG_OSC_TRIGCTL,	to_reg_bool(12),			from_reg_bool(12)),
@@ -657,9 +692,9 @@ _osc_reg_handlers = {
 	# and therefore is performed in the _trigger_level() function above.
 	'trigger_level':	(REG_OSC_TRIGLVL,	to_reg_signed(0, 32),		from_reg_signed(0, 32)),
 
-	'loopback_mode_ch1':	(REG_OSC_ACTL,	to_reg_unsigned(0, 1, allow_set=[OSC_LB_CLIP, OSC_LB_ROUND]),
+	'loopback_mode_ch1':	(REG_OSC_ACTL,	to_reg_unsigned(0, 1, allow_set=[_OSC_LB_CLIP, _OSC_LB_ROUND]),
 											from_reg_unsigned(0, 1)),
-	'loopback_mode_ch2':	(REG_OSC_ACTL,	to_reg_unsigned(1, 1, allow_set=[OSC_LB_CLIP, OSC_LB_ROUND]),
+	'loopback_mode_ch2':	(REG_OSC_ACTL,	to_reg_unsigned(1, 1, allow_set=[_OSC_LB_CLIP, _OSC_LB_ROUND]),
 											from_reg_unsigned(1, 1)),
 	'ain_mode':			(REG_OSC_ACTL,		to_reg_unsigned(16,2, allow_set=[_OSC_AIN_DDS, _OSC_AIN_DECI]),
 											from_reg_unsigned(16,2)),

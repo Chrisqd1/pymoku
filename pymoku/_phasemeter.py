@@ -6,7 +6,7 @@ from ._instrument import *
 from . import _instrument
 from . import _frame_instrument
 from . import _siggen
-from ._utils import *
+import _utils
 
 from struct import unpack
 
@@ -57,8 +57,8 @@ _PM_SG_AMPSCALE = 2**16 / 4.0
 _PM_SG_FREQSCALE = _PM_FREQSCALE
 
 # Pre-defined log rates which ensure samplerate will set to ~120Hz or ~30Hz
-PM_LOGRATE_FAST = 123
-PM_LOGRATE_SLOW = 31
+_PM_LOGRATE_FAST = 123
+_PM_LOGRATE_SLOW = 31
 
 class PhaseMeter_SignalGenerator(MokuInstrument):
 	def __init__(self):
@@ -170,12 +170,18 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 		The chosen samplerate will be rounded down to nearest allowable rate 
 		based on R(Hz) = 1e6/(2^N) where N in range [13,16].
 
-		Alternatively use samplerate = {PM_LOGRATE_SLOW, PM_LOGRATE_FAST} 
+		Alternatively use samplerate = {'slow','fast'} 
 		to set ~30Hz or ~120Hz.
 
-		:type samplerate: float
+		:type samplerate: float, or string = {'slow','fast'}
 		:param samplerate: Desired sample rate
 		"""
+		if type(samplerate) is str:
+			_str_to_samplerate = {
+				'slow' : _PM_LOGRATE_SLOW,
+				'fast' : _PM_LOGRATE_FAST
+			}
+			samplerate = _utils.str_to_val(_str_to_samplerate, samplerate, 'samplerate')
 		new_samplerate = _PM_UPDATE_RATE/min(max(1,samplerate),200)
 		shift = min(math.ceil(math.log(new_samplerate,2)),16)
 		self.output_decimation = 2**shift
@@ -290,7 +296,7 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 
 		hdr += "% Acquisition rate: {:.10e} Hz\r\n".format(self.get_samplerate())
 		hdr += "% {} 10 MHz clock\r\n".format("External" if self._moku._get_actual_extclock() else "Internal")
-		hdr += "% Acquired {}\r\n".format(formatted_timestamp())
+		hdr += "% Acquired {}\r\n".format(_utils.formatted_timestamp())
 		hdr += "% Time,"
 		for i,c in enumerate(chs):
 			if c:

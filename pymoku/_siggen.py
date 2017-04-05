@@ -7,6 +7,7 @@ from pymoku import ValueOutOfRangeException
 from ._instrument import *
 from ._instrument import _usgn, _sgn
 from . import _frame_instrument
+import _utils
 
 log = logging.getLogger(__name__)
 
@@ -42,20 +43,20 @@ REG_SG_FALLRATE2_L	= 119
 REG_SG_RFRATE2_H	= 120
 REG_SG_MODA2		= 122
 
-SG_WAVE_SINE		= 0
-SG_WAVE_SQUARE		= 1
-SG_WAVE_TRIANGLE	= 2
-SG_WAVE_PULSE		= 3
-SG_WAVE_DC			= 4
+_SG_WAVE_SINE		= 0
+_SG_WAVE_SQUARE		= 1
+_SG_WAVE_TRIANGLE	= 2
+_SG_WAVE_PULSE		= 3
+_SG_WAVE_DC			= 4
 
-SG_MOD_NONE			= 0
-SG_MOD_AMPL			= 1
-SG_MOD_FREQ			= 2
-SG_MOD_PHASE		= 4
+_SG_MOD_NONE		= 0
+_SG_MOD_AMPL		= 1
+_SG_MOD_FREQ		= 2
+_SG_MOD_PHASE		= 4
 
-SG_MODSOURCE_INT	= 0
-SG_MODSOURCE_ADC	= 1
-SG_MODSOURCE_DAC	= 2
+_SG_MODSOURCE_INT	= 0
+_SG_MODSOURCE_ADC	= 1
+_SG_MODSOURCE_DAC	= 2
 
 _SG_FREQSCALE		= 1e9 / 2**48
 _SG_PHASESCALE		= 360.0 / (2**32) # Wraps
@@ -122,14 +123,14 @@ class BasicSignalGenerator(MokuInstrument):
 		"""
 
 		if ch == 1:
-			self.out1_waveform = SG_WAVE_SINE
+			self.out1_waveform = _SG_WAVE_SINE
 			self.out1_enable = True
 			self.out1_amplitude = amplitude
 			self.out1_frequency = frequency
 			self.out1_offset = offset
 			self.out1_phase =  phase
 		elif ch == 2:
-			self.out2_waveform = SG_WAVE_SINE
+			self.out2_waveform = _SG_WAVE_SINE
 			self.out2_enable = True
 			self.out2_amplitude = amplitude
 			self.out2_frequency = frequency
@@ -174,7 +175,7 @@ class BasicSignalGenerator(MokuInstrument):
 			raise ValueOutOfRangeException("Duty and fall time too big")
 
 		if ch == 1:
-			self.out1_waveform = SG_WAVE_SQUARE
+			self.out1_waveform = _SG_WAVE_SQUARE
 			self.out1_enable = True
 			self.out1_amplitude = amplitude
 			self.out1_frequency = frequency
@@ -189,7 +190,7 @@ class BasicSignalGenerator(MokuInstrument):
 			self.out1_fallrate = frequency / falltime if falltime else _SG_MAX_RISE
 			self.out1_phase =  phase
 		elif ch == 2:
-			self.out2_waveform = SG_WAVE_SQUARE
+			self.out2_waveform = _SG_WAVE_SQUARE
 			self.out2_enable = True
 			self.out2_amplitude = amplitude
 			self.out2_frequency = frequency
@@ -243,60 +244,74 @@ class SignalGenerator(BasicSignalGenerator):
 		self._register_accessors(_siggen_mod_reg_handlers)
 
 	@needs_commit
-	def gen_modulate(self, ch, type, source, depth, frequency=0.0):
+	def gen_modulate(self, ch, mtype, source, depth, frequency=0.0):
 		"""
 		Set up modulation on an output channel.
 
 		:type ch: int
 		:param ch: Channel to modulate
 
-		:type type: SG_MOD_NONE, SG_MOD_AMPL, SG_MOD_FREQ, SG_MOD_PHASE
-		:param type:  Modulation type. Respectively Off, Amplitude, Frequency and Phase modulation.
+		:type mtype: string, {'none', 'amplitude', 'frequency', 'phase'}
+		:param mtype:  Modulation type. Respectively Off, Amplitude, Frequency and Phase modulation.
 
-		:type source: SG_MODSOURCE_INT, SG_MODSOURCE_ADC, SG_MODSOURCE_DAC
-		:param source: Modulation source. Respectively Internal Sinewave, Associated ADC Channel or Opposite DAC Channel.
+		:type source: string, {'internal', 'in', 'out'}
+		:param source: Modulation source. Respectively Internal Sinewave, associated input channel or opposite output channel.
 
-		:type depth: float 0-1, 0-125MHz, 0 - 360 deg
-		:param depth: Fractional modulation depth, Frequency Deviation/Volt, Phase shift
+		:type depth: float 0-1, 0-125MHz or 0 - 360 deg
+		:param depth: Modulation depth (depends on modulation type): Fractional modulation depth, Frequency Deviation/Volt or Phase shift
 
 		:type frequency: float
 		:param frequency: Frequency of internally-generated sine wave modulation. This parameter is ignored if the source is set to ADC or DAC.
 		"""
+		_str_to_modsource = {
+			'internal' : _SG_MODSOURCE_INT,
+			'in'		: _SG_MODSOURCE_ADC,
+			'out'		: _SG_MODSOURCE_DAC
+		}
+		_str_to_modtype = {
+			'none'	: _SG_MOD_NONE,
+			'amplitude' : _SG_MOD_AMPL,
+			'frequency' : _SG_MOD_FREQ,
+			'phase'	: _SG_MOD_PHASE
+		}
+		source = _utils.str_to_val(_str_to_modsource, source, 'modulation source')
+		mtype = _utils.str_to_val(_str_to_modtype, mtype, 'modulation source')
+
 		# Get the calibration coefficients of the front end and output
 		dac1, dac2 = self._dac_gains()
 		adc1, adc2 = self._adc_gains()
 
 		if ch == 1:
-			self.out1_modulation = type
+			self.out1_modulation = mtype
 			self.out1_modsource = source
 			self.mod1_frequency = frequency
 		elif ch == 2:
-			self.out2_modulation = type
+			self.out2_modulation = mtype
 			self.out2_modsource = source
 			self.mod2_frequency = frequency
 
 		# Calculate the depth value depending on modulation source and type
 		depth_parameter = 0.0
-		if type == SG_MOD_AMPL:
+		if mtype == _SG_MOD_AMPL:
 			depth_parameter = depth
 			if not 0 <= depth_parameter <= 1.0:
 				raise ValueOutOfRangeException("Invalid amplitude modulation depth [0.0-1.0]: %s" % depth)
-		elif type == SG_MOD_FREQ:
+		elif mtype == _SG_MOD_FREQ:
 			depth_parameter = depth/(DAC_SMP_RATE/8.0)
 			if not 0 <= depth_parameter <= 1.0:
 				raise ValueOutOfRangeException("Invalid frequency modulation deviation [0-125MHz]: %s" % depth)
-		elif type == SG_MOD_PHASE:
+		elif mtype == _SG_MOD_PHASE:
 			depth_parameter = depth/360.0
 			if not 0 <= depth_parameter <= 1.0:
 				raise ValueOutOfRangeException("Invalid phase modulation shift [0-360deg]: %s" % depth)
 
 		# Calibrate the depth value depending on the source
-		if(source == SG_MODSOURCE_INT):
+		if(source == _SG_MODSOURCE_INT):
 			depth_parameter *= 1.0 # No change in depth
-		elif(source == SG_MODSOURCE_DAC):
+		elif(source == _SG_MODSOURCE_DAC):
 			# Opposite DAC is used
 			depth_parameter = depth_parameter * pow(2.0,15.0) * (dac2 if ch == 1 else dac1)
-		elif(source == SG_MODSOURCE_ADC):
+		elif(source == _SG_MODSOURCE_ADC):
 			# Associated ADC for current channel
 			depth_parameter =  depth_parameter * pow(2.0,9.0) * (adc1 if ch == 1 else adc2)
 
@@ -306,10 +321,10 @@ class SignalGenerator(BasicSignalGenerator):
 			self.mod2_amplitude = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
 
 _siggen_mod_reg_handlers = {
-	'out1_modulation':	(REG_SG_WAVEFORMS,	to_reg_unsigned(16, 8, allow_range=[SG_MOD_NONE, SG_MOD_AMPL | SG_MOD_FREQ | SG_MOD_PHASE]),
+	'out1_modulation':	(REG_SG_WAVEFORMS,	to_reg_unsigned(16, 8, allow_range=[_SG_MOD_NONE, _SG_MOD_AMPL | _SG_MOD_FREQ | _SG_MOD_PHASE]),
 											from_reg_unsigned(16, 8)),
 
-	'out2_modulation':	(REG_SG_WAVEFORMS,	to_reg_unsigned(24, 8, allow_range=[SG_MOD_NONE, SG_MOD_AMPL | SG_MOD_FREQ | SG_MOD_PHASE]),
+	'out2_modulation':	(REG_SG_WAVEFORMS,	to_reg_unsigned(24, 8, allow_range=[_SG_MOD_NONE, _SG_MOD_AMPL | _SG_MOD_FREQ | _SG_MOD_PHASE]),
 											from_reg_unsigned(24, 8)),
 
 	'mod1_frequency':	((REG_SG_MODF1_H, REG_SG_MODF1_L),
@@ -327,10 +342,10 @@ _siggen_mod_reg_handlers = {
 	'mod2_amplitude':	(REG_SG_MODA2,		to_reg_unsigned(0, 32),
 											from_reg_unsigned(0, 32)),
 
-	'out1_modsource':	(REG_SG_MODSOURCE,	to_reg_unsigned(1, 2, allow_set=[SG_MODSOURCE_INT, SG_MODSOURCE_ADC, SG_MODSOURCE_DAC]),
+	'out1_modsource':	(REG_SG_MODSOURCE,	to_reg_unsigned(1, 2, allow_set=[_SG_MODSOURCE_INT, _SG_MODSOURCE_ADC, _SG_MODSOURCE_DAC]),
 											from_reg_unsigned(1, 2)),
 
-	'out2_modsource':	(REG_SG_MODSOURCE,	to_reg_unsigned(3, 2, allow_set=[SG_MODSOURCE_INT, SG_MODSOURCE_ADC, SG_MODSOURCE_DAC]),
+	'out2_modsource':	(REG_SG_MODSOURCE,	to_reg_unsigned(3, 2, allow_set=[_SG_MODSOURCE_INT, _SG_MODSOURCE_ADC, _SG_MODSOURCE_DAC]),
 											from_reg_unsigned(3, 2))
 }
 
@@ -338,10 +353,10 @@ _siggen_reg_handlers = {
 	'out1_enable':		(REG_SG_WAVEFORMS,	to_reg_bool(0),		from_reg_bool(0)),
 	'out2_enable':		(REG_SG_WAVEFORMS,	to_reg_bool(1),		from_reg_bool(1)),
 
-	'out1_waveform':	(REG_SG_WAVEFORMS,	to_reg_unsigned(4, 3, allow_set=[SG_WAVE_SINE, SG_WAVE_SQUARE, SG_WAVE_TRIANGLE, SG_WAVE_DC, SG_WAVE_PULSE]),
+	'out1_waveform':	(REG_SG_WAVEFORMS,	to_reg_unsigned(4, 3, allow_set=[_SG_WAVE_SINE, _SG_WAVE_SQUARE, _SG_WAVE_TRIANGLE, _SG_WAVE_DC, _SG_WAVE_PULSE]),
 											from_reg_unsigned(4, 3)),
 
-	'out2_waveform':	(REG_SG_WAVEFORMS,	to_reg_unsigned(8, 3, allow_set=[SG_WAVE_SINE, SG_WAVE_SQUARE, SG_WAVE_TRIANGLE, SG_WAVE_DC, SG_WAVE_PULSE]),
+	'out2_waveform':	(REG_SG_WAVEFORMS,	to_reg_unsigned(8, 3, allow_set=[_SG_WAVE_SINE, _SG_WAVE_SQUARE, _SG_WAVE_TRIANGLE, _SG_WAVE_DC, _SG_WAVE_PULSE]),
 											from_reg_unsigned(8, 3)),
 
 	'out1_clipsine':	(REG_SG_WAVEFORMS,	to_reg_bool(7),		from_reg_bool(7)),

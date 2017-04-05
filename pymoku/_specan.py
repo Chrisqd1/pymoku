@@ -5,6 +5,7 @@ from ._instrument import *
 from . import _frame_instrument
 
 from bisect import bisect_right
+import _utils
 
 log = logging.getLogger(__name__)
 
@@ -44,10 +45,10 @@ REG_SA_TR2_STOP_L	= 107
 REG_SA_TR2_INCR_H	= 108
 REG_SA_TR2_INCR_L 	= 109
 
-SA_WIN_BH			= 0
-SA_WIN_FLATTOP		= 1
-SA_WIN_HANNING		= 2
-SA_WIN_NONE			= 3
+_SA_WIN_BH			= 0
+_SA_WIN_FLATTOP		= 1
+_SA_WIN_HANNING		= 2
+_SA_WIN_NONE			= 3
 
 _SA_ADC_SMPS		= 500e6
 _SA_BUFLEN			= 2**14
@@ -63,17 +64,17 @@ _SA_SG_FREQ_SCALE	= 2**48 / (_SA_ADC_SMPS * 2.0)
 	FILTER GAINS AND CORRECTION FACTORS
 '''
 _SA_WINDOW_WIDTH = {
-	SA_WIN_NONE : 0.89,
-	SA_WIN_BH : 1.90,
-	SA_WIN_HANNING : 1.44,
-	SA_WIN_FLATTOP : 3.77
+	_SA_WIN_NONE : 0.89,
+	_SA_WIN_BH : 1.90,
+	_SA_WIN_HANNING : 1.44,
+	_SA_WIN_FLATTOP : 3.77
 }
 
 _SA_WINDOW_POWER = {
-	SA_WIN_NONE : 131072.0,
-	SA_WIN_BH : 47015.48706054688,
-	SA_WIN_HANNING : 65527.00146484375,
-	SA_WIN_FLATTOP : 28268.48803710938
+	_SA_WIN_NONE : 131072.0,
+	_SA_WIN_BH : 47015.48706054688,
+	_SA_WIN_HANNING : 65527.00146484375,
+	_SA_WIN_FLATTOP : 28268.48803710938
 }
 
 _SA_IIR_COEFFS = [
@@ -355,7 +356,7 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 
 		self.set_span(0, 250e6)
 		self.set_rbw()
-		self.set_window(SA_WIN_BH)
+		self.set_window('blackman-harris')
 
 		self.set_dbmscale(True)
 
@@ -559,16 +560,16 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 	def set_window(self, window):
 		""" Set Window function
 
-		Window should be one of:
-
-		- **SA_WIN_BH** Blackman-Harris
-		- **SA_WIN_FLATTOP** Flat Top
-		- **SA_WIN_HANNING** Hanning
-		- **SA_WIN_NONE** No window
-
-		:type window: int
+		:type window: string, {'blackman-harris','flattop','hanning','none'}
 		:param window: Window Function
 		"""
+		_str_to_window_function = {
+			'blackman-harris': _SA_WIN_BH,
+			'flattop' : _SA_WIN_FLATTOP,
+			'hanning' : _SA_WIN_HANNING,
+			'none'	: _SA_WIN_NONE
+		}
+		window = _utils.str_to_val(_str_to_window_function, window, 'window function')
 		self.window = window
 		
 	@needs_commit
@@ -786,7 +787,7 @@ _sa_reg_handlers = {
 	'rbw_ratio':		(REG_SA_RBW,		to_reg_unsigned(0, 24, 	xform=lambda obj, x: x*2.0**10.0),
 											from_reg_unsigned(0, 24,xform=lambda obj, x: x/(2.0**10.0))),
 
-	'window':			(REG_SA_RBW,		to_reg_unsigned(24, 2, allow_set=[SA_WIN_NONE, SA_WIN_BH, SA_WIN_HANNING, SA_WIN_FLATTOP]),
+	'window':			(REG_SA_RBW,		to_reg_unsigned(24, 2, allow_set=[_SA_WIN_NONE, _SA_WIN_BH, _SA_WIN_HANNING, _SA_WIN_FLATTOP]),
 											from_reg_unsigned(24, 2)),
 
 	'ref_level':		(REG_SA_REFLVL,		to_reg_unsigned(0, 4),		from_reg_unsigned(0, 4)),
