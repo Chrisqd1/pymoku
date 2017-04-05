@@ -175,11 +175,11 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 
 		self._strparser = None
 
-	def set_frame_class(self, frame_class, **frame_kwargs):
+	def _set_frame_class(self, frame_class, **frame_kwargs):
 		self.frame_class = frame_class
 		self.frame_kwargs = frame_kwargs
 
-	def flush(self):
+	def _flush(self):
 		""" Clear the Frame Buffer.
 		This is normally not required as one can simply wait for the correctly-generated frames to propagate through
 		using the appropriate arguments to :any:`get_frame`.
@@ -187,12 +187,12 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		with self._queue.mutex:
 			self._queue.queue.clear()
 
-	def set_buffer_length(self, buflen):
+	def _set_buffer_length(self, buflen):
 		""" Set the internal frame buffer length."""
 		self._buflen = buflen
 		self._queue = FrameQueue(maxsize=buflen)
 
-	def get_buffer_length(self):
+	def _get_buffer_length(self):
 		""" Return the current length of the internal frame buffer
 		"""
 		return self._buflen
@@ -852,9 +852,9 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		else:
 			raise FrameTimeout("Data log timed out after %d seconds", timeout)
 
-	def set_running(self, state):
+	def _set_running(self, state):
 		prev_state = self._running
-		super(FrameBasedInstrument, self).set_running(state)
+		super(FrameBasedInstrument, self)._set_running(state)
 		if state and not prev_state:
 			self._fr_worker = threading.Thread(target=self._frame_worker)
 			self._fr_worker.start()

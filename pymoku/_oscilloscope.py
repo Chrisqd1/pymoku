@@ -245,7 +245,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		# on deploy_instrument(). No point setting them here.
 		self.scales = {}
 
-		self.set_frame_class(VoltsFrame, scales=self.scales)
+		self._set_frame_class(VoltsFrame, scales=self.scales)
 
 		# Define any (non- register-mapped) properties that are used when committing
 		# as a commit is called when the instrument is set running
@@ -576,7 +576,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 		self.framerate = _OSC_FPS
 		self.frame_length = _OSC_SCREEN_WIDTH
-		self.set_buffer_length(4)
+		self._set_buffer_length(4)
 		self.set_xmode(OSC_FULL_FRAME)
 
 		self.set_frontend(1, fiftyr=True)
@@ -585,8 +585,8 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		self.en_in_ch2 = True
 
 	def _calculate_scales(self):
-		g1, g2 = self.adc_gains()
-		d1, d2 = self.dac_gains()
+		g1, g2 = self._adc_gains()
+		d1, d2 = self._dac_gains()
 
 		l1 = self.loopback_mode_ch1
 		l2 = self.loopback_mode_ch2

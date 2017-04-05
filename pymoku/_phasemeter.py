@@ -119,10 +119,10 @@ _pm_siggen_reg_hdl = {
 	'pm_out2_frequency':	((REG_PM_SG_FREQ2_H, REG_PM_SG_FREQ2_L),
 											to_reg_unsigned(0, 48, xform=lambda obj, f:f * _PM_SG_FREQSCALE ),
 											from_reg_unsigned(0, 48, xform=lambda obj, f: f /_PM_FREQSCALE )),
-	'pm_out1_amplitude':	(REG_PM_SG_AMP, to_reg_unsigned(0, 16, xform=lambda obj, a: a / obj.dac_gains()[0]),
-											from_reg_unsigned(0,16, xform=lambda obj, a: a * obj.dac_gains()[0])),
-	'pm_out2_amplitude':	(REG_PM_SG_AMP, to_reg_unsigned(16, 16, xform=lambda obj, a: a / obj.dac_gains()[1]),
-											from_reg_unsigned(16,16, xform=lambda obj, a: a * obj.dac_gains()[1]))
+	'pm_out1_amplitude':	(REG_PM_SG_AMP, to_reg_unsigned(0, 16, xform=lambda obj, a: a / obj._dac_gains()[0]),
+											from_reg_unsigned(0,16, xform=lambda obj, a: a * obj._dac_gains()[0])),
+	'pm_out2_amplitude':	(REG_PM_SG_AMP, to_reg_unsigned(16, 16, xform=lambda obj, a: a / obj._dac_gains()[1]),
+											from_reg_unsigned(16,16, xform=lambda obj, a: a * obj._dac_gains()[1]))
 }
 
 class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenerator): #TODO Frame instrument may not be appropriate when we get streaming going.

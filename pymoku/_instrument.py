@@ -339,7 +339,7 @@ class MokuInstrument(object):
 		""" Can be extended in implementations to set initial state """
 
 		# Base implementation: load DAC calibration values in to the bitstream.
-		o1, o1t, o2, o2t = self.dac_offsets()
+		o1, o1t, o2, o2t = self._dac_offsets()
 		self.dac1_offset = o1
 		self.dac1_offset_t = o1t
 		self.dac2_offset = o2
@@ -381,7 +381,7 @@ class MokuInstrument(object):
 		self._remoteregs = [ l if l is not None else r for l, r in zip(self._localregs, self._remoteregs)]
 		self._localregs = [None] * 128
 
-	def sync_registers(self):
+	def _sync_registers(self):
 		"""
 		Reload state from the Moku.
 
@@ -392,7 +392,7 @@ class MokuInstrument(object):
 		if self._moku is None: raise NotDeployedException()
 		self._remoteregs = [ val for reg, val in self._moku._read_regs(list(range(128)))]
 
-	def dump_remote_regs(self):
+	def _dump_remote_regs(self):
 		"""
 		Return the current register state of the Moku.
 
@@ -405,7 +405,7 @@ class MokuInstrument(object):
 		"""
 		return self._moku._read_regs(list(range(128)))
 
-	def set_running(self, state):
+	def _set_running(self, state):
 		"""
 		Set the local instrument object running state
 
@@ -413,7 +413,7 @@ class MokuInstrument(object):
 		"""
 		self._running = state
 
-	def set_instrument_active(self, active):
+	def _set_instrument_active(self, active):
 		"""
 		Assert or release the intrument reset line on the device.
 
@@ -445,7 +445,7 @@ class MokuInstrument(object):
 		relays |= RELAY_LOWG if atten else 0
 		relays |= RELAY_DC if not ac else 0
 
-		off1, off1_t, off2, off2_t = self.adc_offsets()
+		off1, off1_t, off2, off2_t = self._adc_offsets()
 
 		if channel == 1:
 			self.relays_ch1 = relays
@@ -473,7 +473,7 @@ class MokuInstrument(object):
 
 		return [bool(r & RELAY_LOWZ), bool(r & RELAY_LOWG), not bool(r & RELAY_DC)]
 
-	def dac_gains(self):
+	def _dac_gains(self):
 		g1s = "calibration.DG-1"
 		g2s = "calibration.DG-2"
 		gt1s = "calibration.DGT-1"
@@ -503,7 +503,7 @@ class MokuInstrument(object):
 
 		return g1, g2
 
-	def dac_offsets(self):
+	def _dac_offsets(self):
 		o1s = "calibration.DO-1"
 		o2s = "calibration.DO-2"
 		ot1s = "calibration.DOT-1"
@@ -524,7 +524,7 @@ class MokuInstrument(object):
 		return o1, ot1, o2, ot2
 
 
-	def adc_gains(self):
+	def _adc_gains(self):
 		relay_string_1 = '-'.join(( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
 								  "L" if self.relays_ch1 & RELAY_LOWG else "H",
 								  "D" if self.relays_ch1 & RELAY_DC else "A"))
@@ -564,7 +564,7 @@ class MokuInstrument(object):
 		return g1, g2
 
 
-	def adc_offsets(self):
+	def _adc_offsets(self):
 		relay_string_1 = '-'.join(( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
 								  "L" if self.relays_ch1 & RELAY_LOWG else "H",
 								  "D" if self.relays_ch1 & RELAY_DC else "A"))
@@ -607,7 +607,7 @@ class MokuInstrument(object):
 	def get_pause(self):
 		return self.pause
 
-	def load_feature(self, index):
+	def _load_feature(self, index):
 		# For now we don't support switching clock modes during a partial deploy
 		self._moku._deploy(use_external=self._moku.external_reference, partial_index=index)
 

@@ -263,8 +263,8 @@ class SignalGenerator(BasicSignalGenerator):
 		:param frequency: Frequency of internally-generated sine wave modulation. This parameter is ignored if the source is set to ADC or DAC.
 		"""
 		# Get the calibration coefficients of the front end and output
-		dac1, dac2 = self.dac_gains()
-		adc1, adc2 = self.adc_gains()
+		dac1, dac2 = self._dac_gains()
+		adc1, adc2 = self._adc_gains()
 
 		if ch == 1:
 			self.out1_modulation = type
@@ -354,11 +354,11 @@ _siggen_reg_handlers = {
 											to_reg_unsigned(0, 48, xform=lambda obj, f:f / _SG_FREQSCALE),
 											from_reg_unsigned(0, 48, xform=lambda obj, f: f * _SG_FREQSCALE)),
 
-	'out1_offset':		(REG_SG_MODF1_H,	to_reg_signed(0, 16, xform=lambda obj, o:o / obj.dac_gains()[0]),
-											from_reg_signed(0, 16, xform=lambda obj, o: o * obj.dac_gains()[0])),
+	'out1_offset':		(REG_SG_MODF1_H,	to_reg_signed(0, 16, xform=lambda obj, o:o / obj._dac_gains()[0]),
+											from_reg_signed(0, 16, xform=lambda obj, o: o * obj._dac_gains()[0])),
 
-	'out2_offset':		(REG_SG_MODF2_H,	to_reg_signed(0, 16, xform=lambda obj, o:o / obj.dac_gains()[1]),
-											from_reg_signed(0, 16, xform=lambda obj, o: o * obj.dac_gains()[1])),
+	'out2_offset':		(REG_SG_MODF2_H,	to_reg_signed(0, 16, xform=lambda obj, o:o / obj._dac_gains()[1]),
+											from_reg_signed(0, 16, xform=lambda obj, o: o * obj._dac_gains()[1])),
 
 	'out1_phase':		(REG_SG_PHASE1,		to_reg_unsigned(0, 32, xform=lambda obj, p: (p / _SG_PHASESCALE) % (2**32)),
 											from_reg_unsigned(0, 32, xform=lambda obj, p:p * _SG_PHASESCALE)),
@@ -366,11 +366,11 @@ _siggen_reg_handlers = {
 	'out2_phase':		(REG_SG_PHASE2,		to_reg_unsigned(0, 32, xform=lambda obj, p: (p / _SG_PHASESCALE) % (2**32)),
 											from_reg_unsigned(0, 32, xform=lambda obj, p:p * _SG_PHASESCALE)),
 
-	'out1_amplitude':	(REG_SG_AMP1,		to_reg_unsigned(0, 32, xform=lambda obj, p:p / obj.dac_gains()[0]),
-											from_reg_unsigned(0, 32, xform=lambda obj, p:p * obj.dac_gains()[0])),
+	'out1_amplitude':	(REG_SG_AMP1,		to_reg_unsigned(0, 32, xform=lambda obj, p:p / obj._dac_gains()[0]),
+											from_reg_unsigned(0, 32, xform=lambda obj, p:p * obj._dac_gains()[0])),
 
-	'out2_amplitude':	(REG_SG_AMP2,		to_reg_unsigned(0, 32, xform=lambda obj, p:p / obj.dac_gains()[1]),
-											from_reg_unsigned(0, 32, xform=lambda obj, p:p * obj.dac_gains()[1])),
+	'out2_amplitude':	(REG_SG_AMP2,		to_reg_unsigned(0, 32, xform=lambda obj, p:p / obj._dac_gains()[1]),
+											from_reg_unsigned(0, 32, xform=lambda obj, p:p * obj._dac_gains()[1])),
 
 	'out1_t0':			(REG_SG_T01,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_TIMESCALE),
 											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_TIMESCALE)),
@@ -406,9 +406,9 @@ _siggen_reg_handlers = {
 											lambda obj, f, old: ((old[0] & 0x0000FFFF) | (_usgn(f/_SG_FREQSCALE, 48) >> 16) & 0xFFFF0000, _usgn(f/_SG_FREQSCALE, 48) & 0xFFFFFFFF),
 											lambda obj, rval: _SG_FREQSCALE * ((rval[0] & 0xFFFF0000) << 16 | rval[1])),
 
-	'out1_amp_pc':		(REG_SG_PRECLIP,	to_reg_unsigned(0, 16, xform=lambda obj, a: a / obj.dac_gains()[0]),
-											from_reg_unsigned(0, 16, xform=lambda obj, a: a * obj.dac_gains()[0])),
+	'out1_amp_pc':		(REG_SG_PRECLIP,	to_reg_unsigned(0, 16, xform=lambda obj, a: a / obj._dac_gains()[0]),
+											from_reg_unsigned(0, 16, xform=lambda obj, a: a * obj._dac_gains()[0])),
 
-	'out2_amp_pc':		(REG_SG_PRECLIP,	to_reg_unsigned(16, 16, xform=lambda obj, a: a / obj.dac_gains()[1]),
-											from_reg_unsigned(16, 16, xform=lambda obj, a: a * obj.dac_gains()[1])),
+	'out2_amp_pc':		(REG_SG_PRECLIP,	to_reg_unsigned(16, 16, xform=lambda obj, a: a / obj._dac_gains()[1]),
+											from_reg_unsigned(16, 16, xform=lambda obj, a: a * obj._dac_gains()[1])),
 }

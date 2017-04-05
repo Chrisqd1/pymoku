@@ -146,7 +146,7 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 
 		self.scales = {}
 		self.decimation_rate = 1
-		self.set_frame_class(VoltsFrame, scales=self.scales)
+		self._set_frame_class(VoltsFrame, scales=self.scales)
 
 	def _calculate_scales(self):
 		# Returns the bits-to-volts numbers for each channel in the current state

@@ -754,10 +754,10 @@ class Moku(object):
 	def _fs_rename_progress(self):
 		return self._fs_rename_status()[2]
 
-	def delete_bitstream(self, path):
+	def _delete_bitstream(self, path):
 		self._fs_finalise('b', path, 0)
 
-	def delete_file(self, mp, path):
+	def _delete_file(self, mp, path):
 		self._fs_finalise(mp, path, 0)
 
 	def _load_bitstream(self, path, remotename=None):
@@ -896,18 +896,18 @@ class Moku(object):
 		self.external_reference = use_external
 
 		if self._instrument:
-			self._instrument.set_instrument_active(False)
+			self._instrument._set_instrument_active(False)
 
 		self.take_ownership()
 		self._instrument = instrument
 		self._instrument.attach_moku(self)
-		self._instrument.set_instrument_active(False)
+		self._instrument._set_instrument_active(False)
 
 		bsv = self._deploy(partial_index=0, use_external=use_external)
 		log.debug("Bitstream version %d", bsv)
-		self._instrument.sync_registers()
-		self._instrument.set_running(True)
-		self._instrument.set_instrument_active(True)
+		self._instrument._sync_registers()
+		self._instrument._set_running(True)
+		self._instrument._set_instrument_active(True)
 
 		if set_default:
 			self._instrument.set_defaults()
@@ -922,7 +922,7 @@ class Moku(object):
 		useful when you want to save network bandwidth between measurements without closing the entire Moku device
 		"""
 		if self._instrument:
-			self._instrument.set_running(False)
+			self._instrument._set_running(False)
 			self._instrument = None
 
 	def get_instrument(self):
@@ -947,8 +947,8 @@ class Moku(object):
 
 		running = instr()
 		running.attach_moku(self)
-		running.sync_registers()
-		running.set_running(True)
+		running._sync_registers()
+		running._set_running(True)
 		self._instrument = running
 		return running
 
@@ -956,7 +956,7 @@ class Moku(object):
 		"""Close connection to the Moku:Lab."""
 
 		if self._instrument is not None:
-			self._instrument.set_running(False)
+			self._instrument._set_running(False)
 
 		self._conn.close()
 		self._ctx.destroy()
