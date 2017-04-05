@@ -489,27 +489,6 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		return self.ain_mode is _OSC_AIN_DECI
 	
 	@needs_commit
-	def set_source(self, ch, source=OSC_SOURCE_ADC):
-		""" Sets input source for given channel
-
-		:type ch: [1,2]
-		:param ch: Which input channel to set the source of.
-
-		:type source: OSC_SOURCE_DAC, OSC_SOURCE_ADC
-		:param source: Input source. May be either from the ADC or DAC of the corresponding channel. 
-
-		"""
-		valid_sources = [OSC_SOURCE_ADC, OSC_SOURCE_DAC]
-		if source not in valid_sources:
-			log.error("Invalid input source of %d. Expected one of %s", source, valid_sources)
-			return
-
-		if(ch==1):
-			self.source_ch1 = source
-		if(ch==2):
-			self.source_ch2 = source
-
-	@needs_commit
 	def set_trigger(self, source, edge, level, hysteresis=0, hf_reject=False, mode=OSC_TRIG_AUTO):
 		""" Sets trigger source and parameters.
 
@@ -551,6 +530,10 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		:type lmode: OSC_LB_ROUND, OSC_LB_CLIP
 		:param lmode: DAC Loopback mode (ignored for ADC sources)
 		"""
+		valid_sources = [OSC_SOURCE_ADC, OSC_SOURCE_DAC]
+		if source not in valid_sources:
+			raise ValueOutOfRangeException("Invalid input source of %d. Expected one of %s", source, valid_sources)
+
 		if ch == 1:
 			self.source_ch1 = source
 			if source == OSC_SOURCE_DAC:
