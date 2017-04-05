@@ -9,7 +9,7 @@ log = logging.getLogger()
 from pymoku.dataparser import LIDataFileReader
 
 parser = ArgumentParser()
-parser.add_argument("-f", "--format", help="Output file format", choices=['csv', 'hdf5'])
+parser.add_argument("-f", "--format", help="Output file format", choices=['csv', 'hdf5'], default='csv')
 parser.add_argument("input_file")
 
 

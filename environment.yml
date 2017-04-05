@@ -11,7 +11,6 @@ dependencies:
   - conda-forge::ncurses=5.9=10
   - conda-forge::openssl=1.0.2h=3
   - conda-forge::pip=9.0.1=py27_0
-  - conda-forge::pycapnp=0.5.7=py27_0
   - conda-forge::python=2.7.13=0
   - conda-forge::pyzmq=16.0.2=py27_1
   - conda-forge::readline=6.2=0

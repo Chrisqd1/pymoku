@@ -8,10 +8,14 @@ import os, os.path, time, datetime, math
 import logging
 import re, struct
 
-import capnp
-import pymoku.schema.li_capnp as schema
-
 log = logging.getLogger(__name__)
+
+try:
+	import capnp
+	import pymoku.schema.li_capnp as schema
+except ImportError:
+	log.info("No Capnp, won't be able to convert binary files")
+
 
 class InvalidFormatException(Exception): pass
 class InvalidFileException(Exception): pass
@@ -94,6 +98,8 @@ class LIDataFileReader(object):
 		if self.version == 1:
 			self._parse_v1_header()
 		elif self.version == 2:
+			if 'capnp' not in globals():
+				raise Exception("Can't parse LI files on this platform, please refer to the pymoku FAQs.")
 			self._parse_v2_header()
 		else:
 			raise InvalidFileException("Unknown File Version %s" % v)
@@ -398,6 +404,10 @@ class LIDataFileWriterV2(object):
 		:param starttime: Time at which the record was started, seconds since Jan 1 1970
 		:param startoffset: Time delta, fractional seconds, between starttime and the time of the first sample (e.g. because of triggered start with offset)
 		"""
+
+		if 'capnp' not in globals():
+			raise Exception("Can't write LI files on this platform, please refer to the LI FAQs.")
+
 		self.file = open(filename, 'wb')
 
 		self.file.write(b'LI2')

@@ -37,7 +37,6 @@ setup(
 		'pyzmq',
 		'rfc6266',
 		'requests',
-		'pycapnp',
 	],
 	zip_safe=False,
 )

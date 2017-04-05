@@ -18,7 +18,7 @@ try:
 	# SD Card (rather than internal storage). Use the Moku's binary file format for better speed
 	# and size performance.
 	i.datalogger_stop()
-	i.datalogger_start(duration=10, use_sd=True, ch1=True, ch2=True, filetype='bin')
+	i.datalogger_start(duration=10, use_sd=True, ch1=True, ch2=True, filetype='csv')
 
 	# Wait until logging session has completed and upload file to current directory
 	# Implicitly checks for logging session errors
