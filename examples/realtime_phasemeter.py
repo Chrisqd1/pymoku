@@ -25,7 +25,7 @@ m.deploy_instrument(i, use_external=False)
 try:
 	# Set the initial phase-lock loop frequency to 10MHz and measurement rate to ~120Hz
 	i.set_initfreq(1, 10e6)
-	i.set_samplerate(PM_LOGRATE_FAST)
+	i.set_samplerate('fast')
 	i.commit()
 
 	# Stop previous recording session, if any, then start a new datalogging measurement

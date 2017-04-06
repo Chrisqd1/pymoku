@@ -10,7 +10,6 @@ m.deploy_instrument(i)
 try:
 	# Span from -1s to 1s i.e. trigger point centred
 	i.set_timebase(-1, 1)
-	i.commit()
 
 	# Get and print a single frame's worth of data (time series
 	# of voltage per channel)

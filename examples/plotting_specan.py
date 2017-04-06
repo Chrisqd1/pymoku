@@ -24,7 +24,7 @@ else:
 # Set spectrum analyser configuration
 i.set_defaults()
 i.set_dbmscale(True)
-i.set_window(SA_WIN_BH)
+i.set_window('blackman-harris')
 i.set_rbw()
 
 # Set up the embedded signal generator

@@ -24,14 +24,12 @@ else:
 
 
 try:
-	i.set_trigger(OSC_TRIG_CH1, OSC_EDGE_RISING, 0)
+	i.set_trigger('in1', 'rising', 0)
 
 	i.gen_sinewave(2, 0.5, 10, 0) # Channel 2, 500mVpp, 10Hz, 0V offset
-	i.set_source(2, OSC_SOURCE_DAC) # View this generated waveform on CH2
+	i.set_source(2, 'out') # View this generated waveform on CH2
 
 	i.set_timebase(-1, 1) # View +- 1 second, i.e. trigger in the centre
-
-	i.commit() # Apply all changes.
 
 	# Get initial frame to set up plotting parameters. This can be done once
 	# if we know that the axes aren't going to change (otherwise we'd do

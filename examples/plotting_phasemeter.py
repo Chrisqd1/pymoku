@@ -72,7 +72,7 @@ try:
 	i.set_initfreq(2, ch2_freq)
 
 	# Set samplerate to slow mode ~30Hz
-	i.set_samplerate(PM_LOGRATE_SLOW)
+	i.set_samplerate('slow')
 
 	# Set up signal generator for enabled channels
 	if(ch1_out_enable):

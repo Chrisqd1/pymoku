@@ -11,7 +11,7 @@ m.deploy_instrument(i)
 try:
 	# 10 samples per second. Data logging must use the Oscilloscope's ROLL mode.
 	i.set_samplerate(10)
-	i.set_xmode(OSC_ROLL)
+	i.set_xmode('roll')
 	i.commit()
 
 	# Stop an existing log, if any, then start a new one. 10 seconds of both channels to the

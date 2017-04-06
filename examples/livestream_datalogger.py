@@ -11,7 +11,7 @@ try:
 	# 10Hz sample rate. The datalogger is actually just a mode of the Oscilloscope
 	# instrument in ROLL mode.
 	i.set_samplerate(10)
-	i.set_xmode(OSC_ROLL)
+	i.set_xmode('roll')
 	i.commit()
 
 	# Stop a previous session, if any, then start a new single-channel log in real

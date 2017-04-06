@@ -13,7 +13,7 @@ try:
 	# wished, pause the acquisition then stream from there to retrieve the high-res version
 	# of a normal oscilloscope frame.
 	i.set_samplerate(10)
-	i.set_xmode(OSC_ROLL)
+	i.set_xmode('roll')
 	i.commit()
 	i.datalogger_stop()
 
