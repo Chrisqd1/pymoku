@@ -38,8 +38,6 @@ _OSC_EDGE_RISING	= 0
 _OSC_EDGE_FALLING	= 1
 _OSC_EDGE_BOTH		= 2
 
-# Re-export the top level attributes so they'll be picked up by pymoku.instruments, we
-# do actually want to give people access to these constants directly for Oscilloscope
 _OSC_ROLL			= ROLL
 _OSC_SWEEP			= SWEEP
 _OSC_FULL_FRAME		= FULL_FRAME
@@ -58,7 +56,7 @@ _OSC_FPS			= 10
 _OSC_MAX_PRETRIGGER = (2**12)-1
 _OSC_MAX_POSTTRIGGER = -2**28
 
-class VoltsFrame(_frame_instrument.DataFrame):
+class VoltsData(_frame_instrument.DataFrame):
 	"""
 	Object representing a frame of data in units of Volts. This is the native output format of
 	the :any:`Oscilloscope` instrument and similar.
@@ -79,7 +77,7 @@ class VoltsFrame(_frame_instrument.DataFrame):
 		:annotation: = n
 	"""
 	def __init__(self, scales):
-		super(VoltsFrame, self).__init__()
+		super(VoltsData, self).__init__()
 
 		#: Channel 1 data array in units of Volts. Present whether or not the channel is enabled, but the
 		#: contents are undefined in the latter case.
@@ -89,12 +87,12 @@ class VoltsFrame(_frame_instrument.DataFrame):
 		self.ch2 = []
 
 		#: Timebase
-		self.xs = []
+		self.time = []
 
 		self.scales = scales
 
 	def __json__(self):
-		return { 'ch1': self.ch1, 'ch2' : self.ch2, 'xs' : self.xs }
+		return { 'ch1': self.ch1, 'ch2' : self.ch2, 'time' : self.time }
 
 	def process_complete(self):
 		if self.stateid not in self.scales:
@@ -151,10 +149,9 @@ class VoltsFrame(_frame_instrument.DataFrame):
 			self.complete = False
 
 
-		self.xs = [ t1 + (x * ts) for x in range(_OSC_SCREEN_WIDTH)]
+		self.time = [ t1 + (x * ts) for x in range(_OSC_SCREEN_WIDTH)]
 
 		return True
-
 
 	'''
 		Plotting helper functions
@@ -238,16 +235,11 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		self.type = "oscilloscope"
 		self.calibration = None
 
-		self.logname = "MokuDataloggerData"
-		self.binstr = "<s32"
-		self.procstr = ["*C","*C"]
-		self.timestep = 1
-
 		# NOTE: Register mapped properties will be overwritten in sync registers call
 		# on deploy_instrument(). No point setting them here.
 		self.scales = {}
 
-		self._set_frame_class(VoltsFrame, scales=self.scales)
+		self._set_frame_class(VoltsData, scales=self.scales)
 
 		# Define any (non- register-mapped) properties that are used when committing
 		# as a commit is called when the instrument is set running
@@ -255,6 +247,14 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		self.hysteresis_volts = 0.0
 
 		self.pause = False
+
+		# All instruments need a binstr, procstr and format string.
+		self.logname = "MokuOscilloscopeData"
+		self.binstr = "<s32"
+		self.procstr = ["*C","*C"]
+		self.fmtstr = ''
+		self.hdrstr = ''
+		self.timestep = 1
 
 	def _calculate_decimation(self, t1, t2):
 
@@ -369,63 +369,6 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 		return level
 
-	def _update_datalogger_params(self, ch1, ch2):
-		if self.decimation_rate == 0:
-			log.warning("Decimation appears to be unset")
-			decimation = 1
-		else:
-			decimation = self.decimation_rate
-
-		samplerate = _OSC_ADC_SMPS / float(decimation)
-		self.timestep = 1.0 / samplerate
-
-		if self.ain_mode == _OSC_AIN_DECI:
-			self.procstr[0] = "*C/{:f}".format(self._deci_gain())
-			self.procstr[1] = "*C/{:f}".format(self._deci_gain())
-		else:
-			self.procstr[0] = "*C"
-			self.procstr[1] = "*C"
-		self.fmtstr = self._get_fmtstr(ch1,ch2)
-		self.hdrstr = self._get_hdrstr(ch1,ch2)
-
-	def _get_hdrstr(self, ch1, ch2):
-		chs = [ch1, ch2]
-
-		hdr = "% Moku:DataLogger\r\n"
-		for i,c in enumerate(chs):
-			if c:
-				r = self.get_frontend(i+1)
-				hdr += "% Ch {i} - {} coupling, {} Ohm impedance, {} V range\r\n".format("AC" if r[2] else "DC", "50" if r[0] else "1M", "10" if r[1] else "1", i=i+1 )
-		hdr += "% Acquisition rate: {:.10e} Hz, {} mode\r\n".format(self.get_samplerate(), "Precision" if self.is_precision_mode() else "Normal")
-		hdr += "% {} 10 MHz clock\r\n".format("External" if self._moku._get_actual_extclock() else "Internal")
-		hdr += "% Acquired {}\r\n".format(_utils.formatted_timestamp())
-		hdr += "% Time"
-		for i,c in enumerate(chs):
-			if c:
-				hdr += ", Ch {i} voltage (V)".format(i=i+1)
-		hdr += "\r\n"
-		return hdr
-
-	def _get_fmtstr(self, ch1, ch2):
-		chs = [ch1, ch2]
-		fmtstr = "{t:.10e}"
-		for i,c in enumerate(chs):
-			if c:
-				fmtstr += ",{{ch{i}:.10e}}".format(i=i+1)
-		fmtstr += "\r\n"
-		return fmtstr
-
-	def datalogger_start(self, start=0, duration=10, use_sd=True, ch1=True, ch2=True, filetype='csv'):
-		self._update_datalogger_params(ch1, ch2)
-		super(Oscilloscope, self).datalogger_start(start=start, duration=duration, use_sd=use_sd, ch1=ch1, ch2=ch2, filetype=filetype)
-
-	datalogger_start.__doc__ = _frame_instrument.FrameBasedInstrument.datalogger_start.__doc__
-
-	def datalogger_start_single(self, use_sd=True, ch1=True, ch2=True, filetype='csv'):
-		self._update_datalogger_params(ch1, ch2)
-		super(Oscilloscope, self).datalogger_start_single(use_sd=use_sd, ch1=ch1, ch2=ch2, filetype=filetype)
-
-	datalogger_start_single.__doc__ = _frame_instrument.FrameBasedInstrument.datalogger_start_single.__doc__
 
 	@needs_commit
 	def set_samplerate(self, samplerate, trigger_offset=0):
@@ -449,6 +392,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		decimation = _OSC_ADC_SMPS / samplerate
 
 		self.decimation_rate = decimation
+		self.timestep = 1.0/(_OSC_ADC_SMPS/self.decimation_rate)
 		# Ensure the buffer offset is large enough to incorporate the desired pretrigger/posttrigger data
 		self.pretrigger = - math.ceil(trigger_offset/4.0) if trigger_offset > 0 else - math.floor(trigger_offset/4.0)
 		# We don't want any rendering as each sample is already at the desired samplerate
@@ -459,7 +403,8 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 	def get_samplerate(self):
 		""" :return: The current instrument sample rate """
 		if(self.decimation_rate == 0):
-			raise Exception("Decimation rate appears to be unset.")
+			log.warning("Decimation rate appears to be unset.")
+			return _OSC_ADC_SMPS
 		return _OSC_ADC_SMPS / float(self.decimation_rate)
 
 	@needs_commit
@@ -656,11 +601,51 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		# Trigger level must be scaled depending on the current relay settings and chosen trigger source
 		self.trigger_level = self._source_volts_to_bits(self.trig_volts, self.trig_ch, scales)
 		self.hysteresis = self._source_volts_to_bits(self.hysteresis_volts, self.trig_ch, scales)
-		
+	
+	def _update_datalogger_params(self, ch1, ch2):
+		samplerate = self.get_samplerate()
+
+		if self.ain_mode == _OSC_AIN_DECI:
+			self.procstr[0] = "*C/{:f}".format(self._deci_gain())
+			self.procstr[1] = "*C/{:f}".format(self._deci_gain())
+		else:
+			self.procstr[0] = "*C"
+			self.procstr[1] = "*C"
+		self.fmtstr = self._get_fmtstr(ch1,ch2)
+		self.hdrstr = self._get_hdrstr(ch1,ch2)
+
+	def _get_hdrstr(self, ch1, ch2):
+		chs = [ch1, ch2]
+
+		hdr = "% Moku:Oscilloscope\r\n"
+		for i,c in enumerate(chs):
+			if c:
+				r = self.get_frontend(i+1)
+				hdr += "% Ch {i} - {} coupling, {} Ohm impedance, {} V range\r\n".format("AC" if r[2] else "DC", "50" if r[0] else "1M", "10" if r[1] else "1", i=i+1 )
+		hdr += "% Acquisition rate: {:.10e} Hz, {} mode\r\n".format(self.get_samplerate(), "Precision" if self.is_precision_mode() else "Normal")
+		hdr += "% {} 10 MHz clock\r\n".format("External" if self._moku._get_actual_extclock() else "Internal")
+		hdr += "% Acquired {}\r\n".format(_utils.formatted_timestamp())
+		hdr += "% Time"
+		for i,c in enumerate(chs):
+			if c:
+				hdr += ", Ch {i} voltage (V)".format(i=i+1)
+		hdr += "\r\n"
+		return hdr
+
+	def _get_fmtstr(self, ch1, ch2):
+		chs = [ch1, ch2]
+		fmtstr = "{t:.10e}"
+		for i,c in enumerate(chs):
+			if c:
+				fmtstr += ",{{ch{i}:.10e}}".format(i=i+1)
+		fmtstr += "\r\n"
+		return fmtstr
+
 	def commit(self):
 		scales = self._calculate_scales()
 		# Update any calibration scaling dependent register values
 		self._update_dependent_regs(scales)
+		self._update_datalogger_params(self.ch1, self.ch2)
 
 		# Commit the register values to the device
 		super(Oscilloscope, self).commit()

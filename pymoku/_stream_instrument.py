@@ -1,0 +1,245 @@
+
+import select, socket, struct, sys
+import os, os.path
+import logging, time, threading, math
+import zmq
+
+from _instrument import *
+from pymoku import Moku, UncommittedSettings, InvalidConfigurationException, FrameTimeout, BufferTimeout, NotDeployedException, InvalidOperationException, NoDataException, StreamException, InsufficientSpace, MPNotMounted, MPReadOnly, dataparser, _stream_handler, _instrument
+
+_STREAM_STATE_NONE		= 0
+_STREAM_STATE_RUNNING 	= 1
+_STREAM_STATE_WAITING 	= 2
+_STREAM_STATE_INVAL		= 3
+_STREAM_STATE_FSFULL	= 4
+_STREAM_STATE_OVERFLOW	= 5
+_STREAM_STATE_BUSY		= 6
+_STREAM_STATE_STOPPED	= 7
+
+log = logging.getLogger(__name__)
+
+class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstrument):
+
+	def __init__(self):
+		super(StreamBasedInstrument, self).__init__()
+		self.binstr = ''
+		self.procstr = ''
+		self.fmtstr = ''
+		self.hdrstr = ''
+
+		self._strparser = None
+
+		# Disable both channels initially
+		self.ch1 = False
+		self.ch2 = False
+		# Flag to indicate if there is no more stream data to get for last session
+		self._no_data = True 
+
+		self._dlserial = 0
+		self._dlskt = None
+		self._dlftype = None
+		self.logfile = None
+
+		self.timestep = 0
+
+	def start_stream_data(self, start=0, duration=10, ch1=True, ch2=True):
+		"""	Start streaming instrument data over the network.
+
+		:type start: float
+		:param start: Start time in seconds from the time of function call
+		:type duration: float
+		:param duration: Log duration in seconds
+		:type use_sd: bool
+		:type ch1: bool
+		:param ch1: Enable streaming on Channel 1
+		:type ch2: bool
+		:param ch2: Enable streaming on Channel 2
+		"""
+		if self.check_uncommitted_state():
+			raise UncommittedSettings("Can't start a streaming session due to uncommitted device settings.")
+		self._update_datalogger_params(ch1, ch2)
+		self._stream_start(start=start, duration=duration, ch1=ch1, ch2=ch2, use_sd=False, filetype='net')
+
+	def stop_stream_data(self):
+		""" Stops instrument data being streamed over the network
+		"""
+		self._no_data = True
+		self._stream_stop()
+
+	def get_stream_data(self, n=0, timeout=None):
+		""" Get any new instrument samples that have arrived on the network.
+
+		:type n: int
+		:param n: Number of samples to get off the network. Set this to '0' to get
+		all currently available samples, or '-1' to wait on all samples of the currently
+		running streaming session to be received.
+
+		:type timeout: float
+		:param timeout: Timeout in seconds
+
+		:rtype: tuple
+		:returns: A tuple containing two arrays (one per channel) of up to 'n' samples of instrument data. 
+		res[0] = Channel 1 Data
+		res[1] = Channel 2 Data
+		If a channel is disabled, the corresponding array is empty. If there were less than 'n' samples
+		remaining for the session, then the arrays will contain this remaining amount of samples.
+
+		:raises NoDataException: if the logging session has stopped
+		:raises FrameTimeout: if the timeout expired
+		:raises InvalidOperationException: if there is no streaming session running
+		"""
+		# If no network session exists, can't get samples
+		if not self._stream_net_is_running():
+			raise InvalidOperationException("No network streaming session is running.")
+		if self._no_data:
+			log.debug("No more samples to get.")
+			return ([],[])
+
+		# Wait until you have 'n' processed samples from enabled channels
+		# Update number processed after a single loop (to handle n=0 case)
+		num_processed_samples = [-1,-1]
+		while (n == -1) or (self.ch1 & (num_processed_samples[0] < n)) or (self.ch2 & (num_processed_samples[1] < n)):
+
+			try:
+				self._stream_receive_samples(timeout)
+			except NoDataException:
+				log.debug("No more data available for current stream.")
+				self._no_data = True
+				break
+
+			# Update number processed, unless 'n' was set to get all samples for session
+			if n != -1:
+				processed_samples = self._stream_get_processed_samples()
+				num_processed_samples = [len(processed_samples[0]),len(processed_samples[1])]
+
+		# Should still work for -1 because that means 'to end' of the array
+		n_ch1 = (min(n,len(processed_samples[0])) if n else -1) if self.ch1 else 0
+		n_ch2 = (min(n,len(processed_samples[1])) if n else -1) if self.ch2 else 0
+
+		dout_ch1 = processed_samples[0][0:n_ch1] if n_ch1 != 0 else []
+		dout_ch2 = processed_samples[1][0:n_ch2] if n_ch2 != 0 else []
+
+		if (not self._no_data) & self.ch1 & self.ch2 & (n_ch1 != n_ch2):
+			# Sanity check
+			# Unless the stream has finished, the amount of data available on
+			# all enabled channels should be identical.
+			raise Exception("Stream has dropped data.")
+		
+		if n < 1:
+			# Clear all samples
+			self._stream_clear_processed_samples()
+		else:
+			# Clear only up to 'n' samples
+			self._stream_clear_processed_samples(max(n_ch1, n_ch2))
+
+		return (dout_ch1, dout_ch2)
+
+	def start_data_log(self, start=0, duration=10, ch1=True, ch2=True, use_sd=True, filetype='csv', upload=False):
+		"""	Start logging instrument data to a file.
+
+		:type start: float
+		:param start: Start time in seconds from the time of function call
+		:type duration: float
+		:param duration: Log duration in seconds
+		:type use_sd: bool
+		:type ch1: bool
+		:param ch1: Enable streaming on Channel 1
+		:type ch2: bool
+		:param ch2: Enable streaming on Channel 2
+		:type filetype: string
+		:param filetype: Log file type, one of {'csv','bin'} for CSV or Binary respectively.
+		:type upload: bool
+		:param upload: When true, the log will be uploaded to the local directory on completion.
+		"""
+		if self.check_uncommitted_state():
+			raise UncommittedSettings("Can't start a logging session due to uncommitted device settings.")
+		self._update_datalogger_params(ch1, ch2)
+		if filetype not in ['csv','bin']:
+			raise ValueError('Invalid log file type: %s. Expected \'csv\' or \'bin\'.' % filetype)
+		self._stream_start(start=start, duration=duration, ch1=ch1, ch2=ch2, use_sd=use_sd, filetype=filetype)
+
+	def stop_data_log(self):
+		""" Stops the current instrument data logging session.
+		"""
+		self._stream_stop()
+
+	def progress_data_log(self):
+		""" Estimates progress of a logging session started by a :any:`start_data_log` call.
+
+		:rtype: float
+		:returns: Integer [0.0-1.0] representing 0 - 100% completion of the current logging session.
+				Note that 1.0 is only returned when the session has completed.
+		:raises: StreamException: if an error occurred with the current logging session.
+		"""
+		stat, bt, time_since_start, time_to_end, fname = self._stream_status()
+		# Check for error state
+		self._stream_error(status=stat)
+
+		if self._stream_completed(status=stat):
+			return 100
+		else:
+			duration = float(abs(-time_since_start + time_to_end))
+			# Only return 100% if complete
+			return min(int(abs(time_since_start/duration)*100),99)
+
+	def data_log_filename(self):
+		""" Returns the current base filename of the logging session.
+
+		The base filename doesn't include the file extension as multiple files might be
+		recorded simultaneously with different extensions.
+
+		:rtype: str
+		:returns: The file name of the current, or most recent, log file.
+		"""
+		if self.logfile:
+			return self.logfile.split(':')[1]
+		else:
+			return None
+
+	def upload_data_log(self):
+		""" Load most recently recorded data file from the Moku to the local PC.
+
+		:raises NotDeployedException: if the instrument is not yet operational.
+		:raises InvalidOperationException: if no files are present.
+		"""
+		import re
+
+		if self._moku is None: raise NotDeployedException()
+
+		uploaded = 0
+		target = self.data_log_filename()
+
+		if not target:
+			raise InvalidOperationException("No data has been logged in current session.")
+		# Check internal and external storage
+		for mp in ['i', 'e']:
+			try:
+				for f in self._moku._fs_list(mp):
+					if str(f[0]).startswith(target):
+						# Don't overwrite existing files of the name name. This would be nicer
+						# if we could pass receive_file a local filename to save to, but until
+						# that change is made, just move the clashing file out of the way.
+						if os.path.exists(f[0]):
+							i = 1
+							while os.path.exists(f[0] + ("-%d" % i)):
+								i += 1
+
+							os.rename(f[0], f[0] + ("-%d" % i))
+
+						# Data length of zero uploads the whole file
+						self._moku._receive_file(mp, f[0], 0)
+						log.debug('Uploaded file %s',f[0])
+						uploaded += 1
+			except MPNotMounted:
+				log.debug("Attempted to list files on unmounted device '%s'" % mp)
+
+		if not uploaded:
+			raise InvalidOperationException("Log files not present")
+		else:
+			log.debug("Uploaded %d files", uploaded)
+
+	def get_timestep(self):
+		if self.timestep == 0:
+			raise Exception("Samplerate looks to be unset.")
+		return self.timestep
+

@@ -35,6 +35,7 @@ class MPNotMounted(MokuException): """The requested mount point has not been mou
 class MPReadOnly(MokuException): """The requested mount point is Read Only"""; pass
 class UnknownAction(MokuException): """The request was unknown"""; pass
 class MokuBusy(MokuException): """The Moku is busy"""; pass
+class UncommittedSettings(MokuException): """Instrument settings are awaiting commit."""; pass
 
 
 autocommit = True

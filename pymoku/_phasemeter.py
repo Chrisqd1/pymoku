@@ -5,6 +5,7 @@ import logging
 from ._instrument import *
 from . import _instrument
 from . import _frame_instrument
+from . import _stream_instrument
 from . import _siggen
 import _utils
 
@@ -125,15 +126,10 @@ _pm_siggen_reg_hdl = {
 											from_reg_unsigned(16,16, xform=lambda obj, a: a * obj._dac_gains()[1]))
 }
 
-class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenerator): #TODO Frame instrument may not be appropriate when we get streaming going.
+class PhaseMeter(_stream_instrument.StreamBasedInstrument, PhaseMeter_SignalGenerator): #TODO Frame instrument may not be appropriate when we get streaming going.
 	""" PhaseMeter instrument object. This should be instantiated and attached to a :any:`Moku` instance.
 
 	.. automethod:: pymoku.instruments.PhaseMeter.__init__
-
-	.. attribute:: framerate
-		:annotation: = 10
-
-		Frame Rate, range 1 - 30.
 
 	.. attribute:: type
 		:annotation: = "phasemeter"
@@ -155,10 +151,7 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 		self.procstr = ["*{:.16e} : *{:.16e} : : *{:.16e} : *C*{:.16e} : *C*{:.16e} ".format(_PM_HERTZ_SCALE, _PM_HERTZ_SCALE,  _PM_CYCLE_SCALE, _PM_VOLTS_SCALE, _PM_VOLTS_SCALE),
 						"*{:.16e} : *{:.16e} : : *{:.16e} : *C*{:.16e} : *C*{:.16e} ".format(_PM_HERTZ_SCALE, _PM_HERTZ_SCALE,  _PM_CYCLE_SCALE, _PM_VOLTS_SCALE, _PM_VOLTS_SCALE)]
 
-
 	def _update_datalogger_params(self, ch1, ch2):
-		self.timestep = 1.0/self.get_samplerate()
-
 		# Call this function when any instrument configuration parameters are set
 		self.hdrstr = self._get_hdrstr(ch1,ch2)
 		self.fmtstr = self._get_fmtstr(ch1,ch2)
@@ -187,6 +180,8 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 		self.output_decimation = 2**shift
 		self.output_shift = shift
 
+		self.timestep = 1.0/(_PM_UPDATE_RATE/self.output_decimation)
+
 		log.debug("Output decimation: %f, Shift: %f, Samplerate: %f" % (self.output_decimation, shift, _PM_UPDATE_RATE/self.output_decimation))
 
 	def get_samplerate(self):
@@ -194,9 +189,6 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 		Get the current output sample rate of the phase meter.
 		"""
 		return _PM_UPDATE_RATE / self.output_decimation
-
-	def get_timestep(self):
-		return self.timestep
 
 	@needs_commit
 	def set_initfreq(self, ch, f):
@@ -340,19 +332,6 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 
 		self.en_in_ch1 = True
 		self.en_in_ch2 = True
-
-		# TODO: Headers assume registers have been committed with current values
-	def datalogger_start(self, start=0, duration=10, use_sd=True, ch1=True, ch2=True, filetype='csv'):
-		self._update_datalogger_params(ch1, ch2)
-		super(PhaseMeter, self).datalogger_start(start=start, duration=duration, use_sd=use_sd, ch1=ch1, ch2=ch2, filetype=filetype)
-
-	datalogger_start.__doc__ = _frame_instrument.FrameBasedInstrument.datalogger_start.__doc__
-
-	def datalogger_start_single(self, use_sd=True, ch1=True, ch2=True, filetype='csv'):
-		self._update_datalogger_params(ch1, ch2)
-		super(PhaseMeter, self).datalogger_start_single(use_sd=use_sd, ch1=ch1, ch2=ch2, filetype=filetype)
-
-	datalogger_start_single.__doc__ = _frame_instrument.FrameBasedInstrument.datalogger_start_single.__doc__
 
 _pm_reg_handlers = {
 	'init_freq_ch1':		((REG_PM_INITF1_H, REG_PM_INITF1_L), 

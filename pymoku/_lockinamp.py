@@ -3,9 +3,9 @@ import math
 import logging
 
 from pymoku._instrument import *
-from pymoku._oscilloscope import VoltsFrame
 from . import _instrument
 from . import _frame_instrument
+from . import _stream_instrument
 from . import _siggen
 
 log = logging.getLogger(__name__)
@@ -108,7 +108,7 @@ _LIA_PHASESCALE		= 1.0 / 2**48
 _LIA_AMPSCALE		= 1.0 / (2**15 - 1)
 
 
-class LockInAmp(_frame_instrument.FrameBasedInstrument):
+class LockInAmp(_frame_instrument.FrameBasedInstrument, _stream_instrument.StreamBasedInstrument):
 	""" Oscilloscope instrument object. This should be instantiated and attached to a :any:`Moku` instance.
 
 	.. automethod:: pymoku.instruments.Oscilloscope.__init__
@@ -145,7 +145,7 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 
 		self.scales = {}
 		self.decimation_rate = 1
-		self._set_frame_class(VoltsFrame, scales=self.scales)
+		self._set_frame_class(VoltsData, scales=self.scales)
 		self.trig_volts = 0
 		self.hysteresis_volts = 0.0
 
@@ -425,18 +425,6 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument):
 			self.procstr[1] = "*C"
 		self.fmtstr = self.get_fmtstr(ch1,ch2)
 		self.hdrstr = self.get_hdrstr(ch1,ch2)
-
-	def datalogger_start(self, start, duration, use_sd, ch1, ch2, filetype):
-		self._update_datalogger_params(ch1, ch2)
-		super(LockInAmp, self).datalogger_start(start=start, duration=duration, use_sd=use_sd, ch1=ch1, ch2=ch2, filetype=filetype)
-
-	datalogger_start.__doc__ = _frame_instrument.FrameBasedInstrument.datalogger_start.__doc__
-
-	def datalogger_start_single(self, use_sd, ch1, ch2, filetype):
-		self._update_datalogger_params(ch1, ch2)
-		super(LockInAmp, self).datalogger_start_single(use_sd=use_sd, ch1=ch1, ch2=ch2, filetype=filetype)
-
-	datalogger_start_single.__doc__ = _frame_instrument.FrameBasedInstrument.datalogger_start_single.__doc__
 
 	def _set_render(self, t1, t2, decimation):
 		self.render_mode = RDR_CUBIC #TODO: Support other

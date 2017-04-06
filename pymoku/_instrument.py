@@ -384,9 +384,9 @@ class MokuInstrument(object):
 
 		.. note::
 
-		    This **must** be called after any *set_* or *gen_* function has been called, or control
-		    attributes have been directly set. This allows you to, for example, set multiple attributes
-		    controlling rendering or signal generation in separate calls but have them all take effect at once.
+		    If the `autocommit` feature has been turned off, this function can be used to manually apply any instrument
+		    settings to the Moku device. These instrument settings are those configured by calling all *set_* and *gen_* type 
+		    functions. Manually calling this function allows you to atomically apply many instrument settings at once.
 		"""
 		if self._moku is None: raise NotDeployedException()
 		self._stateid = (self._stateid + 1) % 256 # Some statid docco says 8-bits, some 16.
@@ -399,6 +399,9 @@ class MokuInstrument(object):
 		self._moku._write_regs(regs)
 		self._remoteregs = [ l if l is not None else r for l, r in zip(self._localregs, self._remoteregs)]
 		self._localregs = [None] * 128
+
+	def check_uncommitted_state(self):
+		return any(self._localregs)
 
 	def _sync_registers(self):
 		"""
