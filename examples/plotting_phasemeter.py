@@ -13,7 +13,7 @@
 # of frames containing a range of data.  One can record this stream to a CSV or binary
 # file, but this example streams the samples over the network so they can be accessed,
 # processed and plotted in real time.
-
+import pymoku
 from pymoku import Moku, NoDataException, FrameTimeout
 from pymoku.instruments import *
 import time, logging, math, numpy
@@ -21,6 +21,9 @@ import matplotlib.pyplot as plt
 
 logging.basicConfig(format='%(asctime)s:%(name)s:%(levelname)s::%(message)s')
 logging.getLogger('pymoku').setLevel(logging.DEBUG)
+
+# Disable auto-commit feature so we can atomically change settings
+pymoku.autocommit = False
 
 # Use Moku.get_by_serial() or get_by_name() if you don't know the IP
 m = Moku.get_by_name('example')

@@ -25,7 +25,6 @@ try:
 	# Set the initial phase-lock loop frequency to 10MHz and a sample rate of ~30Hz
 	i.set_initfreq(1, 10e6)
 	i.set_samplerate('slow')
-	i.commit()
 
 	# Stop an existing log, if any, then start a new one. 10 seconds of both channels to the
 	# SD Card (rather than internal storage). Using CSV format.

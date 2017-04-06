@@ -37,9 +37,6 @@ i.enable_output(2, True)
 i.set_frontend(1, fiftyr=True)
 i.set_frontend(2, fiftyr=True)
 
-# Push all new configuration to the Moku device
-i.commit()
-
 # Set up basic plot configurations
 line1, = plt.plot([])
 line2, = plt.plot([])

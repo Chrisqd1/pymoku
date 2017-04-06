@@ -14,7 +14,6 @@ try:
 	# of a normal oscilloscope frame.
 	i.set_samplerate(10)
 	i.set_xmode('roll')
-	i.commit()
 	i.datalogger_stop()
 
 	time.sleep(5)

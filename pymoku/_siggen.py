@@ -77,6 +77,7 @@ class BasicSignalGenerator(MokuInstrument):
 		Name of this instrument.
 
 	"""
+	@dont_commit
 	def __init__(self):
 		""" Create a new SignalGenerator instance, ready to be attached to a Moku."""
 		super(BasicSignalGenerator, self).__init__()
@@ -112,8 +113,8 @@ class BasicSignalGenerator(MokuInstrument):
 		:type amplitude: float, volts
 		:param amplitude: Waveform peak-to-peak amplitude
 
-		:type frequency: float
-		:param frequency: Freqency of the wave
+		:type frequency: float, hertz
+		:param frequency: Frequency of the wave
 
 		:type offset: float, volts
 		:param offset: DC offset applied to the waveform
@@ -149,7 +150,7 @@ class BasicSignalGenerator(MokuInstrument):
 		:type amplitude: float, volts
 		:param amplitude: Waveform peak-to-peak amplitude
 
-		:type frequency: float
+		:type frequency: float, hertz
 		:param frequency: Frequency of the wave
 
 		:type offset: float, volts
@@ -218,8 +219,8 @@ class BasicSignalGenerator(MokuInstrument):
 		:type amplitude: float, volts
 		:param amplitude: Waveform peak-to-peak amplitude
 
-		:type frequency: float
-		:param frequency: Freqency of the wave
+		:type frequency: float, hertz
+		:param frequency: Frequency of the wave
 
 		:type offset: float, volts
 		:param offset: DC offset applied to the waveform
@@ -238,6 +239,7 @@ class BasicSignalGenerator(MokuInstrument):
 
 class SignalGenerator(BasicSignalGenerator):
 
+	@dont_commit
 	def __init__(self):
 		""" Create a new SignalGenerator instance, ready to be attached to a Moku."""
 		super(SignalGenerator, self).__init__()

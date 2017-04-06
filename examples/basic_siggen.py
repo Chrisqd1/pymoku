@@ -8,8 +8,12 @@ i = SignalGenerator()
 m.deploy_instrument(i)
 
 try:
-	i.gen_sinewave(1, 1.0, 1000000)
-	i.gen_squarewave(2, 1.0, 2000000, risetime=0.1, falltime=0.1, duty=0.3)
+	# Generate a 1.0Vpp 1MHz Sinewave on Channel 1
+	i.gen_sinewave(1, 1.0, 1e6)
+	
+	# Generate a 1.0Vpp 2MHz Squarewave on Channel 2 
+	# 30% Duty cycle, 10% Rise time, 10% Fall time
+	i.gen_squarewave(2, 1.0, 2e6, risetime=0.1, falltime=0.1, duty=0.3)
 
 	# Amplitude modulate the CH1 sinewave with another internally-generated sinewave.
 	# 100% modulation depth at 10Hz.

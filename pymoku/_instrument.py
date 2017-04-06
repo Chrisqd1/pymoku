@@ -1,6 +1,6 @@
 import threading, collections, time, struct, socket, logging
 
-from pymoku import _get_autocommit
+from pymoku import _get_autocommit, _set_autocommit
 
 import decorator
 from functools import partial
@@ -269,6 +269,25 @@ def needs_commit(func, self, *args, **kwargs):
 			_awaiting_commit = False
 
 		return res
+
+@decorator.decorator
+def dont_commit(func, self, *args, **kwargs):
+	""" Wrapper function which disables auto-commit for the duration of the function call. 
+	Should only be used for constructors of Instrument classes (because they cant commit until attached to a Moku)
+	"""
+	auto_setting = _get_autocommit()
+
+	# Force disable of auto-commit
+	_set_autocommit(False)
+
+	# Run the function
+	res = func(self, *args, **kwargs)
+	
+	# Turn auto-commit to its original value
+	_set_autocommit(auto_setting)
+
+	return res
+
 
 class MokuInstrument(object):
 	"""Superclass for all Instruments that may be attached to a :any:`Moku` object.

@@ -12,7 +12,6 @@ try:
 	# 10 samples per second. Data logging must use the Oscilloscope's ROLL mode.
 	i.set_samplerate(10)
 	i.set_xmode('roll')
-	i.commit()
 
 	# Stop an existing log, if any, then start a new one. 10 seconds of both channels to the
 	# SD Card (rather than internal storage). Use the Moku's binary file format for better speed

@@ -342,6 +342,7 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		Name of this instrument.
 
 	"""
+	@dont_commit
 	def __init__(self):
 		"""Create a new Spectrum Analyser instrument, ready to be attached to a Moku."""
 		super(SpecAn, self).__init__()

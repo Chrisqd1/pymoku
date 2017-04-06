@@ -228,6 +228,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 	"""
 
+	@dont_commit
 	def __init__(self):
 		"""Create a new Oscilloscope instrument, ready to be attached to a Moku."""
 		super(Oscilloscope, self).__init__()

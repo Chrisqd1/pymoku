@@ -12,7 +12,6 @@ try:
 	# instrument in ROLL mode.
 	i.set_samplerate(10)
 	i.set_xmode('roll')
-	i.commit()
 
 	# Stop a previous session, if any, then start a new single-channel log in real
 	# time over the network.

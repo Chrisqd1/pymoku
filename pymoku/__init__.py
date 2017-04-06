@@ -40,6 +40,9 @@ class MokuBusy(MokuException): """The Moku is busy"""; pass
 autocommit = True
 def _get_autocommit():
 	return autocommit
+def _set_autocommit(enable):
+	global autocommit
+	autocommit = enable
 
 # Network status codes
 _ERR_OK = 0

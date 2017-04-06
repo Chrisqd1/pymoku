@@ -37,14 +37,11 @@ i.gen_squarewave(1, 1.0, 1, risetime=0.1, falltime=0.1, duty=0.4)
 
 # Channel 2: 0.5Vp-p Sine Wave, 2Hz.
 i.gen_sinewave(2, 0.5, 2)
-
+i.set_source(1,'out')
 # The default is 10fps but the blitting below means we can actually
 # run much faster.
 i.framerate = 24
-
-# Atomically apply all the settings above.
-i.commit()
-
+i.commit() # Explicitly commit framerate
 
 fig, ax = plt.subplots(1, 1)
 

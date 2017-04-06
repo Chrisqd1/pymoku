@@ -141,7 +141,7 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 		Name of this instrument.
 
 	"""
-
+	@dont_commit
 	def __init__(self):
 		"""Create a new PhaseMeter instrument, ready to be attached to a Moku."""
 		super(PhaseMeter, self).__init__()
