@@ -56,7 +56,7 @@ _OSC_FPS			= 10
 _OSC_MAX_PRETRIGGER = (2**12)-1
 _OSC_MAX_POSTTRIGGER = -2**28
 
-class VoltsData(_frame_instrument.DataFrame):
+class VoltsData(_frame_instrument.InstrumentData):
 	"""
 	Object representing a frame of data in units of Volts. This is the native output format of
 	the :any:`Oscilloscope` instrument and similar.
@@ -64,16 +64,16 @@ class VoltsData(_frame_instrument.DataFrame):
 	This object should not be instantiated directly, but will be returned by the Oscilloscope's
 	*get_frame* function.
 
-	.. autoinstanceattribute:: pymoku._frame_instrument.VoltsFrame.ch1
+	.. autoinstanceattribute:: pymoku._frame_instrument.VoltsData.ch1
 		:annotation: = [CH1_DATA]
 
-	.. autoinstanceattribute:: pymoku._frame_instrument.VoltsFrame.ch2
+	.. autoinstanceattribute:: pymoku._frame_instrument.VoltsData.ch2
 		:annotation: = [CH2_DATA]
 
-	.. autoinstanceattribute:: pymoku._frame_instrument.VoltsFrame.frameid
+	.. autoinstanceattribute:: pymoku._frame_instrument.VoltsData.frameid
 		:annotation: = n
 
-	.. autoinstanceattribute:: pymoku._frame_instrument.VoltsFrame.waveformid
+	.. autoinstanceattribute:: pymoku._frame_instrument.VoltsData.waveformid
 		:annotation: = n
 	"""
 	def __init__(self, scales):
@@ -89,17 +89,17 @@ class VoltsData(_frame_instrument.DataFrame):
 		#: Timebase
 		self.time = []
 
-		self.scales = scales
+		self._scales = scales
 
 	def __json__(self):
 		return { 'ch1': self.ch1, 'ch2' : self.ch2, 'time' : self.time }
 
 	def process_complete(self):
-		if self.stateid not in self.scales:
-			log.error("Can't render voltage frame, haven't saved calibration data for state %d", self.stateid)
+		if self._stateid not in self._scales:
+			log.error("Can't render voltage frame, haven't saved calibration data for state %d", self._stateid)
 			return
 
-		scales = self.scales[self.stateid]
+		scales = self._scales[self._stateid]
 		g1 = scales['gain_adc1']
 		g2 = scales['gain_adc2']
 		d1 = scales['gain_dac1']
@@ -129,30 +129,38 @@ class VoltsData(_frame_instrument.DataFrame):
 		scale2 = _compute_scaling_factor(g2,d2,s2,l2)
 
 		try:
-			smpls = int(len(self.raw1) / 4)
-			dat = struct.unpack('<' + 'i' * smpls, self.raw1)
+			smpls = int(len(self._raw1) / 4)
+			dat = struct.unpack('<' + 'i' * smpls, self._raw1)
 			dat = [ x if x != -0x80000000 else None for x in dat ]
 
-			self.ch1_bits = [ float(x) if x is not None else None for x in dat[:1024] ]
-			self.ch1 = [ x * scale1 if x is not None else None for x in self.ch1_bits]
+			self._ch1_bits = [ float(x) if x is not None else None for x in dat[:1024] ]
+			self.ch1 = [ x * scale1 if x is not None else None for x in self._ch1_bits]
 
-			smpls = int(len(self.raw2) / 4)
-			dat = struct.unpack('<' + 'i' * smpls, self.raw2)
+			smpls = int(len(self._raw2) / 4)
+			dat = struct.unpack('<' + 'i' * smpls, self._raw2)
 			dat = [ x if x != -0x80000000 else None for x in dat ]
 
-			self.ch2_bits = [ float(x) if x is not None else None for x in dat[:1024] ]
-			self.ch2 = [ x * scale2 if x is not None else None for x in self.ch2_bits]
+			self._ch2_bits = [ float(x) if x is not None else None for x in dat[:1024] ]
+			self.ch2 = [ x * scale2 if x is not None else None for x in self._ch2_bits]
 		except (IndexError, TypeError, struct.error):
 			# If the data is bollocksed, force a reinitialisation on next packet
 			log.exception("Oscilloscope packet")
-			self.frameid = None
-			self.complete = False
+			self._frameid = None
+			self._complete = False
 
 
 		self.time = [ t1 + (x * ts) for x in range(_OSC_SCREEN_WIDTH)]
 
 		return True
 
+	def process_buffer(self):
+		# Compute the x-axis of the buffer
+		if self._stateid not in self._scales:
+			log.error("Can't process buffer - haven't saved calibration for state %d", self._stateid)
+			return
+		scales = self._scales[self._stateid]
+		self.time = [scales['buff_time_min'] + (scales['buff_time_step'] * x) for x in range(_OSC_BUFLEN)]
+		return True
 	'''
 		Plotting helper functions
 	'''
@@ -177,11 +185,11 @@ class VoltsData(_frame_instrument.DataFrame):
 		# This function returns a format string for the x-axis ticks and x-coordinates along the time scale
 		# Use this to set an x-axis format during plotting of Oscilloscope frames
 
-		if self.stateid not in self.scales:
-			log.error("Can't get x-axis format, haven't saved calibration data for state %d", self.stateid)
+		if self._stateid not in self._scales:
+			log.error("Can't get x-axis format, haven't saved calibration data for state %d", self._stateid)
 			return
 
-		scales = self.scales[self.stateid]
+		scales = self._scales[self._stateid]
 		t1 = scales['time_min']
 		ts = scales['time_step']
 		tscale_str, tscale_const = self._get_timescale(ts*_OSC_SCREEN_WIDTH)
@@ -588,15 +596,6 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 				'buff_time_min': bt1,
 				'buff_time_step': bts}
 
-	def _process_buffer(self, buff):
-		# Compute the x-axis of the buffer
-		if buff.stateid not in self.scales:
-			log.error("Can't process buffer - haven't saved calibration for state %d", self.stateid)
-			return
-		buff.scales = self.scales[buff.stateid]
-		buff.xs = [buff.scales['buff_time_min'] + (buff.scales['buff_time_step'] * x) for x in range(_OSC_BUFLEN)]
-		return buff
-
 	def _update_dependent_regs(self, scales):
 		# Trigger level must be scaled depending on the current relay settings and chosen trigger source
 		self.trigger_level = self._source_volts_to_bits(self.trig_volts, self.trig_ch, scales)
@@ -604,6 +603,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 	
 	def _update_datalogger_params(self, ch1, ch2):
 		samplerate = self.get_samplerate()
+		self.timestep = 1.0/samplerate
 
 		if self.ain_mode == _OSC_AIN_DECI:
 			self.procstr[0] = "*C/{:f}".format(self._deci_gain())

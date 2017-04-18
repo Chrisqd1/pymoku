@@ -144,7 +144,7 @@ _DECIMATIONS_TABLE = sorted([ (d1 * (d2+1) * (d3+1) * (d4+1), d1, d2+1, d3+1, d4
 								for d4 in range(16)], key=lambda x: (x[0],x[4],x[3]))
 '''
 
-class SpectrumFrame(_frame_instrument.DataFrame):
+class SpectrumFrame(_frame_instrument.InstrumentData):
 	"""
 	Object representing a frame of data in units of power vs frequency. This is the native output format of
 	the :any:`SpecAn` instrument and similar.

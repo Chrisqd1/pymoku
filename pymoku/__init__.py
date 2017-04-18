@@ -20,7 +20,7 @@ class DeployException(MokuException): """Couldn't start instrument. Moku may not
 class InvalidOperationException(MokuException): """Can't perform that operation at this time"""; pass
 class ValueOutOfRangeException(MokuException): """Invalid value for this operation"""; pass
 class NotDeployedException(MokuException): """Tried to perform an action on an Instrument before it was deployed to a Moku"""; pass
-class FrameTimeout(MokuException): """No new :any:`DataFrame` arrived within the given timeout"""; pass
+class FrameTimeout(MokuException): """No new :any:`InstrumentData` arrived within the given timeout"""; pass
 class BufferTimeout(MokuException): """No new :any:`DataBuffer` arrived within the given timeout"""; pass
 class NoDataException(MokuException): """A request has been made for data but none will be generated """; pass
 class InvalidConfigurationException(MokuException): """A request for an invalid instrument configuration has been made."""; pass

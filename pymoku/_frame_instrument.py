@@ -61,47 +61,34 @@ class FrameQueue(Queue):
 	def _init(self, maxsize):
 		self.queue = deque(maxlen=maxsize)
 
-class DataBuffer(object):
-	"""
-	Holds data from the internal buffer (prior to rendering)
-	"""
-
-	def __init__(self, ch1, ch2, xs, stateid, scales):
-		self.ch1 = ch1
-		self.ch2 = ch2
-		self.xs = xs
-		self.stateid = stateid
-		self.scales = scales
-
-
-class DataFrame(object):
+class InstrumentData(object):
 	"""
 	Superclass representing a full frame of some kind of data. This class is never used directly,
 	but rather it is subclassed depending on the type of data contained and the instrument from
-	which it originated. For example, the :any:`Oscilloscope` instrument will generate :any:`VoltsFrame`
-	objects, where :any:`VoltsFrame` is a subclass of :any:`DataFrame`.
+	which it originated. For example, the :any:`Oscilloscope` instrument will generate :any:`VoltsData`
+	objects, where :any:`VoltsData` is a subclass of :any:`InstrumentData`.
 	"""
 	def __init__(self):
-		self.complete = False
-		self.chs_valid = [False, False]
+		self._complete = False
+		self._chs_valid = [False, False]
 
 		#: Channel 1 raw data array. Present whether or not the channel is enabled, but the contents
 		#: are undefined in the latter case.
-		self.raw1 = []
+		self._raw1 = []
 
 		#: Channel 2 raw data array.
-		self.raw2 = []
+		self._raw2 = []
 
-		self.stateid = None
-		self.trigstate = None
+		self._stateid = None
+		self._trigstate = None
 
 		#: Frame number. Increments monotonically but wraps at 16-bits.
-		self.frameid = 0
+		self._frameid = 0
 
 		#: Incremented once per trigger event. Wraps at 32-bits.
 		self.waveformid = 0
 
-		self.flags = None
+		self._flags = None
 
 	def add_packet(self, packet):
 		hdr_len = 15
@@ -115,36 +102,40 @@ class DataFrame(object):
 		instrid = data[2]
 		chan = (data[3] >> 4) & 0x0F
 
-		self.stateid = data[4]
-		self.trigstate = data[5]
-		self.flags = data[6]
+		self._stateid = data[4]
+		self._trigstate = data[5]
+		self._flags = data[6]
 		self.waveformid = data[7]
-		self.source_serial = data[8]
+		self._source_serial = data[8]
 
-		if self.frameid != frameid:
-			self.frameid = frameid
-			self.chs_valid = [False, False]
+		if self._frameid != frameid:
+			self._frameid = frameid
+			self._chs_valid = [False, False]
 
 		log.debug("AP ch %d, f %d, w %d", chan, frameid, self.waveformid)
 
 		# For historical reasons the data length is 1026 while there are only 1024
 		# valid samples. Trim the fat.
 		if chan == 0:
-			self.chs_valid[0] = True
-			self.raw1 = packet[hdr_len:-8]
+			self._chs_valid[0] = True
+			self._raw1 = packet[hdr_len:-8]
 		else:
-			self.chs_valid[1] = True
-			self.raw2 = packet[hdr_len:-8]
+			self._chs_valid[1] = True
+			self._raw2 = packet[hdr_len:-8]
 
-		self.complete = all(self.chs_valid)
+		self._complete = all(self._chs_valid)
 
-		if self.complete:
+		if self._complete:
 			if not self.process_complete():
-				self.complete = False
-				self.chs_valid = [False, False]
+				self._complete = False
+				self._chs_valid = [False, False]
 
 	def process_complete(self):
 		# Designed to be overridden by subclasses needing to transform the raw data in to Volts etc.
+		return True
+
+	def process_buffer(self):
+		# Designed to be overridden by subclasses needing to add x-axis to buffer data etc.
 		return True
 
 
@@ -157,8 +148,8 @@ class FrameBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstru
 		self._hb_forced = False
 
 	def _set_frame_class(self, frame_class, **frame_kwargs):
-		self.frame_class = frame_class
-		self.frame_kwargs = frame_kwargs
+		self._frame_class = frame_class
+		self._frame_kwargs = frame_kwargs
 
 	def _flush(self):
 		""" Clear the Frame Buffer.
@@ -180,22 +171,16 @@ class FrameBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstru
 
 	@dont_commit
 	def get_data(self, timeout=None):
-		""" Get a :any:`DataFrame` from the internal data channel buffer.
+		""" Get a :any:`InstrumentData` from the internal data channel buffer.
 		This will commit any outstanding device settings and pause acquisition.
 		"""
-		from datetime import datetime
 		if self._moku is None: raise NotDeployedException()
-		fname = datetime.now().strftime(self.logname + "_%Y%m%d_%H%M%S")
 
 		if self.check_uncommitted_state():
 			raise UncommittedSettings("Detected uncommitted instrument settings.")
 
-		# Get a frame to see what the acquisition state was for the current buffer
-		# TODO: Need a way of getting buffer state information without frames
-		try:
-			frame = self.get_realtime_data(timeout=timeout, wait=False)
-		except FrameTimeout:
-			raise BufferTimeout('Timed out waiting on valid data.')
+		# Stop existing logging sessions
+		self._stream_stop()
 
 		# Check if it is already paused
 		was_paused = self.get_pause()
@@ -204,6 +189,13 @@ class FrameBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstru
 		if not was_paused: 
 			self.set_pause(True)
 			self.commit()
+			
+		# Get a frame to see what the acquisition state was for the current buffer
+		# TODO: Need a way of getting buffer state information without frames
+		try:
+			frame = self.get_realtime_data(timeout=timeout, wait=False)
+		except FrameTimeout:
+			raise BufferTimeout('Timed out waiting on valid data.')
 				
 		# Get buffer data using a network stream
 		self._stream_start(start=0, duration=0, use_sd=False, ch1=True, ch2=True, filetype='net')
@@ -212,25 +204,34 @@ class FrameBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstru
 			try:
 				self._stream_receive_samples(timeout)
 			except NoDataException:
-				log.debug("No more data to receive.")
 				break
+
+		# Clean up data streaming threads
+		self._stream_stop()
 
 		if not was_paused:
 			self.set_pause(False)
 			self.commit()
 
-		res = self._stream_get_processed_samples()
+		channel_data = self._stream_get_processed_samples()
 		self._stream_clear_processed_samples()
 
-		return res
-		
-	def _process_buffer(self, buff):
-		# Expected to be overwritten by child class in the case of 
-		# post-processing a buffer object
-		return buff
+		# Take the channel buffer data and put it into an 'InstrumentData' object
+		if(getattr(self, '_frame_class', None)):
+			buff = self._frame_class(**self._frame_kwargs)
+			buff.ch1 = channel_data[0]
+			buff.ch2 = channel_data[1]
+			buff.waveformid = frame.waveformid
+			buff._stateid = frame._stateid
+			buff._trigstate = frame._trigstate
+			# Finalise the buffer processing stage
+			buff.process_buffer()
+			return buff
+		else:
+			raise Exception("Unable to process instrument data.")
 
 	def get_realtime_data(self, timeout=None, wait=True):
-		""" Get a :any:`DataFrame` from the internal frame buffer
+		""" Get a :any:`InstrumentData` from the internal frame buffer
 		"""
 		try:
 			# Dodgy hack, infinite timeout gets translated in to just an exceedingly long one
@@ -241,12 +242,12 @@ class FrameBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstru
 				# at the moment we don't support stateid and stateid_alt being different;
 				# i.e. we can't rerender already aquired data. Until we fix this, wait
 				# for a trigger to propagate through so we don't at least render garbage
-				if not wait or frame.trigstate == self._stateid:
+				if not wait or frame._trigstate == self._stateid:
 					return frame
 				elif time.time() > endtime:
 					raise FrameTimeout()
 				else:
-					log.debug("Incorrect state received: %d/%d", frame.trigstate, self._stateid)
+					log.debug("Incorrect state received: %d/%d", frame._trigstate, self._stateid)
 		except Empty:
 			raise FrameTimeout()
 
@@ -261,7 +262,7 @@ class FrameBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstru
 
 
 	def _frame_worker(self):
-		if(getattr(self, 'frame_class', None)):
+		if(getattr(self, '_frame_class', None)):
 			ctx = zmq.Context.instance()
 			skt = ctx.socket(zmq.SUB)
 			skt.connect("tcp://%s:27185" % self._moku._ip)
@@ -269,7 +270,7 @@ class FrameBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstru
 			skt.setsockopt(zmq.RCVHWM, 8)
 			skt.setsockopt(zmq.LINGER, 5000)
 
-			fr = self.frame_class(**self.frame_kwargs)
+			fr = self._frame_class(**self._frame_kwargs)
 
 			try:
 				while self._running:
@@ -277,8 +278,8 @@ class FrameBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstru
 						d = skt.recv()
 						fr.add_packet(d)
 
-						if fr.complete:
+						if fr._complete:
 							self._queue.put_nowait(fr)
-							fr = self.frame_class(**self.frame_kwargs)
+							fr = self._frame_class(**self._frame_kwargs)
 			finally:
 				skt.close()

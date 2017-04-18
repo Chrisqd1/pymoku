@@ -16,11 +16,9 @@ from . import _stream_handler
     than pymoku.instruments._oscilloscope.Oscilloscope)
 '''
 
-DataFrame = _frame_instrument.DataFrame
+InstrumentData = _frame_instrument.InstrumentData
 VoltsData = _oscilloscope.VoltsData
 SpectrumFrame = _specan.SpectrumFrame
-
-DataBuffer = _frame_instrument.DataBuffer
 
 MokuInstrument = _instrument.MokuInstrument
 
