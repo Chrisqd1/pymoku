@@ -42,23 +42,12 @@ Example Usage
 
 
 
-
-The VoltsFrame Class
+The VoltsData Class
 --------------------
 
-.. autoclass:: pymoku.instruments.VoltsFrame
+.. autoclass:: pymoku.instruments.VoltsData
 
 	.. Don't use :members: as it doesn't handle instance attributes well. Directives in the source code list required attributes directly.
-
-
-The DataBuffer Class
---------------------
-
-.. autoclass:: pymoku.instruments.DataBuffer
-
-	.. Don't use :members: as it doesn't handle instance attributes well. Directives in the source code list required attributes directly.
-
-
 
 The Oscilloscope Class
 ----------------------

@@ -59,6 +59,7 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 			raise UncommittedSettings("Can't start a streaming session due to uncommitted device settings.")
 		self._update_datalogger_params(ch1, ch2)
 		self._stream_start(start=start, duration=duration, ch1=ch1, ch2=ch2, use_sd=False, filetype='net')
+		self._no_data = False
 
 	def stop_stream_data(self):
 		""" Stops instrument data being streamed over the network
@@ -94,10 +95,19 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 		if self._no_data:
 			log.debug("No more samples to get.")
 			return ([],[])
+		if type(n) is not int:
+			raise TypeError("Sample number 'n' must be an integer")
 
-		# Wait until you have 'n' processed samples from enabled channels
-		# Update number processed after a single loop (to handle n=0 case)
-		num_processed_samples = [-1,-1]
+		# Check how many samples are already processed and waiting to be read out
+		processed_samples = self._stream_get_processed_samples()
+		if n > 0:
+			# Actual number of samples processed already
+			num_processed_samples = [len(processed_samples[0]),len(processed_samples[1])]
+		else:
+			# We don't need to track the number of processed samples if n = [0,1]
+			num_processed_samples = [-1,-1]
+
+		# Only "get" samples off the network if we haven't already processed enough to return 'n'
 		while (n == -1) or (self.ch1 & (num_processed_samples[0] < n)) or (self.ch2 & (num_processed_samples[1] < n)):
 
 			try:
@@ -105,12 +115,16 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 			except NoDataException:
 				log.debug("No more data available for current stream.")
 				self._no_data = True
-				break
 
-			# Update number processed, unless 'n' was set to get all samples for session
+			# Update our list of current processed samples
+			processed_samples = self._stream_get_processed_samples()
 			if n != -1:
-				processed_samples = self._stream_get_processed_samples()
+				# Update the number of processed samples if we aren't asking for 'all' of them
 				num_processed_samples = [len(processed_samples[0]),len(processed_samples[1])]
+
+			# Check if the streaming session has completed
+			if self._no_data:
+				break
 
 		# Should still work for -1 because that means 'to end' of the array
 		n_ch1 = (min(n,len(processed_samples[0])) if n else -1) if self.ch1 else 0
@@ -123,7 +137,7 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 			# Sanity check
 			# Unless the stream has finished, the amount of data available on
 			# all enabled channels should be identical.
-			raise Exception("Stream has dropped data.")
+			raise StreamException("Stream has dropped data.")
 		
 		if n < 1:
 			# Clear all samples
