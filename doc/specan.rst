@@ -32,10 +32,10 @@ Example Usage
 	# Close the connection to the Moku.
 	m.close()
 
-The SpectrumFrame Class
+The SpectrumData Class
 -----------------------
 
-.. autoclass:: pymoku.instruments.SpectrumFrame
+.. autoclass:: pymoku.instruments.SpectrumData
 
 	.. Don't use :members: as it doesn't handle instance attributes well. Directives in the source code list required attributes directly.
 

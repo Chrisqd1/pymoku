@@ -18,7 +18,7 @@ from . import _stream_handler
 
 InstrumentData = _frame_instrument.InstrumentData
 VoltsData = _oscilloscope.VoltsData
-SpectrumFrame = _specan.SpectrumFrame
+SpectrumData = _specan.SpectrumData
 
 MokuInstrument = _instrument.MokuInstrument
 

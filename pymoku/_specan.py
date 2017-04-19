@@ -144,7 +144,7 @@ _DECIMATIONS_TABLE = sorted([ (d1 * (d2+1) * (d3+1) * (d4+1), d1, d2+1, d3+1, d4
 								for d4 in range(16)], key=lambda x: (x[0],x[4],x[3]))
 '''
 
-class SpectrumFrame(_frame_instrument.InstrumentData):
+class SpectrumData(_frame_instrument.InstrumentData):
 	"""
 	Object representing a frame of data in units of power vs frequency. This is the native output format of
 	the :any:`SpecAn` instrument and similar.
@@ -168,7 +168,7 @@ class SpectrumFrame(_frame_instrument.InstrumentData):
 		:annotation: = n
 	"""
 	def __init__(self, scales):
-		super(SpectrumFrame, self).__init__()
+		super(SpectrumData, self).__init__()
 
 		#: Channel 1 data array in units of power. Present whether or not the channel is enabled, but the
 		#: contents are undefined in the latter case.
@@ -178,13 +178,13 @@ class SpectrumFrame(_frame_instrument.InstrumentData):
 		self.ch2 = []
 
 		#: The frequency range associated with both channels
-		self.fs = []
+		self.frequency = []
 
 		#: Obtain all data scaling factors relevant to current SpecAn configuration
-		self.scales = scales
+		self._scales = scales
 
 	def __json__(self):
-		return { 'ch1' : self.ch1, 'ch2' : self.ch2, 'fs' : self.fs }
+		return { 'ch1' : self.ch1, 'ch2' : self.ch2, 'frequency' : self.frequency }
 
 	# convert an RMS voltage to a power level (assuming 50Ohm load)
 	def _vrms_to_dbm(self, v):
@@ -192,12 +192,12 @@ class SpectrumFrame(_frame_instrument.InstrumentData):
 
 	def process_complete(self):
 
-		if self.stateid not in self.scales:
-			log.error("Can't render specan frame, haven't saved calibration data for state %d", self.stateid)
+		if self._stateid not in self._scales:
+			log.error("Can't render specan frame, haven't saved calibration data for state %d", self._stateid)
 			return
 
 		# Get scaling/correction factors based on current instrument configuration
-		scales = self.scales[self.stateid]
+		scales = self._scales[self._stateid]
 		scale1 = scales['g1']
 		scale2 = scales['g2']
 		fs = scales['fs']
@@ -211,22 +211,21 @@ class SpectrumFrame(_frame_instrument.InstrumentData):
 			start_index = bisect_right(fs,f1)
 
 			# Set the frequency range of valid data in the current frame (same for both channels)
-			self.ch1_fs = fs[start_index:-1]
-			self.ch2_fs = fs[start_index:-1]
+			self.frequency = fs[start_index:-1]
 
 			##################################
 			# Process Ch1 Data
 			##################################
-			smpls = int(len(self.raw1) / 4)
-			dat = struct.unpack('<' + 'i' * smpls, self.raw1)
+			smpls = int(len(self._raw1) / 4)
+			dat = struct.unpack('<' + 'i' * smpls, self._raw1)
 			dat = [ x if x != -0x80000000 else None for x in dat ]
 
 			# SpecAn data is backwards because $(EXPLETIVE), also remove zeros for the sake of common
 			# display on a log axis.
-			self.ch1_bits = [ max(float(x), 1) if x is not None else None for x in reversed(dat[:_SA_SCREEN_WIDTH]) ]
+			self._ch1_bits = [ max(float(x), 1) if x is not None else None for x in reversed(dat[:_SA_SCREEN_WIDTH]) ]
 
 			# Apply frequency dependent corrections
-			self.ch1 = [ self._vrms_to_dbm(a*c*scale1) if dbmscale else a*c*scale1 if a is not None else None for a,c in zip(self.ch1_bits, fcorrs)]
+			self.ch1 = [ self._vrms_to_dbm(a*c*scale1) if dbmscale else a*c*scale1 if a is not None else None for a,c in zip(self._ch1_bits, fcorrs)]
 
 			# Trim invalid part of frame
 			self.ch1 = self.ch1[start_index:-1]
@@ -234,23 +233,32 @@ class SpectrumFrame(_frame_instrument.InstrumentData):
 			##################################
 			# Process Ch2 Data
 			##################################
-			smpls = int(len(self.raw2) / 4)
-			dat = struct.unpack('<' + 'i' * smpls, self.raw2)
+			smpls = int(len(self._raw2) / 4)
+			dat = struct.unpack('<' + 'i' * smpls, self._raw2)
 			dat = [ x if x != -0x80000000 else None for x in dat ]
 
-			self.ch2_bits = [ max(float(x), 1) if x is not None else None for x in reversed(dat[:_SA_SCREEN_WIDTH]) ]
+			self._ch2_bits = [ max(float(x), 1) if x is not None else None for x in reversed(dat[:_SA_SCREEN_WIDTH]) ]
 
-			self.ch2 = [ self._vrms_to_dbm(a*c*scale2) if dbmscale else a*c*scale2 if a is not None else None for a,c in zip(self.ch2_bits, fcorrs)]
+			self.ch2 = [ self._vrms_to_dbm(a*c*scale2) if dbmscale else a*c*scale2 if a is not None else None for a,c in zip(self._ch2_bits, fcorrs)]
 			self.ch2 = self.ch2[start_index:-1]
 
 		except (IndexError, TypeError, struct.error):
 			# If the data is bollocksed, force a reinitialisation on next packet
 			log.exception("SpecAn packet")
-			self.frameid = None
-			self.complete = False
+			self._frameid = None
+			self._complete = False
 
 		# A valid frame is there's at least one valid sample in each channel
 		return any(self.ch1) and any(self.ch2)
+
+	def process_buffer(self):
+		# Compute the x-axis of the buffer
+		if self._stateid not in self._scales:
+			log.error("Can't process buffer - haven't saved calibration for state %d", self._stateid)
+			return
+		scales = self._scales[self._stateid]
+		self.time = [scales['buff_time_min'] + (scales['buff_time_step'] * x) for x in range(_OSC_BUFLEN)]
+		return True
 
 	'''
 		Plotting helper functions
@@ -279,11 +287,11 @@ class SpectrumFrame(_frame_instrument.InstrumentData):
 		# This function returns a format string for the x-axis ticks and x-coordinates along the frequency scale
 		# Use this to set an x-axis format during plotting of SpecAn frames
 
-		if self.stateid not in self.scales:
-			log.error("Can't get x-axis format, haven't saved calibration data for state %d", self.stateid)
+		if self._stateid not in self._scales:
+			log.error("Can't get x-axis format, haven't saved calibration data for state %d", self._stateid)
 			return
 
-		scales = self.scales[self.stateid]
+		scales = self._scales[self._stateid]
 		f1, f2 = scales['fspan']
 
 		fscale_str, fscale_const = self._get_freqScale(f2)
@@ -300,11 +308,11 @@ class SpectrumFrame(_frame_instrument.InstrumentData):
 
 	def _get_yaxis_fmt(self,y,pos):
 
-		if self.stateid not in self.scales:
-			log.error("Can't get current frequency format, haven't saved calibration data for state %d", self.stateid)
+		if self._stateid not in self._scales:
+			log.error("Can't get current frequency format, haven't saved calibration data for state %d", self._stateid)
 			return
 
-		scales = self.scales[self.stateid]
+		scales = self._scales[self._stateid]
 		dbm = scales['dbmscale']
 
 		yfmt = {
@@ -349,18 +357,12 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		self._register_accessors(_sa_reg_handlers)
 
 		self.scales = {}
-		self._set_frame_class(SpectrumFrame, scales=self.scales)
+		self._set_frame_class(SpectrumData, scales=self.scales)
 
 		self.id = 2
 		self.type = "specan"
 		self.calibration = None
-
-		self.set_span(0, 250e6)
-		self.set_rbw()
-		self.set_window('blackman-harris')
-
-		self.set_dbmscale(True)
-
+		
 		# Embedded signal generator configuration
 		self.en_out1 = False
 		self.en_out2 = False
@@ -371,6 +373,11 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		self.tr2_incr = 0
 		self.sweep1 = False
 		self.sweep2 = False
+
+		self.set_span(0,250e6)
+		self.set_rbw()
+		self.set_window('blackman-harris')
+		self.set_dbmscale(True)
 
 	def _calculate_decimations(self, f1, f2):
 		# Computes the decimations given the input span
@@ -610,9 +617,6 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		self.tr2_stop = 0
 		self.tr1_incr = 0
 		self.tr2_incr = 0
-
-		self.set_dbmscale(True)
-		self.set_rbw()
 
 	def _calculate_freqStep(self, decimation, render_downsamp):
 		bufspan = _SA_ADC_SMPS / 2.0 / decimation
