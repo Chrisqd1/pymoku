@@ -100,33 +100,10 @@ class VoltsData(_frame_instrument.InstrumentData):
 			return
 
 		scales = self._scales[self._stateid]
-		g1 = scales['gain_adc1']
-		g2 = scales['gain_adc2']
-		d1 = scales['gain_dac1']
-		d2 = scales['gain_dac2']
-		s1 = scales['source_ch1']
-		s2 = scales['source_ch2']
-		l1 = scales['gain_loopback1']
-		l2 = scales['gain_loopback2']
+		scale_ch1 = scales['scale_ch1']
+		scale_ch2 = scales['scale_ch2']
 		t1 = scales['time_min']
 		ts = scales['time_step']
-
-		def _compute_scaling_factor(adc,dac,src,lmode):
-			# Change scaling factor depending on the source type
-			if (src == _OSC_SOURCE_ADC):
-				scale = adc
-			elif (src == _OSC_SOURCE_DAC):
-				if(lmode == _OSC_LB_CLIP):
-					scale = dac 
-				else: # Rounding mode
-					scale = dac * 16
-			else:
-				log.error("Invalid source type on channel.")
-				return
-			return scale
-
-		scale1 = _compute_scaling_factor(g1,d1,s1,l1)
-		scale2 = _compute_scaling_factor(g2,d2,s2,l2)
 
 		try:
 			smpls = int(len(self._raw1) / 4)
@@ -134,14 +111,14 @@ class VoltsData(_frame_instrument.InstrumentData):
 			dat = [ x if x != -0x80000000 else None for x in dat ]
 
 			self._ch1_bits = [ float(x) if x is not None else None for x in dat[:1024] ]
-			self.ch1 = [ x * scale1 if x is not None else None for x in self._ch1_bits]
+			self.ch1 = [ x * scale_ch1 if x is not None else None for x in self._ch1_bits]
 
 			smpls = int(len(self._raw2) / 4)
 			dat = struct.unpack('<' + 'i' * smpls, self._raw2)
 			dat = [ x if x != -0x80000000 else None for x in dat ]
 
 			self._ch2_bits = [ float(x) if x is not None else None for x in dat[:1024] ]
-			self.ch2 = [ x * scale2 if x is not None else None for x in self._ch2_bits]
+			self.ch2 = [ x * scale_ch2 if x is not None else None for x in self._ch2_bits]
 		except (IndexError, TypeError, struct.error):
 			# If the data is bollocksed, force a reinitialisation on next packet
 			log.exception("Oscilloscope packet")
@@ -551,8 +528,8 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		self._set_buffer_length(4)
 		self.set_xmode('fullframe')
 
-		self.set_frontend(1, fiftyr=True)
-		self.set_frontend(2, fiftyr=True)
+		self.set_frontend(1, fiftyr=True, atten=False, ac=False)
+		self.set_frontend(2, fiftyr=True, atten=False, ac=False)
 		self.en_in_ch1 = True
 		self.en_in_ch2 = True
 
@@ -577,13 +554,36 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 			ts = self._calculate_frame_timestep(self.decimation_rate, self.render_deci)
 			bt1 = self._calculate_buffer_start_time(self.decimation_rate, self.pretrigger)
 			bts = self._calculate_buffer_timestep(self.decimation_rate)
-		if self.ain_mode == _OSC_AIN_DECI:
-			g1 /= self._deci_gain()
-			g2 /= self._deci_gain()
-			d1 /= self._deci_gain()
-			d2 /= self._deci_gain()
 
-		return {'gain_adc1': g1,
+		scale_ch1 = g1 if s1 == _OSC_SOURCE_ADC else d1
+		scale_ch2 = g2 if s2 == _OSC_SOURCE_ADC else d2
+
+		if self.ain_mode == _OSC_AIN_DECI:
+			scale_ch1 /= self._deci_gain()
+			scale_ch2 /= self._deci_gain()
+
+		def _compute_total_scaling_factor(adc,dac,src,lmode):
+			# Change scaling factor depending on the source type
+			if (src == _OSC_SOURCE_ADC):
+				scale = 1.0
+			elif (src == _OSC_SOURCE_DAC):
+				if(lmode == _OSC_LB_CLIP):
+					scale = 1.0
+				else: # Rounding mode
+					scale = 16.0
+			else:
+				log.error("Invalid source type on channel.")
+				return
+			return scale
+
+		# These are the combined scaling factors for both channel 1 and channel 2 raw data
+		scale_ch1 *= _compute_total_scaling_factor(g1,d1,s1,l1)
+		scale_ch2 *= _compute_total_scaling_factor(g2,d2,s2,l2)
+
+
+		return {'scale_ch1': scale_ch1,
+				'scale_ch2': scale_ch2,
+				'gain_adc1': g1,
 				'gain_adc2': g2,
 				'gain_dac1': d1,
 				'gain_dac2': d2,
@@ -601,16 +601,13 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		self.trigger_level = self._source_volts_to_bits(self.trig_volts, self.trig_ch, scales)
 		self.hysteresis = self._source_volts_to_bits(self.hysteresis_volts, self.trig_ch, scales)
 	
-	def _update_datalogger_params(self, ch1, ch2):
+	def _update_datalogger_params(self, scales, ch1, ch2):
 		samplerate = self.get_samplerate()
 		self.timestep = 1.0/samplerate
 
-		if self.ain_mode == _OSC_AIN_DECI:
-			self.procstr[0] = "*C/{:f}".format(self._deci_gain())
-			self.procstr[1] = "*C/{:f}".format(self._deci_gain())
-		else:
-			self.procstr[0] = "*C"
-			self.procstr[1] = "*C"
+		# Use the new scales to decide on the processing string
+		self.procstr[0] = "*{:.15f}".format(scales['scale_ch1'])
+		self.procstr[1] = "*{:.15f}".format(scales['scale_ch2'])
 		self.fmtstr = self._get_fmtstr(ch1,ch2)
 		self.hdrstr = self._get_hdrstr(ch1,ch2)
 
@@ -645,7 +642,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		scales = self._calculate_scales()
 		# Update any calibration scaling dependent register values
 		self._update_dependent_regs(scales)
-		self._update_datalogger_params(self.ch1, self.ch2)
+		self._update_datalogger_params(scales, self.ch1, self.ch2)
 
 		# Commit the register values to the device
 		super(Oscilloscope, self).commit()

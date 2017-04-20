@@ -22,10 +22,6 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 
 	def __init__(self):
 		super(StreamBasedInstrument, self).__init__()
-		self.binstr = ''
-		self.procstr = ''
-		self.fmtstr = ''
-		self.hdrstr = ''
 
 		self._strparser = None
 
@@ -57,7 +53,6 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 		"""
 		if self.check_uncommitted_state():
 			raise UncommittedSettings("Can't start a streaming session due to uncommitted device settings.")
-		self._update_datalogger_params(ch1, ch2)
 		self._stream_start(start=start, duration=duration, ch1=ch1, ch2=ch2, use_sd=False, filetype='net')
 		self._no_data = False
 
@@ -167,7 +162,6 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 		"""
 		if self.check_uncommitted_state():
 			raise UncommittedSettings("Can't start a logging session due to uncommitted device settings.")
-		self._update_datalogger_params(ch1, ch2)
 		if filetype not in ['csv','bin']:
 			raise ValueError('Invalid log file type: %s. Expected \'csv\' or \'bin\'.' % filetype)
 		self._stream_start(start=start, duration=duration, ch1=ch1, ch2=ch2, use_sd=use_sd, filetype=filetype)

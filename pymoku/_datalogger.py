@@ -127,17 +127,16 @@ class DataLogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 		else:
 			raise ValueOutOfRangeException("Incorrect channel number %d", ch)
 
-	def _update_datalogger_params(self, ch1, ch2):
+	def _update_datalogger_params(self, scales, ch1, ch2):
 		samplerate = self.get_samplerate()
+		self.timestep = 1.0/samplerate
 
-		if self.ain_mode == _DL_AIN_DECI:
-			self.procstr[0] = "*C/{:f}".format(self._deci_gain())
-			self.procstr[1] = "*C/{:f}".format(self._deci_gain())
-		else:
-			self.procstr[0] = "*C"
-			self.procstr[1] = "*C"
+		# Use the new scales to decide on the processing string
+		self.procstr[0] = "*{:.15f}".format(scales['scale_ch1'])
+		self.procstr[1] = "*{:.15f}".format(scales['scale_ch2'])
 		self.fmtstr = self._get_fmtstr(ch1,ch2)
 		self.hdrstr = self._get_hdrstr(ch1,ch2)
+
 
 	def _get_hdrstr(self, ch1, ch2):
 		chs = [ch1, ch2]
@@ -175,11 +174,59 @@ class DataLogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 		else:
 			return self.decimation_rate / 2**10
 
+	def _calculate_scales(self):
+		g1, g2 = self._adc_gains()
+		d1, d2 = self._dac_gains()
+
+		l1 = self.loopback_mode_ch1
+		l2 = self.loopback_mode_ch2
+
+		s1 = self.source_ch1
+		s2 = self.source_ch2
+
+		scale_ch1 = g1 if s1 == _DL_SOURCE_ADC else d1
+		scale_ch2 = g2 if s2 == _DL_SOURCE_ADC else d2
+
+		if self.ain_mode == _DL_AIN_DECI:
+			scale_ch1 /= self._deci_gain()
+			scale_ch2 /= self._deci_gain()
+
+		def _compute_total_scaling_factor(adc,dac,src,lmode):
+			# Change scaling factor depending on the source type
+			if (src == _DL_SOURCE_ADC):
+				scale = 1.0
+			elif (src == _DL_SOURCE_DAC):
+				if(lmode == _DL_LB_CLIP):
+					scale = 1.0
+				else: # Rounding mode
+					scale = 16.0
+			else:
+				log.error("Invalid source type on channel.")
+				return
+			return scale
+
+		# These are the combined scaling factors for both channel 1 and channel 2 raw data
+		scale_ch1 *= _compute_total_scaling_factor(g1,d1,s1,l1)
+		scale_ch2 *= _compute_total_scaling_factor(g2,d2,s2,l2)
+
+		return {'scale_ch1': scale_ch1,
+				'scale_ch2': scale_ch2,
+				'gain_adc1': g1,
+				'gain_adc2': g2,
+				'gain_dac1': d1,
+				'gain_dac2': d2,
+				'source_ch1': s1,
+				'source_ch2': s2,
+				'gain_loopback1': l1,
+				'gain_loopback2': l2
+				}
+
 	def commit(self):
-		self._update_datalogger_params(self.ch1, self.ch2)
+		scales = self._calculate_scales()
+		self._update_datalogger_params(scales, self.ch1, self.ch2)
 		# Commit the register values to the device
 		super(DataLogger, self).commit()
-
+		self.scales[self._stateid] = scales
 	
 _dl_reg_handlers = {
 	'source_ch1':		(REG_DL_OUTSEL,	to_reg_unsigned(0, 1, allow_set=[_DL_SOURCE_ADC, _DL_SOURCE_DAC]),

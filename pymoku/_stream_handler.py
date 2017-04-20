@@ -38,6 +38,12 @@ class StreamHandler(_instrument.MokuInstrument):
 		self.ch2 = False
 		self.nch = 0
 
+		self.procstr = ''
+		self.binstr = ''
+		self.hdrstr = ''
+		self.fmtstr = ''
+
+
 	@staticmethod
 	def _max_stream_rates(instr, nch, use_sd):
 		"""
@@ -396,10 +402,3 @@ class StreamHandler(_instrument.MokuInstrument):
 		if self._dlskt is not None:
 			self._dlskt.close()
 			self._dlskt = None
-
-	def _update_datalogger_params(self, ch1, ch2):
-		""" 
-		Intended on being overwritten by child classes
-		Updates things like header and formatting strings for log files prior to starting a session.
-		"""
-		return
