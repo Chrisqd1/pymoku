@@ -413,6 +413,13 @@ class MokuInstrument(object):
 		"""
 		if self._moku is None: raise NotDeployedException()
 		self._remoteregs = [ val for reg, val in self._moku._read_regs(list(range(128)))]
+		self._stateid = self.state_id
+		self._on_reg_sync()
+
+	def _on_reg_sync(self):
+		# Designed to be overwritten by child instruments to update local variables
+		# when a new moku has been reg sync'd 
+		return
 
 	def _dump_remote_regs(self):
 		"""

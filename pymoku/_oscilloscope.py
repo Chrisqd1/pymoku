@@ -223,15 +223,12 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		# NOTE: Register mapped properties will be overwritten in sync registers call
 		# on deploy_instrument(). No point setting them here.
 		self.scales = {}
-
 		self._set_frame_class(VoltsData, scales=self.scales)
 
-		# Define any (non- register-mapped) properties that are used when committing
+		# Define any (non-register-mapped) properties that are used when committing
 		# as a commit is called when the instrument is set running
-		self.trig_volts = 0
-		self.hysteresis_volts = 0.0
-
-		self.pause = False
+		self.trig_volts = None
+		self.hysteresis_volts = None
 
 		# All instruments need a binstr, procstr and format string.
 		self.logname = "MokuOscilloscopeData"
@@ -339,21 +336,20 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		self.pretrigger = buffer_offset
 		self.offset = frame_offset
 
-	def _source_volts_to_bits(self, amplitude, source, scales):
+	def _source_volts_to_bits(self, volts, source, scales):
 		"""
 			Converts volts to bits depending on the source (ADC1/2, DAC1/2)
 		"""
 		if (source == _OSC_TRIG_CH1):
-			level = amplitude/scales['gain_adc1']
+			level = volts/scales['gain_adc1']
 		elif (source == _OSC_TRIG_CH2):
-			level = amplitude/scales['gain_adc2']
+			level = volts/scales['gain_adc2']
 		elif (source == _OSC_TRIG_DA1):
-			level = (amplitude/scales['gain_dac1'])/16
+			level = (volts/scales['gain_dac1'])/16
 		elif (source == _OSC_TRIG_DA2):
-			level = (amplitude/scales['gain_dac2'])/16
+			level = (volts/scales['gain_dac2'])/16
 
 		return level
-
 
 	@needs_commit
 	def set_samplerate(self, samplerate, trigger_offset=0):
@@ -419,7 +415,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		:param state: Select Precision Mode
 		:type state: bool
 		"""
-		if state and self.hysteresis_volts > 0 :
+		if state and self.hysteresis > 0 :
 			raise InvalidConfigurationException("Precision mode and Hysteresis can't be set at the same time.")
 		self.ain_mode = _OSC_AIN_DECI if state else _OSC_AIN_DDS
 
@@ -598,8 +594,10 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 	def _update_dependent_regs(self, scales):
 		# Trigger level must be scaled depending on the current relay settings and chosen trigger source
-		self.trigger_level = self._source_volts_to_bits(self.trig_volts, self.trig_ch, scales)
-		self.hysteresis = self._source_volts_to_bits(self.hysteresis_volts, self.trig_ch, scales)
+		if self.trig_volts:
+			self.trigger_level = self._source_volts_to_bits(self.trig_volts, self.trig_ch, scales)
+		if self.hysteresis_volts:
+			self.hysteresis = self._source_volts_to_bits(self.hysteresis_volts, self.trig_ch, scales)
 	
 	def _update_datalogger_params(self, scales, ch1, ch2):
 		samplerate = self.get_samplerate()
@@ -637,6 +635,14 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 				fmtstr += ",{{ch{i}:.10e}}".format(i=i+1)
 		fmtstr += "\r\n"
 		return fmtstr
+
+	def _on_reg_sync(self):
+		# This function is used to update any local variables when a Moku has
+		# had its registers synchronised with the current instrument
+		scales = self._calculate_scales()
+		self.scales[self._stateid] = scales
+		self._update_dependent_regs(scales)
+		self._update_datalogger_params(scales, self.ch1, self.ch2)
 
 	def commit(self):
 		scales = self._calculate_scales()
