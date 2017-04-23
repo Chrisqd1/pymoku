@@ -34,8 +34,6 @@ class DataLogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 		self.calibration = None
 
 		# TODO: Allow user to disable logging of either channel
-		self.ch1 = True
-		self.ch2 = True
 		self.logname = "MokuDataLoggerData"
 		self.binstr = "<s32"
 		self.procstr = ['','']

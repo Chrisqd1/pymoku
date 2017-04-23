@@ -25,9 +25,6 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 
 		self._strparser = None
 
-		# Disable both channels initially
-		self.ch1 = False
-		self.ch2 = False
 		# Flag to indicate if there is no more stream data to get for last session
 		self._no_data = True 
 

@@ -126,7 +126,7 @@ class StreamHandler(_instrument.MokuInstrument):
 		- **bin** -- LI Binary file
 		- **net** -- Log to network, retrieve data with :any:`_stream_receive_samples`
 		"""
-		if (not ch1) or (not ch2):
+		if (not ch1) and (not ch2):
 			raise InvalidOperationException("No channels were selected for logging")
 		if duration < 0:
 			raise InvalidOperationException("Invalid duration %d", duration)
@@ -134,16 +134,15 @@ class StreamHandler(_instrument.MokuInstrument):
 		from datetime import datetime
 		if self._moku is None: raise NotDeployedException()
 
-		# Update all child instrument local datalogging variables
-		self._update_datalogger_params()
-
 		self._dlserial += 1
 		self.tag = "%04d" % self._dlserial
 
 		self.ch1 = bool(ch1)
 		self.ch2 = bool(ch2)		
 		self.nch = bool(self.ch1) + bool(self.ch2)
-
+		# Update all child instrument local datalogging variables
+		self._update_datalogger_params()
+		
 		fname = datetime.now().strftime(self.logname + "_%Y%m%d_%H%M%S")
 
 		# Currently the data stream genesis is from the x_mode commit below, meaning that delayed start
@@ -346,7 +345,13 @@ class StreamHandler(_instrument.MokuInstrument):
 			:returns: Array where each entry is an array corresponding to 
 			processed channel samples [[Ch1 Samples],[Ch2 Samples]].
 		"""
-		return self._strparser.processed
+		processed_smps = self._strparser.processed
+		if self.nch == 1:
+			if self.ch1:
+				return [processed_smps[0],[]]
+			if self.ch2:
+				return [[],processed_smps[0]]
+		return processed_smps
 
 	def _stream_clear_processed_samples(self, _len=None):
 		"""
