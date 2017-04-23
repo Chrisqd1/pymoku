@@ -233,7 +233,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		# All instruments need a binstr, procstr and format string.
 		self.logname = "MokuOscilloscopeData"
 		self.binstr = "<s32"
-		self.procstr = ["*C","*C"]
+		self.procstr = ['','']
 		self.fmtstr = ''
 		self.hdrstr = ''
 		self.timestep = 1
@@ -594,20 +594,23 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 	def _update_dependent_regs(self, scales):
 		# Trigger level must be scaled depending on the current relay settings and chosen trigger source
-		if self.trig_volts:
+		if self.trig_volts is not None:
 			self.trigger_level = self._source_volts_to_bits(self.trig_volts, self.trig_ch, scales)
-		if self.hysteresis_volts:
+		if self.hysteresis_volts is not None:
 			self.hysteresis = self._source_volts_to_bits(self.hysteresis_volts, self.trig_ch, scales)
 	
-	def _update_datalogger_params(self, scales, ch1, ch2):
+	def _update_datalogger_params(self):
+		scales = self._calculate_scales()
+
 		samplerate = self.get_samplerate()
 		self.timestep = 1.0/samplerate
 
 		# Use the new scales to decide on the processing string
 		self.procstr[0] = "*{:.15f}".format(scales['scale_ch1'])
 		self.procstr[1] = "*{:.15f}".format(scales['scale_ch2'])
-		self.fmtstr = self._get_fmtstr(ch1,ch2)
-		self.hdrstr = self._get_hdrstr(ch1,ch2)
+
+		self.fmtstr = self._get_fmtstr(self.ch1,self.ch2)
+		self.hdrstr = self._get_hdrstr(self.ch1,self.ch2)
 
 	def _get_hdrstr(self, ch1, ch2):
 		chs = [ch1, ch2]
@@ -639,16 +642,21 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 	def _on_reg_sync(self):
 		# This function is used to update any local variables when a Moku has
 		# had its registers synchronised with the current instrument
+		if self.decimation_rate == 0:
+			self.timestep = 1.0/(_OSC_ADC_SMPS)
+		else:
+			samplerate = _OSC_ADC_SMPS / float(self.decimation_rate)
+			self.timestep = 1.0/samplerate
 		scales = self._calculate_scales()
 		self.scales[self._stateid] = scales
 		self._update_dependent_regs(scales)
-		self._update_datalogger_params(scales, self.ch1, self.ch2)
+		self._update_datalogger_params()
 
 	def commit(self):
 		scales = self._calculate_scales()
 		# Update any calibration scaling dependent register values
 		self._update_dependent_regs(scales)
-		self._update_datalogger_params(scales, self.ch1, self.ch2)
+		self._update_datalogger_params()
 
 		# Commit the register values to the device
 		super(Oscilloscope, self).commit()

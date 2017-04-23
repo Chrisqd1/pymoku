@@ -134,6 +134,9 @@ class StreamHandler(_instrument.MokuInstrument):
 		from datetime import datetime
 		if self._moku is None: raise NotDeployedException()
 
+		# Update all child instrument local datalogging variables
+		self._update_datalogger_params()
+
 		self._dlserial += 1
 		self.tag = "%04d" % self._dlserial
 
@@ -402,3 +405,9 @@ class StreamHandler(_instrument.MokuInstrument):
 		if self._dlskt is not None:
 			self._dlskt.close()
 			self._dlskt = None
+
+	def _update_datalogger_params(self):
+		# To be overwritten by child instruments to update local datalogger parameters
+		# prior to starting any stream session
+		
+		return

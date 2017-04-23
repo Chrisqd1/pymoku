@@ -32,29 +32,38 @@ class DataLogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 		self.id = 7
 		self.type = "datalogger"
 		self.calibration = None
-		self.scales = {}
 
+		# TODO: Allow user to disable logging of either channel
+		self.ch1 = True
+		self.ch2 = True
 		self.logname = "MokuDataLoggerData"
 		self.binstr = "<s32"
-		self.procstr = ["*C","*C"]
+		self.procstr = ['','']
 		self.hdrstr = ''
 		self.fmtstr = ''
 		self.timestep = 1
 
-	def _deci_gain(self):
-		if self.decimation_rate == 0:
-			return 1
-
-		if self.decimation_rate < 2**20:
-			return self.decimation_rate
-		else:
-			return self.decimation_rate / 2**10
-
 	@needs_commit
 	def set_defaults(self):
-
 		# Force X-Mode to be "roll" for streaming
+		super(DataLogger, self).set_defaults()
 		self.x_mode = _DL_ROLL
+		self.set_samplerate(1e3)
+
+		# Disable the signal generator by default
+		# TODO: Disable without using a gen_ function
+		self.gen_sinewave(1,0.0,10)
+		self.gen_sinewave(2,0.0,10)
+
+		self.set_source(1,'in')
+		self.set_source(2,'in')
+		self.set_precision_mode(False)
+		self.set_pause(False)
+
+		self.set_frontend(1, fiftyr=True, atten=False, ac=False)
+		self.set_frontend(2, fiftyr=True, atten=False, ac=False)
+		self.en_in_ch1 = True
+		self.en_in_ch2 = True
 
 	@needs_commit
 	def set_samplerate(self, samplerate):
@@ -127,16 +136,24 @@ class DataLogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 		else:
 			raise ValueOutOfRangeException("Incorrect channel number %d", ch)
 
-	def _update_datalogger_params(self, scales, ch1, ch2):
+	def _update_datalogger_params(self):
+		scales = self._calculate_scales()
+
 		samplerate = self.get_samplerate()
 		self.timestep = 1.0/samplerate
 
 		# Use the new scales to decide on the processing string
 		self.procstr[0] = "*{:.15f}".format(scales['scale_ch1'])
 		self.procstr[1] = "*{:.15f}".format(scales['scale_ch2'])
-		self.fmtstr = self._get_fmtstr(ch1,ch2)
-		self.hdrstr = self._get_hdrstr(ch1,ch2)
+		self.fmtstr = self._get_fmtstr(self.ch1,self.ch2)
+		self.hdrstr = self._get_hdrstr(self.ch1,self.ch2)
 
+	def _on_reg_sync(self):
+		if self.decimation_rate == 0:
+			self.timestep = 1.0/(_DL_ADC_SMPS)
+		else:
+			samplerate = _DL_ADC_SMPS / float(self.decimation_rate)
+			self.timestep = 1.0/samplerate
 
 	def _get_hdrstr(self, ch1, ch2):
 		chs = [ch1, ch2]
@@ -220,14 +237,7 @@ class DataLogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 				'gain_loopback1': l1,
 				'gain_loopback2': l2
 				}
-
-	def commit(self):
-		scales = self._calculate_scales()
-		self._update_datalogger_params(scales, self.ch1, self.ch2)
-		# Commit the register values to the device
-		super(DataLogger, self).commit()
-		self.scales[self._stateid] = scales
-	
+				
 _dl_reg_handlers = {
 	'source_ch1':		(REG_DL_OUTSEL,	to_reg_unsigned(0, 1, allow_set=[_DL_SOURCE_ADC, _DL_SOURCE_DAC]),
 											from_reg_unsigned(0, 1)),

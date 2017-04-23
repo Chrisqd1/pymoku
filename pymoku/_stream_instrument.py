@@ -187,8 +187,11 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 			return 100
 		else:
 			duration = float(abs(-time_since_start + time_to_end))
-			# Only return 100% if complete
-			return min(int(abs(time_since_start/duration)*100),99)
+			if duration > 0:
+				# Only return 100% if complete
+				return min(int(abs(time_since_start/duration)*100),99)
+			else:
+				return 99
 
 	def data_log_filename(self):
 		""" Returns the current base filename of the logging session.
