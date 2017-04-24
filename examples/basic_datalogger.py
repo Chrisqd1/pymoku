@@ -2,13 +2,14 @@ from pymoku import Moku, StreamException
 from pymoku.instruments import *
 import time
 
-# Find your Moku device by name
-# Alternatively, if you know the IP address, use Moku('192.168.###.###') 
-# or by serial, Moku.get_by_serial('#####')
-m = Moku.get_by_name('Jet Fuel')
+# Connect to your Moku by its device name
+# Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
+m = Moku.get_by_name('Moku')
 
-# Configure the Moku to run a DataLogger instrument
+# Prepare the DataLogger instrument
 i = DataLogger()
+
+# Deploy the DataLogger to your Moku
 m.deploy_instrument(i)
 
 try:
@@ -19,12 +20,12 @@ try:
 	# SD Card (rather than internal storage). Use the Moku's binary file format for better speed
 	# and size performance.
 	i.stop_data_log()
-	i.start_data_log(duration=30, use_sd=True, ch1=True, ch2=True, filetype='bin')
+	i.start_data_log(duration=10, use_sd=True, ch1=True, ch2=True, filetype='bin')
 
 	# Track progress percentage of the data logging session
 	progress = 0
 	while progress < 100:
-		# Sleep for a half second 
+		# Wait for the logging session to progress by sleeping 0.5sec
 		time.sleep(0.5)
 		# Get current progress percentage and print it out
 		progress = i.progress_data_log()
