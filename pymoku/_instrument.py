@@ -658,7 +658,8 @@ _instr_reg_handlers = {
 	'render_mode':		(REG_FILT,		to_reg_unsigned(0, 2, allow_set=[RDR_CUBIC, RDR_MINMAX, RDR_DECI, RDR_DDS]),
 										from_reg_unsigned(0, 2)),
 
-	'waveform_avg':		(REG_FILT,		to_reg_unsigned(2, 7),		from_reg_unsigned(2, 7)),
+	'waveform_avg1':	(REG_FILT,		to_reg_unsigned(2, 4, allow_range=(0,13)),		from_reg_unsigned(2, 4)),
+	'waveform_avg2':	(REG_FILT,		to_reg_unsigned(6, 4, allow_range=(0,13)),		from_reg_unsigned(6, 4)),
 
 	'framerate':		(REG_FRATE,		to_reg_unsigned(0, 8, xform=lambda obj, f: f * 256.0 / 477.0),
 										from_reg_unsigned(0, 8, xform=lambda obj, f: f / 256.0 * 477.0)),

@@ -6,7 +6,7 @@ from pymoku.instruments import *
 m = Moku.get_by_name('Moku')
 
 # Prepare the Spectrum Analyser instrument
-i = SpecAn()
+i = SpectrumAnalyser()
 
 # Deploy the Spectrum Analyser to your Moku
 m.deploy_instrument(i)

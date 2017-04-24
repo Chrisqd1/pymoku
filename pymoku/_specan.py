@@ -147,7 +147,7 @@ _DECIMATIONS_TABLE = sorted([ (d1 * (d2+1) * (d3+1) * (d4+1), d1, d2+1, d3+1, d4
 class SpectrumData(_frame_instrument.InstrumentData):
 	"""
 	Object representing a frame of data in units of power vs frequency. This is the native output format of
-	the :any:`SpecAn` instrument and similar.
+	the :any:`SpectrumAnalyser` instrument and similar.
 
 	This object should not be instantiated directly, but will be returned by a supporting *get_frame*
 	implementation.
@@ -180,7 +180,7 @@ class SpectrumData(_frame_instrument.InstrumentData):
 		#: The frequency range associated with both channels
 		self.frequency = []
 
-		#: Obtain all data scaling factors relevant to current SpecAn configuration
+		#: Obtain all data scaling factors relevant to current SpectrumAnalyser configuration
 		self._scales = scales
 
 	def __json__(self):
@@ -193,7 +193,7 @@ class SpectrumData(_frame_instrument.InstrumentData):
 	def process_complete(self):
 
 		if self._stateid not in self._scales:
-			log.error("Can't render specan frame, haven't saved calibration data for state %d", self._stateid)
+			log.error("Can't render SpectrumAnalyser frame, haven't saved calibration data for state %d", self._stateid)
 			return
 
 		# Get scaling/correction factors based on current instrument configuration
@@ -207,7 +207,7 @@ class SpectrumData(_frame_instrument.InstrumentData):
 
 		try:
 			# Find the starting index for the valid frame data
-			# SpecAn generally gives more than we ask for due to integer decimations
+			# SpectrumAnalyser generally gives more than we ask for due to integer decimations
 			start_index = bisect_right(fs,f1)
 
 			# Set the frequency range of valid data in the current frame (same for both channels)
@@ -220,7 +220,7 @@ class SpectrumData(_frame_instrument.InstrumentData):
 			dat = struct.unpack('<' + 'i' * smpls, self._raw1)
 			dat = [ x if x != -0x80000000 else None for x in dat ]
 
-			# SpecAn data is backwards because $(EXPLETIVE), also remove zeros for the sake of common
+			# SpectrumAnalyser data is backwards because $(EXPLETIVE), also remove zeros for the sake of common
 			# display on a log axis.
 			self._ch1_bits = [ max(float(x), 1) if x is not None else None for x in reversed(dat[:_SA_SCREEN_WIDTH]) ]
 
@@ -244,7 +244,7 @@ class SpectrumData(_frame_instrument.InstrumentData):
 
 		except (IndexError, TypeError, struct.error):
 			# If the data is bollocksed, force a reinitialisation on next packet
-			log.exception("SpecAn packet")
+			log.exception("SpectrumAnalyser packet")
 			self._frameid = None
 			self._complete = False
 
@@ -334,10 +334,10 @@ class SpectrumData(_frame_instrument.InstrumentData):
 		""" Function suitable to use as argument to a matplotlib FuncFormatter for Y (voltage) coordinate """
 		return self._get_yaxis_fmt(y,None)['ycoord']
 
-class SpecAn(_frame_instrument.FrameBasedInstrument):
+class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 	""" Spectrum Analyser instrument object. This should be instantiated and attached to a :any:`Moku` instance.
 
-	.. automethod:: pymoku.instruments.SpecAn.__init__
+	.. automethod:: pymoku.instruments.SpectrumAnalyser.__init__
 
 	.. attribute:: framerate
 		:annotation: = 2
@@ -353,7 +353,7 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 	@dont_commit
 	def __init__(self):
 		"""Create a new Spectrum Analyser instrument, ready to be attached to a Moku."""
-		super(SpecAn, self).__init__()
+		super(SpectrumAnalyser, self).__init__()
 		self._register_accessors(_sa_reg_handlers)
 
 		self.scales = {}
@@ -588,7 +588,7 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 	@needs_commit
 	def set_defaults(self):
 		""" Reset the Spectrum Analyser to sane defaults. """
-		super(SpecAn, self).set_defaults()
+		super(SpectrumAnalyser, self).set_defaults()
 		#TODO this should reset ALL registers
 		self.framerate = _SA_FPS
 		self.frame_length = _SA_SCREEN_WIDTH
@@ -663,7 +663,7 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		filt_gain1 = 2 ** (-5.0) if self.dec_enable else 1.0
 		filt_gain2 = 2.0 ** (self.bs_cic2 - 2.0 * math.log(self.dec_cic2, 2))
 		filt_gain3 = 2.0 ** (self.bs_cic3 - 3.0 * math.log(self.dec_cic3, 2))
-		filt_gain4 = pow(2.0,-8.0) if (self.dec_iir-1) else 1.0
+		filt_gain4 = 1.0
 
 		filt_gain = filt_gain1 * filt_gain2 * filt_gain3 * filt_gain4
 		window_gain = 1.0 / _SA_WINDOW_POWER[self.window]
@@ -695,7 +695,7 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 			self.tr2_amp = self._tr2_amp if enable else 0
 
 	@needs_commit
-	def conf_output(self, ch, amp, freq, sweep=False):
+	def gen_sinewave(self, ch, amp, freq, sweep=False):
 		"""
 		Configure the output sinewaves on DAC channels
 
@@ -765,7 +765,7 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		self._update_dependent_regs()
 
 		# Push the controls through to the device
-		super(SpecAn, self).commit()
+		super(SpectrumAnalyser, self).commit()
 
 		# Update the scaling factors for processing of incoming frames
 		# stateid allows us to track which scales correspond to which register state

@@ -15,7 +15,7 @@ m = Moku.get_by_name('example')
 i = m.discover_instrument()
 if i is None or i.type != 'specan':
 	print("No or wrong instrument deployed")
-	i = SpecAn()
+	i = SpectrumAnalyser()
 	m.deploy_instrument(i)
 else:
 	print("Attached to existing Spectrum Analyser")
