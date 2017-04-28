@@ -5,8 +5,6 @@ import os, os.path, shutil, tempfile
 import requests
 
 from pymoku import *
-import pymoku.version
-
 from pymoku.tools.compat import *
 
 import logging
@@ -50,19 +48,6 @@ def _download_request(url, local_dir, local_fname=None, **params):
 				f.write(chunk)
 
 	return fname
-
-
-# View and download updates from a remote server
-def update(moku, args):
-	d = pymoku_updates(args.server, args.username, args.password)
-	if not len(d):
-		print("No Pymoku updates available")
-	else:
-		build, date = max([(d['build_id'], d['release']) for d in builds.items()])
-		print("Pymoku can be updated from {} to {}, released on {}. Please refer to the Pymoku documentation for installation procedures.".format(versions.build_id, build, date))
-
-parser_updates = subparsers.add_parser('update', help="Check for updates for pymoku itself.")
-parser_updates.set_defaults(func=update)
 
 
 # View and load new instrument bitstreams

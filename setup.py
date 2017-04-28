@@ -1,18 +1,17 @@
 from setuptools import setup
 import subprocess, os
 
-version = open('pymoku/version.txt').read()
+version = open('pymoku/version.txt').read().strip()
 
 setup(
 	name='pymoku',
 	version=version,
 	author='Ben Nizette',
 	author_email='ben.nizette@liquidinstruments.com',
-	packages=['pymoku', 'pymoku.schema'],
-	package_dir={'pymoku.schema': 'pymoku/schema'},
+	packages=['pymoku'],
+	package_dir={'pymoku': 'pymoku/'},
 	package_data={
-		'pymoku' : ['version.txt', 'build.txt'],
-		'pymoku.schema': ['*.capnp']
+		'pymoku' : ['version.txt', 'schema/*.capnp', 'bin/*']
 	},
 	license='MIT',
 	long_description="Python scripting interface to the Liquid Instruments Moku:Lab",
@@ -38,5 +37,4 @@ setup(
 		'rfc6266',
 		'requests',
 	],
-	zip_safe=False,
 )
