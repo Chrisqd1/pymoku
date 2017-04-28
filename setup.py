@@ -11,7 +11,7 @@ setup(
 	packages=['pymoku'],
 	package_dir={'pymoku': 'pymoku/'},
 	package_data={
-		'pymoku' : ['version.txt', 'schema/*.capnp', 'bin/*']
+		'pymoku' : ['version.txt', '*.capnp', 'bin/*']
 	},
 	license='MIT',
 	long_description="Python scripting interface to the Liquid Instruments Moku:Lab",

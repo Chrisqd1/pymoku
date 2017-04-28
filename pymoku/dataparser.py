@@ -12,7 +12,7 @@ log = logging.getLogger(__name__)
 
 try:
 	import capnp
-	import pymoku.schema.li_capnp as schema
+	import pymoku.li_capnp as schema
 except ImportError:
 	log.info("No Capnp, won't be able to convert binary files")
 
