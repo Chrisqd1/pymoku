@@ -8,7 +8,7 @@ setup(
 	version=version,
 	author='Ben Nizette',
 	author_email='ben.nizette@liquidinstruments.com',
-	packages=['pymoku'],
+	packages=['pymoku', 'pymoku.tools'],
 	package_dir={'pymoku': 'pymoku/'},
 	package_data={
 		'pymoku' : ['version.txt', '*.capnp', 'bin/*']
@@ -37,4 +37,6 @@ setup(
 		'rfc6266',
 		'requests',
 	],
+
+	zip_safe=False, # This isn't strictly true, but makes debugging easier on the device
 )
