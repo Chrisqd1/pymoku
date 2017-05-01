@@ -321,11 +321,11 @@ class LIDataFileReader(object):
 
 class LIDataFileWriterV1(object):
 	""" Eases the creation of LI format data files."""
-	def __init__(self, filename, instr, instrv, chs, binstr, procstr, fmtstr, hdrstr, calcoeffs, timestep, starttime):
+	def __init__(self, file, instr, instrv, chs, binstr, procstr, fmtstr, hdrstr, calcoeffs, timestep, starttime):
 		""" Create file and write the header information.
 		Not designed for general use, is likely to only be of utility in the Moku:Lab firmware.
 
-		:param filename: Output file name
+		:param file: String filename or file-like object for data output
 		:param instr: Numeric instrument identifier
 		:param instrv: Numberic instrument version
 		:param chs: Channel selection flags
@@ -337,7 +337,11 @@ class LIDataFileWriterV1(object):
 		:param timestep: Time between records being captured
 		:param starttime: Time at which the record was started, seconds since Jan 1 1970
 		"""
-		self.file = open(filename, 'wb')
+		if isinstance(file, basestring):
+			self.file = open(file, 'wb')
+		else:
+			self.file = file
+
 		nch = 0
 		if (chs & 0x01):
 			nch +=1
