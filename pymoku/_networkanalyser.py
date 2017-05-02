@@ -74,12 +74,11 @@ class _NetAnChannel():
 		self.i_sig = [ input_signal[x] for x in range(0, 2*len(gain_correction), 2) ]
 		self.q_sig = [ input_signal[x] for x in range(1, 2*len(gain_correction), 2) ]
 
-		#self.magnitude_volts = [ 2.0*math.sqrt(I**2 + Q**2)/G/front_end_scale if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
-		self.magnitude_volts = [ 2.0*math.sqrt(I**2 + Q**2)/G/front_end_scale if all ([I,Q,G]) else 2.0*math.sqrt(I**2)/G/front_end_scale if all([I,G]) else 2.0*math.sqrt(Q**2)/G/front_end_scale if all([Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
-			
-		
+		#self.magnitude_volts = [ 2.0*math.sqrt(I**2 + Q**2)/G/front_end_scale if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ]
+		self.magnitude_volts = [ 2.0*math.sqrt(I**2 + Q**2)/G/front_end_scale if all ([I,Q,G]) else 2.0*math.sqrt(I**2)/G/front_end_scale if all([I,G]) else 2.0*math.sqrt(Q**2)/G/front_end_scale if all([Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ]
+
 		if calibration is not None :
-			self.magnitude_volts = [ (M/C)*output_amp if all ([M,C]) else None for M,C in zip(self.magnitude_volts, calibration) ] 
+			self.magnitude_volts = [ (M/C)*output_amp if all ([M,C]) else None for M,C in zip(self.magnitude_volts, calibration) ]
 
 		if dbscale :
 			self.magnitude_dB = [ (20.0*math.log10(x/output_amp) if output_amp != 0 else None) if x else None for x in self.magnitude_volts ]
@@ -132,9 +131,9 @@ class NetAnFrame(_frame_instrument.DataFrame):
 
 			self.magnitude = [ I/G if all ([I,G]) else None for I,G in zip(self.i_sig, gain_correction)]
 
-			#self.magnitude = [ 2.0*math.sqrt(I**2 + Q**2)/1/front_end_scale if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
-			#self.magnitude = [ 2.0*math.sqrt(I**2 + Q**2)/G/front_end_scale if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
-			self.magnitude = [ 2.0*math.sqrt(I**2 + Q**2)/G/front_end_scale if all ([I,Q,G]) else 2.0*math.sqrt(I**2)/G/front_end_scale if all([I,G]) else 2.0*math.sqrt(Q**2)/G/front_end_scale if all([Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ] 
+			#self.magnitude = [ 2.0*math.sqrt(I**2 + Q**2)/1/front_end_scale if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ]
+			#self.magnitude = [ 2.0*math.sqrt(I**2 + Q**2)/G/front_end_scale if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ]
+			self.magnitude = [ 2.0*math.sqrt(I**2 + Q**2)/G/front_end_scale if all ([I,Q,G]) else 2.0*math.sqrt(I**2)/G/front_end_scale if all([I,G]) else 2.0*math.sqrt(Q**2)/G/front_end_scale if all([Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ]
 			self.magnitude = [ ((20.0*math.log10(x/(output_amp)) if output_amp != 0 else None) if dbscale else x) if x else None for x in self.magnitude]
 
 			self.phase = [ math.atan2(Q, I) if all ([I,Q]) else None for I,Q in zip(self.i_sig, self.q_sig)]
@@ -205,7 +204,7 @@ class NetAnFrame(_frame_instrument.DataFrame):
 			# print self.ch1_bits[100]
 
 			self.ch1 = _NetAnChannel(self.ch1_bits, scales['gain_correction'], scales['g1'], scales['sweep_amplitude_ch1'], scales['dbscale'], scales['calibration_ch1'])
-		
+
 
 			##################################
 			# Process Ch2 Data
@@ -358,7 +357,7 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 	commit.__doc__ = MokuInstrument.commit.__doc__
 
 	def set_sweep_freq_delta(self, start_frequency, end_frequency, sweep_length, log_scale):
-		
+
 		if log_scale:
 			sweep_freq_delta = round(((end_frequency / start_frequency)**(1.0/(sweep_length - 1)) - 1) * _NA_FXP_SCALE)
 		else:
@@ -383,7 +382,7 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 		self.sweep_freq_delta = self.set_sweep_freq_delta(start_frequency, end_frequency, sweep_length, log_scale)
 		self.settling_cycles = settling_cycles
-		
+
 		self.sweep_amp_volts_ch1 = sweep_amplitude_ch1
 		self.sweep_amp_volts_ch2 = sweep_amplitude_ch2
 
@@ -444,11 +443,11 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 
 	def gain_correction(self, sweep_freq_delta, sweep_freq_min, sweep_points, averaging_time, averaging_cycles, log_scale):
-	 
+
 		sweep_freq = calculate_freq_axis(sweep_freq_min, sweep_freq_delta, sweep_points, log_scale)
 
 		# print sweep_freq
-		
+
 		cycles_time = [0.0]*sweep_points
 
 		if all(sweep_freq) != 0 :
@@ -502,11 +501,11 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		# print 'Sweep freq: ', sweep_freq
 		# print 'Averaging cycles: ', averaging_cycles
 		# print 'Averaging time: ', averaging_time
-		
+
 		return gain_scale
 
 
-	def _calculate_scales(self):	
+	def _calculate_scales(self):
 
 		"""
 			Returns per-channel correction and scaling parameters required for interpretation of incoming bit frames
@@ -534,13 +533,13 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 		log.debug("Gain values for ADC %s, %s = %f, %f", sect1, sect2, g1, g2)
 
-		return {'g1': g1, 'g2': g2, 
-				'dbscale': self.dbscale, 
+		return {'g1': g1, 'g2': g2,
+				'dbscale': self.dbscale,
 				'gain_correction' : self.gain_correction(self.sweep_freq_delta, self.sweep_freq_min, self.sweep_length, self.averaging_time, self.averaging_cycles, self.log_en),
-				'sweep_freq_min': self.sweep_freq_min, 
+				'sweep_freq_min': self.sweep_freq_min,
 				'sweep_freq_delta': self.sweep_freq_delta,
-				'sweep_length': self.sweep_length, 
-				'log_en': self.log_en, 
+				'sweep_length': self.sweep_length,
+				'log_en': self.log_en,
 				'averaging_time': self.averaging_time,
 				'sweep_amplitude_ch1' : self.sweep_amp_volts_ch1,
 				'sweep_amplitude_ch2' : self.sweep_amp_volts_ch2,
@@ -575,7 +574,7 @@ _na_reg_handlers = {
 	'sweep_freq_min':			((REG_NA_SWEEP_FREQ_MIN_H, REG_NA_SWEEP_FREQ_MIN_L),
 											to_reg_unsigned(0, 48, xform=lambda obj, f: f * _NA_FREQ_SCALE),
 											from_reg_unsigned(0, 48, xform=lambda obj, f: f / _NA_FREQ_SCALE)),
-	'sweep_freq_delta':			((REG_NA_SWEEP_FREQ_DELTA_H, REG_NA_SWEEP_FREQ_DELTA_L),		
+	'sweep_freq_delta':			((REG_NA_SWEEP_FREQ_DELTA_H, REG_NA_SWEEP_FREQ_DELTA_L),
 											to_reg_signed(0, 48),
 											from_reg_signed(0, 48)),
 	'log_en':					(REG_NA_LOG_EN,
@@ -584,7 +583,7 @@ _na_reg_handlers = {
 	'single_sweep':				(REG_NA_SINGLE_SWEEP,
 											to_reg_bool(0),
 											from_reg_bool(0)),
-	'sweep_length':				(REG_NA_SWEEP_LENGTH,		
+	'sweep_length':				(REG_NA_SWEEP_LENGTH,
 											to_reg_unsigned(0, 10),
 											from_reg_unsigned(0, 10)),
 	'settling_time':			(REG_NA_HOLD_OFF_L,
@@ -593,7 +592,7 @@ _na_reg_handlers = {
 	'averaging_time':			(REG_NA_AVERAGE_TIME,
 											to_reg_unsigned(0, 32, xform=lambda obj, t: t * _NA_FPGA_CLOCK),
 											from_reg_unsigned(0, 32, xform=lambda obj, t: t / _NA_FPGA_CLOCK)),
-	'sweep_amplitude_ch1':		(REG_NA_SWEEP_AMP_MULT,		
+	'sweep_amplitude_ch1':		(REG_NA_SWEEP_AMP_MULT,
 											to_reg_unsigned(0, 16, xform=lambda obj, a: a * _NA_DAC_BITS2V),
 											from_reg_unsigned(0, 16, xform=lambda obj, a: a / _NA_DAC_BITS2V)),
 	'sweep_amplitude_ch2':		(REG_NA_SWEEP_AMP_MULT,
