@@ -900,7 +900,7 @@ class Moku(object):
 		self.external_reference = use_external
 
 		if self._instrument:
-			self._instrument._set_instrument_active(False)
+			self.detach_instrument()
 
 		self.take_ownership()
 		self._instrument = instrument
