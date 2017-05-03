@@ -391,11 +391,11 @@ class LIDataFileWriterV1(object):
 
 class LIDataFileWriterV2(object):
 	""" Eases the creation of LIv2 format data files."""
-	def __init__(self, filename, instr, instrv, chs, binstr, procstr, fmtstr, hdrstr, calcoeffs, timestep, starttime, startoffset):
+	def __init__(self, file, instr, instrv, chs, binstr, procstr, fmtstr, hdrstr, calcoeffs, timestep, starttime, startoffset):
 		""" Create file and write the header information.
 		Not designed for general use, is likely to only be of utility in the Moku:Lab firmware.
 
-		:param filename: Output file name
+		:param file: String filename or file-like object for data output
 		:param instr: Numeric instrument identifier
 		:param instrv: Numberic instrument version
 		:param chs: Channel selection flags
@@ -412,7 +412,10 @@ class LIDataFileWriterV2(object):
 		if 'capnp' not in globals():
 			raise Exception("Can't write LI files on this platform, please refer to the LI FAQs.")
 
-		self.file = open(filename, 'wb')
+		if isinstance(file, basestring):
+			self.file = open(file, 'wb')
+		else:
+			self.file = file
 
 		self.file.write(b'LI2')
 

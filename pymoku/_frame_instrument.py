@@ -541,7 +541,7 @@ class FrameBasedInstrument(_instrument.MokuInstrument):
 		if self._dlftype in ['csv', 'bin']:
 			while not self.datalogger_completed():
 				self.datalogger_error()
-				time.sleep(0.1)
+				time.sleep(0.5)
 			if upload:
 				self.datalogger_upload()
 		elif self._dlftype is None:
