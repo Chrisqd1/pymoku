@@ -19,13 +19,12 @@ import math
 m = Moku.get_by_name('example')
 i = PhaseMeter()
 # Set up Moku as a Phasemeter, and use the external 10MHz reference clock
-m.attach_instrument(i, use_external=True)
+m.deploy_instrument(i, use_external=True)
 
 try:
-	# Set the initial phase-lock loop frequency to 10MHz and a measurement rate of ~30Hz
+	# Set the initial phase-lock loop frequency to 10MHz and a sample rate of ~30Hz
 	i.set_initfreq(1, 10e6)
-	i.set_samplerate(PM_LOGRATE_SLOW)
-	i.commit()
+	i.set_samplerate('slow')
 
 	# Stop an existing log, if any, then start a new one. 10 seconds of both channels to the
 	# SD Card (rather than internal storage). Using CSV format.

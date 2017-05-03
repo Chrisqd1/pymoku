@@ -6,7 +6,7 @@ Spectrum Analyser Instrument class.
 
 This instrument provides frequency-domain analysis of input signals. It features switchable window functions, resolution bandwidth, averaging modes and more.
 
-.. note:: The requirement to :any:`commit() <pymoku.instruments.Oscilloscope.commit>` before a change takes effect is the most common cause of program malfunctions when interfacing with the Moku:Lab. Any *set_* or *synth_* function, or any direct manipulation of attributes such as :any:`framerate`, must be explicitly committed.
+.. note:: The requirement to :any:`commit() <pymoku.instruments.Oscilloscope.commit>` before a change takes effect is the most common cause of program malfunctions when interfacing with the Moku:Lab. Any *set_* or *gen_* function, or any direct manipulation of attributes such as :any:`framerate`, must be explicitly committed.
 
 Example Usage
 -------------
@@ -20,7 +20,7 @@ Example Usage
 
 	m = Moku.get_by_name('example')
 	i = SpecAn()
-	m.attach_instrument(i)
+	m.deploy_instrument(i)
 
 	# DC to 100MHz span, apply changes
 	i.set_span(0, 10000000)
@@ -32,10 +32,10 @@ Example Usage
 	# Close the connection to the Moku.
 	m.close()
 
-The SpectrumFrame Class
+The SpectrumData Class
 -----------------------
 
-.. autoclass:: pymoku.instruments.SpectrumFrame
+.. autoclass:: pymoku.instruments.SpectrumData
 
 	.. Don't use :members: as it doesn't handle instance attributes well. Directives in the source code list required attributes directly.
 

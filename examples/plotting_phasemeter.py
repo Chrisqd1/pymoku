@@ -13,14 +13,17 @@
 # of frames containing a range of data.  One can record this stream to a CSV or binary
 # file, but this example streams the samples over the network so they can be accessed,
 # processed and plotted in real time.
-
-from pymoku import Moku, NoDataException, FrameTimeout
+import pymoku
+from pymoku import Moku, NoDataException, FrameTimeout, StreamException
 from pymoku.instruments import *
 import time, logging, math, numpy
 import matplotlib.pyplot as plt
 
 logging.basicConfig(format='%(asctime)s:%(name)s:%(levelname)s::%(message)s')
-logging.getLogger('pymoku').setLevel(logging.DEBUG)
+logging.getLogger('pymoku').setLevel(logging.INFO)
+
+# Disable auto-commit feature so we can atomically change settings
+pymoku.autocommit = False
 
 # Use Moku.get_by_serial() or get_by_name() if you don't know the IP
 m = Moku.get_by_name('example')
@@ -29,7 +32,7 @@ i = m.discover_instrument()
 if i is None or i.type != 'phasemeter':
 	print("No or wrong instrument deployed")
 	i = PhaseMeter()
-	m.attach_instrument(i)
+	m.deploy_instrument(i)
 else:
 	print("Attached to existing Phasemeter")
 	m.take_ownership()
@@ -72,14 +75,14 @@ try:
 	i.set_initfreq(2, ch2_freq)
 
 	# Set samplerate to slow mode ~30Hz
-	i.set_samplerate(PM_LOGRATE_SLOW)
+	i.set_samplerate('slow')
 
 	# Set up signal generator for enabled channels
 	if(ch1_out_enable):
-		i.synth_sinewave(1, ch1_out_amp, ch1_out_freq)
+		i.gen_sinewave(1, ch1_out_amp, ch1_out_freq)
 		i.enable_output(1,ch1_out_enable)
 	if(ch2_out_enable):
-		i.synth_sinewave(2, ch2_out_amp, ch2_out_freq)
+		i.gen_sinewave(2, ch2_out_amp, ch2_out_freq)
 		i.enable_output(2,ch2_out_enable)
 
 	# Atomically apply all instrument settings above
@@ -88,14 +91,13 @@ try:
 	# Allow time for commit to flow down
 	time.sleep(0.8)
 
-	# Stop any existing data logging sessions and begin a new session
-	# Logging session: 
+	# Stop any existing streaming session and start a new one
+	# Logging session:
 	# 		Start time - 0 sec
 	#		Duration - 20 sec
 	#		Channel 1 - ON, Channel 2 - ON
-	#		Log file type - Network Stream
-	i.datalogger_stop()
-	i.datalogger_start(duration=duration, ch1=ch1, ch2=ch2, filetype='net')
+	i.stop_stream_data()
+	i.start_stream_data(start=0, duration=20, ch1=True, ch2=True)
 
 	# Set up basic plot configurations
 	if ch1:
@@ -116,31 +118,23 @@ try:
 	plt.xlim([xtent, 0])
 	plt.ylabel('Amplitude (V)')
 	plt.xlabel('Time (s)')
-	
+
 	while True:
-
-		# Check for errors
-		i.datalogger_error()
-
 		# Get samples
-		try:
-			ch, idx, samp = i.datalogger_get_samples(timeout=10)
-		except NoDataException as e:
-			print("Data stream complete")
+		data = i.get_stream_data()
+		if not any(data):
 			break
-		print("Ch: %d, Idx: %d, #Samples: %s" % (ch, idx, len(samp)))
 
 		# Process the retrieved samples
 		# Process individual sample 's' here. Output format [fs, f, count, phase, I, Q]
 		# fs = setpoint frequency
 		# f = measured frequency
 		# Convert I,Q to amplitude and append to line graph
-		if ch1 & (ch==1):
-			for s in samp:
+		if ch1:
+			for s in data[0]:
 				ydata1 = ydata1 + [math.sqrt(s[4]**2 + s[5]**2)]
-
-		elif ch2 & (ch==2):
-			for s in samp:
+		if ch2:
+			for s in data[1]:
 				ydata2 = ydata2 + [math.sqrt(s[4]**2 + s[5]**2)]
 
 		ydata1 = ydata1[-plot_points:]
@@ -164,5 +158,5 @@ except StreamException as e:
 except FrameTimeout:
 	print("Logging session timed out")
 finally:
-	i.datalogger_stop()
+	i.stop_stream_data()
 	m.close()

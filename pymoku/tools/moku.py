@@ -53,7 +53,7 @@ def _download_request(url, local_dir, local_fname=None, **params):
 # View and load new instrument bitstreams
 def instrument(moku, args):
 	if args.action == 'list':
-		instrs = moku.list_bitstreams(include_version=True)
+		instrs = moku._list_bitstreams(include_version=True)
 
 		if len(instrs):
 			print("The following instruments are available on your Moku:")
@@ -67,10 +67,10 @@ def instrument(moku, args):
 			return
 
 		fname = os.path.basename(args.file)
-		chk = moku.load_bitstream(args.file)
+		chk = moku._load_bitstream(args.file)
 		print("Successfully loaded new instrument {} version {:X}".format(fname, chk))
 	elif args.action == 'check_compat':
-		instrs = moku.list_bitstreams(include_version=True)
+		instrs = moku._list_bitstreams(include_version=True)
 		compat_configs = compatible_configurations(args.server, args.username, args.password)
 		compat_hashes = [ c['bitstream']['hash'] for c in compat_configs.values() ]
 
@@ -85,7 +85,7 @@ def instrument(moku, args):
 			newest = max((c['bitstream'] for c in compat_configs.values() if c['bitstream']['type'] == t), key=lambda b: b['build_id'])
 			fpath = _download_request(args.server + '/versions/artefact/' + newest['hash'], tmpdir)
 			fname = os.path.basename(fpath)
-			moku.load_bitstream(fpath)
+			moku._load_bitstream(fpath)
 
 			print("Loaded {:s}".format(fname.split('_')[0]))
 
@@ -104,7 +104,7 @@ parser_instruments.set_defaults(func=instrument)
 # View and load new packages
 def package(moku, args):
 	if args.action == 'list':
-		packs = moku.list_package(include_version=True)
+		packs = moku._list_package(include_version=True)
 
 		if len(packs):
 			print("The following packages are available on your Moku:")
@@ -118,10 +118,10 @@ def package(moku, args):
 			return
 
 		fname = os.path.basename(args.file)
-		chk = moku.load_persistent(args.file)
+		chk = moku._load_persistent(args.file)
 
 		if os.path.exists(args.file + '.sha256'):
-			moku.load_persistent(args.file + '.sha256')
+			moku._load_persistent(args.file + '.sha256')
 		else:
 			print("WARNING: No signing information found, this package might not run correctly on your Moku.")
 
@@ -144,7 +144,7 @@ def firmware(moku, args):
 			print('Package load requires an FW file to be specified')
 			return
 
-		moku.load_firmware(args.file)
+		moku._load_firmware(args.file)
 		print("Successfully started firmware update. Your Moku will shut down automatically when complete.")
 	elif args.action == 'update':
 		build = moku.get_version()
@@ -163,7 +163,7 @@ def firmware(moku, args):
 		fpath = _download_request(args.server + '/versions/artefact/' + newest['hash'], tempdir)
 		fname = os.path.basename(fpath)
 		print("Installing...")
-		moku.load_firmware(fpath)
+		moku._load_firmware(fpath)
 		print("Your Moku will shut down automatically when complete.")
 
 		shutil.rmtree(tempdir)

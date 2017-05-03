@@ -2,32 +2,44 @@ from pymoku import Moku, StreamException
 from pymoku.instruments import *
 import time
 
-m = Moku.get_by_name('example')
+# Connect to your Moku by its device name
+# Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
+m = Moku.get_by_name('Moku')
 
-# Data logger is actually a mode of the Oscilloscope instrument
-i = Oscilloscope()
-m.attach_instrument(i)
+# Prepare the DataLogger instrument
+i = DataLogger()
+
+# Deploy the DataLogger to your Moku
+m.deploy_instrument(i)
 
 try:
-	# 10 samples per second. Data logging must use the Oscilloscope's ROLL mode.
-	i.set_samplerate(10)
-	i.set_xmode(OSC_ROLL)
-	i.commit()
+	# 10 samples per second
+	i.set_samplerate(100)
 
 	# Stop an existing log, if any, then start a new one. 10 seconds of both channels to the
 	# SD Card (rather than internal storage). Use the Moku's binary file format for better speed
 	# and size performance.
-	i.datalogger_stop()
-	i.datalogger_start(duration=10, use_sd=True, ch1=True, ch2=True, filetype='csv')
+	i.stop_data_log()
+	i.start_data_log(duration=10, use_sd=True, ch1=True, ch2=True, filetype='bin')
 
-	# Wait until logging session has completed and upload file to current directory
-	# Implicitly checks for logging session errors
-	i.datalogger_wait(upload=True)
+	# Track progress percentage of the data logging session
+	progress = 0
+	while progress < 100:
+		# Wait for the logging session to progress by sleeping 0.5sec
+		time.sleep(0.5)
+		# Get current progress percentage and print it out
+		progress = i.progress_data_log()
+		print("Progress {}%".format(progress))
+
+	# Upload the log file to the local directory
+	i.upload_data_log()
+	print("Uploaded log file to local directory.")
+
+	# Denote that we are done with the data logging session so resources may be cleand up
+	i.stop_data_log()
 
 except StreamException as e:
 	print("Error occured: %s" % e.message)
 finally:
-	# "stop" does have a purpose if the logging session has already completed: It signals that
-	# we no longer care about error messages and so on.
-	i.datalogger_stop()
+	# Close the connection to the Moku
 	m.close()

@@ -109,8 +109,8 @@ def base_instrs(conn_mokus):
 	i1 = Oscilloscope()
 	i2 = Oscilloscope()
 
-	m1.attach_instrument(i1, use_external=False) # Master is 10MHz reference clock
-	m2.attach_instrument(i2, use_external=True)
+	m1.deploy_instrument(i1, use_external=False) # Master is 10MHz reference clock
+	m2.deploy_instrument(i2, use_external=True)
 
 	i1.set_defaults()
 	i2.set_defaults()
@@ -126,14 +126,14 @@ def base_instrs(conn_mokus):
 
 class Test_Siggen:
 	'''
-		This class tests the correctness of the embedded signal generator 
+		This class tests the correctness of the embedded signal generator
 	'''
-	@pytest.mark.parametrize("ch, vpp, freq, offset, duty, waveform", 
+	@pytest.mark.parametrize("ch, vpp, freq, offset, duty, waveform",
 		itertools.product(
 			[1,2],
 			[0.3, 0.7],
-			[50, 1e3, 900e3], 
-			[0.1, 0.0, -0.1], 
+			[50, 1e3, 900e3],
+			[0.1, 0.0, -0.1],
 			[0.2, 0.5, 0.95],
 			[SG_WAVE_SINE, SG_WAVE_SQUARE, SG_WAVE_TRIANGLE]
 			))
@@ -159,11 +159,11 @@ class Test_Siggen:
 			slave.set_trigger(OSC_TRIG_CH2, OSC_EDGE_RISING, offset, mode = OSC_TRIG_NORMAL, hysteresis = 100, )
 
 		if waveform == SG_WAVE_SINE:
-			master.synth_sinewave(ch, vpp, freq, offset)
+			master.gen_sinewave(ch, vpp, freq, offset)
 		elif waveform == SG_WAVE_SQUARE:
-			master.synth_squarewave(ch, vpp, freq, offset=offset, duty = duty)
+			master.gen_squarewave(ch, vpp, freq, offset=offset, duty = duty)
 		elif waveform == SG_WAVE_TRIANGLE:
-			master.synth_rampwave(ch, vpp, freq, offset=offset, symmetry = duty)
+			master.gen_rampwave(ch, vpp, freq, offset=offset, symmetry = duty)
 		else:
 			print "Invalid waveform type."
 			assert False
@@ -203,7 +203,7 @@ class Test_Siggen:
 			if not in_rms_bounds(frame, gen_frame, waveform, vpp):
 				plt.plot(ts,frame - gen_frame)
 				plt.plot(ts, frame)
-				plt.plot(ts, gen_frame)	
+				plt.plot(ts, gen_frame)
 				plt.show()
 
 		assert in_rms_bounds(frame, gen_frame, waveform, vpp)
@@ -211,7 +211,7 @@ class Test_Siggen:
 	@pytest.mark.parametrize("ch, freq, phase, waveform",
 		itertools.product(
 			[1,2],
-			[1e3, 1e6], 
+			[1e3, 1e6],
 			[0.1, 0.3, 0.5, 0.7, 0.85],
 			[SG_WAVE_SINE, SG_WAVE_TRIANGLE, SG_WAVE_SQUARE]
 			))
@@ -243,14 +243,14 @@ class Test_Siggen:
 
 		# Generate signals on master
 		if waveform == SG_WAVE_SINE:
-			master.synth_sinewave(1, source_vpp, freq, source_offset)
-			master.synth_sinewave(2, source_vpp, freq, source_offset)
+			master.gen_sinewave(1, source_vpp, freq, source_offset)
+			master.gen_sinewave(2, source_vpp, freq, source_offset)
 		elif waveform == SG_WAVE_SQUARE:
-			master.synth_squarewave(1, source_vpp, freq, offset=source_offset, duty = source_duty)
-			master.synth_squarewave(2, source_vpp, freq, offset=source_offset, duty = source_duty)
+			master.gen_squarewave(1, source_vpp, freq, offset=source_offset, duty = source_duty)
+			master.gen_squarewave(2, source_vpp, freq, offset=source_offset, duty = source_duty)
 		elif waveform == SG_WAVE_TRIANGLE:
-			master.synth_rampwave(1, source_vpp, freq, offset=source_offset, symmetry = source_duty)
-			master.synth_rampwave(2, source_vpp, freq, offset=source_offset, symmetry = source_duty)
+			master.gen_rampwave(1, source_vpp, freq, offset=source_offset, symmetry = source_duty)
+			master.gen_rampwave(2, source_vpp, freq, offset=source_offset, symmetry = source_duty)
 		else:
 			print "Invalid waveform type."
 			assert False
@@ -271,7 +271,7 @@ class Test_Siggen:
 					compare_waveform = _sawtooth(t, vpp/2.0, p, offset, freq, duty)
 				else:
 					print "Invalid waveform type."
-					assert False 
+					assert False
 
 				rms_errors = rms_errors + [_calculate_rms_error(waveform, compare_waveform)]
 
@@ -326,7 +326,7 @@ class Test_Trigger:
 		itertools.product(
 			[OSC_TRIG_CH1, OSC_TRIG_DA1, OSC_TRIG_CH2, OSC_TRIG_DA2],
 			[5e3, 1e6],
-			[OSC_EDGE_RISING, OSC_EDGE_FALLING, OSC_EDGE_BOTH], 
+			[OSC_EDGE_RISING, OSC_EDGE_FALLING, OSC_EDGE_BOTH],
 			[0.0, 0.0, 0.1, 0.3]))
 	def test_triggered_edge(self, base_instrs, trig_ch, freq, edge, trig_lvl):
 		'''
@@ -346,16 +346,16 @@ class Test_Trigger:
 
 		if trig_ch == OSC_TRIG_DA1:
 			master.set_source(1, OSC_SOURCE_DAC)
-			master.synth_sinewave(1, source_vpp, source_freq, source_offset)
+			master.gen_sinewave(1, source_vpp, source_freq, source_offset)
 		elif trig_ch == OSC_TRIG_CH1:
 			master.set_source(1, OSC_SOURCE_ADC)
-			slave.synth_sinewave(1, source_vpp, source_freq, source_offset)
+			slave.gen_sinewave(1, source_vpp, source_freq, source_offset)
 		elif trig_ch == OSC_TRIG_DA2:
 			master.set_source(2, OSC_SOURCE_DAC)
-			master.synth_sinewave(2, source_vpp, source_freq, source_offset)
+			master.gen_sinewave(2, source_vpp, source_freq, source_offset)
 		elif trig_ch == OSC_TRIG_CH2:
 			master.set_source(2, OSC_SOURCE_ADC)
-			slave.synth_sinewave(2, source_vpp, source_freq, source_offset)
+			slave.gen_sinewave(2, source_vpp, source_freq, source_offset)
 		else:
 			print "Invalid trigger channel"
 			assert False
@@ -371,7 +371,7 @@ class Test_Trigger:
 		master.get_frame(timeout = FRAME_TIMEOUT)
 		t_step = master._calculate_frame_timestep(master.decimation_rate, master.render_deci)
 		ts = master._calculate_frame_start_time(master.decimation_rate, master.render_deci, master.offset) + ((numpy.cumsum([t_step]*_OSC_SCREEN_WIDTH))- t_step)
-		
+
 		# Calculate the index of the trigger point
 		time_zero_idx = zero_crossings(ts)
 
@@ -401,7 +401,7 @@ class Test_Trigger:
 		# And turn on triggering
 
 		# Generate waveform to trigger off
-		master.synth_sinewave(trig_ch, source_vpp, source_freq, source_offset)
+		master.gen_sinewave(trig_ch, source_vpp, source_freq, source_offset)
 
 		master.set_source(trig_ch, OSC_SOURCE_DAC)
 		if trig_ch == 1:
@@ -426,7 +426,7 @@ class Test_Trigger:
 		trig_source_offset = 0.0
 		trig_source_freq = freq
 		self._setup_trigger_mode_test(master, trig_ch, trig_lvl, trig_edge, trig_mode, trig_source_vpp, trig_source_offset, trig_source_freq)
-		
+
 		master.set_timebase(0, timebase_cyc/freq)
 		master.commit()
 
@@ -450,7 +450,7 @@ class Test_Trigger:
 					# Debug print
 					if DEBUG_TESTS:
 						print("Delta ID: %f, Triggers Per Frame: %f" % (delta_id, triggers_per_frame))
-				
+
 				waveformid = frame.waveformid
 
 		# Case when trigger rate is slower than frame rate
@@ -494,7 +494,7 @@ class Test_Trigger:
 		# There should be no trigger events
 		with pytest.raises(FrameTimeout):
 			frame = master.get_frame(timeout = 5)
- 
+
 	def test_trigger_mode_auto_notrigger(self, base_instrs):
 		'''
 			Tests 'Auto' trigger mode
@@ -569,7 +569,7 @@ class Test_Trigger:
 		master = base_instrs[0]
 		slave = base_instrs[1]
 
-		timebase_cyc = 10.0 
+		timebase_cyc = 10.0
 
 		trig_source_freq = [1e3, 1e3, 0.75e3, 1.75e3]
 		trig_source_vpp = [1.0, 0.5, 1.0, 0.5]
@@ -580,11 +580,11 @@ class Test_Trigger:
 		master.set_frontend(1, fiftyr=True, atten=False, ac=False)
 		master.set_frontend(2, fiftyr=True, atten=False, ac=False)
 
-		# Generate a different output on Channel 2 so 
-		master.synth_sinewave(1, trig_source_vpp[0], trig_source_freq[0], trig_source_offset[0])
-		master.synth_sinewave(2, trig_source_vpp[1], trig_source_freq[1], trig_source_offset[1])
-		slave.synth_sinewave(1, trig_source_vpp[2], trig_source_freq[2], trig_source_offset[2])
-		slave.synth_sinewave(2, trig_source_vpp[3], trig_source_freq[3], trig_source_offset[3])
+		# Generate a different output on Channel 2 so
+		master.gen_sinewave(1, trig_source_vpp[0], trig_source_freq[0], trig_source_offset[0])
+		master.gen_sinewave(2, trig_source_vpp[1], trig_source_freq[1], trig_source_offset[1])
+		slave.gen_sinewave(1, trig_source_vpp[2], trig_source_freq[2], trig_source_offset[2])
+		slave.gen_sinewave(2, trig_source_vpp[3], trig_source_freq[3], trig_source_offset[3])
 
 		# Check the correct frame is being received
 		if ch == OSC_TRIG_CH1:
@@ -637,7 +637,7 @@ class Test_Timebase:
 		TODO: Does it make sense to test timebase only for a single channel
 	'''
 
-	@pytest.mark.parametrize("ch, span", 
+	@pytest.mark.parametrize("ch, span",
 		itertools.product([1,2], [5e-6, 1e-3, 2]))
 	def test_timebase_span(self, base_instrs, ch, span):
 		'''
@@ -656,7 +656,7 @@ class Test_Timebase:
 			master.set_trigger(OSC_TRIG_DA1, OSC_EDGE_RISING, 0.0, mode=OSC_TRIG_NORMAL)
 		else:
 			master.set_trigger(OSC_TRIG_DA2, OSC_EDGE_RISING, 0.0, mode=OSC_TRIG_NORMAL)
-		master.synth_sinewave(ch, source_vpp, source_freq, source_offset)
+		master.gen_sinewave(ch, source_vpp, source_freq, source_offset)
 		master.set_timebase(0,span)
 		master.commit()
 
@@ -694,7 +694,7 @@ class Test_Timebase:
 		trig_lvl = source_offset
 
 		# Generate a pulse of some small width and period < frame length
-		master.synth_sinewave(ch, source_vpp, source_freq, source_offset)
+		master.gen_sinewave(ch, source_vpp, source_freq, source_offset)
 		if ch == 1:
 			master.set_trigger(OSC_TRIG_DA1, OSC_EDGE_RISING, trig_lvl, mode=OSC_TRIG_NORMAL)
 		else:
@@ -737,7 +737,7 @@ class Test_Timebase:
 		source_offset = 0.0
 		trig_lvl = source_offset
 
-		master.synth_sinewave(ch, source_vpp, source_freq, duty=0.1)
+		master.gen_sinewave(ch, source_vpp, source_freq, duty=0.1)
 		if ch == 1:
 			master.set_trigger(OSC_TRIG_DA1, OSC_EDGE_RISING, 0, mode=OSC_TRIG_NORMAL)
 		else:
@@ -802,7 +802,7 @@ class Test_Frontend:
 			master.set_trigger(OSC_TRIG_CH2, OSC_EDGE_RISING, expected_off, hf_reject = False, hysteresis=25, mode=OSC_TRIG_NORMAL)
 		master.set_timebase(0,timebase_cyc/source_freq)
 
-		slave.synth_sinewave(ch, source_vpp, source_freq, source_offset)
+		slave.gen_sinewave(ch, source_vpp, source_freq, source_offset)
 		slave.commit()
 		master.commit()
 
@@ -843,8 +843,8 @@ class Test_Frontend:
 		SMALL_INPUT_RANGE= 1.0 # Vpp
 		LARGE_INPUT_RANGE= 10.0 # Vpp
 		tolerance_r = 0.2 # V
-		
-		slave.synth_sinewave(ch, source_vpp, source_freq, source_offset)
+
+		slave.gen_sinewave(ch, source_vpp, source_freq, source_offset)
 		slave.commit()
 
 		timebase_cyc = 10.0
@@ -900,7 +900,7 @@ class Test_Frontend:
 		expected_amp = source_amp if fiftyr else source_amp * 2.0
 		expected_offset = 0.0 if ac else (source_offset if fiftyr else source_offset * 2.0)
 
-		slave.synth_sinewave(ch, source_amp, source_freq, source_offset)
+		slave.gen_sinewave(ch, source_amp, source_freq, source_offset)
 		slave.commit()
 
 		master.set_frontend(ch, fiftyr=fiftyr, atten=True, ac=ac)

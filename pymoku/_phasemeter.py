@@ -5,8 +5,9 @@ import logging
 from ._instrument import *
 from . import _instrument
 from . import _frame_instrument
+from . import _stream_instrument
 from . import _siggen
-from ._utils import *
+import _utils
 
 from struct import unpack
 
@@ -57,8 +58,8 @@ _PM_SG_AMPSCALE = 2**16 / 4.0
 _PM_SG_FREQSCALE = _PM_FREQSCALE
 
 # Pre-defined log rates which ensure samplerate will set to ~120Hz or ~30Hz
-PM_LOGRATE_FAST = 123
-PM_LOGRATE_SLOW = 31
+_PM_LOGRATE_FAST = 123
+_PM_LOGRATE_SLOW = 31
 
 class PhaseMeter_SignalGenerator(MokuInstrument):
 	def __init__(self):
@@ -71,16 +72,18 @@ class PhaseMeter_SignalGenerator(MokuInstrument):
 		self._pm_out1_amplitude = 0
 		self._pm_out2_amplitude = 0
 
+	@needs_commit
 	def set_defaults(self):
-		self.synth_sinewave(1,0,0)
-		self.synth_sinewave(2,0,0)
+		self.gen_sinewave(1,0,0)
+		self.gen_sinewave(2,0,0)
 		self.enable_output(1,False)
 		self.enable_output(2,False)
 
 		self.set_frontend(1, fiftyr=True, atten=False, ac=True)
 		self.set_frontend(2, fiftyr=True, atten=False, ac=True)
 
-	def synth_sinewave(self, ch, amplitude, frequency):
+	@needs_commit
+	def gen_sinewave(self, ch, amplitude, frequency):
 		"""
 		:param ch: Channel number
 		:param amplitude: Signal amplitude in volts
@@ -95,6 +98,7 @@ class PhaseMeter_SignalGenerator(MokuInstrument):
 			self.pm_out2_frequency = frequency
 			self.pm_out2_amplitude = self._pm_out2_amplitude if self.pm_out2_enable else 0
 
+	@needs_commit
 	def enable_output(self, ch, enable):
 		"""
 		:param ch: Channel to enable or disable
@@ -116,21 +120,16 @@ _pm_siggen_reg_hdl = {
 	'pm_out2_frequency':	((REG_PM_SG_FREQ2_H, REG_PM_SG_FREQ2_L),
 											to_reg_unsigned(0, 48, xform=lambda obj, f:f * _PM_SG_FREQSCALE ),
 											from_reg_unsigned(0, 48, xform=lambda obj, f: f /_PM_FREQSCALE )),
-	'pm_out1_amplitude':	(REG_PM_SG_AMP, to_reg_unsigned(0, 16, xform=lambda obj, a: a / obj.dac_gains()[0]),
-											from_reg_unsigned(0,16, xform=lambda obj, a: a * obj.dac_gains()[0])),
-	'pm_out2_amplitude':	(REG_PM_SG_AMP, to_reg_unsigned(16, 16, xform=lambda obj, a: a / obj.dac_gains()[1]),
-											from_reg_unsigned(16,16, xform=lambda obj, a: a * obj.dac_gains()[1]))
+	'pm_out1_amplitude':	(REG_PM_SG_AMP, to_reg_unsigned(0, 16, xform=lambda obj, a: a / obj._dac_gains()[0]),
+											from_reg_unsigned(0,16, xform=lambda obj, a: a * obj._dac_gains()[0])),
+	'pm_out2_amplitude':	(REG_PM_SG_AMP, to_reg_unsigned(16, 16, xform=lambda obj, a: a / obj._dac_gains()[1]),
+											from_reg_unsigned(16,16, xform=lambda obj, a: a * obj._dac_gains()[1]))
 }
 
-class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenerator): #TODO Frame instrument may not be appropriate when we get streaming going.
+class PhaseMeter(_stream_instrument.StreamBasedInstrument, PhaseMeter_SignalGenerator): #TODO Frame instrument may not be appropriate when we get streaming going.
 	""" PhaseMeter instrument object. This should be instantiated and attached to a :any:`Moku` instance.
 
 	.. automethod:: pymoku.instruments.PhaseMeter.__init__
-
-	.. attribute:: framerate
-		:annotation: = 10
-
-		Frame Rate, range 1 - 30.
 
 	.. attribute:: type
 		:annotation: = "phasemeter"
@@ -138,12 +137,12 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 		Name of this instrument.
 
 	"""
-
+	@dont_commit
 	def __init__(self):
 		"""Create a new PhaseMeter instrument, ready to be attached to a Moku."""
 		super(PhaseMeter, self).__init__()
 		self._register_accessors(_pm_reg_handlers)
-		
+
 		self.id = 3
 		self.type = "phasemeter"
 		self.logname = "MokuPhaseMeterData"
@@ -152,30 +151,36 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 		self.procstr = ["*{:.16e} : *{:.16e} : : *{:.16e} : *C*{:.16e} : *C*{:.16e} ".format(_PM_HERTZ_SCALE, _PM_HERTZ_SCALE,  _PM_CYCLE_SCALE, _PM_VOLTS_SCALE, _PM_VOLTS_SCALE),
 						"*{:.16e} : *{:.16e} : : *{:.16e} : *C*{:.16e} : *C*{:.16e} ".format(_PM_HERTZ_SCALE, _PM_HERTZ_SCALE,  _PM_CYCLE_SCALE, _PM_VOLTS_SCALE, _PM_VOLTS_SCALE)]
 
-
 	def _update_datalogger_params(self, ch1, ch2):
-		self.timestep = 1.0/self.get_samplerate()
-
 		# Call this function when any instrument configuration parameters are set
 		self.hdrstr = self._get_hdrstr(ch1,ch2)
 		self.fmtstr = self._get_fmtstr(ch1,ch2)
 
+	@needs_commit
 	def set_samplerate(self, samplerate):
-		""" Manually set the sample rate of the Phasemeter. 
+		""" Manually set the sample rate of the Phasemeter.
 
-		The chosen samplerate will be rounded down to nearest allowable rate 
+		The chosen samplerate will be rounded down to nearest allowable rate
 		based on R(Hz) = 1e6/(2^N) where N in range [13,16].
 
-		Alternatively use samplerate = {PM_LOGRATE_SLOW, PM_LOGRATE_FAST} 
+		Alternatively use samplerate = {'slow','fast'}
 		to set ~30Hz or ~120Hz.
 
-		:type samplerate: float
+		:type samplerate: float, or string = {'slow','fast'}
 		:param samplerate: Desired sample rate
 		"""
+		if type(samplerate) is str:
+			_str_to_samplerate = {
+				'slow' : _PM_LOGRATE_SLOW,
+				'fast' : _PM_LOGRATE_FAST
+			}
+			samplerate = _utils.str_to_val(_str_to_samplerate, samplerate, 'samplerate')
 		new_samplerate = _PM_UPDATE_RATE/min(max(1,samplerate),200)
 		shift = min(math.ceil(math.log(new_samplerate,2)),16)
 		self.output_decimation = 2**shift
 		self.output_shift = shift
+
+		self.timestep = 1.0/(_PM_UPDATE_RATE/self.output_decimation)
 
 		log.debug("Output decimation: %f, Shift: %f, Samplerate: %f" % (self.output_decimation, shift, _PM_UPDATE_RATE/self.output_decimation))
 
@@ -185,9 +190,7 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 		"""
 		return _PM_UPDATE_RATE / self.output_decimation
 
-	def get_timestep(self):
-		return self.timestep
-
+	@needs_commit
 	def set_initfreq(self, ch, f):
 		""" Manually set the initial frequency of the designated channel
 
@@ -230,6 +233,7 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 	def _get_controlgain(self):
 		return self.control_gain
 
+	@needs_commit
 	def set_bandwidth(self, ch, bw):
 		"""
 		Set the bandwidth of an ADC channel
@@ -252,6 +256,7 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 	def get_bandwidth(self, ch):
 		return 10e3 * (2**(self.bandwidth_ch1 if ch == 1 else self.bandwidth_ch2))
 
+	@needs_commit
 	def auto_acquire(self, ch):
 		"""
 		Auto-acquire the initial frequency of the specified channel
@@ -283,7 +288,7 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 
 		hdr += "% Acquisition rate: {:.10e} Hz\r\n".format(self.get_samplerate())
 		hdr += "% {} 10 MHz clock\r\n".format("External" if self._moku._get_actual_extclock() else "Internal")
-		hdr += "% Acquired {}\r\n".format(formatted_timestamp())
+		hdr += "% Acquired {}\r\n".format(_utils.formatted_timestamp())
 		hdr += "% Time,"
 		for i,c in enumerate(chs):
 			if c:
@@ -302,6 +307,7 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 		fmtstr += "\r\n"
 		return fmtstr
 
+	@needs_commit
 	def set_defaults(self):
 		super(PhaseMeter, self).set_defaults()
 
@@ -327,21 +333,8 @@ class PhaseMeter(_frame_instrument.FrameBasedInstrument, PhaseMeter_SignalGenera
 		self.en_in_ch1 = True
 		self.en_in_ch2 = True
 
-		# TODO: Headers assume registers have been committed with current values
-	def datalogger_start(self, start=0, duration=10, use_sd=True, ch1=True, ch2=True, filetype='csv'):
-		self._update_datalogger_params(ch1, ch2)
-		super(PhaseMeter, self).datalogger_start(start=start, duration=duration, use_sd=use_sd, ch1=ch1, ch2=ch2, filetype=filetype)
-
-	datalogger_start.__doc__ = _frame_instrument.FrameBasedInstrument.datalogger_start.__doc__
-
-	def datalogger_start_single(self, use_sd=True, ch1=True, ch2=True, filetype='csv'):
-		self._update_datalogger_params(ch1, ch2)
-		super(PhaseMeter, self).datalogger_start_single(use_sd=use_sd, ch1=ch1, ch2=ch2, filetype=filetype)
-
-	datalogger_start_single.__doc__ = _frame_instrument.FrameBasedInstrument.datalogger_start_single.__doc__
-
 _pm_reg_handlers = {
-	'init_freq_ch1':		((REG_PM_INITF1_H, REG_PM_INITF1_L), 
+	'init_freq_ch1':		((REG_PM_INITF1_H, REG_PM_INITF1_L),
 											to_reg_unsigned(0,48, xform=lambda obj, f: f * _PM_FREQSCALE),
 											from_reg_unsigned(0,48,xform=lambda obj, f: f / _PM_FREQSCALE)),
 	'init_freq_ch2':		((REG_PM_INITF2_H, REG_PM_INITF2_L),

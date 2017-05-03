@@ -20,19 +20,18 @@ import math
 
 m = Moku.get_by_name('example')
 i = PhaseMeter()
-m.attach_instrument(i, use_external=False)
+m.deploy_instrument(i, use_external=False)
 
 try:
 	# Set the initial phase-lock loop frequency to 10MHz and measurement rate to ~120Hz
 	i.set_initfreq(1, 10e6)
-	i.set_samplerate(PM_LOGRATE_FAST)
-	i.commit()
+	i.set_samplerate('fast')
 
 	# Stop previous recording session, if any, then start a new datalogging measurement
 	# session, streaming to the network so we can look at it in real time.
 	i.datalogger_stop()
 	i.datalogger_start(duration=10, ch1=True, ch2=False, filetype='net')
-	
+
 	amplitudes = []
 
 	while True:

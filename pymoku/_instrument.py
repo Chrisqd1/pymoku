@@ -1,9 +1,10 @@
-
 import threading, collections, time, struct, socket, logging
 
+from pymoku import _get_autocommit, _set_autocommit
+
+import decorator
 from functools import partial
 from types import MethodType
-
 from pymoku import NotDeployedException, ValueOutOfRangeException, InvalidConfigurationException
 
 REG_CTL 	= 0
@@ -242,6 +243,50 @@ def from_reg_bool(_offset):
 	"""
 	return from_reg_unsigned(_offset, 1, xform=lambda obj, x: bool(x))
 
+_awaiting_commit = False
+
+@decorator.decorator
+def needs_commit(func, self, *args, **kwargs):
+	""" Wrapper function which checks whether settings should be committed automatically.
+	"""
+	if not _get_autocommit():
+		# Not auto-committing
+		return func(self, *args, **kwargs)
+	else:
+		# Auto-committing
+		global _awaiting_commit
+
+		was_awaiting = _awaiting_commit # Remember if a commit was already being waited on
+		if not _awaiting_commit:
+			_awaiting_commit = True # Lock the commit
+
+		res = func(self, *args, **kwargs)
+
+		# Commit if we weren't already waiting for one before
+		if not was_awaiting:
+			self.commit()
+			# Reset the intention to commit
+			_awaiting_commit = False
+
+		return res
+
+@decorator.decorator
+def dont_commit(func, self, *args, **kwargs):
+	""" Wrapper function which disables auto-commit for the duration of the function call.
+	Should only be used for constructors of Instrument classes (because they cant commit until attached to a Moku)
+	"""
+	auto_setting = _get_autocommit()
+
+	# Force disable of auto-commit
+	_set_autocommit(False)
+
+	# Run the function
+	res = func(self, *args, **kwargs)
+
+	# Turn auto-commit to its original value
+	_set_autocommit(auto_setting)
+
+	return res
 
 
 class MokuInstrument(object):
@@ -308,11 +353,12 @@ class MokuInstrument(object):
 		else:
 			return super(MokuInstrument, self).__setattr__(name, value)
 
+	@needs_commit
 	def set_defaults(self):
 		""" Can be extended in implementations to set initial state """
 
 		# Base implementation: load DAC calibration values in to the bitstream.
-		o1, o1t, o2, o2t = self.dac_offsets()
+		o1, o1t, o2, o2t = self._dac_offsets()
 		self.dac1_offset = o1
 		self.dac1_offset_t = o1t
 		self.dac2_offset = o2
@@ -338,9 +384,9 @@ class MokuInstrument(object):
 
 		.. note::
 
-		    This **must** be called after any *set_* or *synth_* function has been called, or control
-		    attributes have been directly set. This allows you to, for example, set multiple attributes
-		    controlling rendering or signal generation in separate calls but have them all take effect at once.
+		    If the `autocommit` feature has been turned off, this function can be used to manually apply any instrument
+		    settings to the Moku device. These instrument settings are those configured by calling all *set_* and *gen_* type
+		    functions. Manually calling this function allows you to atomically apply many instrument settings at once.
 		"""
 		if self._moku is None: raise NotDeployedException()
 		self._stateid = (self._stateid + 1) % 256 # Some statid docco says 8-bits, some 16.
@@ -354,7 +400,10 @@ class MokuInstrument(object):
 		self._remoteregs = [ l if l is not None else r for l, r in zip(self._localregs, self._remoteregs)]
 		self._localregs = [None] * 128
 
-	def sync_registers(self):
+	def check_uncommitted_state(self):
+		return any(self._localregs)
+
+	def _sync_registers(self):
 		"""
 		Reload state from the Moku.
 
@@ -364,8 +413,15 @@ class MokuInstrument(object):
 		"""
 		if self._moku is None: raise NotDeployedException()
 		self._remoteregs = [ val for reg, val in self._moku._read_regs(list(range(128)))]
+		self._stateid = self.state_id
+		self._on_reg_sync()
 
-	def dump_remote_regs(self):
+	def _on_reg_sync(self):
+		# Designed to be overwritten by child instruments to update local variables
+		# when a new moku has been reg sync'd
+		return
+
+	def _dump_remote_regs(self):
 		"""
 		Return the current register state of the Moku.
 
@@ -378,7 +434,7 @@ class MokuInstrument(object):
 		"""
 		return self._moku._read_regs(list(range(128)))
 
-	def set_running(self, state):
+	def _set_running(self, state):
 		"""
 		Set the local instrument object running state
 
@@ -386,7 +442,7 @@ class MokuInstrument(object):
 		"""
 		self._running = state
 
-	def set_instrument_active(self, active):
+	def _set_instrument_active(self, active):
 		"""
 		Assert or release the intrument reset line on the device.
 
@@ -398,6 +454,7 @@ class MokuInstrument(object):
 		self._localregs[REG_CTL] = reg
 		self.commit()
 
+	@needs_commit
 	def set_frontend(self, channel, fiftyr=False, atten=True, ac=False):
 		""" Configures gain, coupling and termination for each channel.
 
@@ -417,7 +474,7 @@ class MokuInstrument(object):
 		relays |= RELAY_LOWG if atten else 0
 		relays |= RELAY_DC if not ac else 0
 
-		off1, off1_t, off2, off2_t = self.adc_offsets()
+		off1, off1_t, off2, off2_t = self._adc_offsets()
 
 		if channel == 1:
 			self.relays_ch1 = relays
@@ -445,7 +502,7 @@ class MokuInstrument(object):
 
 		return [bool(r & RELAY_LOWZ), bool(r & RELAY_LOWG), not bool(r & RELAY_DC)]
 
-	def dac_gains(self):
+	def _dac_gains(self):
 		g1s = "calibration.DG-1"
 		g2s = "calibration.DG-2"
 		gt1s = "calibration.DGT-1"
@@ -475,7 +532,7 @@ class MokuInstrument(object):
 
 		return g1, g2
 
-	def dac_offsets(self):
+	def _dac_offsets(self):
 		o1s = "calibration.DO-1"
 		o2s = "calibration.DO-2"
 		ot1s = "calibration.DOT-1"
@@ -496,7 +553,7 @@ class MokuInstrument(object):
 		return o1, ot1, o2, ot2
 
 
-	def adc_gains(self):
+	def _adc_gains(self):
 		relay_string_1 = '-'.join(( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
 								  "L" if self.relays_ch1 & RELAY_LOWG else "H",
 								  "D" if self.relays_ch1 & RELAY_DC else "A"))
@@ -536,7 +593,7 @@ class MokuInstrument(object):
 		return g1, g2
 
 
-	def adc_offsets(self):
+	def _adc_offsets(self):
 		relay_string_1 = '-'.join(( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
 								  "L" if self.relays_ch1 & RELAY_LOWG else "H",
 								  "D" if self.relays_ch1 & RELAY_DC else "A"))
@@ -564,7 +621,7 @@ class MokuInstrument(object):
 
 		return o1, ot1, o2, ot2
 
-
+	@needs_commit
 	def set_pause(self, pause):
 		"""
 		Pauses or unpauses the instrument's data output.
@@ -579,7 +636,7 @@ class MokuInstrument(object):
 	def get_pause(self):
 		return self.pause
 
-	def load_feature(self, index):
+	def _load_feature(self, index):
 		# For now we don't support switching clock modes during a partial deploy
 		self._moku._deploy(use_external=self._moku.external_reference, partial_index=index)
 
@@ -601,7 +658,8 @@ _instr_reg_handlers = {
 	'render_mode':		(REG_FILT,		to_reg_unsigned(0, 2, allow_set=[RDR_CUBIC, RDR_MINMAX, RDR_DECI, RDR_DDS]),
 										from_reg_unsigned(0, 2)),
 
-	'waveform_avg':		(REG_FILT,		to_reg_unsigned(2, 7),		from_reg_unsigned(2, 7)),
+	'waveform_avg1':	(REG_FILT,		to_reg_unsigned(2, 4, allow_range=(0,13)),		from_reg_unsigned(2, 4)),
+	'waveform_avg2':	(REG_FILT,		to_reg_unsigned(6, 4, allow_range=(0,13)),		from_reg_unsigned(6, 4)),
 
 	'framerate':		(REG_FRATE,		to_reg_unsigned(0, 8, xform=lambda obj, f: f * 256.0 / 477.0),
 										from_reg_unsigned(0, 8, xform=lambda obj, f: f / 256.0 * 477.0)),

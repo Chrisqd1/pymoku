@@ -15,8 +15,8 @@ m = Moku.get_by_name('example')
 i = m.discover_instrument()
 if i is None or i.type != 'specan':
 	print("No or wrong instrument deployed")
-	i = SpecAn()
-	m.attach_instrument(i)
+	i = SpectrumAnalyser()
+	m.deploy_instrument(i)
 else:
 	print("Attached to existing Spectrum Analyser")
 	m.take_ownership()
@@ -24,7 +24,7 @@ else:
 # Set spectrum analyser configuration
 i.set_defaults()
 i.set_dbmscale(True)
-i.set_window(SA_WIN_BH)
+i.set_window('blackman-harris')
 i.set_rbw()
 
 # Set up the embedded signal generator
@@ -36,9 +36,6 @@ i.enable_output(2, True)
 # Configure ADC inputs
 i.set_frontend(1, fiftyr=True)
 i.set_frontend(2, fiftyr=True)
-
-# Push all new configuration to the Moku device
-i.commit()
 
 # Set up basic plot configurations
 line1, = plt.plot([])
@@ -56,7 +53,7 @@ try:
 	# Get an initial frame to set any frame-specific plot parameters
 	frame = i.get_frame()
 
-	# Format the x-axis as a frequency scale 
+	# Format the x-axis as a frequency scale
 	ax = plt.gca()
 	ax.xaxis.set_major_formatter(FuncFormatter(frame.get_xaxis_fmt))
 	ax.yaxis.set_major_formatter(FuncFormatter(frame.get_yaxis_fmt))

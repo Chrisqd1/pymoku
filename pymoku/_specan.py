@@ -5,6 +5,7 @@ from ._instrument import *
 from . import _frame_instrument
 
 from bisect import bisect_right
+import _utils
 
 log = logging.getLogger(__name__)
 
@@ -44,10 +45,10 @@ REG_SA_TR2_STOP_L	= 107
 REG_SA_TR2_INCR_H	= 108
 REG_SA_TR2_INCR_L 	= 109
 
-SA_WIN_BH			= 0
-SA_WIN_FLATTOP		= 1
-SA_WIN_HANNING		= 2
-SA_WIN_NONE			= 3
+_SA_WIN_BH			= 0
+_SA_WIN_FLATTOP		= 1
+_SA_WIN_HANNING		= 2
+_SA_WIN_NONE			= 3
 
 _SA_ADC_SMPS		= 500e6
 _SA_BUFLEN			= 2**14
@@ -63,17 +64,17 @@ _SA_SG_FREQ_SCALE	= 2**48 / (_SA_ADC_SMPS * 2.0)
 	FILTER GAINS AND CORRECTION FACTORS
 '''
 _SA_WINDOW_WIDTH = {
-	SA_WIN_NONE : 0.89,
-	SA_WIN_BH : 1.90,
-	SA_WIN_HANNING : 1.44,
-	SA_WIN_FLATTOP : 3.77
+	_SA_WIN_NONE : 0.89,
+	_SA_WIN_BH : 1.90,
+	_SA_WIN_HANNING : 1.44,
+	_SA_WIN_FLATTOP : 3.77
 }
 
 _SA_WINDOW_POWER = {
-	SA_WIN_NONE : 131072.0,
-	SA_WIN_BH : 47015.48706054688,
-	SA_WIN_HANNING : 65527.00146484375,
-	SA_WIN_FLATTOP : 28268.48803710938
+	_SA_WIN_NONE : 131072.0,
+	_SA_WIN_BH : 47015.48706054688,
+	_SA_WIN_HANNING : 65527.00146484375,
+	_SA_WIN_FLATTOP : 28268.48803710938
 }
 
 _SA_IIR_COEFFS = [
@@ -112,7 +113,7 @@ _SA_ADC_FREQ_RESP_0 = [ 1.0000,
     0.7322, 0.7341, 0.7362, 0.7381, 0.7403, 0.7417, 0.7425, 0.7420, 0.7406, 0.7378, 0.7338, 0.7283, 0.7219, 0.7138, 0.7049, 0.6945,
     0.6839, 0.6721, 0.6601, 0.6480, 0.6364, 0.6250, 0.6142, 0.6039, 0.5945, 0.5863, 0.5784, 0.5716, 0.5656, 0.5610, 0.5572, 0.5543,
     0.5519, 0.5503, 0.5498, 0.5500, 0.5505, 0.5509, 0.5517, 0.5521, 0.5518, 0.5510, 0.5497, 0.5476, 0.5453, 0.5427, 0.5404, 0.5383 ]
-    
+
 _SA_ADC_FREQ_RESP_20 = [ 1.0000,
     1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000,
     1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000,
@@ -143,10 +144,10 @@ _DECIMATIONS_TABLE = sorted([ (d1 * (d2+1) * (d3+1) * (d4+1), d1, d2+1, d3+1, d4
 								for d4 in range(16)], key=lambda x: (x[0],x[4],x[3]))
 '''
 
-class SpectrumFrame(_frame_instrument.DataFrame):
+class SpectrumData(_frame_instrument.InstrumentData):
 	"""
 	Object representing a frame of data in units of power vs frequency. This is the native output format of
-	the :any:`SpecAn` instrument and similar.
+	the :any:`SpectrumAnalyser` instrument and similar.
 
 	This object should not be instantiated directly, but will be returned by a supporting *get_frame*
 	implementation.
@@ -167,7 +168,7 @@ class SpectrumFrame(_frame_instrument.DataFrame):
 		:annotation: = n
 	"""
 	def __init__(self, scales):
-		super(SpectrumFrame, self).__init__()
+		super(SpectrumData, self).__init__()
 
 		#: Channel 1 data array in units of power. Present whether or not the channel is enabled, but the
 		#: contents are undefined in the latter case.
@@ -177,13 +178,13 @@ class SpectrumFrame(_frame_instrument.DataFrame):
 		self.ch2 = []
 
 		#: The frequency range associated with both channels
-		self.fs = []
+		self.frequency = []
 
-		#: Obtain all data scaling factors relevant to current SpecAn configuration
-		self.scales = scales
+		#: Obtain all data scaling factors relevant to current SpectrumAnalyser configuration
+		self._scales = scales
 
 	def __json__(self):
-		return { 'ch1' : self.ch1, 'ch2' : self.ch2, 'fs' : self.fs }
+		return { 'ch1' : self.ch1, 'ch2' : self.ch2, 'frequency' : self.frequency }
 
 	# convert an RMS voltage to a power level (assuming 50Ohm load)
 	def _vrms_to_dbm(self, v):
@@ -191,12 +192,12 @@ class SpectrumFrame(_frame_instrument.DataFrame):
 
 	def process_complete(self):
 
-		if self.stateid not in self.scales:
-			log.error("Can't render specan frame, haven't saved calibration data for state %d", self.stateid)
+		if self._stateid not in self._scales:
+			log.error("Can't render SpectrumAnalyser frame, haven't saved calibration data for state %d", self._stateid)
 			return
 
 		# Get scaling/correction factors based on current instrument configuration
-		scales = self.scales[self.stateid]
+		scales = self._scales[self._stateid]
 		scale1 = scales['g1']
 		scale2 = scales['g2']
 		fs = scales['fs']
@@ -206,26 +207,25 @@ class SpectrumFrame(_frame_instrument.DataFrame):
 
 		try:
 			# Find the starting index for the valid frame data
-			# SpecAn generally gives more than we ask for due to integer decimations
+			# SpectrumAnalyser generally gives more than we ask for due to integer decimations
 			start_index = bisect_right(fs,f1)
 
 			# Set the frequency range of valid data in the current frame (same for both channels)
-			self.ch1_fs = fs[start_index:-1]
-			self.ch2_fs = fs[start_index:-1]
+			self.frequency = fs[start_index:-1]
 
 			##################################
 			# Process Ch1 Data
 			##################################
-			smpls = int(len(self.raw1) / 4)
-			dat = struct.unpack('<' + 'i' * smpls, self.raw1)
+			smpls = int(len(self._raw1) / 4)
+			dat = struct.unpack('<' + 'i' * smpls, self._raw1)
 			dat = [ x if x != -0x80000000 else None for x in dat ]
 
-			# SpecAn data is backwards because $(EXPLETIVE), also remove zeros for the sake of common
+			# SpectrumAnalyser data is backwards because $(EXPLETIVE), also remove zeros for the sake of common
 			# display on a log axis.
-			self.ch1_bits = [ max(float(x), 1) if x is not None else None for x in reversed(dat[:_SA_SCREEN_WIDTH]) ]
+			self._ch1_bits = [ max(float(x), 1) if x is not None else None for x in reversed(dat[:_SA_SCREEN_WIDTH]) ]
 
 			# Apply frequency dependent corrections
-			self.ch1 = [ self._vrms_to_dbm(a*c*scale1) if dbmscale else a*c*scale1 if a is not None else None for a,c in zip(self.ch1_bits, fcorrs)]
+			self.ch1 = [ self._vrms_to_dbm(a*c*scale1) if dbmscale else a*c*scale1 if a is not None else None for a,c in zip(self._ch1_bits, fcorrs)]
 
 			# Trim invalid part of frame
 			self.ch1 = self.ch1[start_index:-1]
@@ -233,23 +233,32 @@ class SpectrumFrame(_frame_instrument.DataFrame):
 			##################################
 			# Process Ch2 Data
 			##################################
-			smpls = int(len(self.raw2) / 4)
-			dat = struct.unpack('<' + 'i' * smpls, self.raw2)
+			smpls = int(len(self._raw2) / 4)
+			dat = struct.unpack('<' + 'i' * smpls, self._raw2)
 			dat = [ x if x != -0x80000000 else None for x in dat ]
 
-			self.ch2_bits = [ max(float(x), 1) if x is not None else None for x in reversed(dat[:_SA_SCREEN_WIDTH]) ]
+			self._ch2_bits = [ max(float(x), 1) if x is not None else None for x in reversed(dat[:_SA_SCREEN_WIDTH]) ]
 
-			self.ch2 = [ self._vrms_to_dbm(a*c*scale2) if dbmscale else a*c*scale2 if a is not None else None for a,c in zip(self.ch2_bits, fcorrs)]
+			self.ch2 = [ self._vrms_to_dbm(a*c*scale2) if dbmscale else a*c*scale2 if a is not None else None for a,c in zip(self._ch2_bits, fcorrs)]
 			self.ch2 = self.ch2[start_index:-1]
 
 		except (IndexError, TypeError, struct.error):
 			# If the data is bollocksed, force a reinitialisation on next packet
-			log.exception("SpecAn packet")
-			self.frameid = None
-			self.complete = False
+			log.exception("SpectrumAnalyser packet")
+			self._frameid = None
+			self._complete = False
 
 		# A valid frame is there's at least one valid sample in each channel
 		return any(self.ch1) and any(self.ch2)
+
+	def process_buffer(self):
+		# Compute the x-axis of the buffer
+		if self._stateid not in self._scales:
+			log.error("Can't process buffer - haven't saved calibration for state %d", self._stateid)
+			return
+		scales = self._scales[self._stateid]
+		self.time = [scales['buff_time_min'] + (scales['buff_time_step'] * x) for x in range(_OSC_BUFLEN)]
+		return True
 
 	'''
 		Plotting helper functions
@@ -278,11 +287,11 @@ class SpectrumFrame(_frame_instrument.DataFrame):
 		# This function returns a format string for the x-axis ticks and x-coordinates along the frequency scale
 		# Use this to set an x-axis format during plotting of SpecAn frames
 
-		if self.stateid not in self.scales:
-			log.error("Can't get x-axis format, haven't saved calibration data for state %d", self.stateid)
+		if self._stateid not in self._scales:
+			log.error("Can't get x-axis format, haven't saved calibration data for state %d", self._stateid)
 			return
 
-		scales = self.scales[self.stateid]
+		scales = self._scales[self._stateid]
 		f1, f2 = scales['fspan']
 
 		fscale_str, fscale_const = self._get_freqScale(f2)
@@ -299,11 +308,11 @@ class SpectrumFrame(_frame_instrument.DataFrame):
 
 	def _get_yaxis_fmt(self,y,pos):
 
-		if self.stateid not in self.scales:
-			log.error("Can't get current frequency format, haven't saved calibration data for state %d", self.stateid)
+		if self._stateid not in self._scales:
+			log.error("Can't get current frequency format, haven't saved calibration data for state %d", self._stateid)
 			return
 
-		scales = self.scales[self.stateid]
+		scales = self._scales[self._stateid]
 		dbm = scales['dbmscale']
 
 		yfmt = {
@@ -325,10 +334,10 @@ class SpectrumFrame(_frame_instrument.DataFrame):
 		""" Function suitable to use as argument to a matplotlib FuncFormatter for Y (voltage) coordinate """
 		return self._get_yaxis_fmt(y,None)['ycoord']
 
-class SpecAn(_frame_instrument.FrameBasedInstrument):
+class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 	""" Spectrum Analyser instrument object. This should be instantiated and attached to a :any:`Moku` instance.
 
-	.. automethod:: pymoku.instruments.SpecAn.__init__
+	.. automethod:: pymoku.instruments.SpectrumAnalyser.__init__
 
 	.. attribute:: framerate
 		:annotation: = 2
@@ -341,23 +350,18 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		Name of this instrument.
 
 	"""
+	@dont_commit
 	def __init__(self):
 		"""Create a new Spectrum Analyser instrument, ready to be attached to a Moku."""
-		super(SpecAn, self).__init__()
+		super(SpectrumAnalyser, self).__init__()
 		self._register_accessors(_sa_reg_handlers)
 
 		self.scales = {}
-		self.set_frame_class(SpectrumFrame, scales=self.scales)
+		self._set_frame_class(SpectrumData, scales=self.scales)
 
 		self.id = 2
 		self.type = "specan"
 		self.calibration = None
-
-		self.set_span(0, 250e6)
-		self.set_rbw()
-		self.set_window(SA_WIN_BH)
-
-		self.set_dbmscale(True)
 
 		# Embedded signal generator configuration
 		self.en_out1 = False
@@ -369,6 +373,11 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		self.tr2_incr = 0
 		self.sweep1 = False
 		self.sweep2 = False
+
+		self.set_span(0,250e6)
+		self.set_rbw()
+		self.set_window('blackman-harris')
+		self.set_dbmscale(True)
 
 	def _calculate_decimations(self, f1, f2):
 		# Computes the decimations given the input span
@@ -468,12 +477,13 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 
 		self.ref_level = 6
 
-		# Output signal generator sweep depends on the instrument parameters for optimal 
+		# Output signal generator sweep depends on the instrument parameters for optimal
 		# increment vs screen update rate
 		self._set_sweep_increments(self.sweep1, self.sweep2, fspan, self._total_decimation, rbw, self.framerate)
 
 		log.debug("DM: %f FS: %f, BS: %f, RD: %f, W:%d, RBW: %f, RBR: %f", self.demod, fspan, buffer_span, self.render_dds, self.window, rbw, self.rbw_ratio)
 
+	@needs_commit
 	def set_span(self, f1, f2):
 		""" Sets the frequency span to be analysed.
 
@@ -499,6 +509,7 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		self._f1_full = f1
 		self._f2_full = f2
 
+	@needs_commit
 	def set_fullspan(self,f1,f2):
 		""" Sets the frequency span to be analysed.
 
@@ -541,6 +552,7 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		self._f1_full = new_f1
 		self._f2_full = new_f2
 
+	@needs_commit
 	def set_rbw(self, rbw=None):
 		""" Set Resolution Bandwidth
 
@@ -552,28 +564,31 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 
 		self.rbw = rbw
 
+	@needs_commit
 	def set_window(self, window):
 		""" Set Window function
 
-		Window should be one of:
-
-		- **SA_WIN_BH** Blackman-Harris
-		- **SA_WIN_FLATTOP** Flat Top
-		- **SA_WIN_HANNING** Hanning
-		- **SA_WIN_NONE** No window
-
-		:type window: int
+		:type window: string, {'blackman-harris','flattop','hanning','none'}
 		:param window: Window Function
 		"""
+		_str_to_window_function = {
+			'blackman-harris': _SA_WIN_BH,
+			'flattop' : _SA_WIN_FLATTOP,
+			'hanning' : _SA_WIN_HANNING,
+			'none'	: _SA_WIN_NONE
+		}
+		window = _utils.str_to_val(_str_to_window_function, window, 'window function')
 		self.window = window
-		
+
+	@needs_commit
 	def set_dbmscale(self,dbm=True):
 		""" Configures the Spectrum Analyser to use a logarithmic amplitude axis """
 		self.dbmscale = dbm
 
+	@needs_commit
 	def set_defaults(self):
 		""" Reset the Spectrum Analyser to sane defaults. """
-		super(SpecAn, self).set_defaults()
+		super(SpectrumAnalyser, self).set_defaults()
 		#TODO this should reset ALL registers
 		self.framerate = _SA_FPS
 		self.frame_length = _SA_SCREEN_WIDTH
@@ -602,9 +617,6 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		self.tr2_stop = 0
 		self.tr1_incr = 0
 		self.tr2_incr = 0
-
-		self.set_dbmscale(True)
-		self.set_rbw()
 
 	def _calculate_freqStep(self, decimation, render_downsamp):
 		bufspan = _SA_ADC_SMPS / 2.0 / decimation
@@ -646,12 +658,12 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		Parameters are based on current instrument state
 		"""
 		# Returns the bits-to-volts numbers for each channel in the current state
-		g1, g2 = self.adc_gains()
+		g1, g2 = self._adc_gains()
 
 		filt_gain1 = 2 ** (-5.0) if self.dec_enable else 1.0
 		filt_gain2 = 2.0 ** (self.bs_cic2 - 2.0 * math.log(self.dec_cic2, 2))
 		filt_gain3 = 2.0 ** (self.bs_cic3 - 3.0 * math.log(self.dec_cic3, 2))
-		filt_gain4 = pow(2.0,-8.0) if (self.dec_iir-1) else 1.0
+		filt_gain4 = 1.0
 
 		filt_gain = filt_gain1 * filt_gain2 * filt_gain3 * filt_gain4
 		window_gain = 1.0 / _SA_WINDOW_POWER[self.window]
@@ -673,6 +685,7 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 
 		return {'g1': g1, 'g2': g2, 'fs': freqs, 'fcorrs': fcorrs, 'fspan': [self._f1_full, self._f2_full], 'dbmscale': self.dbmscale}
 
+	@needs_commit
 	def enable_output(self, ch, enable):
 		if ch == 1:
 			self.en_out1 = enable
@@ -681,7 +694,8 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 			self.en_out2 = enable
 			self.tr2_amp = self._tr2_amp if enable else 0
 
-	def conf_output(self, ch, amp, freq, sweep=False):
+	@needs_commit
+	def gen_sinewave(self, ch, amp, freq, sweep=False):
 		"""
 		Configure the output sinewaves on DAC channels
 
@@ -738,7 +752,7 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 			screen_update_time = max(round(fft_time*framerate)/framerate, 1.0/framerate)
 
 			increment =  fspan / 100.5 * (fft_time / screen_update_time)
-		
+
 		if sweep1:
 			self.tr1_incr = increment
 		if sweep2:
@@ -751,7 +765,7 @@ class SpecAn(_frame_instrument.FrameBasedInstrument):
 		self._update_dependent_regs()
 
 		# Push the controls through to the device
-		super(SpecAn, self).commit()
+		super(SpectrumAnalyser, self).commit()
 
 		# Update the scaling factors for processing of incoming frames
 		# stateid allows us to track which scales correspond to which register state
@@ -778,7 +792,7 @@ _sa_reg_handlers = {
 	'rbw_ratio':		(REG_SA_RBW,		to_reg_unsigned(0, 24, 	xform=lambda obj, x: x*2.0**10.0),
 											from_reg_unsigned(0, 24,xform=lambda obj, x: x/(2.0**10.0))),
 
-	'window':			(REG_SA_RBW,		to_reg_unsigned(24, 2, allow_set=[SA_WIN_NONE, SA_WIN_BH, SA_WIN_HANNING, SA_WIN_FLATTOP]),
+	'window':			(REG_SA_RBW,		to_reg_unsigned(24, 2, allow_set=[_SA_WIN_NONE, _SA_WIN_BH, _SA_WIN_HANNING, _SA_WIN_FLATTOP]),
 											from_reg_unsigned(24, 2)),
 
 	'ref_level':		(REG_SA_REFLVL,		to_reg_unsigned(0, 4),		from_reg_unsigned(0, 4)),
@@ -795,27 +809,27 @@ _sa_reg_handlers = {
 	'a2_sos2':			(REG_SA_SOS2_A2,	to_reg_signed(0, 18),		from_reg_signed(0, 18)),
 	'b1_sos2':			(REG_SA_SOS2_B1,	to_reg_signed(0, 18),		from_reg_signed(0, 18)),
 
-	'tr1_amp'	:	(REG_SA_TR1_AMP,	to_reg_unsigned(0, 16, xform=lambda obj, p:p / obj.dac_gains()[0]),
-										from_reg_unsigned(0, 16, xform=lambda obj, p:p * obj.dac_gains()[0])),
-	'tr1_start'	:	((REG_SA_TR1_START_H, REG_SA_TR1_START_L),	
+	'tr1_amp'	:	(REG_SA_TR1_AMP,	to_reg_unsigned(0, 16, xform=lambda obj, p:p / obj._dac_gains()[0]),
+										from_reg_unsigned(0, 16, xform=lambda obj, p:p * obj._dac_gains()[0])),
+	'tr1_start'	:	((REG_SA_TR1_START_H, REG_SA_TR1_START_L),
 										to_reg_unsigned(0, 48, xform=lambda obj, p:p * _SA_SG_FREQ_SCALE),
 										from_reg_unsigned(0, 48, xform=lambda obj, p:p / _SA_SG_FREQ_SCALE)),
-	'tr1_stop'	:	((REG_SA_TR1_STOP_H, REG_SA_TR1_STOP_L),	
+	'tr1_stop'	:	((REG_SA_TR1_STOP_H, REG_SA_TR1_STOP_L),
 										to_reg_unsigned(0, 48, xform=lambda obj, p:p * _SA_SG_FREQ_SCALE),
 										from_reg_unsigned(0, 48, xform=lambda obj, p:p / _SA_SG_FREQ_SCALE)),
-	'tr1_incr'	:	((REG_SA_TR1_INCR_H, REG_SA_TR1_INCR_L),	
+	'tr1_incr'	:	((REG_SA_TR1_INCR_H, REG_SA_TR1_INCR_L),
 										to_reg_unsigned(0, 48, xform=lambda obj, p:p * _SA_SG_FREQ_SCALE),
 										from_reg_unsigned(0, 48, xform=lambda obj, p:p / _SA_SG_FREQ_SCALE)),
 
-	'tr2_amp'	:	(REG_SA_TR2_AMP,	to_reg_unsigned(0, 16, xform=lambda obj, p:p / obj.dac_gains()[1]),
-										from_reg_unsigned(0, 16, xform=lambda obj, p:p * obj.dac_gains()[1])),
-	'tr2_start'	:	((REG_SA_TR2_START_H, REG_SA_TR2_START_L),	
+	'tr2_amp'	:	(REG_SA_TR2_AMP,	to_reg_unsigned(0, 16, xform=lambda obj, p:p / obj._dac_gains()[1]),
+										from_reg_unsigned(0, 16, xform=lambda obj, p:p * obj._dac_gains()[1])),
+	'tr2_start'	:	((REG_SA_TR2_START_H, REG_SA_TR2_START_L),
 										to_reg_unsigned(0, 48, xform=lambda obj, p:p * _SA_SG_FREQ_SCALE),
 										from_reg_unsigned(0, 48, xform=lambda obj, p:p / _SA_SG_FREQ_SCALE)),
-	'tr2_stop'	:	((REG_SA_TR2_STOP_H, REG_SA_TR2_STOP_L),	
+	'tr2_stop'	:	((REG_SA_TR2_STOP_H, REG_SA_TR2_STOP_L),
 										to_reg_unsigned(0, 48, xform=lambda obj, p:p * _SA_SG_FREQ_SCALE),
 										from_reg_unsigned(0, 48, xform=lambda obj, p:p / _SA_SG_FREQ_SCALE)),
-	'tr2_incr'	:	((REG_SA_TR2_INCR_H, REG_SA_TR2_INCR_L),	
+	'tr2_incr'	:	((REG_SA_TR2_INCR_H, REG_SA_TR2_INCR_L),
 										to_reg_unsigned(0, 48, xform=lambda obj, p:p * _SA_SG_FREQ_SCALE),
 										from_reg_unsigned(0, 48, xform=lambda obj, p:p / _SA_SG_FREQ_SCALE))
 }

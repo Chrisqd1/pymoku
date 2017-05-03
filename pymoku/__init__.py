@@ -20,11 +20,11 @@ class DeployException(MokuException): """Couldn't start instrument. Moku may not
 class InvalidOperationException(MokuException): """Can't perform that operation at this time"""; pass
 class ValueOutOfRangeException(MokuException): """Invalid value for this operation"""; pass
 class NotDeployedException(MokuException): """Tried to perform an action on an Instrument before it was deployed to a Moku"""; pass
-class FrameTimeout(MokuException): """No new :any:`DataFrame` arrived within the given timeout"""; pass
+class FrameTimeout(MokuException): """No new :any:`InstrumentData` arrived within the given timeout"""; pass
 class BufferTimeout(MokuException): """No new :any:`DataBuffer` arrived within the given timeout"""; pass
 class NoDataException(MokuException): """A request has been made for data but none will be generated """; pass
 class InvalidConfigurationException(MokuException): """A request for an invalid instrument configuration has been made."""; pass
-class StreamException(MokuException): 
+class StreamException(MokuException):
 	def __init__(self, message, err=None):
 		"""Data logging was interrupted or failed"""
 		super(StreamException, self).__init__(message)
@@ -35,6 +35,15 @@ class MPNotMounted(MokuException): """The requested mount point has not been mou
 class MPReadOnly(MokuException): """The requested mount point is Read Only"""; pass
 class UnknownAction(MokuException): """The request was unknown"""; pass
 class MokuBusy(MokuException): """The Moku is busy"""; pass
+class UncommittedSettings(MokuException): """Instrument settings are awaiting commit."""; pass
+
+
+autocommit = True
+def _get_autocommit():
+	return autocommit
+def _set_autocommit(enable):
+	global autocommit
+	autocommit = enable
 
 # Network status codes
 _ERR_OK = 0
@@ -90,7 +99,7 @@ class Moku(object):
 	def list_mokus(timeout=5):
 		""" Discovers all compatible Moku instances on the network.
 
-		For most applications, the user should use the *get_by_* functions below. These
+		For most applications, the user should use the *get_by_* functions. These
 		functions are faster to return as they don't have to wait to find and validate
 		all Moku devices on the network, they can look for a specific one.
 
@@ -127,6 +136,8 @@ class Moku(object):
 		:param ip_addr: target IP address
 		:type timeout: float
 		:param timeout: operation timeout
+		:rtype: :any:`Moku`
+		:return: Moku with given IP address
 		:raises *MokuNotFound*: if no such Moku is found within the timeout"""
 		def _filter(ip):
 			return ip == ip_addr
@@ -147,6 +158,8 @@ class Moku(object):
 		:param ip_addr: target serial
 		:type timeout: float
 		:param timeout: operation timeout
+		:rtype: :any:`Moku`
+		:return: Moku with given serial number
 		:raises *MokuNotFound*: if no such Moku is found within the timeout"""
 		def _filter(ip):
 			m = None
@@ -177,6 +190,8 @@ class Moku(object):
 		:param ip_addr: target device name
 		:type timeout: float
 		:param timeout: operation timeout
+		:rtype: :any:`Moku`
+		:return: Moku with given device name
 		:raises *MokuNotFound*: if no such Moku is found within the timeout"""
 		def _filter(ip):
 			m = None
@@ -223,9 +238,17 @@ class Moku(object):
 		return ack[1] == 1
 
 	def take_ownership(self):
+		"""
+		Register your ownership of the connected Moku:Lab device.
+
+		Having ownership enables you to send commands to and receive data from the corresponding Moku:Lab.
+		"""
 		return self._ownership(0x40)
 
 	def is_owner(self):
+		"""
+		Checks if you are the current owner of the Moku:Lab device.
+		"""
 		return self._ownership(0x41)
 
 
@@ -489,7 +512,7 @@ class Moku(object):
 
 		hdr, seq, ae, stat = struct.unpack("<BBBB", reply[:4])
 
-		return stat		
+		return stat
 
 	def _stream_stop(self):
 		pkt = struct.pack("<BBB", 0x53, 0, 2)
@@ -526,7 +549,7 @@ class Moku(object):
 
 		if status:
 			if status == _ERR_INVAL:
-				ex = InvalidConfigurationException("Invalid fileserver request parameters.") 
+				ex = InvalidConfigurationException("Invalid fileserver request parameters.")
 			elif status == _ERR_NOTFOUND:
 				ex = FileNotFound("Could not find directory or file.")
 			elif status == _ERR_NOSPC:
@@ -735,13 +758,13 @@ class Moku(object):
 	def _fs_rename_progress(self):
 		return self._fs_rename_status()[2]
 
-	def delete_bitstream(self, path):
+	def _delete_bitstream(self, path):
 		self._fs_finalise('b', path, 0)
 
-	def delete_file(self, mp, path):
+	def _delete_file(self, mp, path):
 		self._fs_finalise(mp, path, 0)
 
-	def load_bitstream(self, path, remotename=None):
+	def _load_bitstream(self, path, remotename=None):
 		"""
 		Load a bitstream file to the Moku, ready for deployment.
 
@@ -750,9 +773,9 @@ class Moku(object):
 
 		:raises NetworkError: if the upload fails verification.
 		"""
-		return self.load_persistent(path, remotename, mp='b')
+		return self._load_persistent(path, remotename, mp='b')
 
-	def load_persistent(self, path, remotename=None, mp='p'):
+	def _load_persistent(self, path, remotename=None, mp='p'):
 		import zlib
 
 		rname = self._send_file(mp, path, remotename)
@@ -769,11 +792,11 @@ class Moku(object):
 
 		return chk
 
-	def list_persistent(self):
+	def _list_persistent(self):
 		fs = self._fs_list('p')
 		return list(zip(*fs))[0]
 
-	def list_bitstreams(self, include_version=True):
+	def _list_bitstreams(self, include_version=True):
 		fs = self._fs_list('b', calculate_sha=include_version)
 
 		if include_version:
@@ -781,7 +804,7 @@ class Moku(object):
 		else:
 			return [b.split('.')[0] for b, c, s in fs if b.endswith('.bit')]
 
-	def list_package(self, include_version=False):
+	def _list_package(self, include_version=False):
 		fs = self._fs_list('p', calculate_checksums=include_version)
 
 		if include_version:
@@ -797,7 +820,7 @@ class Moku(object):
 		if reply:
 			raise InvalidOperationException("Firmware update failure %d" % reply)
 
-	def load_firmware(self, path):
+	def _load_firmware(self, path):
 		"""
 		Updates the firmware on the Moku.
 
@@ -861,7 +884,7 @@ class Moku(object):
 		""":return: True if the Moku currently is connected and has an instrument deployed and operating"""
 		return self._instrument is not None and self._instrument.is_active()
 
-	def attach_instrument(self, instrument, set_default=True, use_external=False):
+	def deploy_instrument(self, instrument, set_default=True, use_external=False):
 		"""
 		Attaches a :any:`MokuInstrument` subclass to the Moku, deploying and activating an instrument.
 
@@ -877,25 +900,23 @@ class Moku(object):
 		self.external_reference = use_external
 
 		if self._instrument:
-			self._instrument.set_instrument_active(False)
+			self._instrument._set_instrument_active(False)
 
 		self.take_ownership()
 		self._instrument = instrument
 		self._instrument.attach_moku(self)
-		self._instrument.set_instrument_active(False)
+		self._instrument._set_instrument_active(False)
 
 		bsv = self._deploy(partial_index=0, use_external=use_external)
 		log.debug("Bitstream version %d", bsv)
-		self._instrument.sync_registers()
-		self._instrument.set_running(True)
-		self._instrument.set_instrument_active(True)
+		self._instrument._sync_registers()
+		self._instrument._set_running(True)
+		self._instrument._set_instrument_active(True)
 
 		if set_default:
 			self._instrument.set_defaults()
+			# Ensure this always implicitly commits
 			self._instrument.commit()
-
-	set_instrument = attach_instrument
-	""" alias for :any:`attach_instrument`"""
 
 	def detach_instrument(self):
 		"""
@@ -905,7 +926,7 @@ class Moku(object):
 		useful when you want to save network bandwidth between measurements without closing the entire Moku device
 		"""
 		if self._instrument:
-			self._instrument.set_running(False)
+			self._instrument._set_running(False)
 			self._instrument = None
 
 	def get_instrument(self):
@@ -918,8 +939,9 @@ class Moku(object):
 	def discover_instrument(self):
 		"""Query a Moku:Lab device to see what instrument, if any, is currently running.
 
-		If an instrument is found, return a new :any:`MokuInstrument` subclass representing that instrument, ready
-		to be controlled."""
+		:rtype: :any:`MokuInstrument` or `None`
+		:returns: The detected instrument ready to be controlled, otherwise None.
+		"""
 		import pymoku.instruments
 		i = int(self._get_property_single('system.instrument'))
 		try:
@@ -929,8 +951,8 @@ class Moku(object):
 
 		running = instr()
 		running.attach_moku(self)
-		running.sync_registers()
-		running.set_running(True)
+		running._sync_registers()
+		running._set_running(True)
 		self._instrument = running
 		return running
 
@@ -938,7 +960,7 @@ class Moku(object):
 		"""Close connection to the Moku:Lab."""
 
 		if self._instrument is not None:
-			self._instrument.set_running(False)
+			self._instrument._set_running(False)
 
 		self._conn.close()
 		self._ctx.destroy()

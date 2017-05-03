@@ -22,7 +22,7 @@ Where:
 The stream is accessed using the *datalogger_* functions; especially :any:`datalogger_start` and, if streaming
 in real-time to pymoku over the network (rather than to a file), :any:`datalogger_get_samples`.
 
-.. note:: The requirement to :any:`commit() <pymoku.instruments.Oscilloscope.commit>` before a change takes effect is the most common cause of program malfunctions when interfacing with the Moku:Lab. Any *set_* or *synth_* function, or any direct manipulation of attributes such as :any:`framerate`, must be explicitly committed.
+.. note:: The requirement to :any:`commit() <pymoku.instruments.Oscilloscope.commit>` before a change takes effect is the most common cause of program malfunctions when interfacing with the Moku:Lab. Any *set_* or *gen_* function, or any direct manipulation of attributes such as :any:`framerate`, must be explicitly committed.
 
 Example Usage
 -------------
@@ -37,7 +37,7 @@ Example Usage
 
 	m = Moku.get_by_name('example')
 	i = PhaseMeter()
-	m.attach_instrument(i)
+	m.deploy_instrument(i)
 
 	try:
 		# Set the initial phase-lock loop frequency to 10MHz and a measurement rate of 10Hz
@@ -64,15 +64,6 @@ Example Usage
 		print(e)
 	finally:
 		m.close()
-
-
-The DataBuffer Class
---------------------
-
-.. autoclass:: pymoku.instruments.DataBuffer
-
-	.. Don't use :members: as it doesn't handle instance attributes well. Directives in the source code list required attributes directly.
-
 
 The Phasemeter Class
 --------------------

@@ -6,63 +6,37 @@ from . import _siggen
 from . import _phasemeter
 from . import _specan
 from . import _lockinamp
+from . import _datalogger
+from . import _stream_instrument
 from . import _frame_instrument
-
+from . import _stream_handler
 
 ''' Preferred import point. Aggregates the separate instruments and helper classes
     to flatten the import heirarchy (e.g. pymoku.instruments.Oscilloscope rather
     than pymoku.instruments._oscilloscope.Oscilloscope)
 '''
-_this_module = sys.modules[__name__]
 
-DataFrame = _frame_instrument.DataFrame
-VoltsFrame = _oscilloscope.VoltsFrame
-SpectrumFrame = _specan.SpectrumFrame
-
-DataBuffer = _frame_instrument.DataBuffer
+InstrumentData = _frame_instrument.InstrumentData
+VoltsData = _oscilloscope.VoltsData
+SpectrumData = _specan.SpectrumData
 
 MokuInstrument = _instrument.MokuInstrument
 
 Oscilloscope = _oscilloscope.Oscilloscope
 SignalGenerator = _siggen.SignalGenerator
 PhaseMeter = _phasemeter.PhaseMeter
-SpecAn = _specan.SpecAn
+SpectrumAnalyser = _specan.SpectrumAnalyser
 LockInAmp = _lockinamp.LockInAmp
-
-# Re-export all constants from Oscilloscope that start with OSC_
-for attr, val in _oscilloscope.__dict__.items():
-	if attr.startswith('OSC_'):
-		setattr(_this_module, attr, val)
-
-# Re-export all constants from generic Frame Instrument that start with DL_ (datalogger)
-for attr, val in _frame_instrument.__dict__.items():
-	if attr.startswith('DL_'):
-		setattr(_this_module, attr, val)
-
-# Re-export all constants from Signal Generator that start with SG_
-for attr, val in _siggen.__dict__.items():
-	if attr.startswith('SG_'):
-		setattr(_this_module, attr, val)
-
-# Re-export all constants from Phase Meter that start with PM_
-for attr, val in _phasemeter.__dict__.items():
-	if attr.startswith('PM_'):
-		setattr(_this_module, attr, val)
-
-# Re-export all constants from Spectrum Analyser that start with SA_
-for attr, val in _specan.__dict__.items():
-	if attr.startswith('SA_'):
-		setattr(_this_module, attr, val)
-
+DataLogger = _datalogger.DataLogger
 
 id_table = {
 	1: Oscilloscope,
-	2: SpecAn,
+	2: SpectrumAnalyser,
 	3: PhaseMeter,
 	4: SignalGenerator,
 	5: None, # PID Controller
 	6: None, # IIR Filter Box
-	7: Oscilloscope, # Datalogger
+	7: DataLogger, # Datalogger
 	8: LockInAmp,
 	9: None, # Bode Analyser
 	10: None, # FIR Filter Box
