@@ -62,13 +62,18 @@ def instrument(moku, args):
 		else:
 			print("No instruments found on your Moku.")
 	elif args.action == 'load':
-		if not args.file or not args.file.endswith('bit'):
-			print('Package load requires a BIT file to be specified')
+		if not len(args.files):
+			print("No instrument files specified for loading")
 			return
 
-		fname = os.path.basename(args.file)
-		chk = moku._load_bitstream(args.file)
-		print("Successfully loaded new instrument {} version {:X}".format(fname, chk))
+		for file in args.files:
+			if not file.endswith('bit'):
+				print('Package load requires a BIT file to be specified')
+				return
+
+			fname = os.path.basename(file)
+			chk = moku._load_bitstream(file)
+			print("Successfully loaded new instrument {} version {:X}".format(fname, chk))
 	elif args.action == 'check_compat':
 		instrs = moku._list_bitstreams(include_version=True)
 		compat_configs = compatible_configurations(args.server, args.username, args.password)
@@ -97,7 +102,7 @@ def instrument(moku, args):
 
 parser_instruments = subparsers.add_parser('instrument', help="Check and update instruments on the Moku.")
 parser_instruments.add_argument('action', help='Action to take', choices=['list', 'load', 'check_compat', 'update'])
-parser_instruments.add_argument('file', nargs='?', default=None, help="Path to local instrument file, if any")
+parser_instruments.add_argument('files', nargs='*', default=None, help="Path to local instrument file(s), if any")
 parser_instruments.set_defaults(func=instrument)
 
 
