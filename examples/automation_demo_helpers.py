@@ -5,7 +5,7 @@ warnings.filterwarnings("ignore")
 # Helper function which calculates the rise time of input waveform data
 def calculate_risetime(amplitude_data, time_data):
 
-	# Determine the waveform amplitude differential 
+	# Determine the waveform amplitude differential
 	min_val = min(amplitude_data)
 	max_val = max(amplitude_data)
 	diff = max_val - min_val

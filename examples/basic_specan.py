@@ -18,7 +18,7 @@ try:
 	# Get the scan results and print them out (power vs frequency, two channels)
 	data = i.get_realtime_data()
 	print(data.ch1, data.ch2, data.frequency)
-	
+
 finally:
 	# Close the connection to the Moku.
 	m.close()

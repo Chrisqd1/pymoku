@@ -251,7 +251,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 			buffer_span = float(t2 - t1)
 
 		deci = math.ceil(ADC_SMP_RATE * buffer_span / _OSC_BUFLEN)
-		
+
 		return deci
 
 
@@ -357,9 +357,9 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 		The sample rate is automatically calcluated and set in :any:`set_timebase`.
 
-		This interface allows you to specify the rate at which data is sampled, and set 
+		This interface allows you to specify the rate at which data is sampled, and set
 		a trigger offset in number of samples. This interface is useful for datalogging and capturing
-		of data frames. 
+		of data frames.
 
 		NOTE: Triggered starts are not currently implemented for datalogging.
 
@@ -421,13 +421,13 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 	def is_precision_mode(self):
 		return self.ain_mode is _OSC_AIN_DECI
-	
+
 	@needs_commit
 	def set_trigger(self, source, edge, level, hysteresis=0, hf_reject=False, mode='auto'):
 		""" Sets trigger source and parameters.
 
 		:type source: string, {'in1','in2','out1','out2'}
-		:param source: Trigger Source. May be either an input or output channel, 
+		:param source: Trigger Source. May be either an input or output channel,
 						allowing one to trigger off a synthesised waveform.
 
 		:type edge: string, {'rising','falling','both'}
@@ -598,7 +598,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 			self.trigger_level = self._source_volts_to_bits(self.trig_volts, self.trig_ch, scales)
 		if self.hysteresis_volts is not None:
 			self.hysteresis = self._source_volts_to_bits(self.hysteresis_volts, self.trig_ch, scales)
-	
+
 	def _update_datalogger_params(self):
 		scales = self._calculate_scales()
 

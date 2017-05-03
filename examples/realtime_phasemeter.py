@@ -31,7 +31,7 @@ try:
 	# session, streaming to the network so we can look at it in real time.
 	i.datalogger_stop()
 	i.datalogger_start(duration=10, ch1=True, ch2=False, filetype='net')
-	
+
 	amplitudes = []
 
 	while True:

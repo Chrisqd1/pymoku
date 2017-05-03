@@ -235,7 +235,7 @@ class DataLogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 				'gain_loopback1': l1,
 				'gain_loopback2': l2
 				}
-				
+
 _dl_reg_handlers = {
 	'source_ch1':		(REG_DL_OUTSEL,	to_reg_unsigned(0, 1, allow_set=[_DL_SOURCE_ADC, _DL_SOURCE_DAC]),
 											from_reg_unsigned(0, 1)),

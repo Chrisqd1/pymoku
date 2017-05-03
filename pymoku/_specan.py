@@ -113,7 +113,7 @@ _SA_ADC_FREQ_RESP_0 = [ 1.0000,
     0.7322, 0.7341, 0.7362, 0.7381, 0.7403, 0.7417, 0.7425, 0.7420, 0.7406, 0.7378, 0.7338, 0.7283, 0.7219, 0.7138, 0.7049, 0.6945,
     0.6839, 0.6721, 0.6601, 0.6480, 0.6364, 0.6250, 0.6142, 0.6039, 0.5945, 0.5863, 0.5784, 0.5716, 0.5656, 0.5610, 0.5572, 0.5543,
     0.5519, 0.5503, 0.5498, 0.5500, 0.5505, 0.5509, 0.5517, 0.5521, 0.5518, 0.5510, 0.5497, 0.5476, 0.5453, 0.5427, 0.5404, 0.5383 ]
-    
+
 _SA_ADC_FREQ_RESP_20 = [ 1.0000,
     1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000,
     1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000, 1.0000,
@@ -362,7 +362,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		self.id = 2
 		self.type = "specan"
 		self.calibration = None
-		
+
 		# Embedded signal generator configuration
 		self.en_out1 = False
 		self.en_out2 = False
@@ -477,7 +477,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 
 		self.ref_level = 6
 
-		# Output signal generator sweep depends on the instrument parameters for optimal 
+		# Output signal generator sweep depends on the instrument parameters for optimal
 		# increment vs screen update rate
 		self._set_sweep_increments(self.sweep1, self.sweep2, fspan, self._total_decimation, rbw, self.framerate)
 
@@ -579,7 +579,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		}
 		window = _utils.str_to_val(_str_to_window_function, window, 'window function')
 		self.window = window
-		
+
 	@needs_commit
 	def set_dbmscale(self,dbm=True):
 		""" Configures the Spectrum Analyser to use a logarithmic amplitude axis """
@@ -752,7 +752,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 			screen_update_time = max(round(fft_time*framerate)/framerate, 1.0/framerate)
 
 			increment =  fspan / 100.5 * (fft_time / screen_update_time)
-		
+
 		if sweep1:
 			self.tr1_incr = increment
 		if sweep2:
@@ -811,25 +811,25 @@ _sa_reg_handlers = {
 
 	'tr1_amp'	:	(REG_SA_TR1_AMP,	to_reg_unsigned(0, 16, xform=lambda obj, p:p / obj._dac_gains()[0]),
 										from_reg_unsigned(0, 16, xform=lambda obj, p:p * obj._dac_gains()[0])),
-	'tr1_start'	:	((REG_SA_TR1_START_H, REG_SA_TR1_START_L),	
+	'tr1_start'	:	((REG_SA_TR1_START_H, REG_SA_TR1_START_L),
 										to_reg_unsigned(0, 48, xform=lambda obj, p:p * _SA_SG_FREQ_SCALE),
 										from_reg_unsigned(0, 48, xform=lambda obj, p:p / _SA_SG_FREQ_SCALE)),
-	'tr1_stop'	:	((REG_SA_TR1_STOP_H, REG_SA_TR1_STOP_L),	
+	'tr1_stop'	:	((REG_SA_TR1_STOP_H, REG_SA_TR1_STOP_L),
 										to_reg_unsigned(0, 48, xform=lambda obj, p:p * _SA_SG_FREQ_SCALE),
 										from_reg_unsigned(0, 48, xform=lambda obj, p:p / _SA_SG_FREQ_SCALE)),
-	'tr1_incr'	:	((REG_SA_TR1_INCR_H, REG_SA_TR1_INCR_L),	
+	'tr1_incr'	:	((REG_SA_TR1_INCR_H, REG_SA_TR1_INCR_L),
 										to_reg_unsigned(0, 48, xform=lambda obj, p:p * _SA_SG_FREQ_SCALE),
 										from_reg_unsigned(0, 48, xform=lambda obj, p:p / _SA_SG_FREQ_SCALE)),
 
 	'tr2_amp'	:	(REG_SA_TR2_AMP,	to_reg_unsigned(0, 16, xform=lambda obj, p:p / obj._dac_gains()[1]),
 										from_reg_unsigned(0, 16, xform=lambda obj, p:p * obj._dac_gains()[1])),
-	'tr2_start'	:	((REG_SA_TR2_START_H, REG_SA_TR2_START_L),	
+	'tr2_start'	:	((REG_SA_TR2_START_H, REG_SA_TR2_START_L),
 										to_reg_unsigned(0, 48, xform=lambda obj, p:p * _SA_SG_FREQ_SCALE),
 										from_reg_unsigned(0, 48, xform=lambda obj, p:p / _SA_SG_FREQ_SCALE)),
-	'tr2_stop'	:	((REG_SA_TR2_STOP_H, REG_SA_TR2_STOP_L),	
+	'tr2_stop'	:	((REG_SA_TR2_STOP_H, REG_SA_TR2_STOP_L),
 										to_reg_unsigned(0, 48, xform=lambda obj, p:p * _SA_SG_FREQ_SCALE),
 										from_reg_unsigned(0, 48, xform=lambda obj, p:p / _SA_SG_FREQ_SCALE)),
-	'tr2_incr'	:	((REG_SA_TR2_INCR_H, REG_SA_TR2_INCR_L),	
+	'tr2_incr'	:	((REG_SA_TR2_INCR_H, REG_SA_TR2_INCR_L),
 										to_reg_unsigned(0, 48, xform=lambda obj, p:p * _SA_SG_FREQ_SCALE),
 										from_reg_unsigned(0, 48, xform=lambda obj, p:p / _SA_SG_FREQ_SCALE))
 }

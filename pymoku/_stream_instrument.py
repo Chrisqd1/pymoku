@@ -26,7 +26,7 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 		self._strparser = None
 
 		# Flag to indicate if there is no more stream data to get for last session
-		self._no_data = True 
+		self._no_data = True
 
 		self._dlserial = 0
 		self._dlskt = None
@@ -71,7 +71,7 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 		:param timeout: Timeout in seconds
 
 		:rtype: tuple
-		:returns: A tuple containing two arrays (one per channel) of up to 'n' samples of instrument data. 
+		:returns: A tuple containing two arrays (one per channel) of up to 'n' samples of instrument data.
 		res[0] = Channel 1 Data
 		res[1] = Channel 2 Data
 		If a channel is disabled, the corresponding array is empty. If there were less than 'n' samples
@@ -130,7 +130,7 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 			# Unless the stream has finished, the amount of data available on
 			# all enabled channels should be identical.
 			raise StreamException("Stream has dropped data.")
-		
+
 		if n < 1:
 			# Clear all samples
 			self._stream_clear_processed_samples()

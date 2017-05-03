@@ -135,7 +135,7 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument, _stream_instrument.Strea
 	@dont_commit
 	def __init__(self):
 		"""Create a new Lock-In-Amplifier instrument, ready to be attached to a Moku."""
-	
+
 		super(LockInAmp, self).__init__()
 		self._register_accessors(_lia_reg_hdl)
 
@@ -172,7 +172,7 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument, _stream_instrument.Strea
 			g1 /= self._deci_gain()
 			g2 /= self._deci_gain()
 
-		return (g1, g2)	
+		return (g1, g2)
 
 	def commit(self):
 		super(LockInAmp, self).commit()
@@ -209,7 +209,7 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument, _stream_instrument.Strea
 		self.pid1_bypass = 0
 		self.pid2_bypass = 1
 		self.lo_reset = 0
-		
+
 		self.signal_mode = _LIA_HIGH_RANGE
 		self.set_filter_parameters(20, 1000, 1)
 
@@ -249,7 +249,7 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument, _stream_instrument.Strea
 
 		self.pid1_int_i_gain = 1.0 - DSPCoeff
 		self.pid2_int_i_gain = 1.0 - DSPCoeff
-		
+
 		if Order == 1:
 			self.pid2_bypass = 1
 			self.slope = 1
@@ -267,7 +267,7 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument, _stream_instrument.Strea
 
 		ImpedenceGain = 1 if (self.relays_ch1 & 2) == 2 else 2
 		AttenGain = 1 if (self.relays_ch1 & 4) == 4 else 10
-		
+
 		gain_factor = ImpedenceGain * AttenGain * (10**(Gain_dB / 20.0)) * self._get_dac_calibration()[0] / self._get_adc_calibration()[0]
 		log.debug("AttenGain, %f, GainFactor, %f", AttenGain, gain_factor)
 
@@ -326,8 +326,8 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument, _stream_instrument.Strea
 		"""
 		# converts the offset in volts to the bits required for the offset register
 		# TODO: Use the new instrument reference in the lambda function to do this
-		self.sineout_offset = offset * self._get_dac_calibration()[1] 
-			 
+		self.sineout_offset = offset * self._get_dac_calibration()[1]
+
 	def _get_dac_calibration(self):
 		# returns the volts to bits numbers for the DAC channels in the current state
 
@@ -493,7 +493,7 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument, _stream_instrument.Strea
 		""" Sets trigger source and parameters.
 
 		:type source: string, {'in1','in2','out1','out2'}
-		:param source: Trigger Source. May be either an input or output channel, 
+		:param source: Trigger Source. May be either an input or output channel,
 						allowing one to trigger off a synthesised waveform.
 
 		:type edge: string, {'rising','falling','both'}
@@ -573,7 +573,7 @@ _lia_reg_hdl = {
 	'ain_mode':			(REG_LIA_ACTL,		to_reg_unsigned(2, 16, allow_set=[_LIA_AIN_DDS, _LIA_AIN_DECI]),
 											from_reg_unsigned(2, 16)),
 
-	'decimation_rate':	(REG_LIA_DECIMATION,to_reg_unsigned(0, 32),	
+	'decimation_rate':	(REG_LIA_DECIMATION,to_reg_unsigned(0, 32),
 											from_reg_unsigned(0, 32)),
 
 	'pid1_en':		(REG_LIA_ENABLES,		to_reg_bool(0),
@@ -633,7 +633,7 @@ _lia_reg_hdl = {
 											from_reg_signed(0, 16)),
 
 	'pid1_out_offset':	(REG_LIA_OUT_OFFSET1,to_reg_signed(0, 16),
-											from_reg_signed(0, 16)),	
+											from_reg_signed(0, 16)),
 
 	'pid2_out_offset':	(REG_LIA_OUT_OFFSET2,to_reg_signed(0, 16),
 											from_reg_signed(0, 16)),
@@ -662,63 +662,63 @@ _lia_reg_hdl = {
 	'pid2_int_p_gain':	(REG_LIA_INT_PGAIN2,	to_reg_signed(0, 25, xform=lambda x: x*(2**24 -1)),
 											from_reg_signed(0, 25, xform=lambda x: x / (2**24-1))),
 
-	'pid1_diff_d_gain':	(REG_LIA_DIFF_DGAIN1,	
+	'pid1_diff_d_gain':	(REG_LIA_DIFF_DGAIN1,
 											to_reg_signed(0, 25, xform=lambda x: x*(2**24 -1)),
 											from_reg_signed(0, 25, xform=lambda x: x / (2**24-1))),
 
-	'pid2_diff_d_gain':	(REG_LIA_DIFF_DGAIN2,	
+	'pid2_diff_d_gain':	(REG_LIA_DIFF_DGAIN2,
 											to_reg_signed(0, 25, xform=lambda x: x*(2**24 -1)),
 											from_reg_signed(0, 25, xform=lambda x: x / (2**24-1))),
 
-	'pid1_diff_p_gain':	(REG_LIA_DIFF_PGAIN1,	
+	'pid1_diff_p_gain':	(REG_LIA_DIFF_PGAIN1,
 											to_reg_signed(0, 25, xform=lambda x: x*(2**24 -1)),
 											from_reg_signed(0, 25, xform=lambda x: x / (2**24-1))),
 
-	'pid2_diff_p_gain':	(REG_LIA_DIFF_PGAIN2,	
+	'pid2_diff_p_gain':	(REG_LIA_DIFF_PGAIN2,
 											to_reg_signed(0, 25, xform=lambda x: x*(2**24 -1)),
 											from_reg_signed(0, 25, xform=lambda x: x / (2**24-1))),
 
-	'pid1_diff_i_gain':	(REG_LIA_DIFF_IGAIN1,	
+	'pid1_diff_i_gain':	(REG_LIA_DIFF_IGAIN1,
 											to_reg_signed(0, 25, xform=lambda x: x*(2**24 -1)),
 											from_reg_signed(0, 25, xform=lambda x: x / (2**24-1))),
 
-	'pid2_diff_i_gain':	(REG_LIA_DIFF_IGAIN2,	
+	'pid2_diff_i_gain':	(REG_LIA_DIFF_IGAIN2,
 											to_reg_signed(0, 25, xform=lambda x: x*(2**24 -1)),
 											from_reg_signed(0, 25, xform=lambda x: x / (2**24-1))),
 
-	'pid1_diff_ifb_gain':	(REG_LIA_DIFF_IFBGAIN1,	
+	'pid1_diff_ifb_gain':	(REG_LIA_DIFF_IFBGAIN1,
 											to_reg_signed(0, 25, xform=lambda x: x*(2**24 -1)),
 											from_reg_signed(0, 25, xform=lambda x: x / (2**24-1))),
 
-	'pid2_diff_ifb_gain':	(REG_LIA_DIFF_IFBGAIN2,	
+	'pid2_diff_ifb_gain':	(REG_LIA_DIFF_IFBGAIN2,
 											to_reg_signed(0, 25, xform=lambda x: x*(2**24 -1)),
 											from_reg_signed(0, 25, xform=lambda x: x / (2**24-1))),
 
-	'frequency_demod':	((REG_LIA_FREQDEMOD_H, REG_LIA_FREQDEMOD_L),	
+	'frequency_demod':	((REG_LIA_FREQDEMOD_H, REG_LIA_FREQDEMOD_L),
 											to_reg_unsigned(0, 48, xform=lambda x: x / _LIA_FREQSCALE),
 											from_reg_unsigned(0, 48, xform=lambda x: x * _LIA_FREQSCALE)),
 
-	'phase_demod':	((REG_LIA_PHASEDEMOD_H, REG_LIA_PHASEDEMOD_L),	
+	'phase_demod':	((REG_LIA_PHASEDEMOD_H, REG_LIA_PHASEDEMOD_L),
 											to_reg_unsigned(0, 48, xform=lambda x: x / _LIA_PHASESCALE),
 											from_reg_unsigned(0, 48, xform=lambda x: x * _LIA_PHASESCALE)),
 
-	'decimation_bitshift':	(REG_LIA_DECBITSHIFT,	
+	'decimation_bitshift':	(REG_LIA_DECBITSHIFT,
 											to_reg_unsigned(0, 4),
 											from_reg_unsigned(0, 4)),
 
-	'monitor_select0':	(REG_LIA_MONSELECT0,	
+	'monitor_select0':	(REG_LIA_MONSELECT0,
 											to_reg_unsigned(0, 3),
 											from_reg_unsigned(0, 3)),
 
-	'monitor_select1':	(REG_LIA_MONSELECT1,	
+	'monitor_select1':	(REG_LIA_MONSELECT1,
 											to_reg_unsigned(0, 3),
 											from_reg_unsigned(0, 3)),
 
-	'sineout_amp':	(REG_LIA_SINEOUTAMP,	
+	'sineout_amp':	(REG_LIA_SINEOUTAMP,
 											to_reg_signed(0, 16, xform=lambda x: x / _LIA_AMPSCALE),
 											from_reg_signed(0, 16, xform=lambda x: x * _LIA_AMPSCALE)),
 
-	'sineout_offset':	(REG_LIA_SINEOUTOFF,	
+	'sineout_offset':	(REG_LIA_SINEOUTOFF,
 											to_reg_signed(0, 16, xform=lambda x: x / _LIA_AMPSCALE),
 											from_reg_signed(0, 16, xform=lambda x: x * _LIA_AMPSCALE)),
 	'input_gain':	(REG_LIA_INPUT_GAIN,

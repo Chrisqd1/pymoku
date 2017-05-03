@@ -186,17 +186,17 @@ class FrameBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstru
 		was_paused = self.get_pause()
 
 		# Force a pause even if it already has happened
-		if not was_paused: 
+		if not was_paused:
 			self.set_pause(True)
 			self.commit()
-			
+
 		# Get a frame to see what the acquisition state was for the current buffer
 		# TODO: Need a way of getting buffer state information without frames
 		try:
 			frame = self.get_realtime_data(timeout=timeout, wait=False)
 		except FrameTimeout:
 			raise BufferTimeout('Timed out waiting on valid data.')
-				
+
 		# Get buffer data using a network stream
 		self._stream_start(start=0, duration=0, use_sd=False, ch1=True, ch2=True, filetype='net')
 

@@ -201,7 +201,7 @@ class LIDataFileReader(object):
 
 		if ch is None:
 			return None
-		
+
 		self.parser.parse(d, ch)
 
 		return ch
@@ -347,7 +347,7 @@ class LIDataFileWriterV1(object):
 			nch +=1
 		if (chs & 0x02):
 			nch +=1
-		
+
 		self.file.write(b'LI1')
 		hdr = struct.pack("<BBHdQ", chs, instr, instrv, timestep, starttime)
 
@@ -358,7 +358,7 @@ class LIDataFileWriterV1(object):
 
 		for i in range(nch):
 			hdr += struct.pack("<H", len(procstr[i])) + procstr[i].encode()
-			
+
 		hdr += struct.pack("<H", len(fmtstr)) + fmtstr.encode()
 		hdr += struct.pack("<H", len(hdrstr)) + hdrstr.encode()
 
@@ -719,7 +719,7 @@ class LIDataParser(object):
 
 				# Drop off a byte, assuming that that is the base granulatity at which the data has been captured
 				self.dcache[chidx] = self.dcache[chidx][8:]
-			
+
 
 		if len(self._currecord[chidx]) and not len(self._currfmt[chidx]):
 			self.records[chidx].append(self._currecord[chidx])

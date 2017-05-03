@@ -23,7 +23,7 @@ import csv
 #####################################################################
 
 def main():
-	
+
 	print("Beginning automated testing sequence")
 
 	# Phase 1 - Rise Times
@@ -66,7 +66,7 @@ def phase1(moku):
 
 	# Define PASS/FAIL criteria for rise-time
 	# ----------------------------------------------
-	# For demonstration purposes we set the pass/fail risetime criteria to be a function of the 
+	# For demonstration purposes we set the pass/fail risetime criteria to be a function of the
 	# simulated square wave period. This is so we can see examples of 'failed' tests.
 	risetime_maximum = 0.18 * (1.0/square_frequency) # 18% of cycle
 
@@ -225,7 +225,7 @@ def phase2(moku):
 
 		# If this test did not pass, record all data for post-analysis
 		if not passed:
-			fails.append({'id': i, 'data': data.ch1, 'frequency': data.frequency, 'linewidth' : linewidth, 
+			fails.append({'id': i, 'data': data.ch1, 'frequency': data.frequency, 'linewidth' : linewidth,
 				'peak': peak, 'half_f1': hf1, 'half_f2': hf2 })
 
 		progress = ((i+1)/float(number_of_measurements)) * 100
@@ -236,7 +236,7 @@ def phase2(moku):
 	return results, fails, linewidth_maximum
 
 #####################################################################
-#	
+#
 # 						Results File Generator
 #
 #####################################################################
@@ -245,7 +245,7 @@ def generate_results_file(moku, results1, fails1, criteria1, results2, fails2, c
 	from datetime import datetime
 	logname = datetime.now().strftime("AutomatedTest_Moku{}_%Y%m%d_%H%M%S.csv".format(moku.serial))
 	ts = _utils.formatted_timestamp()
-	
+
 	with open(logname, 'w') as file:
 		writer = csv.DictWriter(file, fieldnames=['id','risetime','passed'])
 		file.write("% Automated Test Run\n%")
@@ -277,7 +277,7 @@ def generate_results_file(moku, results1, fails1, criteria1, results2, fails2, c
 
 
 #####################################################################
-#	
+#
 # 						Plotting Helpers
 #
 #####################################################################
@@ -317,7 +317,7 @@ def phase1_plot_update(f, ax1, ax2, data, passed, results, fails, failure_criter
 		ax2.annotate('Outside Spec: %d / %d\nCompleted %d%%' % (len(fails), len(results), progress), xy=(0.75,0.90), xycoords='axes fraction', fontsize=14)
 		xlims = ax2.get_xlim()
 		ax2.axvspan(failure_criteria,xlims[1] - 0.001*(xlims[1] - xlims[0]), alpha=0.1, color='red')
-		plt.pause(0.01) 
+		plt.pause(0.01)
 
 def phase2_plot_update(f, ax1, data, passed, peak, hf1, hf2, progress):
 		# Update the plot with latest measurement
@@ -328,7 +328,7 @@ def phase2_plot_update(f, ax1, data, passed, peak, hf1, hf2, progress):
 		ax1.set(title='Beatnote Spectrum', xlabel='Frequency (MHz)', ylabel='Power (dBm)')
 		ax1.annotate('Peak (%.2f MHz)\nLinewidth (%.2f kHz)\nCompleted %d%%' % (peak[0]/1e6, (hf2[0]-hf1[0])/1e3, progress), xy=(0.80,0.90), xycoords='axes fraction', fontsize=14)
 		ax1.axvspan(hf1[0]/1e6,hf2[0]/1e6, alpha=0.1, color='green' if passed else 'red')
-		plt.pause(0.01) 
+		plt.pause(0.01)
 
 def phase2_plot_setup():
 	# Set up a 1x1 plot

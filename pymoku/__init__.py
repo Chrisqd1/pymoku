@@ -24,7 +24,7 @@ class FrameTimeout(MokuException): """No new :any:`InstrumentData` arrived withi
 class BufferTimeout(MokuException): """No new :any:`DataBuffer` arrived within the given timeout"""; pass
 class NoDataException(MokuException): """A request has been made for data but none will be generated """; pass
 class InvalidConfigurationException(MokuException): """A request for an invalid instrument configuration has been made."""; pass
-class StreamException(MokuException): 
+class StreamException(MokuException):
 	def __init__(self, message, err=None):
 		"""Data logging was interrupted or failed"""
 		super(StreamException, self).__init__(message)
@@ -238,7 +238,7 @@ class Moku(object):
 		return ack[1] == 1
 
 	def take_ownership(self):
-		""" 
+		"""
 		Register your ownership of the connected Moku:Lab device.
 
 		Having ownership enables you to send commands to and receive data from the corresponding Moku:Lab.
@@ -512,7 +512,7 @@ class Moku(object):
 
 		hdr, seq, ae, stat = struct.unpack("<BBBB", reply[:4])
 
-		return stat		
+		return stat
 
 	def _stream_stop(self):
 		pkt = struct.pack("<BBB", 0x53, 0, 2)
@@ -549,7 +549,7 @@ class Moku(object):
 
 		if status:
 			if status == _ERR_INVAL:
-				ex = InvalidConfigurationException("Invalid fileserver request parameters.") 
+				ex = InvalidConfigurationException("Invalid fileserver request parameters.")
 			elif status == _ERR_NOTFOUND:
 				ex = FileNotFound("Could not find directory or file.")
 			elif status == _ERR_NOSPC:
@@ -940,7 +940,7 @@ class Moku(object):
 		"""Query a Moku:Lab device to see what instrument, if any, is currently running.
 
 		:rtype: :any:`MokuInstrument` or `None`
-		:returns: The detected instrument ready to be controlled, otherwise None. 
+		:returns: The detected instrument ready to be controlled, otherwise None.
 		"""
 		import pymoku.instruments
 		i = int(self._get_property_single('system.instrument'))

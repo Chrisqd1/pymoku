@@ -18,7 +18,7 @@ _STREAM_STATE_STOPPED	= 7
 class StreamHandler(_instrument.MokuInstrument):
 	"""
 		Helper class - should not be instantiated directly.
-		This class is intended to handle streams: checking status, receiving/parsing raw data, 
+		This class is intended to handle streams: checking status, receiving/parsing raw data,
 		translating error messages and setting up new streaming sessions.
 	"""
 
@@ -70,11 +70,11 @@ class StreamHandler(_instrument.MokuInstrument):
 				maxrates = { 'bin' : 1e6, 'csv' : 3e3, 'net' : 40e3, 'plot' : 10}
 
 		return maxrates
-		
+
 	@staticmethod
 	def _estimate_logsize(ch1, ch2, duration, timestep, filetype):
 		"""
-		Returns a rough estimate of log size for disk space checking. 
+		Returns a rough estimate of log size for disk space checking.
 		Currently assumes instrument is the Oscilloscope.
 
 		:type ch1: bool
@@ -99,8 +99,8 @@ class StreamHandler(_instrument.MokuInstrument):
 	def _stream_start(self, start, duration, use_sd, ch1, ch2, filetype):
 		""" Start an instrument streaming session.
 
-		If the duration is non-zero, the device must be in ROLL mode (via a call to :any:`set_xmode`). 
-		Also, the sample rate must be appropriate to the instrument and file type (as calculated by 
+		If the duration is non-zero, the device must be in ROLL mode (via a call to :any:`set_xmode`).
+		Also, the sample rate must be appropriate to the instrument and file type (as calculated by
 		:any:`_max_stream_rates`)
 
 		:raises InvalidOperationException: if the sample rate is too high for the selected filetype or if the
@@ -130,7 +130,7 @@ class StreamHandler(_instrument.MokuInstrument):
 			raise InvalidOperationException("No channels were selected for logging")
 		if duration < 0:
 			raise InvalidOperationException("Invalid duration %d", duration)
-		
+
 		from datetime import datetime
 		if self._moku is None: raise NotDeployedException()
 
@@ -138,11 +138,11 @@ class StreamHandler(_instrument.MokuInstrument):
 		self.tag = "%04d" % self._dlserial
 
 		self.ch1 = bool(ch1)
-		self.ch2 = bool(ch2)		
+		self.ch2 = bool(ch2)
 		self.nch = bool(self.ch1) + bool(self.ch2)
 		# Update all child instrument local datalogging variables
 		self._update_datalogger_params()
-		
+
 		fname = datetime.now().strftime(self.logname + "_%Y%m%d_%H%M%S")
 
 		# Currently the data stream genesis is from the x_mode commit below, meaning that delayed start
@@ -192,7 +192,7 @@ class StreamHandler(_instrument.MokuInstrument):
 			fname=fname, ftype=filetype, tag=self.tag, use_sd=use_sd)
 		except StreamException as e:
 			self._stream_error(status=e.err)
-		
+
 		if filetype == 'net':
 			self._streamsub_init(self.tag)
 
@@ -283,7 +283,7 @@ class StreamHandler(_instrument.MokuInstrument):
 		If the datalogger has entered an error state, a StreamException is raised.
 
 		:rtype: bool
-		:returns: Whether the current session has finished running. 
+		:returns: Whether the current session has finished running.
 
 		:raises StreamException: if the session has entered an error state
 		"""
@@ -294,7 +294,7 @@ class StreamHandler(_instrument.MokuInstrument):
 
 	def _stream_error(self, status=None):
 		""" Checks the current datalogger session for errors. Alternatively, the status
-		parameter returned by :any:`_stream_status` call can be translated to the 
+		parameter returned by :any:`_stream_status` call can be translated to the
 		associated exception (if any).
 
 		:raises StreamException: if the session is in error.
@@ -342,7 +342,7 @@ class StreamHandler(_instrument.MokuInstrument):
 			Gets any already parsed samples for the current session.
 
 			:rtype: array
-			:returns: Array where each entry is an array corresponding to 
+			:returns: Array where each entry is an array corresponding to
 			processed channel samples [[Ch1 Samples],[Ch2 Samples]].
 		"""
 		processed_smps = self._strparser.processed
@@ -414,5 +414,5 @@ class StreamHandler(_instrument.MokuInstrument):
 	def _update_datalogger_params(self):
 		# To be overwritten by child instruments to update local datalogger parameters
 		# prior to starting any stream session
-		
+
 		return

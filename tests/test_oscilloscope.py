@@ -126,14 +126,14 @@ def base_instrs(conn_mokus):
 
 class Test_Siggen:
 	'''
-		This class tests the correctness of the embedded signal generator 
+		This class tests the correctness of the embedded signal generator
 	'''
-	@pytest.mark.parametrize("ch, vpp, freq, offset, duty, waveform", 
+	@pytest.mark.parametrize("ch, vpp, freq, offset, duty, waveform",
 		itertools.product(
 			[1,2],
 			[0.3, 0.7],
-			[50, 1e3, 900e3], 
-			[0.1, 0.0, -0.1], 
+			[50, 1e3, 900e3],
+			[0.1, 0.0, -0.1],
 			[0.2, 0.5, 0.95],
 			[SG_WAVE_SINE, SG_WAVE_SQUARE, SG_WAVE_TRIANGLE]
 			))
@@ -203,7 +203,7 @@ class Test_Siggen:
 			if not in_rms_bounds(frame, gen_frame, waveform, vpp):
 				plt.plot(ts,frame - gen_frame)
 				plt.plot(ts, frame)
-				plt.plot(ts, gen_frame)	
+				plt.plot(ts, gen_frame)
 				plt.show()
 
 		assert in_rms_bounds(frame, gen_frame, waveform, vpp)
@@ -211,7 +211,7 @@ class Test_Siggen:
 	@pytest.mark.parametrize("ch, freq, phase, waveform",
 		itertools.product(
 			[1,2],
-			[1e3, 1e6], 
+			[1e3, 1e6],
 			[0.1, 0.3, 0.5, 0.7, 0.85],
 			[SG_WAVE_SINE, SG_WAVE_TRIANGLE, SG_WAVE_SQUARE]
 			))
@@ -271,7 +271,7 @@ class Test_Siggen:
 					compare_waveform = _sawtooth(t, vpp/2.0, p, offset, freq, duty)
 				else:
 					print "Invalid waveform type."
-					assert False 
+					assert False
 
 				rms_errors = rms_errors + [_calculate_rms_error(waveform, compare_waveform)]
 
@@ -326,7 +326,7 @@ class Test_Trigger:
 		itertools.product(
 			[OSC_TRIG_CH1, OSC_TRIG_DA1, OSC_TRIG_CH2, OSC_TRIG_DA2],
 			[5e3, 1e6],
-			[OSC_EDGE_RISING, OSC_EDGE_FALLING, OSC_EDGE_BOTH], 
+			[OSC_EDGE_RISING, OSC_EDGE_FALLING, OSC_EDGE_BOTH],
 			[0.0, 0.0, 0.1, 0.3]))
 	def test_triggered_edge(self, base_instrs, trig_ch, freq, edge, trig_lvl):
 		'''
@@ -371,7 +371,7 @@ class Test_Trigger:
 		master.get_frame(timeout = FRAME_TIMEOUT)
 		t_step = master._calculate_frame_timestep(master.decimation_rate, master.render_deci)
 		ts = master._calculate_frame_start_time(master.decimation_rate, master.render_deci, master.offset) + ((numpy.cumsum([t_step]*_OSC_SCREEN_WIDTH))- t_step)
-		
+
 		# Calculate the index of the trigger point
 		time_zero_idx = zero_crossings(ts)
 
@@ -426,7 +426,7 @@ class Test_Trigger:
 		trig_source_offset = 0.0
 		trig_source_freq = freq
 		self._setup_trigger_mode_test(master, trig_ch, trig_lvl, trig_edge, trig_mode, trig_source_vpp, trig_source_offset, trig_source_freq)
-		
+
 		master.set_timebase(0, timebase_cyc/freq)
 		master.commit()
 
@@ -450,7 +450,7 @@ class Test_Trigger:
 					# Debug print
 					if DEBUG_TESTS:
 						print("Delta ID: %f, Triggers Per Frame: %f" % (delta_id, triggers_per_frame))
-				
+
 				waveformid = frame.waveformid
 
 		# Case when trigger rate is slower than frame rate
@@ -494,7 +494,7 @@ class Test_Trigger:
 		# There should be no trigger events
 		with pytest.raises(FrameTimeout):
 			frame = master.get_frame(timeout = 5)
- 
+
 	def test_trigger_mode_auto_notrigger(self, base_instrs):
 		'''
 			Tests 'Auto' trigger mode
@@ -569,7 +569,7 @@ class Test_Trigger:
 		master = base_instrs[0]
 		slave = base_instrs[1]
 
-		timebase_cyc = 10.0 
+		timebase_cyc = 10.0
 
 		trig_source_freq = [1e3, 1e3, 0.75e3, 1.75e3]
 		trig_source_vpp = [1.0, 0.5, 1.0, 0.5]
@@ -580,7 +580,7 @@ class Test_Trigger:
 		master.set_frontend(1, fiftyr=True, atten=False, ac=False)
 		master.set_frontend(2, fiftyr=True, atten=False, ac=False)
 
-		# Generate a different output on Channel 2 so 
+		# Generate a different output on Channel 2 so
 		master.gen_sinewave(1, trig_source_vpp[0], trig_source_freq[0], trig_source_offset[0])
 		master.gen_sinewave(2, trig_source_vpp[1], trig_source_freq[1], trig_source_offset[1])
 		slave.gen_sinewave(1, trig_source_vpp[2], trig_source_freq[2], trig_source_offset[2])
@@ -637,7 +637,7 @@ class Test_Timebase:
 		TODO: Does it make sense to test timebase only for a single channel
 	'''
 
-	@pytest.mark.parametrize("ch, span", 
+	@pytest.mark.parametrize("ch, span",
 		itertools.product([1,2], [5e-6, 1e-3, 2]))
 	def test_timebase_span(self, base_instrs, ch, span):
 		'''
@@ -843,7 +843,7 @@ class Test_Frontend:
 		SMALL_INPUT_RANGE= 1.0 # Vpp
 		LARGE_INPUT_RANGE= 10.0 # Vpp
 		tolerance_r = 0.2 # V
-		
+
 		slave.gen_sinewave(ch, source_vpp, source_freq, source_offset)
 		slave.commit()
 

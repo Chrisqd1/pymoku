@@ -25,13 +25,13 @@ try:
 		# Get 10 samples off the network at a time
 		samples = i.get_stream_data(n=10)
 
-		# Break out of this loop if we received no samples 
+		# Break out of this loop if we received no samples
 		# This denotes the end of the streaming session
 		if not any(samples): break
 
 		# Print out the new samples
 		print("Received: Channel 1 (%d smps), Channel 2 (%d smps)" % (len(samples[0]),len(samples[1])))
-	
+
 	# Denote that we are done with the data streaming session so resources may be cleand up
 	i.stop_stream_data()
 

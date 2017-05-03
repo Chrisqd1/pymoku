@@ -53,7 +53,7 @@ try:
 	# Get an initial frame to set any frame-specific plot parameters
 	frame = i.get_frame()
 
-	# Format the x-axis as a frequency scale 
+	# Format the x-axis as a frequency scale
 	ax = plt.gca()
 	ax.xaxis.set_major_formatter(FuncFormatter(frame.get_xaxis_fmt))
 	ax.yaxis.set_major_formatter(FuncFormatter(frame.get_yaxis_fmt))

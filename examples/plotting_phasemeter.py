@@ -92,7 +92,7 @@ try:
 	time.sleep(0.8)
 
 	# Stop any existing streaming session and start a new one
-	# Logging session: 
+	# Logging session:
 	# 		Start time - 0 sec
 	#		Duration - 20 sec
 	#		Channel 1 - ON, Channel 2 - ON
@@ -118,11 +118,11 @@ try:
 	plt.xlim([xtent, 0])
 	plt.ylabel('Amplitude (V)')
 	plt.xlabel('Time (s)')
-	
+
 	while True:
 		# Get samples
 		data = i.get_stream_data()
-		if not any(data): 
+		if not any(data):
 			break
 
 		# Process the retrieved samples

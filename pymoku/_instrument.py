@@ -258,7 +258,7 @@ def needs_commit(func, self, *args, **kwargs):
 
 		was_awaiting = _awaiting_commit # Remember if a commit was already being waited on
 		if not _awaiting_commit:
-			_awaiting_commit = True # Lock the commit 
+			_awaiting_commit = True # Lock the commit
 
 		res = func(self, *args, **kwargs)
 
@@ -272,7 +272,7 @@ def needs_commit(func, self, *args, **kwargs):
 
 @decorator.decorator
 def dont_commit(func, self, *args, **kwargs):
-	""" Wrapper function which disables auto-commit for the duration of the function call. 
+	""" Wrapper function which disables auto-commit for the duration of the function call.
 	Should only be used for constructors of Instrument classes (because they cant commit until attached to a Moku)
 	"""
 	auto_setting = _get_autocommit()
@@ -282,7 +282,7 @@ def dont_commit(func, self, *args, **kwargs):
 
 	# Run the function
 	res = func(self, *args, **kwargs)
-	
+
 	# Turn auto-commit to its original value
 	_set_autocommit(auto_setting)
 
@@ -385,7 +385,7 @@ class MokuInstrument(object):
 		.. note::
 
 		    If the `autocommit` feature has been turned off, this function can be used to manually apply any instrument
-		    settings to the Moku device. These instrument settings are those configured by calling all *set_* and *gen_* type 
+		    settings to the Moku device. These instrument settings are those configured by calling all *set_* and *gen_* type
 		    functions. Manually calling this function allows you to atomically apply many instrument settings at once.
 		"""
 		if self._moku is None: raise NotDeployedException()
@@ -418,7 +418,7 @@ class MokuInstrument(object):
 
 	def _on_reg_sync(self):
 		# Designed to be overwritten by child instruments to update local variables
-		# when a new moku has been reg sync'd 
+		# when a new moku has been reg sync'd
 		return
 
 	def _dump_remote_regs(self):

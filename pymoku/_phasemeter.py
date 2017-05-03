@@ -142,7 +142,7 @@ class PhaseMeter(_stream_instrument.StreamBasedInstrument, PhaseMeter_SignalGene
 		"""Create a new PhaseMeter instrument, ready to be attached to a Moku."""
 		super(PhaseMeter, self).__init__()
 		self._register_accessors(_pm_reg_handlers)
-		
+
 		self.id = 3
 		self.type = "phasemeter"
 		self.logname = "MokuPhaseMeterData"
@@ -158,12 +158,12 @@ class PhaseMeter(_stream_instrument.StreamBasedInstrument, PhaseMeter_SignalGene
 
 	@needs_commit
 	def set_samplerate(self, samplerate):
-		""" Manually set the sample rate of the Phasemeter. 
+		""" Manually set the sample rate of the Phasemeter.
 
-		The chosen samplerate will be rounded down to nearest allowable rate 
+		The chosen samplerate will be rounded down to nearest allowable rate
 		based on R(Hz) = 1e6/(2^N) where N in range [13,16].
 
-		Alternatively use samplerate = {'slow','fast'} 
+		Alternatively use samplerate = {'slow','fast'}
 		to set ~30Hz or ~120Hz.
 
 		:type samplerate: float, or string = {'slow','fast'}
@@ -334,7 +334,7 @@ class PhaseMeter(_stream_instrument.StreamBasedInstrument, PhaseMeter_SignalGene
 		self.en_in_ch2 = True
 
 _pm_reg_handlers = {
-	'init_freq_ch1':		((REG_PM_INITF1_H, REG_PM_INITF1_L), 
+	'init_freq_ch1':		((REG_PM_INITF1_H, REG_PM_INITF1_L),
 											to_reg_unsigned(0,48, xform=lambda obj, f: f * _PM_FREQSCALE),
 											from_reg_unsigned(0,48,xform=lambda obj, f: f / _PM_FREQSCALE)),
 	'init_freq_ch2':		((REG_PM_INITF2_H, REG_PM_INITF2_L),
