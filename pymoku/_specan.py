@@ -779,6 +779,22 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 	# Bring in the docstring from the superclass for our docco.
 	commit.__doc__ = MokuInstrument.commit.__doc__
 
+
+	def _on_sync_regs(self):
+		d1 = int(self.dec_enable) * 4
+		self._total_decimation = d1 * self.dec_cic2 * self.dec_cic3 * self.dec_iir
+
+		fspan = ADC_SMP_RATE / 2.0 / self._total_decimation
+		fbin_resolution = fspan / _SA_FFT_LENGTH
+		window_factor = _SA_WINDOW_WIDTH[window]
+
+		self.rbw = self.rbw_ratio * window_factor * fbin_resolution
+		self.f2 = self._f2_full = self.demod
+		self.f1 = self._f1_full = self.demod - fspan
+		self.scales[self._stateid] = self._calculate_scales()
+
+
+
 _sa_reg_handlers = {
 	'demod':			(REG_SA_DEMOD,		to_reg_unsigned(0, 32, xform=lambda obj, f: f * _SA_FREQ_SCALE),
 											from_reg_unsigned(0, 32, xform=lambda obj, f: f / _SA_FREQ_SCALE)),
