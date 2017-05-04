@@ -263,7 +263,7 @@ class SpectrumData(_frame_instrument.InstrumentData):
 	'''
 		Plotting helper functions
 	'''
-	def _get_freqScale(self, f):
+	def _get_freq_scale(self, f):
 		# Returns a scaling factor and units for frequency 'X'
 		if(f > 1e6):
 			scale_str = 'MHz'
@@ -294,7 +294,7 @@ class SpectrumData(_frame_instrument.InstrumentData):
 		scales = self._scales[self._stateid]
 		f1, f2 = scales['fspan']
 
-		fscale_str, fscale_const = self._get_freqScale(f2)
+		fscale_str, fscale_const = self._get_freq_scale(f2)
 
 		return {'xaxis': '%.1f %s' % (x*fscale_const, fscale_str), 'xcoord': '%.3f %s' % (x*fscale_const, fscale_str)}
 
@@ -333,6 +333,7 @@ class SpectrumData(_frame_instrument.InstrumentData):
 	def get_ycoord_fmt(self, y):
 		""" Function suitable to use as argument to a matplotlib FuncFormatter for Y (voltage) coordinate """
 		return self._get_yaxis_fmt(y,None)['ycoord']
+
 
 class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 	""" Spectrum Analyser instrument object. This should be instantiated and attached to a :any:`Moku` instance.
@@ -620,14 +621,14 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		self.set_span(0,250e6)
 		self.window = _SA_WIN_BH
 
-	def _calculate_freqStep(self, decimation, render_downsamp):
+	def _calculate_freq_step(self, decimation, render_downsamp):
 		bufspan = _SA_ADC_SMPS / 2.0 / decimation
 		buf_freq_step = bufspan/_SA_FFT_LENGTH
 
 		return (buf_freq_step * render_downsamp)
 
-	def _calculate_startFreq(self, decimation, demod_freq, render_downsamp, frame_offset):
-		freq_step = self._calculate_freqStep(decimation, render_downsamp)
+	def _calculate_start_freq(self, decimation, demod_freq, render_downsamp, frame_offset):
+		freq_step = self._calculate_freq_step(decimation, render_downsamp)
 
 		bufspan = _SA_ADC_SMPS / 2.0 / decimation
 		buf_start_freq = demod_freq
@@ -674,8 +675,8 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		g2 *= _SA_INT_VOLTS_SCALE * filt_gain * window_gain * self.rbw_ratio * (2**10)
 
 		# Find approximate frequency bin values
-		dev_start_freq = self._calculate_startFreq(self._total_decimation,self.demod,self.render_dds,self.offset)
-		dev_freq_step = self._calculate_freqStep(self._total_decimation, self.render_dds)
+		dev_start_freq = self._calculate_start_freq(self._total_decimation,self.demod,self.render_dds,self.offset)
+		dev_freq_step = self._calculate_freq_step(self._total_decimation, self.render_dds)
 		freqs = [ (dev_start_freq + dev_freq_step*i) for i in range(_SA_SCREEN_WIDTH)]
 
 		# Compute the frequency dependent correction arrays
