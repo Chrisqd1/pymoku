@@ -479,34 +479,9 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 
 		log.debug("DM: %f FS: %f, BS: %f, RD: %f, W:%d, RBW: %f, RBR: %f", self.demod, fspan, buffer_span, self.render_dds, self.window, rbw, self.rbw_ratio)
 
-	@needs_commit
-	def set_span(self, f1, f2):
-		""" Sets the frequency span to be analysed.
-
-		Rounding and quantization in the instrument limits the range of spans for which a full set of 1024
-		data points can be calculated. In this mode, the resultant span in guaranteed however fewer than
-		1024 data points may be present in the measured sweeps. See :any:`set_fullspan` for an alternative
-		rounding mode.
-
-		Note that the valid sweep points and the associated frequencies will be given by the :any:`SpectrumFrame`
-		that contains the data.
-
-		:type f1: float
-		:param f1: Left-most frequency (Hz)
-		:type f2: float
-		:param f2: Right-most frequency (Hz)
-		"""
-
-		# TODO: Enforce f2 > f1
-		self.f1 = f1
-		self.f2 = f2
-
-		# Fullspan variables are cleared
-		self._f1_full = f1
-		self._f2_full = f2
 
 	@needs_commit
-	def set_fullspan(self,f1,f2):
+	def set_span(self,f1,f2):
 		""" Sets the frequency span to be analysed.
 
 		Rounding and quantization in the instrument limits the range of spans for which a full set of 1024
