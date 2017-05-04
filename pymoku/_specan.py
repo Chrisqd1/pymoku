@@ -733,7 +733,6 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 	# Bring in the docstring from the superclass for our docco.
 	commit.__doc__ = MokuInstrument.commit.__doc__
 
-
 	def _on_reg_sync(self):
 		super(SpectrumAnalyser, self)._on_reg_sync()
 
@@ -754,7 +753,14 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		self.f1 = self._f1_full = self.demod - fspan
 		self.scales[self._stateid] = self._calculate_scales()
 
+	def get_data(self, *args, **kwargs):
+		"""
+		Get the latest sweep results.
 
+		On SpectrumAnalyser this is an alias for :any:`get_realtime_data` as the
+		output data is never downsampled from the sweep results.
+		"""
+		return self.get_realtime_data(*args, **kwargs)
 
 _sa_reg_handlers = {
 	'demod':			(REG_SA_DEMOD,		to_reg_unsigned(0, 32, xform=lambda obj, f: f * _SA_FREQ_SCALE),

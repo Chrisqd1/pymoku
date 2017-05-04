@@ -134,7 +134,10 @@ class StreamHandler(_instrument.MokuInstrument):
 		# Update all child instrument local datalogging variables
 		self._update_datalogger_params()
 
-		fname = datetime.now().strftime(self.logname + "_%Y%m%d_%H%M%S")
+		if filetype == 'net':
+			fname = ''
+		else:
+			fname = datetime.now().strftime(self.logname + "_%Y%m%d_%H%M%S")
 
 		# Currently the data stream genesis is from the x_mode commit below, meaning that delayed start
 		# doesn't work properly. Once this is fixed in the FPGA/daemon, remove this check and the note
