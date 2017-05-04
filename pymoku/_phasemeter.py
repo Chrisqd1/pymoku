@@ -66,11 +66,6 @@ class PhaseMeter_SignalGenerator(MokuInstrument):
 		super(PhaseMeter_SignalGenerator, self).__init__()
 		self._register_accessors(_pm_siggen_reg_hdl)
 
-		# Local/cached values
-		self.pm_out1_enable = False
-		self.pm_out2_enable = False
-		self._pm_out1_amplitude = 0
-		self._pm_out2_amplitude = 0
 
 	@needs_commit
 	def set_defaults(self):
@@ -90,28 +85,29 @@ class PhaseMeter_SignalGenerator(MokuInstrument):
 		:param frequency: Frequency in Hz
 		"""
 		if ch == 1:
-			self._pm_out1_amplitude = amplitude
 			self.pm_out1_frequency = frequency
-			self.pm_out1_amplitude = self._pm_out1_amplitude if self.pm_out1_enable else 0
+			self.pm_out1_amplitude = amplitude
 		if ch == 2:
-			self._pm_out2_amplitude = amplitude
 			self.pm_out2_frequency = frequency
-			self.pm_out2_amplitude = self._pm_out2_amplitude if self.pm_out2_enable else 0
+			self.pm_out2_amplitude = amplitude
 
 	@needs_commit
-	def enable_output(self, ch, enable):
-		"""
-		:param ch: Channel to enable or disable
-		:param enable: boolean state of channel
-		"""
-		# Recalculate amplitude if the channel is enabled
-		if(ch==1):
-			self.pm_out1_enable = enable
-			self.pm_out1_amplitude = self._pm_out1_amplitude if enable else 0
+	def gen_off(channel=None):
+		""" Turn Signal Generator output(s) off.
 
-		if(ch==2):
-			self.pm_out2_enable = enable
-			self.pm_out2_amplitude = self._pm_out2_amplitude if enable else 0
+		The channel will be turned on when configuring the waveform type but can be turned off
+		using this function. If *ch* is None (the default), both channels will be turned off,
+		otherwise just the one specified by the argument.
+
+		:type ch: int
+		:param ch: Channel to turn off
+		"""
+		if channel is None or channel == 1:
+			self.pm_out1_amplitude = 0
+
+		if channel is None or channel == 2:
+			self.pm_out2_amplitude = 0
+
 
 _pm_siggen_reg_hdl = {
 	'pm_out1_frequency':	((REG_PM_SG_FREQ1_H, REG_PM_SG_FREQ1_L),
