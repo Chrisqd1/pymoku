@@ -450,7 +450,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 			It sets all registers that are dependent on other register values (sensitive to ordering).
 		"""
 		# Set the demodulation frequency to mix down the signal to DC
-		self.demod = self._f2_full
+		self.demod = self.f2
 
 		# Set the CIC decimations
 		self._set_decimations(self.f1, self.f2)
@@ -462,7 +462,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		self.gain_sos2, self.a1_sos2, self.a2_sos2, self.b1_sos2 = filter_set[8:12]
 
 		# Set rendering decimations
-		fspan = self._f2_full - self._f1_full
+		fspan = self.f2 - self.f1
 		buffer_span = _SA_ADC_SMPS / 2.0 / self._total_decimation
 		self.render_dds = min(max(math.ceil(fspan / buffer_span * _SA_FFT_LENGTH/ _SA_SCREEN_STEPS), 1.0), 4.0)
 		self.render_dds_alt = self.render_dds
@@ -500,27 +500,6 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		# Set the actual input frequencies
 		self.f1 = f1
 		self.f2 = f2
-		fspan = f2 - f1
-
-		# Get the decimations that would be used for this input fspan
-		d1, d2, d3, d4, ideal = self._calculate_decimations(f1, f2)
-		total_deci = d1 * d2 * d3 * d4
-
-		# Compute the resulting buffspan
-		bufspan = _SA_ADC_SMPS / 2.0 / total_deci
-
-		# Force the _f1_full, _f2_full to the nearest bufspan
-		# Move f2 up first
-		d_span = bufspan - fspan
-		# Find out how much spillover there will be
-		high_remainder = ((f2 + d_span) % (_SA_ADC_SMPS / 2.0)) if (f2 + d_span > _SA_ADC_SMPS/2.0) else 0.0
-
-		new_f2 = min(f2 + d_span, _SA_ADC_SMPS / 2.0)
-		new_f1 = max(f1 - high_remainder, 0.0)
-		log.debug("Setting Full Span: (f1, %f), (f2, %f), (fspan, %f), (bufspan, %f) -> (f1_full, %f), (f2_full, %f), (fspan_full, %f)", f1, f2, fspan, bufspan, new_f1, new_f2, new_f2-new_f1)
-
-		self._f1_full = new_f1
-		self._f2_full = new_f2
 
 	@needs_commit
 	def set_rbw(self, rbw=None):
@@ -657,7 +636,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 
 		fcorrs = [ (1 / self._calculate_adc_freq_resp(f / ADC_SMP_RATE, True) / cic_corr) for f, cic_corr in zip(freqs, cic_corrs)]
 
-		return {'g1': g1, 'g2': g2, 'fs': freqs, 'fcorrs': fcorrs, 'fspan': [self._f1_full, self._f2_full], 'dbmscale': self.dbmscale}
+		return {'g1': g1, 'g2': g2, 'fs': freqs, 'fcorrs': fcorrs, 'fspan': [self.f1, self.f2], 'dbmscale': self.dbmscale}
 
 	@needs_commit
 	def gen_off(self, ch=None):
@@ -698,8 +677,8 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 			self.sweep1 = sweep
 			self.tr1_amp = amp
 			if sweep:
-				self.tr1_start = self._f1_full
-				self.tr1_stop  = self._f2_full
+				self.tr1_start = self.f1
+				self.tr1_stop  = self.f2
 			else:
 				self.tr1_start = freq
 				self.tr1_stop = 0
@@ -708,8 +687,8 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 			self.sweep2 = sweep
 			self.tr2_amp = amp
 			if sweep:
-				self.tr2_start = self._f1_full
-				self.tr2_stop  = self._f2_full
+				self.tr2_start = self.f1
+				self.tr2_stop  = self.f2
 			else:
 				self.tr2_start = freq
 				self.tr2_stop = 0
