@@ -350,7 +350,6 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		Name of this instrument.
 
 	"""
-	@dont_commit
 	def __init__(self):
 		"""Create a new Spectrum Analyser instrument, ready to be attached to a Moku."""
 		super(SpectrumAnalyser, self).__init__()
@@ -374,10 +373,12 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		self.sweep1 = False
 		self.sweep2 = False
 
-		self.set_span(0,250e6)
-		self.set_rbw()
-		self.set_window('blackman-harris')
-		self.set_dbmscale(True)
+		self.f1 = self._f1_full = 0
+		self.f2 = self._f2_full = 250e6
+
+		self.rbw = None
+		self.dbmscale = True
+
 
 	def _calculate_decimations(self, f1, f2):
 		# Computes the decimations given the input span
@@ -617,6 +618,8 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		self.tr2_stop = 0
 		self.tr1_incr = 0
 		self.tr2_incr = 0
+
+		self.window = _SA_WIN_BH
 
 	def _calculate_freqStep(self, decimation, render_downsamp):
 		bufspan = _SA_ADC_SMPS / 2.0 / decimation

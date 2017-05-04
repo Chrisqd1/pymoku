@@ -133,7 +133,6 @@ class PhaseMeter(_stream_instrument.StreamBasedInstrument, PhaseMeter_SignalGene
 		Name of this instrument.
 
 	"""
-	@dont_commit
 	def __init__(self):
 		"""Create a new PhaseMeter instrument, ready to be attached to a Moku."""
 		super(PhaseMeter, self).__init__()

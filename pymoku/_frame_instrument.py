@@ -14,7 +14,6 @@ from pymoku import Moku, FrameTimeout, NoDataException, StreamException, Uncommi
 from _stream_instrument import _STREAM_STATE_NONE, _STREAM_STATE_RUNNING, _STREAM_STATE_WAITING, _STREAM_STATE_INVAL, _STREAM_STATE_FSFULL, _STREAM_STATE_OVERFLOW, _STREAM_STATE_BUSY, _STREAM_STATE_STOPPED
 
 from . import _instrument
-from _instrument import dont_commit
 
 log = logging.getLogger(__name__)
 
@@ -169,7 +168,7 @@ class FrameBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstru
 		"""
 		return self._buflen
 
-	@dont_commit
+
 	def get_data(self, timeout=None):
 		""" Get a :any:`InstrumentData` from the internal data channel buffer.
 		This will commit any outstanding device settings and pause acquisition.

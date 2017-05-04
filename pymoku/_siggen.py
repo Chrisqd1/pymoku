@@ -77,7 +77,6 @@ class BasicSignalGenerator(MokuInstrument):
 		Name of this instrument.
 
 	"""
-	@dont_commit
 	def __init__(self):
 		""" Create a new SignalGenerator instance, ready to be attached to a Moku."""
 		super(BasicSignalGenerator, self).__init__()
@@ -257,8 +256,6 @@ class BasicSignalGenerator(MokuInstrument):
 
 
 class SignalGenerator(BasicSignalGenerator):
-
-	@dont_commit
 	def __init__(self):
 		""" Create a new SignalGenerator instance, ready to be attached to a Moku."""
 		super(SignalGenerator, self).__init__()
