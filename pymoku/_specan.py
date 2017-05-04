@@ -431,18 +431,17 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 				rbw = 5.0 * fspan / _SA_SCREEN_STEPS
 
 		window_factor = _SA_WINDOW_WIDTH[window]
-		fbin_resolution = ADC_SMP_RATE/2.0 /_SA_FFT_LENGTH/decimation
+		fbin_resolution = ADC_SMP_RATE / 2.0 /_SA_FFT_LENGTH / decimation
 
-		return min(max(rbw, (17.0/16.0) * fbin_resolution * window_factor), 2**10.0 * fbin_resolution * window_factor)
+		return min(max(rbw, (17.0 / 16.0) * fbin_resolution * window_factor), 2**10.0 * fbin_resolution * window_factor)
 
 	def _set_rbw_ratio(self, rbw, decimation, window, fspan, sweep):
 		rbw = self._calculate_rbw(rbw, decimation, window, fspan, sweep)
 
 		window_factor = _SA_WINDOW_WIDTH[window]
-		fbin_resolution = ADC_SMP_RATE/2.0/_SA_FFT_LENGTH/decimation
+		fbin_resolution = ADC_SMP_RATE / 2.0 / _SA_FFT_LENGTH / decimation
 
-		# To match the iPad code, we round the bitshifted ratio, then bitshift back again so the register accessor can do it
-		self.rbw_ratio = round(2**10*rbw / window_factor / fbin_resolution)/2**10
+		self.rbw_ratio = rbw / window_factor / fbin_resolution
 		return rbw
 
 	def _update_dependent_regs(self):
@@ -514,9 +513,9 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		# Move f2 up first
 		d_span = bufspan - fspan
 		# Find out how much spillover there will be
-		high_remainder = ((f2 + d_span)%(_SA_ADC_SMPS/2.0)) if(f2 + d_span > _SA_ADC_SMPS/2.0) else 0.0
+		high_remainder = ((f2 + d_span) % (_SA_ADC_SMPS / 2.0)) if (f2 + d_span > _SA_ADC_SMPS/2.0) else 0.0
 
-		new_f2 = min(f2 + d_span, _SA_ADC_SMPS/2.0)
+		new_f2 = min(f2 + d_span, _SA_ADC_SMPS / 2.0)
 		new_f1 = max(f1 - high_remainder, 0.0)
 		log.debug("Setting Full Span: (f1, %f), (f2, %f), (fspan, %f), (bufspan, %f) -> (f1_full, %f), (f2_full, %f), (fspan_full, %f)", f1, f2, fspan, bufspan, new_f1, new_f2, new_f2-new_f1)
 
@@ -592,7 +591,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 
 	def _calculate_freq_step(self, decimation, render_downsamp):
 		bufspan = _SA_ADC_SMPS / 2.0 / decimation
-		buf_freq_step = bufspan/_SA_FFT_LENGTH
+		buf_freq_step = bufspan / _SA_FFT_LENGTH
 
 		return (buf_freq_step * render_downsamp)
 
@@ -601,20 +600,21 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 
 		bufspan = _SA_ADC_SMPS / 2.0 / decimation
 		buf_start_freq = demod_freq
-		buf_freq_step = bufspan/_SA_FFT_LENGTH
+		buf_freq_step = bufspan / _SA_FFT_LENGTH
 
-		dev_stop_freq = buf_start_freq + (self.offset+4) * buf_freq_step
+		dev_stop_freq = buf_start_freq + (self.offset + 4) * buf_freq_step
 
 		return (dev_stop_freq - _SA_SCREEN_WIDTH * freq_step)
 
 	def _calculate_adc_freq_resp(self, f, atten):
-		frac_idx = f/(_SA_ADC_SMPS/2.0)
+		from math import floor, ceil
+		frac_idx = f / (_SA_ADC_SMPS / 2.0)
 
-		floatIndex = (len(_SA_ADC_FREQ_RESP_0) - 1) * min(max(frac_idx,0.0),1.0)
+		idx = (len(_SA_ADC_FREQ_RESP_0) - 1) * min(max(frac_idx, 0.0), 1.0)
 		r = _SA_ADC_FREQ_RESP_20 if atten else _SA_ADC_FREQ_RESP_0
 
 		# Return linear interpolation of table values
-		correction = r[int(math.floor(floatIndex))] + (floatIndex - math.floor(floatIndex))*(r[int(math.ceil(floatIndex))] - r[int(math.floor(floatIndex))])
+		correction = r[int(floor(idx))] + (idx - floor(idx)) * (r[int(ceil(idx))] - r[int(floor(idx))])
 		return correction
 
 	def _calculate_cic_freq_resp(self, f, dec, order):
@@ -650,10 +650,12 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 
 		# Compute the frequency dependent correction arrays
 		# The CIC correction is only for CIC1 which is decimation=4 only, and 10th order
-		if(self._total_decimation >= 4):
-			fcorrs = [ (1/self._calculate_adc_freq_resp(f/ADC_SMP_RATE, True)) for f in freqs]
+		if self._total_decimation < 4:
+			cic_corrs = [ self._calculate_cic_freq_resp(f / ADC_SMP_RATE, 4, 10) for f in freqs]
 		else:
-			fcorrs = [ (1/self._calculate_adc_freq_resp(f/ADC_SMP_RATE, True)/self._calculate_cic_freq_resp(f/ADC_SMP_RATE, 4, 10)) for f in freqs]
+			cic_corrs = [1] * len(freqs)
+
+		fcorrs = [ (1 / self._calculate_adc_freq_resp(f / ADC_SMP_RATE, True) / cic_corr) for f, cic_corr in zip(freqs, cic_corrs)]
 
 		return {'g1': g1, 'g2': g2, 'fs': freqs, 'fcorrs': fcorrs, 'fspan': [self._f1_full, self._f2_full], 'dbmscale': self.dbmscale}
 
@@ -780,16 +782,16 @@ _sa_reg_handlers = {
 											from_reg_unsigned(0, 32, xform=lambda obj, f: f / _SA_FREQ_SCALE)),
 
 	'dec_enable':		(REG_SA_DECCTL,		to_reg_bool(0),				from_reg_bool(0)),
-	'dec_cic2':			(REG_SA_DECCTL,		to_reg_unsigned(1, 6, 	xform=lambda obj, x: x-1),
-											from_reg_unsigned(1, 6, xform=lambda obj, x:x+1)),
+	'dec_cic2':			(REG_SA_DECCTL,		to_reg_unsigned(1, 6, 	xform=lambda obj, x: x - 1),
+											from_reg_unsigned(1, 6, xform=lambda obj, x: x + 1)),
 	'bs_cic2':			(REG_SA_DECCTL,		to_reg_unsigned(7, 4),		from_reg_unsigned(7, 4)),
-	'dec_cic3':			(REG_SA_DECCTL,		to_reg_unsigned(11, 4, 	xform=lambda obj, x: x-1),
-											from_reg_unsigned(11, 4,xform=lambda obj, x: x+1)),
+	'dec_cic3':			(REG_SA_DECCTL,		to_reg_unsigned(11, 4, 	xform=lambda obj, x: x - 1),
+											from_reg_unsigned(11, 4,xform=lambda obj, x: x + 1)),
 	'bs_cic3':			(REG_SA_DECCTL,		to_reg_unsigned(15, 4),		from_reg_unsigned(15, 4)),
-	'dec_iir':			(REG_SA_DECCTL,		to_reg_unsigned(19, 4, 	xform=lambda obj, x: x-1),
-											from_reg_unsigned(19, 4,xform=lambda obj, x: x+1)),
-	'rbw_ratio':		(REG_SA_RBW,		to_reg_unsigned(0, 24, 	xform=lambda obj, x: x*2.0**10.0),
-											from_reg_unsigned(0, 24,xform=lambda obj, x: x/(2.0**10.0))),
+	'dec_iir':			(REG_SA_DECCTL,		to_reg_unsigned(19, 4, 	xform=lambda obj, x: x - 1),
+											from_reg_unsigned(19, 4,xform=lambda obj, x: x + 1)),
+	'rbw_ratio':		(REG_SA_RBW,		to_reg_unsigned(0, 24, 	xform=lambda obj, x: round(x * 2.0**10.0)),
+											from_reg_unsigned(0, 24,xform=lambda obj, x: x / (2.0**10.0))),
 
 	'window':			(REG_SA_RBW,		to_reg_unsigned(24, 2, allow_set=[_SA_WIN_NONE, _SA_WIN_BH, _SA_WIN_HANNING, _SA_WIN_FLATTOP]),
 											from_reg_unsigned(24, 2)),
