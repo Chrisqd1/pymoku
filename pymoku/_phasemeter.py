@@ -328,6 +328,11 @@ class PhaseMeter(_stream_instrument.StreamBasedInstrument, PhaseMeter_SignalGene
 		self.en_in_ch1 = True
 		self.en_in_ch2 = True
 
+
+	def _on_sync_regs(self):
+		self.timestep = 1.0/(_PM_UPDATE_RATE/self.output_decimation)
+
+
 _pm_reg_handlers = {
 	'init_freq_ch1':		((REG_PM_INITF1_H, REG_PM_INITF1_L),
 											to_reg_unsigned(0,48, xform=lambda obj, f: f * _PM_FREQSCALE),
