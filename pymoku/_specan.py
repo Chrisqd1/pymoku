@@ -363,12 +363,8 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		self.type = "specan"
 		self.calibration = None
 
-		# Embedded signal generator configuration
-		self.en_out1 = False
-		self.en_out2 = False
-		# Local output sweep amplitudes
-		self._tr1_amp = 0
-		self._tr2_amp = 0
+		self.tr1_incr = 0
+		self.tr2_incr = 0
 		self.sweep1 = False
 		self.sweep2 = False
 
@@ -607,8 +603,6 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		self.en_in_ch2 = True
 
 		# Signal generator defaults
-		self.en_out1 = False
-		self.en_out2 = False
 		self.sweep1 = False
 		self.sweep2 = False
 		self.tr1_start = 100e6
@@ -689,13 +683,19 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		return {'g1': g1, 'g2': g2, 'fs': freqs, 'fcorrs': fcorrs, 'fspan': [self._f1_full, self._f2_full], 'dbmscale': self.dbmscale}
 
 	@needs_commit
-	def enable_output(self, ch, enable):
-		if ch == 1:
-			self.en_out1 = enable
-			self.tr1_amp = self._tr1_amp if enable else 0
-		elif ch == 2:
-			self.en_out2 = enable
-			self.tr2_amp = self._tr2_amp if enable else 0
+	def gen_off(self, ch=None):
+		"""
+		Turn signal generator output off.
+
+		If *ch* is specified, turn off only a single channel, otherwise turn off both.
+
+		:type ch: int
+		:param ch: Channel number to turn off (None, or leave blank, for both)firmware_is_compatible
+		"""
+		if ch is None or ch == 1:
+			self.tr1_amp = 0
+		if ch is None or ch == 2:
+			self.tr2_amp = 0
 
 	@needs_commit
 	def gen_sinewave(self, ch, amp, freq, sweep=False):
@@ -719,8 +719,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		# time taken for FFT is W points at decimated rate plus 8192-w points at 125 MHz plus 1/1788.8 seconds
 		if ch == 1:
 			self.sweep1 = sweep
-			self._tr1_amp = amp
-			self.tr1_amp = amp if self.en_out1 else 0
+			self.tr1_amp = amp
 			if sweep:
 				self.tr1_start = self._f1_full
 				self.tr1_stop  = self._f2_full
@@ -730,8 +729,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 				self.tr1_incr = 0
 		elif ch == 2:
 			self.sweep2 = sweep
-			self._tr2_amp = amp
-			self.tr2_amp = amp if self.en_out2 else 0
+			self.tr2_amp = amp
 			if sweep:
 				self.tr2_start = self._f1_full
 				self.tr2_stop  = self._f2_full
