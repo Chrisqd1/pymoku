@@ -496,6 +496,8 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		:type f2: float
 		:param f2: Right-most frequency (Hz)
 		"""
+		if f1 < 0 or f2 < 0 or f2 <= f1:
+			raise InvalidConfigurationException("Span must be non-negative with f2 > f1")
 
 		# Set the actual input frequencies
 		self.f1 = f1

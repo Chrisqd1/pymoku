@@ -405,18 +405,17 @@ class MokuInstrument(object):
 		# local Moku instance. It is useful to update local variables and perform
 		# sanity checks on the device state before it is deemed 'useable'.
 
-		# Check for an unconfigured Moku device (all non-control registers zero)
-		reg_check_mask = [True] * 128
-		# Ignore control registers
-		reg_check_mask[0:4] = [False] * 4
-		# Ignore DAC Test register
-		reg_check_mask[26] = False
-		# Ignore State ID register
-		reg_check_mask[63] = False
+		# Denotes the list of registers we expect to be non-zero on instrument deploy
+		# Control registers [0:4], DAC Test [26], State ID [63]
+		reg_blacklist = [0,1,2,3,26,63]
 
-		masked_regs = [d for d,s in zip(self._remoteregs, reg_check_mask) if s]
-
-		if not any(masked_regs):
+		# Get all register values that aren't blacklisted
+		reg_data = [d for i,d in enumerate(self._remoteregs) if i not in reg_blacklist ]
+		log.debug(reg_data)
+		# If none of these register values are non-zero, assume the instrument has not been
+		# configured and set defaults
+		if not any(reg_data):
+			log.warning("Moku seems to be unconfigured - setting instrument defaults.")
 			self.set_defaults()
 			self.commit()
 

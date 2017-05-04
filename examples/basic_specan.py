@@ -12,11 +12,11 @@ i = SpectrumAnalyser()
 m.deploy_instrument(i)
 
 try:
-	# DC to 100MHz span, apply changes
-	i.set_span(0, 10000000)
+	# DC to 10MHz span, apply changes
+	i.set_span(0, 10e6)
 
 	# Get the scan results and print them out (power vs frequency, two channels)
-	data = i.get_realtime_data()
+	data = i.get_data()
 	print(data.ch1, data.ch2, data.frequency)
 
 finally:
