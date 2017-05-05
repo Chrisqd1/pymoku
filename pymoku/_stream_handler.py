@@ -44,7 +44,7 @@ class StreamHandler(_instrument.MokuInstrument):
 		self.fmtstr = ''
 
 
-	def _max_stream_rate(self, instr, use_sd, filetype):
+	def _max_stream_rate(self, use_sd, filetype):
 		"""
 		Returns the maximum rate at which the instrument can be streamed for the given
 		streaming configuration
@@ -84,8 +84,7 @@ class StreamHandler(_instrument.MokuInstrument):
 				ch1, ch2 = [[-1] * 10] * 2 # Assume no instrument provides more than 10 entries per record
 			else:
 				ch1, ch2 = -1, -1
-
-			f = fmtstr.format(ch1=ch1, ch2=ch2, t=-1, T=-1, n=1, d=0.1) # Dummy values chosen for maximum formatted length
+			f = self.fmtstr.format(ch1=ch1, ch2=ch2, t=-1, T=-1, n=1, d=0.1) # Dummy values chosen for maximum formatted length
 			return (duration / self.timestep) *  len(f)
 
 	def _stream_start(self, start, duration, use_sd, ch1, ch2, filetype):
@@ -145,7 +144,7 @@ class StreamHandler(_instrument.MokuInstrument):
 
 		# Logging rates depend on which storage medium, and the filetype as well
 		if duration > 0:
-			maxrate = self._max_stream_rate(None, use_sd, filetype)
+			maxrate = self._max_stream_rate(use_sd, filetype)
 			if math.floor(1.0 / self.timestep) > maxrate:
 				raise InvalidOperationException("Sample Rate %d too high for file type %s. Maximum rate: %d" % (1.0 / self.timestep, filetype, maxrates[filetype]))
 
