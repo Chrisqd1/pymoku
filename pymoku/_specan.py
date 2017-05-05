@@ -350,7 +350,6 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		Name of this instrument.
 
 	"""
-	@dont_commit
 	def __init__(self):
 		"""Create a new Spectrum Analyser instrument, ready to be attached to a Moku."""
 		super(SpectrumAnalyser, self).__init__()
@@ -374,10 +373,12 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		self.sweep1 = False
 		self.sweep2 = False
 
-		self.set_span(0,250e6)
-		self.set_rbw()
-		self.set_window('blackman-harris')
-		self.set_dbmscale(True)
+		self.f1 = self._f1_full = 0
+		self.f2 = self._f2_full = 250e6
+
+		self.rbw = None
+		self.dbmscale = True
+
 
 	def _calculate_decimations(self, f1, f2):
 		# Computes the decimations given the input span
@@ -618,6 +619,8 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		self.tr1_incr = 0
 		self.tr2_incr = 0
 
+		self.window = _SA_WIN_BH
+
 	def _calculate_freqStep(self, decimation, render_downsamp):
 		bufspan = _SA_ADC_SMPS / 2.0 / decimation
 		buf_freq_step = bufspan/_SA_FFT_LENGTH
@@ -775,6 +778,22 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 
 	# Bring in the docstring from the superclass for our docco.
 	commit.__doc__ = MokuInstrument.commit.__doc__
+
+
+	def _on_sync_regs(self):
+		d1 = int(self.dec_enable) * 4
+		self._total_decimation = d1 * self.dec_cic2 * self.dec_cic3 * self.dec_iir
+
+		fspan = ADC_SMP_RATE / 2.0 / self._total_decimation
+		fbin_resolution = fspan / _SA_FFT_LENGTH
+		window_factor = _SA_WINDOW_WIDTH[window]
+
+		self.rbw = self.rbw_ratio * window_factor * fbin_resolution
+		self.f2 = self._f2_full = self.demod
+		self.f1 = self._f1_full = self.demod - fspan
+		self.scales[self._stateid] = self._calculate_scales()
+
+
 
 _sa_reg_handlers = {
 	'demod':			(REG_SA_DEMOD,		to_reg_unsigned(0, 32, xform=lambda obj, f: f * _SA_FREQ_SCALE),

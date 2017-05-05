@@ -270,23 +270,6 @@ def needs_commit(func, self, *args, **kwargs):
 
 		return res
 
-@decorator.decorator
-def dont_commit(func, self, *args, **kwargs):
-	""" Wrapper function which disables auto-commit for the duration of the function call.
-	Should only be used for constructors of Instrument classes (because they cant commit until attached to a Moku)
-	"""
-	auto_setting = _get_autocommit()
-
-	# Force disable of auto-commit
-	_set_autocommit(False)
-
-	# Run the function
-	res = func(self, *args, **kwargs)
-
-	# Turn auto-commit to its original value
-	_set_autocommit(auto_setting)
-
-	return res
 
 
 class MokuInstrument(object):

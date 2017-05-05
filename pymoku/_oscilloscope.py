@@ -209,8 +209,6 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		Name of this instrument.
 
 	"""
-
-	@dont_commit
 	def __init__(self):
 		"""Create a new Oscilloscope instrument, ready to be attached to a Moku."""
 		super(Oscilloscope, self).__init__()
@@ -336,18 +334,18 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		self.pretrigger = buffer_offset
 		self.offset = frame_offset
 
-	def _source_volts_to_bits(self, volts, source, scales):
+	def _source_volts_per_bit(self, source, scales):
 		"""
 			Converts volts to bits depending on the source (ADC1/2, DAC1/2)
 		"""
 		if (source == _OSC_TRIG_CH1):
-			level = volts/scales['gain_adc1']
+			level = scales['gain_adc1']
 		elif (source == _OSC_TRIG_CH2):
-			level = volts/scales['gain_adc2']
+			level = cales['gain_adc2']
 		elif (source == _OSC_TRIG_DA1):
-			level = (volts/scales['gain_dac1'])/16
+			level = (scales['gain_dac1'])/16
 		elif (source == _OSC_TRIG_DA2):
-			level = (volts/scales['gain_dac2'])/16
+			level = (scales['gain_dac2'])/16
 
 		return level
 
@@ -595,9 +593,9 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 	def _update_dependent_regs(self, scales):
 		# Trigger level must be scaled depending on the current relay settings and chosen trigger source
 		if self.trig_volts is not None:
-			self.trigger_level = self._source_volts_to_bits(self.trig_volts, self.trig_ch, scales)
+			self.trigger_level = self.trig_volts / self._source_volts_per_bit(self.trig_ch, scales)
 		if self.hysteresis_volts is not None:
-			self.hysteresis = self._source_volts_to_bits(self.hysteresis_volts, self.trig_ch, scales)
+			self.hysteresis = self.hysteresis_volts / self._source_volts_per_bit(self.trig_ch, scales)
 
 	def _update_datalogger_params(self):
 		scales = self._calculate_scales()
@@ -647,10 +645,16 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		else:
 			samplerate = _OSC_ADC_SMPS / float(self.decimation_rate)
 			self.timestep = 1.0/samplerate
+
 		scales = self._calculate_scales()
 		self.scales[self._stateid] = scales
-		self._update_dependent_regs(scales)
+
+		# Update internal state given new reg values. This is the inverse of update_dependent_regs
+		self.trig_volts = self.trigger_level * self._source_volts_per_bit(self.trig_ch, scales)
+		self.hysteresis_volts = self.hysteresis * self._source_volts_per_bit(self.trig_ch, scales)
+
 		self._update_datalogger_params()
+
 
 	def commit(self):
 		scales = self._calculate_scales()

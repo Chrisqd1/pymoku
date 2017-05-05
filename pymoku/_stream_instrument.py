@@ -94,13 +94,14 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 		processed_samples = self._stream_get_processed_samples()
 		if n > 0:
 			# Actual number of samples processed already
-			num_processed_samples = [len(processed_samples[0]),len(processed_samples[1])]
+			num_processed_samples = map(len, processed_samples)
 		else:
 			# We don't need to track the number of processed samples if n = [0,1]
 			num_processed_samples = [-1,-1]
 
+
 		# Only "get" samples off the network if we haven't already processed enough to return 'n'
-		while (n == -1) or (self.ch1 & (num_processed_samples[0] < n)) or (self.ch2 & (num_processed_samples[1] < n)):
+		while (n == -1) or (self.ch1 and (num_processed_samples[0] < n)) or (self.ch2 and (num_processed_samples[1] < n)):
 
 			try:
 				self._stream_receive_samples(timeout)
@@ -112,31 +113,22 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 			processed_samples = self._stream_get_processed_samples()
 			if n != -1:
 				# Update the number of processed samples if we aren't asking for 'all' of them
-				num_processed_samples = [len(processed_samples[0]),len(processed_samples[1])]
+				num_processed_samples = map(len, processed_samples)
 
 			# Check if the streaming session has completed
 			if self._no_data:
 				break
 
-		# Should still work for -1 because that means 'to end' of the array
-		n_ch1 = (min(n,len(processed_samples[0])) if n else -1) if self.ch1 else 0
-		n_ch2 = (min(n,len(processed_samples[1])) if n else -1) if self.ch2 else 0
+		active_channels = [self.ch1, self.ch2]
+		to_return = min([len(p) for c, p in zip(active_channels, processed_samples) if c])
 
-		dout_ch1 = processed_samples[0][0:n_ch1] if n_ch1 != 0 else []
-		dout_ch2 = processed_samples[1][0:n_ch2] if n_ch2 != 0 else []
+		if n > 0:
+			to_return = min(n, to_return)
 
-		if (not self._no_data) & self.ch1 & self.ch2 & (n_ch1 != n_ch2):
-			# Sanity check
-			# Unless the stream has finished, the amount of data available on
-			# all enabled channels should be identical.
-			raise StreamException("Stream has dropped data.")
+		dout_ch1 = processed_samples[0][0:to_return] if self.ch1 else []
+		dout_ch2 = processed_samples[1][0:to_return] if self.ch2 else []
 
-		if n < 1:
-			# Clear all samples
-			self._stream_clear_processed_samples()
-		else:
-			# Clear only up to 'n' samples
-			self._stream_clear_processed_samples(max(n_ch1, n_ch2))
+		self._stream_clear_processed_samples(to_return)
 
 		return (dout_ch1, dout_ch2)
 

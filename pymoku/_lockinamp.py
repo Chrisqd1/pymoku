@@ -132,7 +132,6 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument, _stream_instrument.Strea
 		Name of this instrument.
 
 	"""
-	@dont_commit
 	def __init__(self):
 		"""Create a new Lock-In-Amplifier instrument, ready to be attached to a Moku."""
 

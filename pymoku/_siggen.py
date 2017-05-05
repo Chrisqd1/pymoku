@@ -77,7 +77,6 @@ class BasicSignalGenerator(MokuInstrument):
 		Name of this instrument.
 
 	"""
-	@dont_commit
 	def __init__(self):
 		""" Create a new SignalGenerator instance, ready to be attached to a Moku."""
 		super(BasicSignalGenerator, self).__init__()
@@ -237,9 +236,26 @@ class BasicSignalGenerator(MokuInstrument):
 			falltime = 1 - symmetry,
 			phase = phase)
 
-class SignalGenerator(BasicSignalGenerator):
 
-	@dont_commit
+	@needs_commit
+	def gen_off(ch=None):
+		""" Turn Signal Generator output(s) off.
+
+		The channel will be turned on when configuring the waveform type but can be turned off
+		using this function. If *ch* is None (the default), both channels will be turned off,
+		otherwise just the one specified by the argument.
+
+		:type ch: int
+		:param ch: Channel to turn off
+		"""
+		if channel is None or channel == 1:
+			self.out1_enable = False
+
+		if channel is None or channel == 2:
+			self.out2_enable = False
+
+
+class SignalGenerator(BasicSignalGenerator):
 	def __init__(self):
 		""" Create a new SignalGenerator instance, ready to be attached to a Moku."""
 		super(SignalGenerator, self).__init__()

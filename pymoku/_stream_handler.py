@@ -44,13 +44,10 @@ class StreamHandler(_instrument.MokuInstrument):
 		self.fmtstr = ''
 
 
-	@staticmethod
-	def _max_stream_rates(instr, nch, use_sd):
+	def _max_stream_rate(self, instr, use_sd, filetype):
 		"""
 		Returns the maximum rate at which the instrument can be streamed for the given
 		streaming configuration
-
-		Currently only specified for the Oscilloscope instrument
 		"""
 
 		# These are checked on the client side too but we sanity-check here as an invalid
@@ -58,7 +55,12 @@ class StreamHandler(_instrument.MokuInstrument):
 		# derived, should be updated as we test and optimize things.
 		# Logging rates depend on which storage medium, and the filetype as well
 		maxrates = None
-		if nch == 2:
+
+		# The record length in the dataparser is in bits, convert to words; that's the unit
+		# of the rate (more precisely, 32-bit samples is the unit)
+		record_length = math.ceil(dataparser.LIDataParser.record_length(self.binstr) / 32.0)
+
+		if self.nch == 2:
 			if(use_sd):
 				maxrates = { 'bin' : 150e3, 'csv' : 1e3, 'net' : 20e3, 'plot' : 10}
 			else:
@@ -69,32 +71,22 @@ class StreamHandler(_instrument.MokuInstrument):
 			else:
 				maxrates = { 'bin' : 1e6, 'csv' : 3e3, 'net' : 40e3, 'plot' : 10}
 
-		return maxrates
+		return maxrates[filetype] / record_length
 
-	@staticmethod
-	def _estimate_logsize(ch1, ch2, duration, timestep, filetype):
-		"""
-		Returns a rough estimate of log size for disk space checking.
-		Currently assumes instrument is the Oscilloscope.
-
-		:type ch1: bool
-		:param ch1: Is Channel 1 enabled?
-		:type ch2: bool
-		:param ch2: Is Channel 2 enabled?
-		:type duration: float
-		:param duration: Duration of logging session in seconds.
-		:type timestep: float
-		:param timestep: Timestep of each sample (1/samplerate)
-		:type filetype: string {'csv','bin'}
-		:param filetype: File type of the log to estimate size of
-		"""
+	def _estimate_logsize(self, ch1, ch2, duration, filetype):
 		if filetype is 'bin':
-			sample_size_bytes = 4 * (ch1 + ch2)
-			return (duration / timestep) * sample_size_bytes
+			# The record length in the dataparser is in bits, convert to bytes
+			record_length = math.ceil(dataparser.LIDataParser.record_length(self.binstr) / 8.0)
+			sample_size_bytes = record_length * (ch1 + ch2)
+			return (duration / self.timestep) * sample_size_bytes
 		elif filetype is 'csv':
-			# one byte per character: time, data (assume negative half the time), newline
-			characters_per_line = 16 + ( 2 + 16.5 )*(ch1 + ch2) + 2
-			return (duration / timestep) *  characters_per_line
+			if '[' in self.fmtstr: # Assume that if the string includes [, it's expecting data arrays
+				ch1, ch2 = [[-1] * 10] * 2 # Assume no instrument provides more than 10 entries per record
+			else:
+				ch1, ch2 = -1, -1
+
+			f = fmtstr.format(ch1=ch1, ch2=ch2, t=-1, T=-1, n=1, d=0.1) # Dummy values chosen for maximum formatted length
+			return (duration / self.timestep) *  len(f)
 
 	def _stream_start(self, start, duration, use_sd, ch1, ch2, filetype):
 		""" Start an instrument streaming session.
@@ -153,8 +145,8 @@ class StreamHandler(_instrument.MokuInstrument):
 
 		# Logging rates depend on which storage medium, and the filetype as well
 		if duration > 0:
-			maxrates = StreamHandler._max_stream_rates(None, self.nch, use_sd)
-			if math.floor(1.0 / self.timestep) > maxrates[filetype]:
+			maxrate = self._max_stream_rate(None, use_sd, filetype)
+			if math.floor(1.0 / self.timestep) > maxrate:
 				raise InvalidOperationException("Sample Rate %d too high for file type %s. Maximum rate: %d" % (1.0 / self.timestep, filetype, maxrates[filetype]))
 
 			if self.x_mode != _instrument.ROLL:
@@ -167,8 +159,8 @@ class StreamHandler(_instrument.MokuInstrument):
 		if filetype is not 'net':
 			mp = 'e' if use_sd else 'i'
 			try:
-				t , f = self._moku._fs_free(mp)
-				logsize = self._estimate_logsize(ch1, ch2, duration, self.timestep, filetype)
+				t, f = self._moku._fs_free(mp)
+				logsize = self._estimate_logsize(ch1, ch2, duration, filetype)
 				if f < logsize:
 					raise InsufficientSpace("Insufficient disk space for requested log file (require %d kB, available %d kB)" % (logsize/(2**10), f/(2**10)))
 			except MPReadOnly as e:
