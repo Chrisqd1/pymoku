@@ -66,16 +66,10 @@ class PhaseMeter_SignalGenerator(MokuInstrument):
 		super(PhaseMeter_SignalGenerator, self).__init__()
 		self._register_accessors(_pm_siggen_reg_hdl)
 
-
 	@needs_commit
 	def set_defaults(self):
-		self.gen_sinewave(1,0,0)
-		self.gen_sinewave(2,0,0)
-		self.enable_output(1,False)
-		self.enable_output(2,False)
-
-		self.set_frontend(1, fiftyr=True, atten=False, ac=True)
-		self.set_frontend(2, fiftyr=True, atten=False, ac=True)
+		# Turn off generated output waves
+		self.gen_off()
 
 	@needs_commit
 	def gen_sinewave(self, ch, amplitude, frequency):
@@ -92,7 +86,7 @@ class PhaseMeter_SignalGenerator(MokuInstrument):
 			self.pm_out2_amplitude = amplitude
 
 	@needs_commit
-	def gen_off(channel=None):
+	def gen_off(self, ch=None):
 		""" Turn Signal Generator output(s) off.
 
 		The channel will be turned on when configuring the waveform type but can be turned off
@@ -102,10 +96,10 @@ class PhaseMeter_SignalGenerator(MokuInstrument):
 		:type ch: int
 		:param ch: Channel to turn off
 		"""
-		if channel is None or channel == 1:
+		if (ch is None) or ch == 1:
 			self.pm_out1_amplitude = 0
 
-		if channel is None or channel == 2:
+		if (ch is None) or ch == 2:
 			self.pm_out2_amplitude = 0
 
 
@@ -146,10 +140,10 @@ class PhaseMeter(_stream_instrument.StreamBasedInstrument, PhaseMeter_SignalGene
 		self.procstr = ["*{:.16e} : *{:.16e} : : *{:.16e} : *C*{:.16e} : *C*{:.16e} ".format(_PM_HERTZ_SCALE, _PM_HERTZ_SCALE,  _PM_CYCLE_SCALE, _PM_VOLTS_SCALE, _PM_VOLTS_SCALE),
 						"*{:.16e} : *{:.16e} : : *{:.16e} : *C*{:.16e} : *C*{:.16e} ".format(_PM_HERTZ_SCALE, _PM_HERTZ_SCALE,  _PM_CYCLE_SCALE, _PM_VOLTS_SCALE, _PM_VOLTS_SCALE)]
 
-	def _update_datalogger_params(self, ch1, ch2):
+	def _update_datalogger_params(self):
 		# Call this function when any instrument configuration parameters are set
-		self.hdrstr = self._get_hdrstr(ch1,ch2)
-		self.fmtstr = self._get_fmtstr(ch1,ch2)
+		self.fmtstr = self._get_fmtstr(self.ch1,self.ch2)
+		self.hdrstr = self._get_hdrstr(self.ch1,self.ch2)
 
 	@needs_commit
 	def set_samplerate(self, samplerate):
@@ -174,10 +168,8 @@ class PhaseMeter(_stream_instrument.StreamBasedInstrument, PhaseMeter_SignalGene
 		shift = min(math.ceil(math.log(new_samplerate,2)),16)
 		self.output_decimation = 2**shift
 		self.output_shift = shift
-
 		self.timestep = 1.0/(_PM_UPDATE_RATE/self.output_decimation)
-
-		log.debug("Output decimation: %f, Shift: %f, Samplerate: %f" % (self.output_decimation, shift, _PM_UPDATE_RATE/self.output_decimation))
+		log.info("Samplerate set to %.2f Hz", _PM_UPDATE_RATE/float(self.output_decimation) )
 
 	def get_samplerate(self):
 		"""
