@@ -225,8 +225,8 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 		# Define any (non-register-mapped) properties that are used when committing
 		# as a commit is called when the instrument is set running
-		self.trig_volts = None
-		self.hysteresis_volts = None
+		self.trig_volts = 0
+		self.hysteresis_volts = 0
 
 		# All instruments need a binstr, procstr and format string.
 		self.logname = "MokuOscilloscopeData"
@@ -341,12 +341,11 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		if (source == _OSC_TRIG_CH1):
 			level = scales['gain_adc1']
 		elif (source == _OSC_TRIG_CH2):
-			level = cales['gain_adc2']
+			level = scales['gain_adc2']
 		elif (source == _OSC_TRIG_DA1):
-			level = (scales['gain_dac1'])/16
+			level = (scales['gain_dac1'])*16
 		elif (source == _OSC_TRIG_DA2):
-			level = (scales['gain_dac2'])/16
-
+			level = (scales['gain_dac2'])*16
 		return level
 
 	@needs_commit
@@ -592,10 +591,8 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 	def _update_dependent_regs(self, scales):
 		# Trigger level must be scaled depending on the current relay settings and chosen trigger source
-		if self.trig_volts is not None:
-			self.trigger_level = self.trig_volts / self._source_volts_per_bit(self.trig_ch, scales)
-		if self.hysteresis_volts is not None:
-			self.hysteresis = self.hysteresis_volts / self._source_volts_per_bit(self.trig_ch, scales)
+		self.trigger_level = self.trig_volts / self._source_volts_per_bit(self.trig_ch, scales)
+		self.hysteresis = self.hysteresis_volts / self._source_volts_per_bit(self.trig_ch, scales)
 
 	def _update_datalogger_params(self):
 		scales = self._calculate_scales()
