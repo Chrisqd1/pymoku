@@ -909,7 +909,6 @@ class Moku(object):
 
 		bsv = self._deploy(partial_index=0, use_external=use_external)
 		log.debug("Bitstream version %d", bsv)
-		self._instrument._sync_registers()
 		self._instrument._set_running(True)
 		self._instrument._set_instrument_active(True)
 

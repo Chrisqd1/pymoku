@@ -361,7 +361,7 @@ class MokuInstrument(object):
 			log.warning("Can't read calibration values.")
 
 
-	def commit(self):
+	def commit(self, update_state=True):
 		"""
 		Apply all modified settings.
 
@@ -372,9 +372,10 @@ class MokuInstrument(object):
 		    functions. Manually calling this function allows you to atomically apply many instrument settings at once.
 		"""
 		if self._moku is None: raise NotDeployedException()
-		self._stateid = (self._stateid + 1) % 256 # Some statid docco says 8-bits, some 16.
-		self.state_id = self._stateid
-		self.state_id_alt = self._stateid
+		if update_state:
+			self._stateid = (self._stateid + 1) % 256 # Some statid docco says 8-bits, some 16.
+			self.state_id = self._stateid
+			self.state_id_alt = self._stateid
 
 		regs = [ (i, d) for i, d in enumerate(self._localregs) if d is not None ]
 		# TODO: Save this register set against stateid to be retrieved later
@@ -400,8 +401,25 @@ class MokuInstrument(object):
 		self._on_reg_sync()
 
 	def _on_reg_sync(self):
-		# Designed to be overwritten by child instruments to update local variables
-		# when a new moku has been reg sync'd
+		# This function acts when a Moku's register state is synchronised to the
+		# local Moku instance. It is useful to update local variables and perform
+		# sanity checks on the device state before it is deemed 'useable'.
+
+		# Check for an unconfigured Moku device (all non-control registers zero)
+		reg_check_mask = [True] * 128
+		# Ignore control registers
+		reg_check_mask[0:4] = [False] * 4
+		# Ignore DAC Test register
+		reg_check_mask[26] = False
+		# Ignore State ID register
+		reg_check_mask[63] = False
+
+		masked_regs = [d for d,s in zip(self._remoteregs, reg_check_mask) if s]
+
+		if not any(masked_regs):
+			self.set_defaults()
+			self.commit()
+
 		return
 
 	def _dump_remote_regs(self):
@@ -435,7 +453,7 @@ class MokuInstrument(object):
 		"""
 		reg = (INSTR_RST if not active else 0)
 		self._localregs[REG_CTL] = reg
-		self.commit()
+		self.commit(update_state=False)
 
 	@needs_commit
 	def set_frontend(self, channel, fiftyr=False, atten=True, ac=False):

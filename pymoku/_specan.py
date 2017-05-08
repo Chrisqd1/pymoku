@@ -368,8 +368,6 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		# Local output sweep amplitudes
 		self._tr1_amp = 0
 		self._tr2_amp = 0
-		self.tr1_incr = 0
-		self.tr2_incr = 0
 		self.sweep1 = False
 		self.sweep2 = False
 
@@ -421,7 +419,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		self.dec_iir  = d4
 
 		total_decimation = d1 * d2 * d3 * d4
-		self._total_decimation = total_decimation
+		self._total_decimation = total_decimation if total_decimation else 1
 
 		log.debug("Decimations: %d %d %d %d = %d (ideal %f)", d1, d2, d3, d4, total_decimation, ideal)
 
@@ -619,6 +617,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		self.tr1_incr = 0
 		self.tr2_incr = 0
 
+		self.set_span(0,250e6)
 		self.window = _SA_WIN_BH
 
 	def _calculate_freqStep(self, decimation, render_downsamp):
@@ -763,12 +762,12 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 
 		log.debug("SW1: %s, AMP1: %f, INCR1: %f, FREQ1: %f/%f, SW2: %s, AMP2: %f, INCR2: %f, FREQ2: %f/%f", self.sweep1, self.tr1_amp, self.tr1_incr, self.tr1_start, self.tr1_stop, self.sweep2, self.tr2_amp, self.tr2_incr, self.tr2_start, self.tr2_stop)
 
-	def commit(self):
+	def commit(self, *args, **kwargs):
 		# Update registers that depend on others being calculated
 		self._update_dependent_regs()
 
 		# Push the controls through to the device
-		super(SpectrumAnalyser, self).commit()
+		super(SpectrumAnalyser, self).commit(*args,**kwargs)
 
 		# Update the scaling factors for processing of incoming frames
 		# stateid allows us to track which scales correspond to which register state
@@ -780,13 +779,20 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 	commit.__doc__ = MokuInstrument.commit.__doc__
 
 
-	def _on_sync_regs(self):
-		d1 = int(self.dec_enable) * 4
-		self._total_decimation = d1 * self.dec_cic2 * self.dec_cic3 * self.dec_iir
+	def _on_reg_sync(self):
+		super(SpectrumAnalyser, self)._on_reg_sync()
+
+		if self.dec_enable:
+			d1 = 4
+			total_decimation = d1 * self.dec_cic2 * self.dec_cic3 * self.dec_iir
+		else:
+			total_decimation = 1
+		self._total_decimation = total_decimation
 
 		fspan = ADC_SMP_RATE / 2.0 / self._total_decimation
+
 		fbin_resolution = fspan / _SA_FFT_LENGTH
-		window_factor = _SA_WINDOW_WIDTH[window]
+		window_factor = _SA_WINDOW_WIDTH[self.window]
 
 		self.rbw = self.rbw_ratio * window_factor * fbin_resolution
 		self.f2 = self._f2_full = self.demod

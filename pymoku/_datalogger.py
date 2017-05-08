@@ -147,6 +147,7 @@ class DataLogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 		self.hdrstr = self._get_hdrstr(self.ch1,self.ch2)
 
 	def _on_reg_sync(self):
+		super(DataLogger, self)._on_reg_sync()
 		if self.decimation_rate == 0:
 			self.timestep = 1.0/(_DL_ADC_SMPS)
 		else:
