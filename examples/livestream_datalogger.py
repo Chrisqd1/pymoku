@@ -1,3 +1,11 @@
+#
+# pymoku example: Livestream Datalogger
+#
+# This example demonstrates how you can use the Datalogger to live-stream
+# dual-channel voltage data over the network.
+#
+# (c) 2017 Liquid Instruments Pty. Ltd.
+#
 from pymoku import Moku, MokuException, StreamException
 from pymoku.instruments import *
 import time

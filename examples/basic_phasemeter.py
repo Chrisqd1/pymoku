@@ -1,23 +1,22 @@
 #
-# pymoku example: Phasemeter networking streaming
+# pymoku example: Phasemeter data logging
 #
-# This example provides a network stream of Phasemeter
-# data samples from Channel 1 and Channel 2. These samples
-# are output in the form (I,Q,F,phi,counter) for each channel.
+# This example demonstrates how you can configure the Phasemeter instrument
+# and log single-channel phase and [I,Q] data to a CSV file for a 10 
+# second duration.
 #
-# (c) 2016 Liquid Instruments Pty. Ltd.
+# (c) 2017 Liquid Instruments Pty. Ltd.
 #
 from pymoku import Moku, StreamException
 from pymoku.instruments import *
-import math
+import math, time
 
-# The phasemeter is a little more complex than some instruments as its native output
-# is a stream of measurements, accessed through the datalogger; rather than a sequence
-# of frames containing a range of data.  This simple example just records 10 seconds of
-# measurements to a CSV file.
+# Connect to your Moku by its device name
+# Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
+m = Moku.get_by_name('Moku')
 
-m = Moku.get_by_name('example')
 i = Phasemeter()
+
 # Set up Moku as a Phasemeter, and use the external 10MHz reference clock
 m.deploy_instrument(i, use_external=True)
 
@@ -28,16 +27,20 @@ try:
 
 	# Stop an existing log, if any, then start a new one. 10 seconds of both channels to the
 	# SD Card (rather than internal storage). Using CSV format.
-	i.datalogger_stop()
-	i.datalogger_start(duration=10, use_sd=False, ch1=True, ch2=False, filetype='csv')
+	i.stop_data_log()
+	i.start_data_log(duration=10, use_sd=True, ch1=True, ch2=False, filetype='csv')
 
-	# Wait for log, and upload on completion. Also checks for any session errors
-	i.datalogger_wait(upload=True)
+	# Track progress percentage of the data logging session
+	while i.progress_data_log() < 100:
+		time.sleep(0.1)
+
+	# Upload the log file to the local directory
+	i.upload_data_log()
+	print("Uploaded log file to local directory.")
 
 except StreamException as e:
 	print("Error occured: %s" % e.message)
 finally:
-	# "stop" does have a purpose if the logging session has already completed: It signals that
-	# we no longer care about error messages and so on.
-	i.datalogger_stop()
+	# Denote that we are done with the data logging session so resources may be cleand up
+	i.stop_data_log()
 	m.close()

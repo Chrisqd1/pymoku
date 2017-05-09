@@ -2,8 +2,13 @@ import numpy as np
 import warnings
 warnings.filterwarnings("ignore")
 
-# Helper function which calculates the rise time of input waveform data
 def calculate_risetime(amplitude_data, time_data):
+	"""
+		A helper function which calculates an approximation to waveform
+		rise time.
+
+		For demonstration purposes only.
+	"""
 
 	# Determine the waveform amplitude differential
 	min_val = min(amplitude_data)
@@ -20,8 +25,13 @@ def calculate_risetime(amplitude_data, time_data):
 	# The time difference between the end points is approximately the rise time
 	return time_data[i_high] - time_data[i_low]
 
-# Helper function which calculates the rise time of input waveform data
 def calculate_linewidth(power_data, frequency_data):
+	"""
+		A helper function which calculates an approximation to spectrum 
+		line width.
+
+		For demonstration purposes only.
+	"""
 
 	# Find the peak
 	peak_index = np.argmax(power_data)

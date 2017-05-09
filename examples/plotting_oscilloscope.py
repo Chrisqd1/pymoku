@@ -1,3 +1,11 @@
+#
+# pymoku example: Plotting Oscilloscope
+#
+# This example demonstrates how you can configure the Oscilloscope instrument,
+# and view triggered time-voltage data frames in real-time. 
+#
+# (c) 2017 Liquid Instruments Pty. Ltd.
+#
 from pymoku import Moku
 from pymoku.instruments import *
 import time, logging
@@ -7,7 +15,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 
 logging.basicConfig(format='%(asctime)s:%(name)s:%(levelname)s::%(message)s')
-logging.getLogger('pymoku').setLevel(logging.DEBUG)
+logging.getLogger('pymoku').setLevel(logging.INFO)
 
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
@@ -40,7 +48,7 @@ try:
 	# View this generated waveform on Channel 2
 	i.set_source(1, 'out')
 
-	# Get initla data frame to set up plotting parameters. This can be done once
+	# Get initial data frame to set up plotting parameters. This can be done once
 	# if we know that the axes aren't going to change (otherwise we'd do
 	# this in the loop)
 	data = i.get_realtime_data()

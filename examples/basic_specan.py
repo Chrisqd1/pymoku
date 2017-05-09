@@ -1,3 +1,11 @@
+#
+# pymoku example: Basic Spectrum Analyser
+#
+# This example demonstrates how you can use the Spectrum Analyser instrument to
+# to retrieve a single spectrum data frame over a set frequency span.
+#
+# (c) 2017 Liquid Instruments Pty. Ltd.
+#
 from pymoku import Moku
 from pymoku.instruments import *
 
@@ -12,7 +20,7 @@ i = SpectrumAnalyser()
 m.deploy_instrument(i)
 
 try:
-	# DC to 10MHz span, apply changes
+	# DC to 10MHz span
 	i.set_span(0, 10e6)
 
 	# Get the scan results and print them out (power vs frequency, two channels)

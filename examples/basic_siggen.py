@@ -1,3 +1,12 @@
+#
+# pymoku example: Basic Signal Generator
+#
+# This example demonstrates how you can use the Signal Generator instrument to
+# generate an amplitude modulated sinewave on Channel 1, and un-modulated 
+# squarewave on Channel 2.
+#
+# (c) 2017 Liquid Instruments Pty. Ltd.
+#
 from pymoku import Moku
 from pymoku.instruments import *
 import time
@@ -22,6 +31,6 @@ try:
 	# Amplitude modulate the Channel 1 sinewave with another internally-generated sinewave.
 	# 100% modulation depth at 10Hz.
 	i.gen_modulate(1, 'amplitude', 'internal', 1, 10)
-	i.commit()
+
 finally:
 	m.close()

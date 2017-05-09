@@ -1,3 +1,11 @@
+#
+# pymoku example: Basic Datalogger
+#
+# This example demonstrates use of the Datalogger instrument to log time-series
+# voltage data to a (Binary or CSV) file. 
+#
+# (c) 2017 Liquid Instruments Pty. Ltd.
+#
 from pymoku import Moku, StreamException
 from pymoku.instruments import *
 import time
@@ -20,7 +28,7 @@ try:
 	# SD Card (rather than internal storage). Use the Moku's binary file format for better speed
 	# and size performance.
 	i.stop_data_log()
-	i.start_data_log(duration=10, use_sd=True, ch1=True, ch2=True, filetype='bin')
+	i.start_data_log(duration=10, use_sd=True, ch1=True, ch2=True, filetype='csv')
 
 	# Track progress percentage of the data logging session
 	progress = 0

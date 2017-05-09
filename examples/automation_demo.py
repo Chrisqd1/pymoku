@@ -1,9 +1,18 @@
+#
+# pymoku example: Automated Test Demonstration Script
+#
+# This script demonstrates how the Moku could be utilised in an
+# automated test application. 
+#
+# (c) 2017 Liquid Instruments Pty. Ltd.
+#
 from pymoku import Moku
 from pymoku.instruments import *
 from pymoku import _utils
 
 from automation_demo_helpers import calculate_risetime, calculate_linewidth
 
+# Plotting libraries
 import matplotlib
 import matplotlib.pyplot as plt
 import seaborn as sns
@@ -26,14 +35,16 @@ def main():
 
 	print("Beginning automated testing sequence")
 
-	# Phase 1 - Rise Times
+	# Connect to the Moku device by name
 	moku = Moku.get_by_name('Moku')
-	res1, fails1, criteria1 = phase1(moku)
-	moku.close()
 
-	# Phase 2 - Line Widths
-	moku = Moku.get_by_name('Moku')
+	# Run Phase 1 - Rise Times
+	res1, fails1, criteria1 = phase1(moku)
+
+	# Run Phase 2 - Line Widths
 	res2, fails2, criteria2 = phase2(moku)
+
+	# Close connection to the Moku
 	moku.close()
 
 	# Generate results
@@ -179,7 +190,6 @@ def phase2(moku):
 
 	# Generate the simulation signal
 	specan.gen_sinewave(1, 1.0, sine_frequency)
-	specan.enable_output(1, True)
 
 	# Set on-device averaging of 8 FFTs
 	specan.waveform_avg1 = 3
@@ -207,10 +217,10 @@ def phase2(moku):
 	for i in range(number_of_measurements):
 
 		# Get new spectrum data (ensuring it is unique to the last)
-		data = specan.get_realtime_data(timeout=10)
+		data = specan.get_data(timeout=10)
 		while data.waveformid <= waveformid:
 			time.sleep(0.05)
-			data = specan.get_realtime_data(timeout=10)
+			data = specan.get_data(timeout=10)
 		waveformid = data.waveformid
 
 		# Find the peak and calculate the linewidth of this new spectrum data

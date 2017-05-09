@@ -1,3 +1,11 @@
+#
+# pymoku example: Basic Oscilloscope
+#
+# This script demonstrates how to use the Oscilloscope instrument
+# to retrieve a single frame of dual-channel voltage data.
+#
+# (c) 2017 Liquid Instruments Pty. Ltd.
+#
 from pymoku import Moku
 from pymoku.instruments import *
 

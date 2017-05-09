@@ -1,18 +1,13 @@
 #
-# pymoku example: Phasemeter networking streaming
+# pymoku example: Plotting Phasemeter
 #
-# This example provides a network stream of Phasemeter
-# data samples from Channel 1 and Channel 2. These samples
-# are output in the form [fs, f, count, phase, I, Q] for each channel.
+# This example demonstrates how you can configure the Phasemeter instrument
+# and stream dual-channel samples of the form [fs, f, count, phase, I, Q]. 
+# The signal amplitude is calculated using these samples, and plotted for 
+# real-time viewing.
 #
-# (c) 2016 Liquid Instruments Pty. Ltd.
+# (c) 2017 Liquid Instruments Pty. Ltd.
 #
-
-# The phasemeter is a little more complex than some instruments as its native output
-# is a stream of measurements, accessed through the datalogger; rather than a sequence
-# of frames containing a range of data.  One can record this stream to a CSV or binary
-# file, but this example streams the samples over the network so they can be accessed,
-# processed and plotted in real time.
 import pymoku
 from pymoku import Moku, NoDataException, FrameTimeout, StreamException
 from pymoku.instruments import *
@@ -26,7 +21,7 @@ logging.getLogger('pymoku').setLevel(logging.INFO)
 pymoku.autocommit = False
 
 # Use Moku.get_by_serial() or get_by_name() if you don't know the IP
-m = Moku.get_by_name('example')
+m = Moku.get_by_name('Moku')
 i = m.discover_instrument()
 
 if i is None or i.type != 'phasemeter':

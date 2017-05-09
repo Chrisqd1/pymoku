@@ -1,3 +1,13 @@
+#
+# pymoku example: Plotting Spectrum Analyser
+#
+# This example demonstrates how you can configure the Spectrum Analyser 
+# instrument and plot its spectrum data in real-time. It also shows how
+# you can use its embedded signal generator to generate a sweep and single
+# frequency waveform on the output channels.
+#
+# (c) 2017 Liquid Instruments Pty. Ltd.
+#
 from pymoku import Moku
 from pymoku.instruments import *
 import time, logging
@@ -10,7 +20,7 @@ logging.basicConfig(format='%(asctime)s:%(name)s:%(levelname)s::%(message)s')
 logging.getLogger('pymoku').setLevel(logging.INFO)
 
 # Use Moku.get_by_serial() or Moku('192.168.XXX.XXX') if you know the IP
-m = Moku.get_by_name('Jet Fuel')
+m = Moku.get_by_name('Moku')
 
 i = m.discover_instrument()
 if i is None or i.type != 'specan':

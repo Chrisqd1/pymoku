@@ -1,25 +1,22 @@
 #
 # pymoku example: Phasemeter networking streaming
 #
-# This example provides a network stream of Phasemeter
-# data samples from Channel 1 and Channel 2. These samples
-# are output in the form (I,Q,F,phi,counter) for each channel.
+# This example provides a 10-second network stream of Phasemeter data 
+# samples from Channel 1. These samples are in the form [fs, f, count, phase, I, Q].
+# Real-time processing of instrument data is demonstrated by calculating the 
+# signal amplitude of each sample (A = I^2 + Q^2) and printing the results
+# at the end of the streaming session. 
 #
-# (c) 2016 Liquid Instruments Pty. Ltd.
+# (c) 2017 Liquid Instruments Pty. Ltd.
 #
 from pymoku import Moku, NoDataException, StreamException, FrameTimeout
 from pymoku.instruments import *
 import math
 
-# The phasemeter is a little more complex than some instruments as its native output
-# is a stream of measurements, accessed through the datalogger; rather than a sequence
-# of frames containing a range of data.  One can record this stream to a CSV or binary
-# file, but this example streams the samples over the network so they can be accessed
-# and prcessed in real time.  In this particular case, the only processing we do is
-# to convert I and Q to amplitude and record that.
+# Use Moku.get_by_serial() or Moku('192.168.XXX.XXX') if you know the IP
+m = Moku.get_by_name('Moku')
+i = PhaseMeter()
 
-m = Moku.get_by_name('example')
-i = Phasemeter()
 m.deploy_instrument(i, use_external=False)
 
 try:
@@ -29,23 +26,20 @@ try:
 
 	# Stop previous recording session, if any, then start a new datalogging measurement
 	# session, streaming to the network so we can look at it in real time.
-	i.datalogger_stop()
-	i.datalogger_start(duration=10, ch1=True, ch2=False, filetype='net')
+	i.stop_stream_data()
+	i.start_stream_data(duration=10, ch1=True, ch2=False)
 
 	amplitudes = []
 
 	while True:
+		# Get 10 samples off the network at a time
+		samples = i.get_stream_data(n=10)
 
-		# Check for any errors in datalogging session
-		i.datalogger_error()
+		# Break out of this loop if we received no samples
+		# This denotes the end of the streaming session
+		if not any(samples): break
 
-		try:
-			ch, idx, samples = i.datalogger_get_samples(timeout=10)
-		except NoDataException as e:
-			print("Data stream complete")
-			break
-
-		for s in samples:
+		for s in samples[0]:
 			# s is of the form [fs, f, count, phase, I, Q]
 			# Convert I,Q to amplitude and append to data
 			amplitudes.append(math.sqrt(s[4]**2 + s[5]**2))
@@ -59,5 +53,6 @@ except FrameTimeout:
 finally:
 	# "stop" does have a purpose if the logging session has already completed: It signals that
 	# we no longer care about error messages and so on.
-	i.datalogger_stop()
+	i.stop_stream_data()
+	
 	m.close()
