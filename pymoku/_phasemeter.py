@@ -61,9 +61,9 @@ _PM_SG_FREQSCALE = _PM_FREQSCALE
 _PM_LOGRATE_FAST = 123
 _PM_LOGRATE_SLOW = 31
 
-class PhaseMeter_SignalGenerator(MokuInstrument):
+class Phasemeter_SignalGenerator(MokuInstrument):
 	def __init__(self):
-		super(PhaseMeter_SignalGenerator, self).__init__()
+		super(Phasemeter_SignalGenerator, self).__init__()
 		self._register_accessors(_pm_siggen_reg_hdl)
 
 	@needs_commit
@@ -116,10 +116,10 @@ _pm_siggen_reg_hdl = {
 											from_reg_unsigned(16,16, xform=lambda obj, a: a * obj._dac_gains()[1]))
 }
 
-class PhaseMeter(_stream_instrument.StreamBasedInstrument, PhaseMeter_SignalGenerator): #TODO Frame instrument may not be appropriate when we get streaming going.
-	""" PhaseMeter instrument object. This should be instantiated and attached to a :any:`Moku` instance.
+class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_SignalGenerator): #TODO Frame instrument may not be appropriate when we get streaming going.
+	""" Phasemeter instrument object. This should be instantiated and attached to a :any:`Moku` instance.
 
-	.. automethod:: pymoku.instruments.PhaseMeter.__init__
+	.. automethod:: pymoku.instruments.Phasemeter.__init__
 
 	.. attribute:: type
 		:annotation: = "phasemeter"
@@ -128,13 +128,13 @@ class PhaseMeter(_stream_instrument.StreamBasedInstrument, PhaseMeter_SignalGene
 
 	"""
 	def __init__(self):
-		"""Create a new PhaseMeter instrument, ready to be attached to a Moku."""
-		super(PhaseMeter, self).__init__()
+		"""Create a new Phasemeter instrument, ready to be attached to a Moku."""
+		super(Phasemeter, self).__init__()
 		self._register_accessors(_pm_reg_handlers)
 
 		self.id = 3
 		self.type = "phasemeter"
-		self.logname = "MokuPhaseMeterData"
+		self.logname = "MokuPhasemeterData"
 
 		self.binstr = "<p32,0xAAAAAAAA:u48:u48:s15:p1,0:s48:s32:s32"
 		self.procstr = ["*{:.16e} : *{:.16e} : : *{:.16e} : *C*{:.16e} : *C*{:.16e} ".format(_PM_HERTZ_SCALE, _PM_HERTZ_SCALE,  _PM_CYCLE_SCALE, _PM_VOLTS_SCALE, _PM_VOLTS_SCALE),
@@ -296,7 +296,7 @@ class PhaseMeter(_stream_instrument.StreamBasedInstrument, PhaseMeter_SignalGene
 
 	@needs_commit
 	def set_defaults(self):
-		super(PhaseMeter, self).set_defaults()
+		super(Phasemeter, self).set_defaults()
 
 		# Because we have to deal with a "frame" type instrument
 		self.x_mode = _instrument.ROLL

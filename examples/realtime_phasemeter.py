@@ -19,7 +19,7 @@ import math
 # to convert I and Q to amplitude and record that.
 
 m = Moku.get_by_name('example')
-i = PhaseMeter()
+i = Phasemeter()
 m.deploy_instrument(i, use_external=False)
 
 try:

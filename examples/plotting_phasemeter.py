@@ -31,7 +31,7 @@ i = m.discover_instrument()
 
 if i is None or i.type != 'phasemeter':
 	print("No or wrong instrument deployed")
-	i = PhaseMeter()
+	i = Phasemeter()
 	m.deploy_instrument(i)
 else:
 	print("Attached to existing Phasemeter")

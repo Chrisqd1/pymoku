@@ -17,7 +17,7 @@ import math
 # measurements to a CSV file.
 
 m = Moku.get_by_name('example')
-i = PhaseMeter()
+i = Phasemeter()
 # Set up Moku as a Phasemeter, and use the external 10MHz reference clock
 m.deploy_instrument(i, use_external=True)
 

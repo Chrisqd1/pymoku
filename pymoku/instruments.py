@@ -24,7 +24,7 @@ MokuInstrument = _instrument.MokuInstrument
 
 Oscilloscope = _oscilloscope.Oscilloscope
 SignalGenerator = _siggen.SignalGenerator
-PhaseMeter = _phasemeter.PhaseMeter
+Phasemeter = _phasemeter.Phasemeter
 SpectrumAnalyser = _specan.SpectrumAnalyser
 LockInAmp = _lockinamp.LockInAmp
 DataLogger = _datalogger.DataLogger
@@ -32,7 +32,7 @@ DataLogger = _datalogger.DataLogger
 id_table = {
 	1: Oscilloscope,
 	2: SpectrumAnalyser,
-	3: PhaseMeter,
+	3: Phasemeter,
 	4: SignalGenerator,
 	5: None, # PID Controller
 	6: None, # IIR Filter Box

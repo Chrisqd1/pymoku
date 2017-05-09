@@ -22,7 +22,7 @@ Where:
 The stream is accessed using the *datalogger_* functions; especially :any:`datalogger_start` and, if streaming
 in real-time to pymoku over the network (rather than to a file), :any:`datalogger_get_samples`.
 
-.. note:: The requirement to :any:`commit() <pymoku.instruments.Oscilloscope.commit>` before a change takes effect is the most common cause of program malfunctions when interfacing with the Moku:Lab. Any *set_* or *gen_* function, or any direct manipulation of attributes such as :any:`framerate`, must be explicitly committed.
+.. note:: The requirement to :any:`commit() <pymoku.instruments.Phasemeter.commit>` before a change takes effect is the most common cause of program malfunctions when interfacing with the Moku:Lab. Any *set_* or *gen_* function, or any direct manipulation of attributes such as :any:`framerate`, must be explicitly committed.
 
 Example Usage
 -------------
@@ -36,7 +36,7 @@ Example Usage
 	import math
 
 	m = Moku.get_by_name('example')
-	i = PhaseMeter()
+	i = Phasemeter()
 	m.deploy_instrument(i)
 
 	try:
@@ -68,6 +68,6 @@ Example Usage
 The Phasemeter Class
 --------------------
 
-.. autoclass:: pymoku.instruments.PhaseMeter
+.. autoclass:: pymoku.instruments.Phasemeter
 	:members:
 	:inherited-members:
