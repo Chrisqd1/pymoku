@@ -92,7 +92,7 @@ class VoltsData(_frame_instrument.InstrumentData):
 		self._scales = scales
 
 	def __json__(self):
-		return { 'ch1': self.ch1, 'ch2' : self.ch2, 'time' : self.time }
+		return { 'ch1': self.ch1, 'ch2' : self.ch2, 'time' : self.time, 'waveform_id' : self.waveformid }
 
 	def process_complete(self):
 		if self._stateid not in self._scales:

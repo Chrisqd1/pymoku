@@ -184,7 +184,7 @@ class SpectrumData(_frame_instrument.InstrumentData):
 		self._scales = scales
 
 	def __json__(self):
-		return { 'ch1' : self.ch1, 'ch2' : self.ch2, 'frequency' : self.frequency }
+		return { 'ch1' : self.ch1, 'ch2' : self.ch2, 'frequency' : self.frequency, 'waveform_id' : self.waveformid }
 
 	# convert an RMS voltage to a power level (assuming 50Ohm load)
 	def _vrms_to_dbm(self, v):
