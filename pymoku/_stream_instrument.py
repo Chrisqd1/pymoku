@@ -38,6 +38,11 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 	def start_stream_data(self, start=0, duration=10, ch1=True, ch2=True):
 		"""	Start streaming instrument data over the network.
 
+	    Samples being streamed can be retrieved by calls to :any:`get_stream_data`.
+
+	    All outstanding settings must have been committed before starting the stream. This
+	    will always be true if *pymoku.autocommit=True*, the default.
+
 		:type start: float
 		:param start: Start time in seconds from the time of function call
 		:type duration: float
@@ -54,7 +59,11 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 		self._no_data = False
 
 	def stop_stream_data(self):
-		""" Stops instrument data being streamed over the network
+		""" Stops instrument data being streamed over the network.
+
+		Should be called exactly once for every *start_stream_data*, even if the streaming session
+		stopped itself due to timeout. Calling this function not only causes the stream to stop, but
+	    also resets error and transfer state, ready to start a new streaming session.
 		"""
 		self._no_data = True
 		self._stream_stop()
@@ -159,6 +168,9 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 
 	def stop_data_log(self):
 		""" Stops the current instrument data logging session.
+
+		This must be called exactly once for every :any:`start_data_log` call, even if the log terminated itself
+		due to timeout. Calling this function doesn't just stop the session (if it isn't already stopped)
 		"""
 		self._stream_stop()
 
@@ -241,6 +253,14 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 			log.debug("Uploaded %d files", uploaded)
 
 	def get_timestep(self):
+		""" Returns the expected time between streamed samples.
+
+		This returns the inverse figure to :any:`get_samplerate`. This form is more useful
+		for constructing time axes to support, for example, :any:`get_stream_data`.
+
+		:rtype: float
+		:returns: Time between data samples in seconds.
+		""" 
 		if self.timestep == 0:
 			raise Exception("Samplerate looks to be unset.")
 		return self.timestep

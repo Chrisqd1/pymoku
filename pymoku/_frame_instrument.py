@@ -170,8 +170,24 @@ class FrameBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstru
 
 
 	def get_data(self, timeout=None):
-		""" Get a :any:`InstrumentData` from the internal data channel buffer.
-		This will commit any outstanding device settings and pause acquisition.
+		""" Get full-resolution data from the instrument.
+
+		This will pause the instrument and download the entire contents of the instrument's
+		internal memory. This may include slightly more data than the instrument is set up
+		to record due to rounding of some parameters in the instrument.
+
+		All settings must be committed before you call this function. If *pymoku.autocommit=True*
+		(the default) then this will always be true, otherwise you will need to have called
+		:any:`commit` first.
+
+		The download process may take a second or so to complete. If you require high rate
+		data, e.g. for rendering a plot, see :any:`get_realtime_data`.
+
+		:type timeout: float
+		:param timeout: Maximum time to wait to receive the samples over the network, or *None*
+		for indefinite.
+
+		:return: :any:`InstrumentData` subclass, specific to the instrument.
 		"""
 		if self._moku is None: raise NotDeployedException()
 
@@ -230,7 +246,34 @@ class FrameBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstru
 			raise Exception("Unable to process instrument data.")
 
 	def get_realtime_data(self, timeout=None, wait=True):
-		""" Get a :any:`InstrumentData` from the internal frame buffer
+		""" Get downsampled data from the instrument with low latency.
+
+		Returns a new :any:`InstrumentData` subclass (instrument-specific), containing
+		a version of the data that may have been downsampled from the original in order to
+		be transferred quickly.
+
+		This function always returns a new object at :any:`framerate` (10Hz by default), whether
+		or not there is new data in that object. This can be verified by checking the return
+		object's *waveform_id* parameter, which increments each time a new waveform is captured
+		internally.
+
+		The downsampled, low-latency nature of this data makes it particularly suitable for
+		plotting in real time. If you require high-accuracy, high-resolution data for analysis,
+		see :any:`get_data`.
+
+		If the *wait* parameter is true (the default), this function will wait for any new
+		settings to be applied before returning. That is, if you have set a new timebase (for example),
+		calling this with *wait=True* will guarantee that the object returned has this new timebase.
+		This may include waiting for a trigger event, and therefore can take an arbitrary amount of
+		time to return, or not return at all (if for example the instrument is paused), and therefore
+		must have *timeout* set appropriately.
+
+		:type wait: bool
+		:param wait: If *true* (default), waits for a new waveform to be captured with the most
+		recently-applied settings, otherwise just return the most recently captured data.
+		:type timeout: float
+		:param timeout: Maximum time to wait for a new frame. This makes most sense when combined
+		with the *wait* parameter.
 		"""
 		try:
 			# Dodgy hack, infinite timeout gets translated in to just an exceedingly long one
