@@ -31,8 +31,9 @@ try:
 	i.start_data_log(duration=10, use_sd=True, ch1=True, ch2=False, filetype='csv')
 
 	# Track progress percentage of the data logging session
+	print("Waiting for completion.")
 	while i.progress_data_log() < 100:
-		time.sleep(0.1)
+		time.sleep(1)
 
 	# Upload the log file to the local directory
 	i.upload_data_log()
