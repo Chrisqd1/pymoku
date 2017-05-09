@@ -99,9 +99,11 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 			# We don't need to track the number of processed samples if n = [0,1]
 			num_processed_samples = [-1,-1]
 
-
 		# Only "get" samples off the network if we haven't already processed enough to return 'n'
-		while (n == -1) or (self.ch1 and (num_processed_samples[0] < n)) or (self.ch2 and (num_processed_samples[1] < n)):
+		# for all enabled channels. 
+		while ((n == -1) or 
+			(self.ch1 and ((num_processed_samples[0] <= n) or (num_processed_samples[0] <= 0))) or 
+			(self.ch2 and ((num_processed_samples[1] < n) or (num_processed_samples[1] <=0)))):
 
 			try:
 				self._stream_receive_samples(timeout)
