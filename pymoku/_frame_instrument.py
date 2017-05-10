@@ -184,8 +184,8 @@ class FrameBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstru
 		data, e.g. for rendering a plot, see :any:`get_realtime_data`.
 
 		:type timeout: float
-		:param timeout: Maximum time to wait to receive the samples over the network, or *None*
-		for indefinite.
+		:param timeout: Maximum time to wait to receive the samples over the network, or *None* 
+			for indefinite.
 
 		:return: :any:`InstrumentData` subclass, specific to the instrument.
 		"""
@@ -270,10 +270,10 @@ class FrameBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstru
 
 		:type wait: bool
 		:param wait: If *true* (default), waits for a new waveform to be captured with the most
-		recently-applied settings, otherwise just return the most recently captured data.
+			recently-applied settings, otherwise just return the most recently captured data.
 		:type timeout: float
 		:param timeout: Maximum time to wait for a new frame. This makes most sense when combined
-		with the *wait* parameter.
+			with the *wait* parameter.
 		"""
 		try:
 			# Dodgy hack, infinite timeout gets translated in to just an exceedingly long one

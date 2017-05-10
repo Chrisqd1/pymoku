@@ -490,10 +490,10 @@ class MokuInstrument(object):
 		:type channel: int
 		:param channel: Channel for which the relay settings are being retrieved
 
-		Return array of bool with the front end configuration of channels
-		[0] 50 Ohm
-		[1] 10xAttenuation
-		[2] AC Coupling
+		:return: Array of bool with the front end configuration of channels
+			[0] 50 Ohm
+			[1] 10xAttenuation
+			[2] AC Coupling
 		"""
 		if channel == 1:
 			r = self.relays_ch1

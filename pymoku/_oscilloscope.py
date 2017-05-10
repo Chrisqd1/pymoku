@@ -393,7 +393,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		:type xmode: string, {'roll','sweep','fullframe'}
 		:param xmode:
 			Respectively; Roll Mode (scrolling), Sweep Mode (normal oscilloscope trace sweeping across the screen)
-			or Full Frame (Like sweep, but waits for the frame to be completed).
+			or Full Frame (like sweep, but waits for the frame to be completed).
 		"""
 		_str_to_xmode = {
 			'roll' : _OSC_ROLL,
