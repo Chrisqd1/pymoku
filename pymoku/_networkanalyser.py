@@ -17,7 +17,7 @@ REG_NA_LOG_EN				= 68
 REG_NA_HOLD_OFF_L			= 69
 REG_NA_SWEEP_LENGTH			= 71
 REG_NA_AVERAGE_TIME			= 72
-REG_NA_SINGLE_SWEEP			= 73
+REG_NA_ENABLES				= 73
 REG_NA_SWEEP_AMP_MULT		= 74
 REG_NA_SETTLE_CYCLES		= 76
 REG_NA_AVERAGE_CYCLES		= 77
@@ -74,7 +74,11 @@ class _NetAnChannel():
 		self.i_sig = [ input_signal[x] for x in range(0, 2*len(gain_correction), 2) ]
 		self.q_sig = [ input_signal[x] for x in range(1, 2*len(gain_correction), 2) ]
 
-		#self.magnitude_volts = [ 2.0*math.sqrt(I**2 + Q**2)/G/front_end_scale if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ]
+		# gain_correction = [1] * len(gain_correction)
+		calibration = None
+
+		self.gain_correction = gain_correction
+		# self.magnitude_volts = [ 2.0*math.sqrt(I**2 + Q**2)/G/front_end_scale if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ]
 		self.magnitude_volts = [ 2.0*math.sqrt(I**2 + Q**2)/G/front_end_scale if all ([I,Q,G]) else 2.0*math.sqrt(I**2)/G/front_end_scale if all([I,G]) else 2.0*math.sqrt(Q**2)/G/front_end_scale if all([Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ]
 
 		if calibration is not None :
@@ -407,27 +411,38 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 		self.set_frontend(1, True, False, False)
 		self.set_frontend(2, True, False, False)
-		self.set_sweep_parameters(start_frequency=1e3, end_frequency=1e7, sweep_length=512, log_scale=False, single_sweep=False, sweep_amplitude_ch1=1.0, sweep_amplitude_ch2=1.0, averaging_time=1e-3, settling_time=1e-3, averaging_cycles=1.0, settling_cycles=1.0)
-		self.single_sweep = False
+		self.set_single_sweep(False)
+		self.set_sweep_parameters(start_frequency=1e3, end_frequency=1e7, sweep_length=512, log_scale=True, single_sweep=False, sweep_amplitude_ch1=1.0, sweep_amplitude_ch2=1.0, averaging_time=1e-3, settling_time=1e-3, averaging_cycles=1.0, settling_cycles=1.0)
 
-		self.en_in_ch1 = True
-		self.en_in_ch2 = True
+
+		self.set_channel_enable(1,1)
+		self.set_channel_enable(2,1)
+		self.set_sweep_reset(0)
 
 		self.set_xmode(FULL_FRAME)
 		self.render_mode = RDR_DDS
 
+	def set_single_sweep(self, single_en):
+		self.single_sweep = single_en
+		self.loop_sweep = not single_en
+
+	def set_channel_enable(self, channel, en = 1):
+		if channel == 1 :
+			self.channel1_en = en
+		elif channel == 2:
+			self.channel2_en = en
+
+	def set_sweep_reset(self, reset_sweep = 0):
+		self.sweep_reset = reset_sweep
 
 	def set_start_freq(self, start_freq):
 		self.sweep_freq_min = start_freq
 
-
 	def get_sweep_freq_min(self) :
 		return float(self.sweep_freq_min)
 
-
 	def set_stop_freq(self, stop_freq):
 		self.stop_freq = stop_freq
-
 
 	def set_sweep_length(self, sweep_length):
 		self.sweep_length = sweep_length
@@ -440,7 +455,6 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 		self.scales[self._stateid]['calibration_ch1'] = self.calibration_ch1
 		self.scales[self._stateid]['calibration_ch2'] = self.calibration_ch2
-
 
 	def gain_correction(self, sweep_freq_delta, sweep_freq_min, sweep_points, averaging_time, averaging_cycles, log_scale):
 
@@ -530,7 +544,7 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		except KeyError:
 			log.warning("Moku appears uncalibrated")
 			g1 = g2 = 1
-
+			
 		log.debug("Gain values for ADC %s, %s = %f, %f", sect1, sect2, g1, g2)
 
 		return {'g1': g1, 'g2': g2,
@@ -571,6 +585,21 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 
 _na_reg_handlers = {
+	'loop_sweep':				(REG_NA_ENABLES,
+											to_reg_bool(0),
+											from_reg_bool(0)),
+	'single_sweep':				(REG_NA_ENABLES,
+											to_reg_bool(1),
+											from_reg_bool(1)),
+	'sweep_reset':				(REG_NA_ENABLES,
+											to_reg_bool(2),
+											from_reg_bool(2)),
+	'channel1_en':				(REG_NA_ENABLES,
+											to_reg_bool(3),
+											from_reg_bool(3)),
+	'channel2_en':				(REG_NA_ENABLES,
+											to_reg_bool(4),
+											from_reg_bool(4)),
 	'sweep_freq_min':			((REG_NA_SWEEP_FREQ_MIN_H, REG_NA_SWEEP_FREQ_MIN_L),
 											to_reg_unsigned(0, 48, xform=lambda obj, f: f * _NA_FREQ_SCALE),
 											from_reg_unsigned(0, 48, xform=lambda obj, f: f / _NA_FREQ_SCALE)),
@@ -580,9 +609,7 @@ _na_reg_handlers = {
 	'log_en':					(REG_NA_LOG_EN,
 											to_reg_bool(0),
 											from_reg_bool(0)),
-	'single_sweep':				(REG_NA_SINGLE_SWEEP,
-											to_reg_bool(0),
-											from_reg_bool(0)),
+
 	'sweep_length':				(REG_NA_SWEEP_LENGTH,
 											to_reg_unsigned(0, 10),
 											from_reg_unsigned(0, 10)),
