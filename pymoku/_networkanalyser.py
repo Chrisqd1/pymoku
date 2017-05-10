@@ -409,6 +409,9 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 		self.framerate = _NA_FPS
 		self.frame_length = _NA_SCREEN_WIDTH
 
+		self.en_in_ch1 = True
+		self.en_in_ch2 = True
+
 		self.set_frontend(1, True, False, False)
 		self.set_frontend(2, True, False, False)
 		self.set_single_sweep(False)
