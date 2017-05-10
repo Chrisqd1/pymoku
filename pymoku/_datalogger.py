@@ -23,10 +23,10 @@ _DL_BUFLEN			= CHN_BUFLEN
 _DL_SCREEN_WIDTH	= 1024
 _DL_ROLL			= ROLL
 
-class DataLogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGenerator):
+class Datalogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGenerator):
 
 	def __init__(self):
-		super(DataLogger, self).__init__()
+		super(Datalogger, self).__init__()
 		self._register_accessors(_dl_reg_handlers)
 
 		self.id = 7
@@ -34,7 +34,7 @@ class DataLogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 		self.calibration = None
 
 		# TODO: Allow user to disable logging of either channel
-		self.logname = "MokuDataLoggerData"
+		self.logname = "MokuDataloggerData"
 		self.binstr = "<s32"
 		self.procstr = ['','']
 		self.hdrstr = ''
@@ -44,7 +44,7 @@ class DataLogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 	@needs_commit
 	def set_defaults(self):
 		# Force X-Mode to be "roll" for streaming
-		super(DataLogger, self).set_defaults()
+		super(Datalogger, self).set_defaults()
 		self.x_mode = _DL_ROLL
 		self.set_samplerate(1e3)
 
@@ -147,7 +147,7 @@ class DataLogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 		self.hdrstr = self._get_hdrstr(self.ch1,self.ch2)
 
 	def _on_reg_sync(self):
-		super(DataLogger, self)._on_reg_sync()
+		super(Datalogger, self)._on_reg_sync()
 		if self.decimation_rate == 0:
 			self.timestep = 1.0/(_DL_ADC_SMPS)
 		else:
@@ -157,7 +157,7 @@ class DataLogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 	def _get_hdrstr(self, ch1, ch2):
 		chs = [ch1, ch2]
 
-		hdr = "% Moku:DataLogger\r\n"
+		hdr = "% Moku:Datalogger\r\n"
 		for i,c in enumerate(chs):
 			if c:
 				r = self.get_frontend(i+1)
