@@ -455,7 +455,7 @@ class MokuInstrument(object):
 		"""
 		reg = (INSTR_RST if not active else 0)
 		self._localregs[REG_CTL] = reg
-		self._commit(_update_state=False)
+		self._commit(update_state=False)
 
 	@needs_commit
 	def set_frontend(self, channel, fiftyr=False, atten=True, ac=False):

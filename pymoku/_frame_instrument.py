@@ -10,7 +10,7 @@ import zmq
 from collections import deque
 from queue import Queue, Empty
 
-from pymoku import Moku, FrameTimeout, NoDataException, StreamException, UncommittedSettings, dataparser, _stream_handler
+from pymoku import Moku, FrameTimeout, NoDataException, StreamException, UncommittedSettings, dataparser, _stream_handler, _get_autocommit
 from _stream_instrument import _STREAM_STATE_NONE, _STREAM_STATE_RUNNING, _STREAM_STATE_WAITING, _STREAM_STATE_INVAL, _STREAM_STATE_FSFULL, _STREAM_STATE_OVERFLOW, _STREAM_STATE_BUSY, _STREAM_STATE_STOPPED
 
 from . import _instrument
@@ -169,7 +169,7 @@ class FrameBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstru
 		return self._buflen
 
 
-	def get_data(self, timeout=None):
+	def get_data(self, timeout=None, wait=True):
 		""" Get full-resolution data from the instrument.
 
 		This will pause the instrument and download the entire contents of the instrument's
@@ -197,20 +197,21 @@ class FrameBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstru
 		# Stop existing logging sessions
 		self._stream_stop()
 
+		# Block waiting on state to propagate (if wait=True)
+		# This also gives us acquisition parameters for the buffer we will subsequently stream
+		try:
+			frame = self.get_realtime_data(timeout=timeout, wait=wait)
+		except FrameTimeout:
+			raise BufferTimeout('Timed out waiting on valid data.')
+
 		# Check if it is already paused
 		was_paused = self.get_pause()
 
-		# Force a pause even if it already has happened
+		# Force a pause so we can start streaming the buffer out
 		if not was_paused:
 			self.set_pause(True)
-			self.commit()
-
-		# Get a frame to see what the acquisition state was for the current buffer
-		# TODO: Need a way of getting buffer state information without frames
-		try:
-			frame = self.get_realtime_data(timeout=timeout, wait=False)
-		except FrameTimeout:
-			raise BufferTimeout('Timed out waiting on valid data.')
+			if not _get_autocommit():
+				self.commit()
 
 		# Get buffer data using a network stream
 		self._stream_start(start=0, duration=0, use_sd=False, ch1=True, ch2=True, filetype='net')
@@ -224,9 +225,11 @@ class FrameBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstru
 		# Clean up data streaming threads
 		self._stream_stop()
 
+		# Set pause state to what it was before
 		if not was_paused:
 			self.set_pause(False)
-			self.commit()
+			if not _get_autocommit():
+				self.commit()
 
 		channel_data = self._stream_get_processed_samples()
 		self._stream_clear_processed_samples()
