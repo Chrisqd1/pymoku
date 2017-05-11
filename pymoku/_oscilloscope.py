@@ -199,8 +199,8 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 	""" Oscilloscope instrument object.
 
 	To run a new Oscilloscope instrument, this should be instantiated and deployed via a connected
-	:any:`Moku` object using :any:`deploy_instrument`. Alternatively, a pre-configured instance can be
-	obtained by discovering an already running Oscilloscope instrument on a Moku:Lab device via
+	:any:`Moku` object using :any:`deploy_instrument`. Alternatively, a pre-configured instrument object
+	can be obtained by discovering an already running Oscilloscope instrument on a Moku:Lab device via
 	:any:`discover_instrument`.
 
 	.. automethod:: pymoku.instruments.Oscilloscope.__init__
@@ -217,7 +217,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 	"""
 	def __init__(self):
-		"""Create a new Oscilloscope instrument, ready to be attached to a Moku."""
+		"""Create a new Oscilloscope instrument, ready to be deploy to a Moku."""
 		super(Oscilloscope, self).__init__()
 		self._register_accessors(_osc_reg_handlers)
 

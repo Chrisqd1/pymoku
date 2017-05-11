@@ -24,8 +24,24 @@ _DL_SCREEN_WIDTH	= 1024
 _DL_ROLL			= ROLL
 
 class Datalogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGenerator):
+	""" Datalogger instrument object.
 
+	To run a new Datalogger instrument, this should be instantiated and deployed via a connected
+	:any:`Moku` object using :any:`deploy_instrument`. Alternatively, a pre-configured instrument object
+	can be obtained by discovering an already running Datalogger instrument on a Moku:Lab device via
+	:any:`discover_instrument`.
+
+	.. automethod:: pymoku.instruments.Datalogger.__init__
+
+	.. attribute:: type
+		:annotation: = "datalogger"
+
+		Name of this instrument.
+
+	"""
 	def __init__(self):
+		"""Create a new Datalogger instrument, ready to deploy to a Moku.
+		"""
 		super(Datalogger, self).__init__()
 		self._register_accessors(_dl_reg_handlers)
 
@@ -50,8 +66,7 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 
 		# Disable the signal generator by default
 		# TODO: Disable without using a gen_ function
-		self.gen_sinewave(1,0.0,10)
-		self.gen_sinewave(2,0.0,10)
+		self.gen_off()
 
 		self.set_source(1,'in')
 		self.set_source(2,'in')

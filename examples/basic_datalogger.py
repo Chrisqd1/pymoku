@@ -17,7 +17,7 @@ m = Moku.get_by_name('Moku')
 # Prepare the Datalogger instrument
 i = Datalogger()
 
-# Deploy the DataLogger to your Moku
+# Deploy the Datalogger to your Moku
 m.deploy_instrument(i)
 
 try:

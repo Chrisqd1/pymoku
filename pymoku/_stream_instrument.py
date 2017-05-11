@@ -38,7 +38,7 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 	def start_stream_data(self, duration=10, ch1=True, ch2=True):
 		"""	Start streaming instrument data over the network.
 
-		Samples being streamed can be retrieved by calls to :any:`get_stream_data`.
+		Samples being streamed can be retrieved by calls to `get_stream_data`.
 
 		All outstanding settings must have been committed before starting the stream. This
 		will always be true if *pymoku.autocommit=True*, the default.
@@ -59,7 +59,7 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 	def stop_stream_data(self):
 		""" Stops instrument data being streamed over the network.
 
-		Should be called exactly once for every :any:`start_stream_data`, even if the streaming session
+		Should be called exactly once for every `start_stream_data` call, even if the streaming session
 		stopped itself due to timeout. Calling this function not only causes the stream to stop, but
 		also resets error and transfer state, ready to start a new streaming session.
 		"""
@@ -143,7 +143,7 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 	def start_data_log(self, duration=10, ch1=True, ch2=True, use_sd=True, filetype='csv', upload=False):
 		"""	Start logging instrument data to a file.
 
-		Progress of the data log may be checked calling :any:`progress_data_log`.
+		Progress of the data log may be checked calling `progress_data_log`.
 
 		All outstanding settings must have been committed before starting the data log. This
 		will always be true if *pymoku.autocommit=True*, the default.
@@ -171,14 +171,14 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 	def stop_data_log(self):
 		""" Stops the current instrument data logging session.
 
-		This must be called exactly once for every :any:`start_data_log` call, even if the log terminated itself
+		This must be called exactly once for every `start_data_log` call, even if the log terminated itself
 		due to timeout. Calling this function doesn't just stop the session (if it isn't already stopped),
 		but also resets error and transfer state, ready to start a new logging session.
 		"""
 		self._stream_stop()
 
 	def progress_data_log(self):
-		""" Estimates progress of a logging session started by a :any:`start_data_log` call.
+		""" Estimates progress of a logging session started by a `start_data_log` call.
 
 		:rtype: float
 		:returns: [0.0-100.0] representing 0 - 100% completion of the current logging session.
@@ -259,8 +259,8 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 	def get_timestep(self):
 		""" Returns the expected time between streamed samples.
 
-		This returns the inverse figure to :any:`get_samplerate`. This form is more useful
-		for constructing time axes to support, for example, :any:`get_stream_data`.
+		This returns the inverse figure to `get_samplerate`. This form is more useful
+		for constructing time axes to support, for example, `get_stream_data`.
 
 		:rtype: float
 		:returns: Time between data samples in seconds.
