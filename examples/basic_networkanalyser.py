@@ -14,8 +14,8 @@ logging.getLogger('pymoku').setLevel(logging.DEBUG)
 
 # m = Moku.get_by_serial('65626')
 # m = Moku('192.168.69.111')
-m = Moku('192.168.69.127')
-# m = Moku('192.168.69.134')
+# m = Moku('192.168.69.127')
+m = Moku('192.168.69.134')
 
 i = NetAn()
 m.attach_instrument(i)
@@ -23,7 +23,7 @@ m.attach_instrument(i)
 i.set_defaults()
 
 f_start = 1e6 # Hz
-f_end = 200e6  # Hz
+f_end = 250e6  # Hz
 sweep_order = 9
 sweep_length = 2**sweep_order
 log_scale = True
@@ -33,8 +33,8 @@ amp_ch1 = 1.0 # Volts peak-to-peak (assuming 50 Ohm impedance)
 amp_ch2 = 1.0 # Volts peak-to-peak (assuming 50 Ohm impedance)
 averaging_time = 1e-3 # seconds
 settling_time = 1e-3# seconds
-averaging_cycles = 10 #2**16-20
-settling_cycles = 10 #10000
+averaging_cycles = 1 #2**16-20
+settling_cycles = 1 #10000
 
 i.set_dbscale(True)
 i.set_sweep_parameters(f_start, f_end, sweep_length, log_scale, single_sweep, amp_ch1, amp_ch2, averaging_time, settling_time, averaging_cycles, settling_cycles)
@@ -42,15 +42,15 @@ i.set_frontend(1, fiftyr=True, atten=False, ac=False)
 i.set_frontend(2, fiftyr=True, atten=False, ac=False)
 
 i.commit()
-
-i.sweep_amplitude_ch1 = 0.5
+# i.sweep_amplitude_ch1 = 0.5
+# i.set_calibration()
 i.x_mode = 2
 i.set_dbscale(True)
-i.set_frontend(1, fiftyr=True, atten=False, ac=False)
-i.set_frontend(2, fiftyr=True, atten=False, ac=False)
+i.set_frontend(1, fiftyr=True, atten=True, ac=False)
+i.set_frontend(2, fiftyr=True, atten=True, ac=False)
 i.commit()
 
-# i.set_calibration()
+
 
 # plt.subplots_adjust(hspace=0.4)
 # i.set_calibration()
@@ -94,10 +94,10 @@ try:
 		# Set the frame data for each channel plot
 		plt.subplot(211)
 		line1.set_ydata(frame.ch1.magnitude)
-		line2.set_ydata(frame.ch1.magnitude)
+		line2.set_ydata(frame.ch2.magnitude)
 
 		line1.set_xdata(frame.ch1_fs)
-		line2.set_xdata(frame.ch1_fs)
+		line2.set_xdata(frame.ch2_fs)
 
 
 		# Phase

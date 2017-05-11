@@ -75,7 +75,6 @@ class _NetAnChannel():
 		self.q_sig = [ input_signal[x] for x in range(1, 2*len(gain_correction), 2) ]
 
 		# gain_correction = [1] * len(gain_correction)
-		calibration = None
 
 		self.gain_correction = gain_correction
 		# self.magnitude_volts = [ 2.0*math.sqrt(I**2 + Q**2)/G/front_end_scale if all ([I,Q,G]) else None for I,Q,G in zip(self.i_sig, self.q_sig, gain_correction) ]
@@ -377,8 +376,8 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 		self.single_sweep = single_sweep
 
-		self.sweep_amplitude_ch1 = sweep_amplitude_ch1 * (self._get_dac_calibration()[0] / _NA_DAC_BITDEPTH)
-		self.sweep_amplitude_ch2 = sweep_amplitude_ch2 * (self._get_dac_calibration()[1] / _NA_DAC_BITDEPTH)
+		self.sweep_amplitude_ch1 = sweep_amplitude_ch1# * (self._get_dac_calibration()[0] / _NA_DAC_BITDEPTH)
+		self.sweep_amplitude_ch2 = sweep_amplitude_ch2# * (self._get_dac_calibration()[1] / _NA_DAC_BITDEPTH)
 
 		self.averaging_time = averaging_time
 		self.averaging_cycles = averaging_cycles
@@ -493,17 +492,17 @@ class NetAn(_frame_instrument.FrameBasedInstrument):
 
 			# Scale according to the predicted accumulator counter size:
 			if average_period <= 2**16 :
-				average_gain[f] = 2**-1
+				average_gain[f] = 2**4
 			elif average_period <= 2**21 :
-				average_gain[f] = 2**-6
+				average_gain[f] = 2**-1
 			elif average_period <= 2**26 :
-				average_gain[f] = 2**-11
+				average_gain[f] = 2**-6
 			elif average_period <= 2**31 :
-				average_gain[f] = 2**-16
+				average_gain[f] = 2**-11
 			elif average_period <= 2**36 :
-				average_gain[f] = 2**-21
+				average_gain[f] = 2**-16
 			else :
-				average_gain[f] = 2**-25
+				average_gain[f] = 2**-20
 
 		for f in range(sweep_points) :
 			if sweep_freq[f] > 0.0 :
@@ -623,11 +622,11 @@ _na_reg_handlers = {
 											to_reg_unsigned(0, 32, xform=lambda obj, t: t * _NA_FPGA_CLOCK),
 											from_reg_unsigned(0, 32, xform=lambda obj, t: t / _NA_FPGA_CLOCK)),
 	'sweep_amplitude_ch1':		(REG_NA_SWEEP_AMP_MULT,
-											to_reg_unsigned(0, 16, xform=lambda obj, a: a * _NA_DAC_BITS2V),
-											from_reg_unsigned(0, 16, xform=lambda obj, a: a / _NA_DAC_BITS2V)),
+											to_reg_unsigned(0, 16, xform=lambda obj, a: a / obj.dac_gains()[0]),
+											from_reg_unsigned(0, 16, xform=lambda obj, a: a * obj.dac_gains()[0])),
 	'sweep_amplitude_ch2':		(REG_NA_SWEEP_AMP_MULT,
-											to_reg_unsigned(16, 16, xform=lambda obj, a: a * _NA_DAC_BITS2V),
-											from_reg_unsigned(16, 16, xform=lambda obj, a: a / _NA_DAC_BITS2V)),
+											to_reg_unsigned(16, 16, xform=lambda obj, a: a / obj.dac_gains()[1]),
+											from_reg_unsigned(16, 16, xform=lambda obj, a: a * obj.dac_gains()[1])),
 	'settling_cycles':			(REG_NA_SETTLE_CYCLES,
 											to_reg_unsigned(0, 32),
 											from_reg_unsigned(0, 32)),
