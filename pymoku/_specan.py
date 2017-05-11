@@ -146,25 +146,30 @@ _DECIMATIONS_TABLE = sorted([ (d1 * (d2+1) * (d3+1) * (d4+1), d1, d2+1, d3+1, d4
 
 class SpectrumData(_frame_instrument.InstrumentData):
 	"""
-	Object representing a frame of data in units of power vs frequency. This is the native output format of
-	the :any:`SpectrumAnalyser` instrument and similar.
+	Object representing a frame of dual-channel frequency spectrum data (amplitude vs frequency in Hz).
+	Amplitude is in units of either dBm power or RMS Voltage, as indicated by the `dbm` attribute 
+	of the frame. The amplitude scale may be selected by calling :any:`set_dbmscale` on the relevant
+	:any:`SpectrumAnalyser` instrument.
 
-	This object should not be instantiated directly, but will be returned by a supporting *get_frame*
-	implementation.
+	This is the native output format of the :any:`SpectrumAnalyser` instrument.
 
-	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumFrame.ch1
+	This object should not be instantiated directly, but will be returned by a call to
+	:any:`get_data <pymoku.instruments.SpectrumAnalyser.get_data>` on the associated :any:`SpectrumAnalyser`
+	instrument.
+
+	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumData.ch1
 		:annotation: = [CH1_DATA]
 
-	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumFrame.ch2
+	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumData.ch2
 		:annotation: = [CH2_DATA]
 
-	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumFrame.fs
+	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumData.fs
 		:annotation: = [FREQ]
 
-	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumFrame.frameid
-		:annotation: = n
+	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumData.dbm
+		:annotation: = bool
 
-	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumFrame.waveformid
+	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumData.waveformid
 		:annotation: = n
 	"""
 	def __init__(self, scales):
@@ -179,6 +184,9 @@ class SpectrumData(_frame_instrument.InstrumentData):
 
 		#: The frequency range associated with both channels
 		self.frequency = []
+
+		#: Whether the data is in logarithmic (dBm) scale. The alternative is a linear scale.
+		self.dbm = None
 
 		#: Obtain all data scaling factors relevant to current SpectrumAnalyser configuration
 		self._scales = scales
@@ -206,6 +214,8 @@ class SpectrumData(_frame_instrument.InstrumentData):
 		dbmscale = scales['dbmscale']
 
 		try:
+			self.dbm = dbmscale
+
 			# Find the starting index for the valid frame data
 			# SpectrumAnalyser generally gives more than we ask for due to integer decimations
 			start_index = bisect_right(fs,f1)
@@ -258,6 +268,7 @@ class SpectrumData(_frame_instrument.InstrumentData):
 			return
 		scales = self._scales[self._stateid]
 		self.time = [scales['buff_time_min'] + (scales['buff_time_step'] * x) for x in range(_OSC_BUFLEN)]
+		self.dbm = scales['dbmscale']
 		return True
 
 	'''
@@ -484,12 +495,9 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		""" Sets the frequency span to be analysed.
 
 		Rounding and quantization in the instrument limits the range of spans for which a full set of 1024
-		data points can be calculated. In this mode, the resultant number of valid points is guaranteed
-		however this may lead to the span being slightly increased from that requested.  See :any:`set_span`
-		for an alternative rounding mode.
-
-		Note that the valid sweep points and the associated frequencies will be given by the :any:`SpectrumFrame`
-		that contains the data.
+		data points can be calculated. This means that the resultant number of data points in the returned
+		:any:`SpectrumData` frame will vary. Note however that the associated frequencies are given with the
+		frame containing the data.
 
 		:type f1: float
 		:param f1: Left-most frequency (Hz)
@@ -755,14 +763,14 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		self.f1 = self._f1_full = self.demod - fspan
 		self.scales[self._stateid] = self._calculate_scales()
 
-	def get_data(self, *args, **kwargs):
+	def get_data(self, timeout=None, wait=True):
 		"""
 		Get the latest sweep results.
 
-		On SpectrumAnalyser this is an alias for :any:`get_realtime_data` as the
+		On SpectrumAnalyser this is an alias for :any:`get_realtime_data <pymoku.instruments.SpectrumAnalyser.get_realtime_data>` as the
 		output data is never downsampled from the sweep results.
 		"""
-		return self.get_realtime_data(*args, **kwargs)
+		return self.get_realtime_data(timeout=timeout,wait=wait)
 
 _sa_reg_handlers = {
 	'demod':			(REG_SA_DEMOD,		to_reg_unsigned(0, 32, xform=lambda obj, f: f * _SA_FREQ_SCALE),

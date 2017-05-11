@@ -181,7 +181,7 @@ class FrameBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstru
 		:any:`commit` first.
 
 		The download process may take a second or so to complete. If you require high rate
-		data, e.g. for rendering a plot, see :any:`get_realtime_data`.
+		data, e.g. for rendering a plot, see `get_realtime_data`.
 
 		:type timeout: float
 		:param timeout: Maximum time to wait to receive the samples over the network, or *None* 
@@ -252,14 +252,14 @@ class FrameBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstru
 		a version of the data that may have been downsampled from the original in order to
 		be transferred quickly.
 
-		This function always returns a new object at :any:`framerate` (10Hz by default), whether
+		This function always returns a new object at `framerate` (10Hz by default), whether
 		or not there is new data in that object. This can be verified by checking the return
-		object's *waveform_id* parameter, which increments each time a new waveform is captured
+		object's *waveformid* parameter, which increments each time a new waveform is captured
 		internally.
 
 		The downsampled, low-latency nature of this data makes it particularly suitable for
 		plotting in real time. If you require high-accuracy, high-resolution data for analysis,
-		see :any:`get_data`.
+		see `get_data`.
 
 		If the *wait* parameter is true (the default), this function will wait for any new
 		settings to be applied before returning. That is, if you have set a new timebase (for example),

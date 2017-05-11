@@ -260,7 +260,7 @@ class SignalGenerator(BasicSignalGenerator):
 
 	To run a new Signal Generator instrument, this should be instantiated and deployed via a connected
 	:any:`Moku` object using :any:`deploy_instrument`. Alternatively, a pre-configured instrument object
-	can be obtained by discovering an already running Oscilloscope instrument on a Moku:Lab device via
+	can be obtained by discovering an already running Signal Generator instrument on a Moku:Lab device via
 	:any:`discover_instrument`.
 
 	.. automethod:: pymoku.instruments.SignalGenerator.__init__

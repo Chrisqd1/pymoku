@@ -63,8 +63,10 @@ class VoltsData(_frame_instrument.InstrumentData):
 	enables identification of uniqueness of a frame of data, as it is possible to retrieve the same
 	data more than once (i.e. if the instrument has been paused).
 
-	This object should not be instantiated directly, but will be returned by the Oscilloscope's
-	:any:`get_data` or :any:`get_realtime_data` function.
+	This object should not be instantiated directly, but will be returned by a call to
+	:any:`get_data <pymoku.instruments.Oscilloscope.get_data>` or 
+	:any:`get_realtime_data <pymoku.instruments.Oscilloscope.get_realtime_data>` on the associated 
+	:any:`Oscilloscope`	instrument.
 
 	.. autoinstanceattribute:: pymoku._frame_instrument.VoltsData.ch1
 		:annotation: = [CH1_DATA]

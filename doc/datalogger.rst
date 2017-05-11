@@ -12,7 +12,6 @@ For file logging or network streaming, use the `_data_log` or `_stream_data` typ
 Example Usage
 -------------
 
-.. TODO: Move back in to source file?
 For an in-depth walkthrough on using the pymoku Datalogger Instrument, see the `pymoku Datalogger tutorial <http://confluence.liquidinstruments.com>`_. For the following example code and a wide range of other pymoku demo scripts, see the `pymoku example repository <https://anaconda.org/liquidinstruments/pymoku-examples>`_.
 
 .. literalinclude:: ../examples/basic_datalogger.py
