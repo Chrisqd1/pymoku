@@ -15,9 +15,11 @@ import math, time
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
 
+# Prepare a new Phasemeter instrument to be deployed
 i = Phasemeter()
 
-# Set up Moku as a Phasemeter, and use the external 10MHz reference clock
+# Deploy the new Phasemeter instrument to the Moku:Lab
+# Also, try to synchronise the Moku:Lab to an external 10MHz reference
 m.deploy_instrument(i, use_external=True)
 
 try:

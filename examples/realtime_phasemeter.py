@@ -13,11 +13,26 @@ from pymoku import Moku, NoDataException, StreamException, FrameTimeout
 from pymoku.instruments import *
 import math
 
-# Use Moku.get_by_serial() or Moku('192.168.XXX.XXX') if you know the IP
+# Connect to your Moku by its device name
+# Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
-i = PhaseMeter()
 
-m.deploy_instrument(i, use_external=False)
+# See whether there's already a Phasemeter running. If there is, take
+# control of it; if not, deploy a new Phasemeter instrument
+i = m.discover_instrument()
+
+if i is None or i.type != 'phasemeter':
+	print("No or wrong instrument deployed")
+	# Create a new Phasemeter instrument ready for deploy
+	i = Phasemeter()
+	# Deploy it with external reference clock input disabled
+	# Do this when you don't need to lock your Moku:Lab to an external 10MHz reference clock
+	m.deploy_instrument(i, use_external=False)
+else:
+	print("Attached to existing Phasemeter")
+	# Taking ownership after discovering a running instrument is necessary so the
+	# Moku:Lab knows to listen to your commands, and not another client's
+	m.take_ownership()
 
 try:
 	# Set the initial phase-lock loop frequency to 10MHz and measurement rate to ~120Hz

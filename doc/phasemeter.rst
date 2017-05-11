@@ -2,68 +2,33 @@
 Phasemeter Instrument
 =====================
 
-Phasemeter Instrument class.
+The Phasemeter instrument is used to measure the amplitude and change in phase of periodic input signals. Using the auto-acquire feature, it can automatically lock to input frequencies in the range of 2-200MHz and track phase with a bandwidth of 10kHz. 
 
-The Phasemeter is different from other instruments in that its data is not presented in the form of frames
-of presented data; instead, the data must be streamed to a file or live to pymoku over the network. This
-stream contains a sequence of measurements of the form::
+The Phasemeter is different from other instruments in that its data is not presented in the form of frames; instead, it is supplied as a stream of samples which may be logged to a file or streamed live to pymoku over the network. Each data sample is presented as a sequence of measurements of the form::
 
 	( fs, f, count, phase, I, Q )
 
 Where:
 
-- **fs**: set-point frequency of the PLL
-- **f**: measured frequency of the input signal
-- **count**: the index of this measurement
-- **phase**: the measured phase of the input signal
-- **I**: in-phase amplitude component
-- **Q**: quadrature amplitude component
+- **fs**: set-point frequency of the PLL (Hz)
+- **f**: measured frequency of the input signal (Hz)
+- **count**: the index of this measurement (n)
+- **phase**: the measured phase of the input signal (cycles)
+- **I**: in-phase amplitude component (V)
+- **Q**: quadrature amplitude component (V)
 
-The stream is accessed using the *datalogger_* functions; especially :any:`datalogger_start` and, if streaming
-in real-time to pymoku over the network (rather than to a file), :any:`datalogger_get_samples`.
-
-.. note:: The requirement to :any:`commit() <pymoku.instruments.Phasemeter.commit>` before a change takes effect is the most common cause of program malfunctions when interfacing with the Moku:Lab. Any *set_* or *gen_* function, or any direct manipulation of attributes such as :any:`framerate`, must be explicitly committed.
+For logging data to a file, the *data_log* type functions should be used (see the `basic_phasemeter.py` example below). For networking streaming, the *stream_data* type functions should be used (see the `realtime_phasemeter.py` example below). 
 
 Example Usage
 -------------
 
-.. TODO: Move back in to the source file?
+.. literalinclude:: ../examples/basic_phasemeter.py
+	:language: python
+	:caption: basic_phasemeter.py
 
-.. code-block:: python
-
-	from pymoku import Moku, NoDataException
-	from pymoku.instruments import *
-	import math
-
-	m = Moku.get_by_name('example')
-	i = Phasemeter()
-	m.deploy_instrument(i)
-
-	try:
-		# Set the initial phase-lock loop frequency to 10MHz and a measurement rate of 10Hz
-		i.set_initfreq(1, 10000000)
-		i.set_samplerate(10)
-		i.commit()
-
-		# Stop any previous measurement and recording sessions if any and start a new CSV recording
-		# session, single channel, 10 seconds long to the SD card.
-		i.datalogger_stop()
-		i.datalogger_start(start=0, duration=10, use_sd=True, ch1=True, ch2=False, filetype='csv')
-
-		while True:
-			if i.datalogger_completed():
-				break
-
-		# Check if there were any errors
-		e = i.datalogger_error()
-		if e:
-			print("Error occured: %s" % e)
-
-		i.datalogger_stop()
-	except Exception as e:
-		print(e)
-	finally:
-		m.close()
+.. literalinclude:: ../examples/realtime_phasemeter.py
+	:language: python
+	:caption: realtime_phasemeter.py
 
 The Phasemeter Class
 --------------------

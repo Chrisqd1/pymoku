@@ -347,7 +347,12 @@ class SpectrumData(_frame_instrument.InstrumentData):
 
 
 class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
-	""" Spectrum Analyser instrument object. This should be instantiated and attached to a :any:`Moku` instance.
+	""" Spectrum Analyser instrument object.
+
+	To run a new Spectrum Analyser instrument, this should be instantiated and deployed via a connected
+	:any:`Moku` object using :any:`deploy_instrument`. Alternatively, a pre-configured instrument object
+	can be obtained by discovering an already running Spectrum Analyser instrument on a Moku:Lab device via
+	:any:`discover_instrument`.
 
 	.. automethod:: pymoku.instruments.SpectrumAnalyser.__init__
 
@@ -495,9 +500,9 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		""" Sets the frequency span to be analysed.
 
 		Rounding and quantization in the instrument limits the range of spans for which a full set of 1024
-		data points can be calculated. This means that the resultant number of data points in the returned
-		:any:`SpectrumData` frame will vary. Note however that the associated frequencies are given with the
-		frame containing the data.
+		data points can be calculated. This means that the resultant number of data points in
+		:any:`SpectrumData` frames will vary with the set span. Note however that the associated frequencies are 
+		given with the frame containing the data.
 
 		:type f1: float
 		:param f1: Left-most frequency (Hz)
@@ -541,7 +546,12 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 
 	@needs_commit
 	def set_dbmscale(self,dbm=True):
-		""" Configures the Spectrum Analyser to use a logarithmic amplitude axis """
+		""" Configures the scale of the Spectrum Analyser amplitude data.
+		This can be either power in dBm, or RMS Voltage.
+		
+		:type dbm: bool
+		:param dbm: Enable dBm scale
+		"""
 		self.dbmscale = dbm
 
 	@needs_commit

@@ -117,7 +117,12 @@ _pm_siggen_reg_hdl = {
 }
 
 class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_SignalGenerator): #TODO Frame instrument may not be appropriate when we get streaming going.
-	""" Phasemeter instrument object. This should be instantiated and attached to a :any:`Moku` instance.
+	""" Phasemeter instrument object.
+
+	To run a new Phasemeter instrument, this should be instantiated and deployed via a connected
+	:any:`Moku` object using :any:`deploy_instrument`. Alternatively, a pre-configured instrument object
+	can be obtained by discovering an already running Phasemeter instrument on a Moku:Lab device via
+	:any:`discover_instrument`.
 
 	.. automethod:: pymoku.instruments.Phasemeter.__init__
 
