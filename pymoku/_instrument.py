@@ -491,9 +491,9 @@ class MokuInstrument(object):
 		:param channel: Channel for which the relay settings are being retrieved
 
 		:return: Array of bool with the front end configuration of channels
-			[0] 50 Ohm
-			[1] 10xAttenuation
-			[2] AC Coupling
+			- [0] 50 Ohm
+			- [1] 10xAttenuation
+			- [2] AC Coupling
 		"""
 		if channel == 1:
 			r = self.relays_ch1
@@ -623,8 +623,7 @@ class MokuInstrument(object):
 
 	@needs_commit
 	def set_pause(self, pause):
-		"""
-		Pauses or unpauses the instrument's data output.
+		""" Pauses or unpauses the instrument's data output.
 
 		Depending on the instrument, the pause may not take effect until the current operation
 		has completed (e.g. the currently-filling Oscilloscope frame has completely filled).

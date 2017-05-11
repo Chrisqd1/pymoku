@@ -58,11 +58,13 @@ _OSC_MAX_POSTTRIGGER = -2**28
 
 class VoltsData(_frame_instrument.InstrumentData):
 	"""
-	Object representing a frame of data in units of Volts. This is the native output format of
-	the :any:`Oscilloscope` instrument and similar.
+	Object representing a frame of dual-channel data in units of Volts, and time in units of seconds. 
+	This is the native output format of	the :any:`Oscilloscope` instrument. The *waveformid* property
+	enables identification of uniqueness of a frame of data, as it is possible to retrieve the same
+	data more than once (i.e. if the instrument has been paused).
 
 	This object should not be instantiated directly, but will be returned by the Oscilloscope's
-	*get_frame* function.
+	:any:`get_data` or :any:`get_realtime_data` function.
 
 	.. autoinstanceattribute:: pymoku._frame_instrument.VoltsData.ch1
 		:annotation: = [CH1_DATA]
@@ -70,8 +72,8 @@ class VoltsData(_frame_instrument.InstrumentData):
 	.. autoinstanceattribute:: pymoku._frame_instrument.VoltsData.ch2
 		:annotation: = [CH2_DATA]
 
-	.. autoinstanceattribute:: pymoku._frame_instrument.VoltsData.frameid
-		:annotation: = n
+	.. autoinstanceattribute:: pymoku._frame_instrument.VoltsData.time
+		:annotation: = [TIME]
 
 	.. autoinstanceattribute:: pymoku._frame_instrument.VoltsData.waveformid
 		:annotation: = n
@@ -194,7 +196,12 @@ class VoltsData(_frame_instrument.InstrumentData):
 
 
 class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGenerator):
-	""" Oscilloscope instrument object. This should be instantiated and attached to a :any:`Moku` instance.
+	""" Oscilloscope instrument object.
+
+	To run a new Oscilloscope instrument, this should be instantiated and deployed via a connected
+	:any:`Moku` object using :any:`deploy_instrument`. Alternatively, a pre-configured instance can be
+	obtained by discovering an already running Oscilloscope instrument on a Moku:Lab device via
+	:any:`discover_instrument`.
 
 	.. automethod:: pymoku.instruments.Oscilloscope.__init__
 
@@ -379,7 +386,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		self.offset = - round(trigger_offset) + self.render_deci
 
 	def get_samplerate(self):
-		""" :return: The current instrument sample rate """
+		""" :return: The current instrument sample rate (Hz) """
 		if(self.decimation_rate == 0):
 			log.warning("Decimation rate appears to be unset.")
 			return _OSC_ADC_SMPS

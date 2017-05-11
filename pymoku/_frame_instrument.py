@@ -274,6 +274,7 @@ class FrameBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstru
 		:type timeout: float
 		:param timeout: Maximum time to wait for a new frame. This makes most sense when combined
 			with the *wait* parameter.
+		:return: :any:`InstrumentData` subclass, specific to the instrument.
 		"""
 		try:
 			# Dodgy hack, infinite timeout gets translated in to just an exceedingly long one
