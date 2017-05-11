@@ -663,14 +663,14 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		self._update_datalogger_params()
 
 
-	def commit(self, *args, **kwargs):
+	def commit(self):
 		scales = self._calculate_scales()
 		# Update any calibration scaling dependent register values
 		self._update_dependent_regs(scales)
 		self._update_datalogger_params()
 
 		# Commit the register values to the device
-		super(Oscilloscope, self).commit(*args, **kwargs)
+		super(Oscilloscope, self).commit()
 		# Associate new state ID with the scaling factors of the state
 		self.scales[self._stateid] = scales
 		# TODO: Trim scales dictionary, getting rid of old ids

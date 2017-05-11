@@ -173,8 +173,8 @@ class LockInAmp(_frame_instrument.FrameBasedInstrument, _stream_instrument.Strea
 
 		return (g1, g2)
 
-	def commit(self, *args, **kwargs):
-		super(LockInAmp, self).commit(*args, **kwargs)
+	def commit(self):
+		super(LockInAmp, self).commit()
 		self.scales[self._stateid] = self._calculate_scales()
 
 	commit.__doc__ = _frame_instrument.FrameBasedInstrument.commit.__doc__

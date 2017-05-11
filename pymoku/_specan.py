@@ -719,12 +719,12 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 
 		log.debug("SW1: %s, AMP1: %f, INCR1: %f, FREQ1: %f/%f, SW2: %s, AMP2: %f, INCR2: %f, FREQ2: %f/%f", self.sweep1, self.tr1_amp, self.tr1_incr, self.tr1_start, self.tr1_stop, self.sweep2, self.tr2_amp, self.tr2_incr, self.tr2_start, self.tr2_stop)
 
-	def commit(self, *args, **kwargs):
+	def commit(self):
 		# Update registers that depend on others being calculated
 		self._update_dependent_regs()
 
 		# Push the controls through to the device
-		super(SpectrumAnalyser, self).commit(*args,**kwargs)
+		super(SpectrumAnalyser, self).commit()
 
 		# Update the scaling factors for processing of incoming frames
 		# stateid allows us to track which scales correspond to which register state
