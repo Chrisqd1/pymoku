@@ -124,7 +124,7 @@ html_theme_options = {
 	'github_repo'	: 'pymoku',
 	'github_banner'	: True,
 	'description'	: "Python control library for the Liquid Instruments Moku:Lab",
-	'page_width'	: '60%'
+	'page_width'	: '70%'
 }
 
 # Add any paths that contain custom themes here, relative to this directory.

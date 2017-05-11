@@ -14,15 +14,15 @@ import time
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
 
-# Prepare the DataLogger instrument
-i = DataLogger()
+# Prepare the Datalogger instrument
+i = Datalogger()
 
-# Deploy the DataLogger to your Moku
+# Deploy the Datalogger to your Moku
 m.deploy_instrument(i)
 
 try:
 	# 10Hz sample rate
-	i.set_samplerate(1e3)
+	i.set_samplerate(10)
 
 	# Stop a previous session, if any, then start a new dual-channel data stream in real
 	# time over the network.

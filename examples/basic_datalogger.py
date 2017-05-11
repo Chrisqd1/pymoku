@@ -14,21 +14,21 @@ import time
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
 
-# Prepare the DataLogger instrument
-i = DataLogger()
+# Prepare the Datalogger instrument
+i = Datalogger()
 
 # Deploy the DataLogger to your Moku
 m.deploy_instrument(i)
 
 try:
-	# 10 samples per second
+	# 100 samples per second
 	i.set_samplerate(100)
 
 	# Stop an existing log, if any, then start a new one. 10 seconds of both channels to the
 	# SD Card (rather than internal storage). Use the Moku's binary file format for better speed
 	# and size performance.
 	i.stop_data_log()
-	i.start_data_log(duration=10, use_sd=True, ch1=True, ch2=True, filetype='csv')
+	i.start_data_log(duration=10, use_sd=True, ch1=True, ch2=True, filetype='bin')
 
 	# Track progress percentage of the data logging session
 	progress = 0
