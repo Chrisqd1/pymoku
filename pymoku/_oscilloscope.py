@@ -483,7 +483,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 		This feature allows the user to preview the Signal Generator outputs.
 
-		:type ch: int
+		:type ch: int; {1,2}
 		:param ch: Channel Number
 
 		:type source: string, {'in','out'}

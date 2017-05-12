@@ -665,7 +665,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 
 		If *ch* is specified, turn off only a single channel, otherwise turn off both.
 
-		:type ch: int
+		:type ch: int; {1,2}
 		:param ch: Channel number to turn off (None, or leave blank, for both)firmware_is_compatible
 		"""
 		if ch is None or ch == 1:
@@ -678,7 +678,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		"""
 		Configure the output sinewaves on DAC channels
 
-		:type ch: 1, 2
+		:type ch: int; {1,2}
 		:param ch: Output DAC channel to configure
 
 		:type amp: float, 0.0 - 2.0 volts

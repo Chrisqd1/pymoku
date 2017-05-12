@@ -119,7 +119,7 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 
 		This feature allows the user to capture the Signal Generator outputs.
 
-		:type ch: int
+		:type ch:  int; {1,2}
 		:param ch: Channel Number
 
 		:type source: string, {'in','out'}

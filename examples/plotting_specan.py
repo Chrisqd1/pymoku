@@ -19,7 +19,8 @@ from matplotlib.ticker import FuncFormatter
 logging.basicConfig(format='%(asctime)s:%(name)s:%(levelname)s::%(message)s')
 logging.getLogger('pymoku').setLevel(logging.INFO)
 
-# Use Moku.get_by_serial() or Moku('192.168.XXX.XXX') if you know the IP
+# Connect to your Moku by its device name
+# Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
 
 i = m.discover_instrument()

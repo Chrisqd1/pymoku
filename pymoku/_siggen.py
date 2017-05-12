@@ -106,7 +106,7 @@ class BasicSignalGenerator(MokuInstrument):
 	def gen_sinewave(self, ch, amplitude, frequency, offset=0, phase=0.0):
 		""" Generate a Sine Wave with the given parameters on the given channel.
 
-		:type ch: int
+		:type ch: int; {1,2}
 		:param ch: Channel on which to generate the wave
 
 		:type amplitude: float, volts
@@ -143,7 +143,7 @@ class BasicSignalGenerator(MokuInstrument):
 	def gen_squarewave(self, ch, amplitude, frequency, offset=0, duty=0.5, risetime=0, falltime=0, phase=0.0):
 		""" Generate a Square Wave with given parameters on the given channel.
 
-		:type ch: int
+		:type ch: int; {1,2}
 		:param ch: Channel on which to generate the wave
 
 		:type amplitude: float, volts
@@ -212,7 +212,7 @@ class BasicSignalGenerator(MokuInstrument):
 		This is a wrapper around the Square Wave generator, using the *riserate* and *fallrate*
 		parameters to form the ramp.
 
-		:type ch: int
+		:type ch: int; {1,2}
 		:param ch: Channel on which to generate the wave
 
 		:type amplitude: float, volts
@@ -245,7 +245,7 @@ class BasicSignalGenerator(MokuInstrument):
 		using this function. If *ch* is None (the default), both channels will be turned off,
 		otherwise just the one specified by the argument.
 
-		:type ch: int
+		:type ch: int; {1,2}
 		:param ch: Channel to turn off
 		"""
 		if channel is None or channel == 1:
@@ -281,7 +281,7 @@ class SignalGenerator(BasicSignalGenerator):
 		"""
 		Set up modulation on an output channel.
 
-		:type ch: int
+		:type ch: int; {1,2}
 		:param ch: Channel to modulate
 
 		:type mtype: string, {'none', 'amplitude', 'frequency', 'phase'}

@@ -461,7 +461,7 @@ class MokuInstrument(object):
 	def set_frontend(self, channel, fiftyr=False, atten=True, ac=False):
 		""" Configures gain, coupling and termination for each channel.
 
-		:type channel: int
+		:type channel: int; {1,2}
 		:param channel: Channel to which the settings should be applied
 
 		:type fiftyr: bool
@@ -490,7 +490,7 @@ class MokuInstrument(object):
 
 	def get_frontend(self, channel):
 		"""
-		:type channel: int
+		:type channel: int; {1,2}
 		:param channel: Channel for which the relay settings are being retrieved
 
 		:return: Array of bool with the front end configuration of channels

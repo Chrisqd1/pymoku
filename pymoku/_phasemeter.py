@@ -73,10 +73,14 @@ class Phasemeter_SignalGenerator(MokuInstrument):
 
 	@needs_commit
 	def gen_sinewave(self, ch, amplitude, frequency):
-		"""
+		""" Generate a sinewave signal on the specified output channel
+		
+		:type ch: int; {1,2}
 		:param ch: Channel number
-		:param amplitude: Signal amplitude in volts
-		:param frequency: Frequency in Hz
+		:type amplitude: float; V
+		:param amplitude: Signal amplitude
+		:type frequency: float; Hz
+		:param frequency: Frequency
 		"""
 		if ch == 1:
 			self.pm_out1_frequency = frequency
@@ -93,7 +97,7 @@ class Phasemeter_SignalGenerator(MokuInstrument):
 		using this function. If *ch* is None (the default), both channels will be turned off,
 		otherwise just the one specified by the argument.
 
-		:type ch: int
+		:type ch: int; {1,2}
 		:param ch: Channel to turn off
 		"""
 		if (ch is None) or ch == 1:
@@ -177,8 +181,10 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_SignalGene
 		log.info("Samplerate set to %.2f Hz", _PM_UPDATE_RATE/float(self.output_decimation) )
 
 	def get_samplerate(self):
-		"""
-		Get the current output sample rate of the phase meter.
+		""" Get the samplerate of the Phasemeter
+
+		:rtype: float; smp/s
+		:return: Samplerate
 		"""
 		return _PM_UPDATE_RATE / self.output_decimation
 
@@ -206,10 +212,12 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_SignalGene
 	def get_initfreq(self, ch):
 		"""
 		Reads the seed frequency register of the phase tracking loop
-		Valid if auto acquire has not been used
+		Valid if auto acquire has not been used.
 
 		:type ch: int; *{1,2}*
 		:param ch: Channel number to read the initial frequency of.
+		:rtype: float; Hz
+		:return: Seed frequency
 		"""
 		if ch == 1:
 			return self.init_freq_ch1
@@ -227,11 +235,10 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_SignalGene
 
 	@needs_commit
 	def set_bandwidth(self, ch, bw):
-		"""
-		Set the bandwidth of an ADC channel
+		""" Set the bandwidth of the analog input channel
 
 		:type ch: int; *{1,2}*
-		:param ch: ADC channel number to set bandwidth of.
+		:param ch: Analog channel number to set bandwidth of.
 
 		:type bw: float; Hz
 		:param n: Desired bandwidth (will be rounded up to to the nearest multiple 10kHz * 2^N with N = [-6,0])
@@ -246,22 +253,51 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_SignalGene
 			self.bandwidth_ch2 = n
 
 	def get_bandwidth(self, ch):
-		return 10e3 * (2**(self.bandwidth_ch1 if ch == 1 else self.bandwidth_ch2))
-
-	@needs_commit
-	def auto_acquire(self, ch):
-		"""
-		Auto-acquire the initial frequency of the specified channel
+		""" Get the bandwidth of the analog input channel
 
 		:type ch: int; *{1,2}*
-		:param ch: Channel number
+		:param ch: Analog channel number to get bandwidth of.
+
+		:rtype: float; Hz
+		:return: Bandwidth
 		"""
-		if ch == 1:
-			self.autoacquire_ch1 = True
-		elif ch == 2:
-			self.autoacquire_ch2 = True
-		else:
-			raise ValueError("Invalid channel")
+		return 10e3 * (2**(self.bandwidth_ch1 if ch == 1 else self.bandwidth_ch2))
+
+	def _strobe_acquire(self, ch, auto):
+		""" Helper function which strobes the reacquire or auto-acquire for single or both channels
+		"""
+		if not ch or (ch == 1):
+			self.autoacquire_ch1 = auto
+		if not ch or (ch == 2):
+			self.autoacquire_ch2 = auto
+
+	@needs_commit
+	def reacquire(self, ch=None):
+		"""
+		Restarts the frequency tracking loop and phase counter for the specified channel,
+		or both if no channel is specified. The starting frequency of the channel's tracking loop is
+		set to the seed frequency as set by calling :any:`set_initfreq`.
+
+		To automatically acquire a seed frequency, see :any:`auto_acquire`.
+
+		:type ch: int; *{1,2}*
+		:param ch: Channel number, or ``None`` for both
+		"""
+		self._strobe_acquire(ch=ch, auto=False)
+
+	@needs_commit
+	def auto_acquire(self, ch=None):
+		"""
+		Restarts the frequency tracking loop and phase counter for the specified channel,
+		or both if no channel is specified. The starting frequency of the channel's tracking loop is
+		automatically acquired, ignoring the currently set seed frequency by :any:`set_initfreq`.
+
+		To acquire using the set seed frequency, see :any:`reacquire`.
+
+		:type ch: int; *{1,2}*
+		:param ch: Channel number, or ``None`` for both
+		"""
+		self._strobe_acquire(ch=ch, auto=True)
 
 	def _get_hdrstr(self, ch1, ch2):
 		chs = [ch1, ch2]
@@ -308,9 +344,9 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_SignalGene
 		self.framerate = 0
 
 		# Set basic configurations
-		self.set_samplerate(1e3)
-		self.set_initfreq(1, 10e6)
-		self.set_initfreq(2, 10e6)
+		self.set_samplerate('fast')
+		self.set_initfreq(1, 30e6)
+		self.set_initfreq(2, 30e6)
 
 		# Set PI controller gains
 		self._set_controlgain(100)
