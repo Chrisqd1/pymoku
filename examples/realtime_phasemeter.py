@@ -1,11 +1,9 @@
 #
 # pymoku example: Phasemeter networking streaming
 #
-# This example provides a 10-second network stream of Phasemeter data 
-# samples from Channel 1. These samples are in the form [fs, f, count, phase, I, Q].
-# Real-time processing of instrument data is demonstrated by calculating the 
-# signal amplitude of each sample (A = I^2 + Q^2) and printing the results
-# at the end of the streaming session. 
+# This example starts a 10-second network stream of Channel 1 Phasemeter data and processes
+# it live. The contents of each data sample are printed out, along with the signal amplitude 
+# which may be calculated as A = (I^2 + Q^2).
 #
 # (c) 2017 Liquid Instruments Pty. Ltd.
 #
@@ -72,6 +70,7 @@ try:
 
 		# Process the received samples
 		# Here we just print the contents of Channel 1 samples
+		# Along with signal amplitude (I^2 + Q^2)
 		ch1_samples = samples[0]
 		for s in ch1_samples:
 			# s is of the form [fs, f, count, phase, I, Q]

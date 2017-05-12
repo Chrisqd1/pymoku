@@ -25,7 +25,6 @@ Contents
    siggen
    specan
    phasemeter
-   lockin
    utils
 
 

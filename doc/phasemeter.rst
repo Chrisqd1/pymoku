@@ -17,6 +17,10 @@ Where:
 - **I**: in-phase amplitude component (V)
 - **Q**: quadrature amplitude component (V)
 
+.. note::
+	For the output phase measure of a channel to be valid, it's tracking loop (PLL) must be "locked" to the input signal. A channel's PLL is considered to be "locked" if the ratio **I/Q** is large. That is, **Q ~ 0**. Note that the exact ratio depends upon the SNR of your signal. 
+
+
 For logging data to a file, the *data_log* type functions should be used (see the `basic_phasemeter.py` example below). For networking streaming, the *stream_data* type functions should be used (see the `realtime_phasemeter.py` example below). 
 
 Example Usage

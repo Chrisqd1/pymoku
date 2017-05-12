@@ -24,7 +24,7 @@ m.deploy_instrument(i, use_external=True)
 
 try:
 	# Set the Channel 1 seed frequency to 10MHz and a sample rate of ~30Hz
-	i.set_initfreq(1, 9e6)
+	i.set_initfreq(1, 10e6)
 	i.set_samplerate('slow')
 
 	# Restart the frequency-tracking loop on Channel 1

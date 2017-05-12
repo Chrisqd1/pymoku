@@ -246,9 +246,10 @@ class Moku(object):
 		return self._ownership(0x40)
 
 	def is_owner(self):
-		"""
-		Checks if you are the current owner of the Moku:Lab device.
-		"""
+		"""	Checks if you are the current owner of the Moku:Lab device.
+
+		:rtype: bool
+		:return: True if you are the owner of the device."""
 		return self._ownership(0x41)
 
 

@@ -13,8 +13,7 @@ up a Moku by Name or Serial Number.
 		sudo apt-get install libavahi-compat-libdnssd1
 
 A :any:`Moku` object is useful only for flashing lights until an instrument is deployed to it. The deployment process 
-defines the functionality of the Moku:Lab. For examples on how to deploy an instrument, see the examples
-on each of the `Instruments`_ pages below.
+defines the functionality of the Moku:Lab. For examples on how to deploy an instrument, see demo scripts on each of the `Instruments`_ pages below.
 
 --------------
 The Moku Class
