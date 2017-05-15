@@ -836,6 +836,10 @@ class Moku(object):
 		log.debug("Updating firmware")
 		self._trigger_fwload()
 
+	def get_ip(self):
+		""" :return: IP address of the connected Moku:Lab """
+		return self._ip
+
 	def get_serial(self):
 		""" :return: Serial number of connected Moku:Lab """
 		self.serial = self._get_property_single('device.serial')

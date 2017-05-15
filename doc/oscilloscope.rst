@@ -11,7 +11,6 @@ If you wish to log or network stream time-series voltage data at low rate, the :
 Example Usage
 -------------
 
-.. TODO: Move back in to source file?
 For an in-depth walkthrough on using the pymoku Oscilloscope Instrument, see the `pymoku Oscilloscope tutorial <http://confluence.liquidinstruments.com>`_. For the following example code and a wide range of other pymoku demo scripts, see the `pymoku example repository <https://anaconda.org/liquidinstruments/pymoku-examples>`_.
 
 .. literalinclude:: ../examples/basic_oscilloscope.py
