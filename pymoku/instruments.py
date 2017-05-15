@@ -8,6 +8,7 @@ from . import _specan
 from . import _lockinamp
 from . import _datalogger
 from . import _bodeanalyser
+from . import _arbwavegen
 from . import _stream_instrument
 from . import _frame_instrument
 from . import _stream_handler
@@ -30,6 +31,7 @@ SpectrumAnalyser = _specan.SpectrumAnalyser
 LockInAmp = _lockinamp.LockInAmp
 Datalogger = _datalogger.Datalogger
 BodeAnalyser = _bodeanalyser.BodeAnalyser
+ArbWaveGen = _arbwavegen.ArbWaveGen
 
 id_table = {
 	1: Oscilloscope,
@@ -45,5 +47,6 @@ id_table = {
 	11: None, # PDH Locking
 	12: None, # Software Defined Radio
 	13: None, # Frequency Counter
-	14: None # BoxCar Averager
+	14: None, # BoxCar Averager
+	15: ArbWaveGen
 }
