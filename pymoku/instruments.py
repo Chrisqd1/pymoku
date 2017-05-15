@@ -8,6 +8,7 @@ from . import _specan
 from . import _lockinamp
 from . import _datalogger
 from . import _bodeanalyser
+from . import _arbwavegen
 from . import _stream_instrument
 from . import _frame_instrument
 from . import _input_instrument
@@ -31,6 +32,7 @@ SpectrumAnalyser = _specan.SpectrumAnalyser
 LockInAmp = _lockinamp.LockInAmp
 Datalogger = _datalogger.Datalogger
 BodeAnalyser = _bodeanalyser.BodeAnalyser
+ArbWaveGen = _arbwavegen.ArbWaveGen
 
 id_table = {
 	1: Oscilloscope,
@@ -47,4 +49,5 @@ id_table = {
 	12: None,
 	13: None,
 	14: None
+	15: ArbWaveGen
 }
