@@ -962,4 +962,5 @@ class Moku(object):
 			self._instrument._set_running(False)
 
 		self._conn.close()
-		self._ctx.destroy()
+		# Don't clobber the ZMQ context as it's global to the interpretter, if the user has multiple Moku
+		# objects then we don't want to mess with that.
