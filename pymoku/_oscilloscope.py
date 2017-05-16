@@ -361,7 +361,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 	def set_samplerate(self, samplerate, trigger_offset=0):
 		""" Manually set the sample rate of the instrument.
 
-		The sample rate is automatically calcluated and set in :any:`set_timebase`.
+		The sample rate is automatically calculated and set in :any:`set_timebase`.
 
 		This interface allows you to specify the rate at which data is sampled, and set
 		a trigger offset in number of samples. This interface is useful for datalogging and capturing
@@ -432,6 +432,12 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 	def set_trigger(self, source, edge, level, hysteresis=0, hf_reject=False, mode='auto'):
 		""" Sets trigger source and parameters.
 
+		Single trigger mode currently unsupported. You can achieve the same effect by 
+		setting trigger ``mode='normal'``. Then retrieve a single triggered frame using 
+		:any:`get_data <pymoku.instruments.Oscilloscope.get_data>` or 
+		:any:`get_realtime_data <pymoku.instruments.Oscilloscope.get_realtime_data>` with
+		``wait=True``.
+
 		:type source: string, {'in1','in2','out1','out2'}
 		:param source: Trigger Source. May be either an input or output channel,
 						allowing one to trigger off a synthesised waveform.
@@ -444,6 +450,12 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 		:type hysteresis: float, volts
 		:param hysteresis: Hysteresis to apply around trigger point.
+
+		:type hf_reject: bool
+		:param hf_reject: Enable high-frequency noise rejection
+
+		:type mode: string, {'auto', 'normal'}
+		:param mode: Trigger mode.
 		"""
 		# Convert the input parameter strings to bit-value mappings
 		_str_to_trigger_source = {
@@ -459,8 +471,8 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		}
 		_str_to_trigger_mode = {
 			'auto' : _OSC_TRIG_AUTO,
-			'normal' : _OSC_TRIG_NORMAL,
-			'single' : _OSC_TRIG_SINGLE
+			'normal' : _OSC_TRIG_NORMAL
+			#'single' : _OSC_TRIG_SINGLE
 		}
 		source = _utils.str_to_val(_str_to_trigger_source, source, 'trigger source')
 		edge = _utils.str_to_val(_str_to_edge, edge, 'edge type')
