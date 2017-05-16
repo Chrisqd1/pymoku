@@ -905,7 +905,6 @@ class Moku(object):
 		self.take_ownership()
 		self._instrument = instrument
 		self._instrument.attach_moku(self)
-		self._instrument._set_instrument_active(False)
 
 		bsv = self._deploy(partial_index=0, use_external=use_external)
 		log.debug("Bitstream version %d", bsv)
