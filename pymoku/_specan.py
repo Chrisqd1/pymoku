@@ -508,6 +508,8 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		:param f1: Left-most frequency (Hz)
 		:type f2: float
 		:param f2: Right-most frequency (Hz)
+
+		:raises InvalidConfigurationException: if the span is not positive-definite.
 		"""
 		if f1 < 0 or f2 < 0 or f2 <= f1:
 			raise InvalidConfigurationException("Span must be non-negative with f2 > f1")
@@ -522,9 +524,11 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 
 		:type rbw: float
 		:param rbw: Resolution bandwidth (Hz), or ``None`` for auto-mode
+
+		:raises InvalidConfigurationException: if the RBW is not positive-definite or *None*
 		"""
 		if rbw and rbw < 0:
-			raise ValueOutOfRangeException("Invalid RBW (should be >= 0 or None) %d", rbw)
+			raise InvalidConfigurationException("Invalid RBW (should be >= 0 or None) %d", rbw)
 
 		self.rbw = rbw
 
@@ -689,6 +693,8 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 
 		:type sweep: bool
 		:param sweep: Sweep current frequency span (ignores freq parameter if True). Defaults to False.
+
+		:raises ValueOutOfRangeException: if the specified channel is invalid.
 		"""
 
 		# Taken from iPad library:
