@@ -2,8 +2,6 @@
 import math
 import logging
 
-from pymoku import ValueOutOfRangeException
-
 from ._instrument import *
 from ._instrument import _usgn, _sgn
 from . import _frame_instrument
@@ -120,6 +118,8 @@ class BasicSignalGenerator(MokuInstrument):
 
 		:type phase: float, degrees 0-360
 		:param phase: Phase offset of the wave
+
+		:raises ValueOutOfRangeException: if the channel number is invalid
 		"""
 
 		if ch == 1:
@@ -167,6 +167,7 @@ class BasicSignalGenerator(MokuInstrument):
 		:type phase: float, degrees 0-360
 		:param phase: Phase offset of the wave
 
+		:raises ValueOutOfRangeException: if the channel number is invalid or the duty cycle and rise/fall times are incompatible
 		"""
 
 		if duty < risetime:
@@ -229,6 +230,8 @@ class BasicSignalGenerator(MokuInstrument):
 
 		:type phase: float, degrees 0-360
 		:param phase: Phase offset of the wave
+
+		:raises ValueOutOfRangeException: if the channel number is invalid
 		"""
 		self.gen_squarewave(ch, amplitude, frequency,
 			offset = offset, duty = symmetry,
@@ -247,12 +250,17 @@ class BasicSignalGenerator(MokuInstrument):
 
 		:type ch: int; {1,2}
 		:param ch: Channel to turn off
+
+		:raises ValueOutOfRangeException: if the channel number is invalid
 		"""
 		if channel is None or channel == 1:
 			self.out1_enable = False
 
 		if channel is None or channel == 2:
 			self.out2_enable = False
+
+		if channel is not None and channel > 2:
+			raise ValueOutOfRangeException("Invalid channel")
 
 
 class SignalGenerator(BasicSignalGenerator):
@@ -295,6 +303,8 @@ class SignalGenerator(BasicSignalGenerator):
 
 		:type frequency: float
 		:param frequency: Frequency of internally-generated sine wave modulation. This parameter is ignored if the source is set to ADC or DAC.
+
+		:raises ValueOutOfRangeException: if the channel number is invalid or modulation parameters can't be achieved
 		"""
 		_str_to_modsource = {
 			'internal' : _SG_MODSOURCE_INT,
@@ -352,6 +362,8 @@ class SignalGenerator(BasicSignalGenerator):
 			self.mod1_amplitude = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
 		elif ch == 2:
 			self.mod2_amplitude = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
+		else:
+			raise ValueOutOfRangeException("Invalid channel")
 
 _siggen_mod_reg_handlers = {
 	'out1_modulation':	(REG_SG_WAVEFORMS,	to_reg_unsigned(16, 8, allow_range=[_SG_MOD_NONE, _SG_MOD_AMPL | _SG_MOD_FREQ | _SG_MOD_PHASE]),
