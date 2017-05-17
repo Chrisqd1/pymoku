@@ -329,9 +329,11 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 		:type t2: float
 		:param t2: As *t1* but to the right of screen.
+
+		:raises InvalidConfigurationException: if the timebase is backwards or zero.
 		"""
 		if(t2 <= t1):
-			raise Exception("Timebase must be non-zero, with t1 < t2. Attempted to set t1=%f and t2=%f" % (t1, t2))
+			raise InvalidConfigurationException("Timebase must be non-zero, with t1 < t2. Attempted to set t1=%f and t2=%f" % (t1, t2))
 
 		decimation = self._calculate_decimation(t1,t2)
 		render_decimation = self._calculate_render_downsample(t1, t2, decimation)
@@ -367,15 +369,18 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		a trigger offset in number of samples. This interface is useful for datalogging and capturing
 		of data frames.
 
-		NOTE: Triggered starts are not currently implemented for datalogging.
-
-		:type samplerate: float; *0 < samplerate < 500MSPS*
+		:type samplerate: float; *0 < samplerate <= 500MSPS*
 		:param samplerate: Target samples per second. Will get rounded to the nearest allowable unit.
 
 		:type trigger_offset: int; *-2^16 + 1 < trigger_offset < 2^32*
 		:param trigger_offset: Number of samples before (-) or after (+) the trigger point to start capturing.
 
+		:raises InvalidConfigurationException: if either parameter is out of range.
 		"""
+
+		if samplerate <= 0 or samplerate > 500e6 or	trigger_offset < -2**16 + 1 or trigger_offset > 2**32 - 1:
+			raise InvalidConfigurationException("Invalid parameters")
+
 		decimation = _OSC_ADC_SMPS / samplerate
 
 		self.decimation_rate = decimation
@@ -390,7 +395,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 	def get_samplerate(self):
 		""" :return: The current instrument sample rate (Hz) """
 		if(self.decimation_rate == 0):
-			log.warning("Decimation rate appears to be unset.")
+			log.info("Decimation rate appears to be unset.")
 			return _OSC_ADC_SMPS
 		return _OSC_ADC_SMPS / float(self.decimation_rate)
 
