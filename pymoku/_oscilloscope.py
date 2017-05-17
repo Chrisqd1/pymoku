@@ -58,11 +58,15 @@ _OSC_MAX_POSTTRIGGER = -2**28
 
 class VoltsData(_frame_instrument.InstrumentData):
 	"""
-	Object representing a frame of data in units of Volts. This is the native output format of
-	the :any:`Oscilloscope` instrument and similar.
+	Object representing a frame of dual-channel data in units of Volts, and time in units of seconds. 
+	This is the native output format of	the :any:`Oscilloscope` instrument. The *waveformid* property
+	enables identification of uniqueness of a frame of data, as it is possible to retrieve the same
+	data more than once (i.e. if the instrument has been paused).
 
-	This object should not be instantiated directly, but will be returned by the Oscilloscope's
-	*get_frame* function.
+	This object should not be instantiated directly, but will be returned by a call to
+	:any:`get_data <pymoku.instruments.Oscilloscope.get_data>` or 
+	:any:`get_realtime_data <pymoku.instruments.Oscilloscope.get_realtime_data>` on the associated 
+	:any:`Oscilloscope`	instrument.
 
 	.. autoinstanceattribute:: pymoku._frame_instrument.VoltsData.ch1
 		:annotation: = [CH1_DATA]
@@ -70,8 +74,8 @@ class VoltsData(_frame_instrument.InstrumentData):
 	.. autoinstanceattribute:: pymoku._frame_instrument.VoltsData.ch2
 		:annotation: = [CH2_DATA]
 
-	.. autoinstanceattribute:: pymoku._frame_instrument.VoltsData.frameid
-		:annotation: = n
+	.. autoinstanceattribute:: pymoku._frame_instrument.VoltsData.time
+		:annotation: = [TIME]
 
 	.. autoinstanceattribute:: pymoku._frame_instrument.VoltsData.waveformid
 		:annotation: = n
@@ -194,7 +198,12 @@ class VoltsData(_frame_instrument.InstrumentData):
 
 
 class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGenerator):
-	""" Oscilloscope instrument object. This should be instantiated and attached to a :any:`Moku` instance.
+	""" Oscilloscope instrument object.
+
+	To run a new Oscilloscope instrument, this should be instantiated and deployed via a connected
+	:any:`Moku` object using :any:`deploy_instrument`. Alternatively, a pre-configured instrument object
+	can be obtained by discovering an already running Oscilloscope instrument on a Moku:Lab device via
+	:any:`discover_instrument`.
 
 	.. automethod:: pymoku.instruments.Oscilloscope.__init__
 
@@ -210,7 +219,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 	"""
 	def __init__(self):
-		"""Create a new Oscilloscope instrument, ready to be attached to a Moku."""
+		"""Create a new Oscilloscope instrument, ready to be deploy to a Moku."""
 		super(Oscilloscope, self).__init__()
 		self._register_accessors(_osc_reg_handlers)
 
@@ -320,9 +329,11 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 		:type t2: float
 		:param t2: As *t1* but to the right of screen.
+
+		:raises InvalidConfigurationException: if the timebase is backwards or zero.
 		"""
 		if(t2 <= t1):
-			raise Exception("Timebase must be non-zero, with t1 < t2. Attempted to set t1=%f and t2=%f" % (t1, t2))
+			raise InvalidConfigurationException("Timebase must be non-zero, with t1 < t2. Attempted to set t1=%f and t2=%f" % (t1, t2))
 
 		decimation = self._calculate_decimation(t1,t2)
 		render_decimation = self._calculate_render_downsample(t1, t2, decimation)
@@ -352,21 +363,24 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 	def set_samplerate(self, samplerate, trigger_offset=0):
 		""" Manually set the sample rate of the instrument.
 
-		The sample rate is automatically calcluated and set in :any:`set_timebase`.
+		The sample rate is automatically calculated and set in :any:`set_timebase`.
 
 		This interface allows you to specify the rate at which data is sampled, and set
 		a trigger offset in number of samples. This interface is useful for datalogging and capturing
 		of data frames.
 
-		NOTE: Triggered starts are not currently implemented for datalogging.
-
-		:type samplerate: float; *0 < samplerate < 500MSPS*
+		:type samplerate: float; *0 < samplerate <= 500MSPS*
 		:param samplerate: Target samples per second. Will get rounded to the nearest allowable unit.
 
 		:type trigger_offset: int; *-2^16 + 1 < trigger_offset < 2^32*
 		:param trigger_offset: Number of samples before (-) or after (+) the trigger point to start capturing.
 
+		:raises InvalidConfigurationException: if either parameter is out of range.
 		"""
+
+		if samplerate <= 0 or samplerate > 500e6 or	trigger_offset < -2**16 + 1 or trigger_offset > 2**32 - 1:
+			raise InvalidConfigurationException("Invalid parameters")
+
 		decimation = _OSC_ADC_SMPS / samplerate
 
 		self.decimation_rate = decimation
@@ -379,9 +393,9 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		self.offset = - round(trigger_offset) + self.render_deci
 
 	def get_samplerate(self):
-		""" :return: The current instrument sample rate """
+		""" :return: The current instrument sample rate (Hz) """
 		if(self.decimation_rate == 0):
-			log.warning("Decimation rate appears to be unset.")
+			log.info("Decimation rate appears to be unset.")
 			return _OSC_ADC_SMPS
 		return _OSC_ADC_SMPS / float(self.decimation_rate)
 
@@ -393,7 +407,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		:type xmode: string, {'roll','sweep','fullframe'}
 		:param xmode:
 			Respectively; Roll Mode (scrolling), Sweep Mode (normal oscilloscope trace sweeping across the screen)
-			or Full Frame (Like sweep, but waits for the frame to be completed).
+			or Full Frame (like sweep, but waits for the frame to be completed).
 		"""
 		_str_to_xmode = {
 			'roll' : _OSC_ROLL,
@@ -435,6 +449,21 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 		:type hysteresis: float, volts
 		:param hysteresis: Hysteresis to apply around trigger point.
+
+		:type hf_reject: bool
+		:param hf_reject: Enable high-frequency noise rejection
+
+		:type mode: string, {'auto', 'normal'}
+		:param mode: Trigger mode.
+
+		.. note::
+			Traditional Oscilloscopes have a "Single Trigger" mode that captures an event then
+			pauses the instrument. In pymoku, there is no need to pause the instrument as you
+			can simply choose to continue using the last captured frame.  That is, set trigger
+			``mode='normal'`` then retrieve a single frame using :any:`get_data <pymoku.instruments.Oscilloscope.get_data>`
+			or :any:`get_realtime_data <pymoku.instruments.Oscilloscope.get_realtime_data>`
+			with ``wait=True``.
+
 		"""
 		# Convert the input parameter strings to bit-value mappings
 		_str_to_trigger_source = {
@@ -450,8 +479,8 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		}
 		_str_to_trigger_mode = {
 			'auto' : _OSC_TRIG_AUTO,
-			'normal' : _OSC_TRIG_NORMAL,
-			'single' : _OSC_TRIG_SINGLE
+			'normal' : _OSC_TRIG_NORMAL
+			#'single' : _OSC_TRIG_SINGLE
 		}
 		source = _utils.str_to_val(_str_to_trigger_source, source, 'trigger source')
 		edge = _utils.str_to_val(_str_to_edge, edge, 'edge type')
@@ -474,7 +503,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 		This feature allows the user to preview the Signal Generator outputs.
 
-		:type ch: int
+		:type ch: int; {1,2}
 		:param ch: Channel Number
 
 		:type source: string, {'in','out'}
@@ -656,14 +685,14 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		self._update_datalogger_params()
 
 
-	def commit(self, *args, **kwargs):
+	def commit(self):
 		scales = self._calculate_scales()
 		# Update any calibration scaling dependent register values
 		self._update_dependent_regs(scales)
 		self._update_datalogger_params()
 
 		# Commit the register values to the device
-		super(Oscilloscope, self).commit(*args, **kwargs)
+		super(Oscilloscope, self).commit()
 		# Associate new state ID with the scaling factors of the state
 		self.scales[self._stateid] = scales
 		# TODO: Trim scales dictionary, getting rid of old ids

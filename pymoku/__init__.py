@@ -246,9 +246,10 @@ class Moku(object):
 		return self._ownership(0x40)
 
 	def is_owner(self):
-		"""
-		Checks if you are the current owner of the Moku:Lab device.
-		"""
+		"""	Checks if you are the current owner of the Moku:Lab device.
+
+		:rtype: bool
+		:return: True if you are the owner of the device."""
 		return self._ownership(0x41)
 
 
@@ -834,6 +835,10 @@ class Moku(object):
 		self._send_file('f', path, 'moku.fw')
 		log.debug("Updating firmware")
 		self._trigger_fwload()
+
+	def get_ip(self):
+		""" :return: IP address of the connected Moku:Lab """
+		return self._ip
 
 	def get_serial(self):
 		""" :return: Serial number of connected Moku:Lab """

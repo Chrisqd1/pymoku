@@ -24,8 +24,24 @@ _DL_SCREEN_WIDTH	= 1024
 _DL_ROLL			= ROLL
 
 class Datalogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGenerator):
+	""" Datalogger instrument object.
 
+	To run a new Datalogger instrument, this should be instantiated and deployed via a connected
+	:any:`Moku` object using :any:`deploy_instrument`. Alternatively, a pre-configured instrument object
+	can be obtained by discovering an already running Datalogger instrument on a Moku:Lab device via
+	:any:`discover_instrument`.
+
+	.. automethod:: pymoku.instruments.Datalogger.__init__
+
+	.. attribute:: type
+		:annotation: = "datalogger"
+
+		Name of this instrument.
+
+	"""
 	def __init__(self):
+		"""Create a new Datalogger instrument, ready to deploy to a Moku.
+		"""
 		super(Datalogger, self).__init__()
 		self._register_accessors(_dl_reg_handlers)
 
@@ -50,8 +66,7 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 
 		# Disable the signal generator by default
 		# TODO: Disable without using a gen_ function
-		self.gen_sinewave(1,0.0,10)
-		self.gen_sinewave(2,0.0,10)
+		self.gen_off()
 
 		self.set_source(1,'in')
 		self.set_source(2,'in')
@@ -72,7 +87,12 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 		:type samplerate: float; *0 < samplerate < 500Msmp/s*
 		:param samplerate: Target samples per second. Will get rounded to the nearest allowable unit.
 
+		:raises InvalidConfigurationException: if either parameter is out of range.
 		"""
+
+		if samplerate <= 0 or samplerate > 500e6 or	trigger_offset < -2**16 + 1 or trigger_offset > 2**32 - 1:
+			raise InvalidConfigurationException("Invalid parameters")
+
 		decimation = _DL_ADC_SMPS / float(samplerate)
 		self.decimation_rate = decimation
 		self.timestep = 1.0/(_DL_ADC_SMPS/decimation)
@@ -104,7 +124,7 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 
 		This feature allows the user to capture the Signal Generator outputs.
 
-		:type ch: int
+		:type ch:  int; {1,2}
 		:param ch: Channel Number
 
 		:type source: string, {'in','out'}
@@ -112,6 +132,8 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 
 		:type lmode: string, {'clip','round'}
 		:param lmode: DAC Loopback mode (ignored 'in' sources)
+
+		:raises ValueOutOfRangeException: if the channel number is incorrect
 		"""
 		_str_to_lmode = {
 			'round' : _DL_LB_ROUND,

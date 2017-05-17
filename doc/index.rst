@@ -21,10 +21,10 @@ Contents
 
    moku
    oscilloscope
+   datalogger
    siggen
    specan
    phasemeter
-   lockin
    utils
 
 

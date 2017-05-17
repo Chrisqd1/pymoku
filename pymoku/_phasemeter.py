@@ -73,17 +73,26 @@ class Phasemeter_SignalGenerator(MokuInstrument):
 
 	@needs_commit
 	def gen_sinewave(self, ch, amplitude, frequency):
-		"""
+		""" Generate a sinewave signal on the specified output channel
+		
+		:type ch: int; {1,2}
 		:param ch: Channel number
-		:param amplitude: Signal amplitude in volts
-		:param frequency: Frequency in Hz
+		:type amplitude: float; V
+		:param amplitude: Signal amplitude
+		:type frequency: float; Hz
+		:param frequency: Frequency
+
+		:raises ValueOutOfRangeException: if the channel number is invalid
 		"""
 		if ch == 1:
 			self.pm_out1_frequency = frequency
 			self.pm_out1_amplitude = amplitude
-		if ch == 2:
+		elif ch == 2:
 			self.pm_out2_frequency = frequency
 			self.pm_out2_amplitude = amplitude
+		else:
+			raise ValueOutOfRangeException("Invalid channel number")
+
 
 	@needs_commit
 	def gen_off(self, ch=None):
@@ -93,14 +102,18 @@ class Phasemeter_SignalGenerator(MokuInstrument):
 		using this function. If *ch* is None (the default), both channels will be turned off,
 		otherwise just the one specified by the argument.
 
-		:type ch: int
-		:param ch: Channel to turn off
+		:type ch: int; {1,2} or *None*
+		:param ch: Channel to turn off or *None* for all channels
+
+		:raises ValueOutOfRangeException: if the channel number is invalid
 		"""
 		if (ch is None) or ch == 1:
 			self.pm_out1_amplitude = 0
-
 		if (ch is None) or ch == 2:
 			self.pm_out2_amplitude = 0
+
+		if ch is not None and ch > 2:
+			raise ValueOutOfRangeException("Invalid channel number")
 
 
 _pm_siggen_reg_hdl = {
@@ -117,7 +130,12 @@ _pm_siggen_reg_hdl = {
 }
 
 class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_SignalGenerator): #TODO Frame instrument may not be appropriate when we get streaming going.
-	""" Phasemeter instrument object. This should be instantiated and attached to a :any:`Moku` instance.
+	""" Phasemeter instrument object.
+
+	To run a new Phasemeter instrument, this should be instantiated and deployed via a connected
+	:any:`Moku` object using :any:`deploy_instrument`. Alternatively, a pre-configured instrument object
+	can be obtained by discovering an already running Phasemeter instrument on a Moku:Lab device via
+	:any:`discover_instrument`.
 
 	.. automethod:: pymoku.instruments.Phasemeter.__init__
 
@@ -156,7 +174,7 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_SignalGene
 		to set ~30Hz or ~120Hz.
 
 		:type samplerate: float, or string = {'slow','fast'}
-		:param samplerate: Desired sample rate
+		:param samplerate: Desired sample rate in samples per second, or a string alias
 		"""
 		if type(samplerate) is str:
 			_str_to_samplerate = {
@@ -172,8 +190,10 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_SignalGene
 		log.info("Samplerate set to %.2f Hz", _PM_UPDATE_RATE/float(self.output_decimation) )
 
 	def get_samplerate(self):
-		"""
-		Get the current output sample rate of the phase meter.
+		""" Get the samplerate of the Phasemeter
+
+		:rtype: float; smp/s
+		:return: Samplerate
 		"""
 		return _PM_UPDATE_RATE / self.output_decimation
 
@@ -187,6 +207,7 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_SignalGene
 		:type f: int; *2e6 < f < 200e6*
 		:param f: Initial locking frequency of the designated channel
 
+		:raises ValueOutOfRangeException: If the channel number or frequency are invalid
 		"""
 		if _PM_FREQ_MIN <= f <= _PM_FREQ_MAX:
 			if ch == 1:
@@ -194,24 +215,28 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_SignalGene
 			elif ch == 2:
 				self.init_freq_ch2 = int(f);
 			else:
-				raise ValueError("Invalid channel number")
+				raise ValueOutOfRangeException("Invalid channel number")
 		else:
-			raise ValueError("Initial frequency is not within the valid range.")
+			raise ValueOutOfRangeException("Initial frequency is not within the valid range.")
 
 	def get_initfreq(self, ch):
 		"""
 		Reads the seed frequency register of the phase tracking loop
-		Valid if auto acquire has not been used
+		Valid if auto acquire has not been used.
 
 		:type ch: int; *{1,2}*
 		:param ch: Channel number to read the initial frequency of.
+		:rtype: float; Hz
+		:return: Seed frequency
+
+		:raises ValueOutOfRangeException: if the channel number is invalid
 		"""
 		if ch == 1:
 			return self.init_freq_ch1
 		elif ch == 2:
 			return self.init_freq_ch2
 		else:
-			raise ValueError("Invalid channel number.")
+			raise ValueOutOfRangeException("Invalid channel number.")
 
 	def _set_controlgain(self, v):
 		#TODO: Put limits on the range of 'v'
@@ -222,41 +247,73 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_SignalGene
 
 	@needs_commit
 	def set_bandwidth(self, ch, bw):
-		"""
-		Set the bandwidth of an ADC channel
+		""" Set the bandwidth of the analog input channel
 
 		:type ch: int; *{1,2}*
-		:param ch: ADC channel number to set bandwidth of.
+		:param ch: Analog channel number to set bandwidth of.
 
 		:type bw: float; Hz
 		:param n: Desired bandwidth (will be rounded up to to the nearest multiple 10kHz * 2^N with N = [-6,0])
+
+		:raises ValueOutOfRangeException: if the bandwidth is not positive-definite or the channel number is invalid
 		"""
 		if bw <= 0:
-			raise ValueError("Invalid bandwidth (must be positive).")
+			raise ValueOutOfRangeException("Invalid bandwidth (must be positive).")
 		n = min(max(math.ceil(math.log(bw/10e3,2)),-6),0)
 
 		if ch == 1:
 			self.bandwidth_ch1 = n
 		elif ch == 2:
 			self.bandwidth_ch2 = n
+		else:
+			raise ValueOutOfRangeException("Invalid channel number")
 
 	def get_bandwidth(self, ch):
-		return 10e3 * (2**(self.bandwidth_ch1 if ch == 1 else self.bandwidth_ch2))
-
-	@needs_commit
-	def auto_acquire(self, ch):
-		"""
-		Auto-acquire the initial frequency of the specified channel
+		""" Get the bandwidth of the analog input channel
 
 		:type ch: int; *{1,2}*
-		:param ch: Channel number
+		:param ch: Analog channel number to get bandwidth of.
+
+		:rtype: float; Hz
+		:return: Bandwidth
 		"""
-		if ch == 1:
-			self.autoacquire_ch1 = True
-		elif ch == 2:
-			self.autoacquire_ch2 = True
-		else:
-			raise ValueError("Invalid channel")
+		return 10e3 * (2**(self.bandwidth_ch1 if ch == 1 else self.bandwidth_ch2))
+
+	def _strobe_acquire(self, ch, auto):
+		""" Helper function which strobes the reacquire or auto-acquire for single or both channels
+		"""
+		if not ch or (ch == 1):
+			self.autoacquire_ch1 = auto
+		if not ch or (ch == 2):
+			self.autoacquire_ch2 = auto
+
+	@needs_commit
+	def reacquire(self, ch=None):
+		"""
+		Restarts the frequency tracking loop and phase counter for the specified channel,
+		or both if no channel is specified. The starting frequency of the channel's tracking loop is
+		set to the seed frequency as set by calling :any:`set_initfreq`.
+
+		To automatically acquire a seed frequency, see :any:`auto_acquire`.
+
+		:type ch: int; *{1,2}*
+		:param ch: Channel number, or ``None`` for both
+		"""
+		self._strobe_acquire(ch=ch, auto=False)
+
+	@needs_commit
+	def auto_acquire(self, ch=None):
+		"""
+		Restarts the frequency tracking loop and phase counter for the specified channel,
+		or both if no channel is specified. The starting frequency of the channel's tracking loop is
+		automatically acquired, ignoring the currently set seed frequency by :any:`set_initfreq`.
+
+		To acquire using the set seed frequency, see :any:`reacquire`.
+
+		:type ch: int; *{1,2}*
+		:param ch: Channel number, or ``None`` for both
+		"""
+		self._strobe_acquire(ch=ch, auto=True)
 
 	def _get_hdrstr(self, ch1, ch2):
 		chs = [ch1, ch2]
@@ -303,9 +360,9 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_SignalGene
 		self.framerate = 0
 
 		# Set basic configurations
-		self.set_samplerate(1e3)
-		self.set_initfreq(1, 10e6)
-		self.set_initfreq(2, 10e6)
+		self.set_samplerate('fast')
+		self.set_initfreq(1, 30e6)
+		self.set_initfreq(2, 30e6)
 
 		# Set PI controller gains
 		self._set_controlgain(100)

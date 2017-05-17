@@ -2,8 +2,6 @@
 import math
 import logging
 
-from pymoku import ValueOutOfRangeException
-
 from ._instrument import *
 from ._instrument import _usgn, _sgn
 from . import _frame_instrument
@@ -106,7 +104,7 @@ class BasicSignalGenerator(MokuInstrument):
 	def gen_sinewave(self, ch, amplitude, frequency, offset=0, phase=0.0):
 		""" Generate a Sine Wave with the given parameters on the given channel.
 
-		:type ch: int
+		:type ch: int; {1,2}
 		:param ch: Channel on which to generate the wave
 
 		:type amplitude: float, volts
@@ -120,6 +118,8 @@ class BasicSignalGenerator(MokuInstrument):
 
 		:type phase: float, degrees 0-360
 		:param phase: Phase offset of the wave
+
+		:raises ValueOutOfRangeException: if the channel number is invalid
 		"""
 
 		if ch == 1:
@@ -143,7 +143,7 @@ class BasicSignalGenerator(MokuInstrument):
 	def gen_squarewave(self, ch, amplitude, frequency, offset=0, duty=0.5, risetime=0, falltime=0, phase=0.0):
 		""" Generate a Square Wave with given parameters on the given channel.
 
-		:type ch: int
+		:type ch: int; {1,2}
 		:param ch: Channel on which to generate the wave
 
 		:type amplitude: float, volts
@@ -167,6 +167,7 @@ class BasicSignalGenerator(MokuInstrument):
 		:type phase: float, degrees 0-360
 		:param phase: Phase offset of the wave
 
+		:raises ValueOutOfRangeException: if the channel number is invalid or the duty cycle and rise/fall times are incompatible
 		"""
 
 		if duty < risetime:
@@ -212,7 +213,7 @@ class BasicSignalGenerator(MokuInstrument):
 		This is a wrapper around the Square Wave generator, using the *riserate* and *fallrate*
 		parameters to form the ramp.
 
-		:type ch: int
+		:type ch: int; {1,2}
 		:param ch: Channel on which to generate the wave
 
 		:type amplitude: float, volts
@@ -229,6 +230,8 @@ class BasicSignalGenerator(MokuInstrument):
 
 		:type phase: float, degrees 0-360
 		:param phase: Phase offset of the wave
+
+		:raises ValueOutOfRangeException: if the channel number is invalid
 		"""
 		self.gen_squarewave(ch, amplitude, frequency,
 			offset = offset, duty = symmetry,
@@ -245,8 +248,10 @@ class BasicSignalGenerator(MokuInstrument):
 		using this function. If *ch* is None (the default), both channels will be turned off,
 		otherwise just the one specified by the argument.
 
-		:type ch: int
+		:type ch: int; {1,2}
 		:param ch: Channel to turn off
+
+		:raises ValueOutOfRangeException: if the channel number is invalid
 		"""
 		if channel is None or channel == 1:
 			self.out1_enable = False
@@ -254,8 +259,26 @@ class BasicSignalGenerator(MokuInstrument):
 		if channel is None or channel == 2:
 			self.out2_enable = False
 
+		if channel is not None and channel > 2:
+			raise ValueOutOfRangeException("Invalid channel")
+
 
 class SignalGenerator(BasicSignalGenerator):
+	""" Signal Generator instrument object.
+
+	To run a new Signal Generator instrument, this should be instantiated and deployed via a connected
+	:any:`Moku` object using :any:`deploy_instrument`. Alternatively, a pre-configured instrument object
+	can be obtained by discovering an already running Signal Generator instrument on a Moku:Lab device via
+	:any:`discover_instrument`.
+
+	.. automethod:: pymoku.instruments.SignalGenerator.__init__
+
+	.. attribute:: type
+		:annotation: = "signal_generator"
+
+		Name of this instrument.
+
+	"""
 	def __init__(self):
 		""" Create a new SignalGenerator instance, ready to be attached to a Moku."""
 		super(SignalGenerator, self).__init__()
@@ -266,7 +289,7 @@ class SignalGenerator(BasicSignalGenerator):
 		"""
 		Set up modulation on an output channel.
 
-		:type ch: int
+		:type ch: int; {1,2}
 		:param ch: Channel to modulate
 
 		:type mtype: string, {'none', 'amplitude', 'frequency', 'phase'}
@@ -280,6 +303,8 @@ class SignalGenerator(BasicSignalGenerator):
 
 		:type frequency: float
 		:param frequency: Frequency of internally-generated sine wave modulation. This parameter is ignored if the source is set to ADC or DAC.
+
+		:raises ValueOutOfRangeException: if the channel number is invalid or modulation parameters can't be achieved
 		"""
 		_str_to_modsource = {
 			'internal' : _SG_MODSOURCE_INT,
@@ -337,6 +362,8 @@ class SignalGenerator(BasicSignalGenerator):
 			self.mod1_amplitude = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
 		elif ch == 2:
 			self.mod2_amplitude = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
+		else:
+			raise ValueOutOfRangeException("Invalid channel")
 
 _siggen_mod_reg_handlers = {
 	'out1_modulation':	(REG_SG_WAVEFORMS,	to_reg_unsigned(16, 8, allow_range=[_SG_MOD_NONE, _SG_MOD_AMPL | _SG_MOD_FREQ | _SG_MOD_PHASE]),

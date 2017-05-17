@@ -360,17 +360,7 @@ class MokuInstrument(object):
 		except:
 			log.warning("Can't read calibration values.")
 
-
-	def commit(self, update_state=True):
-		"""
-		Apply all modified settings.
-
-		.. note::
-
-		    If the `autocommit` feature has been turned off, this function can be used to manually apply any instrument
-		    settings to the Moku device. These instrument settings are those configured by calling all *set_* and *gen_* type
-		    functions. Manually calling this function allows you to atomically apply many instrument settings at once.
-		"""
+	def _commit(self, update_state=True):
 		if self._moku is None: raise NotDeployedException()
 		if update_state:
 			self._stateid = (self._stateid + 1) % 256 # Some statid docco says 8-bits, some 16.
@@ -383,6 +373,19 @@ class MokuInstrument(object):
 		self._moku._write_regs(regs)
 		self._remoteregs = [ l if l is not None else r for l, r in zip(self._localregs, self._remoteregs)]
 		self._localregs = [None] * 128
+
+	def commit(self):
+		"""
+		Apply all modified settings.
+
+		.. note::
+
+		    If the `autocommit` feature has been turned off, this function can be used to manually apply any instrument
+		    settings to the Moku device. These instrument settings are those configured by calling all *set_* and *gen_* type
+		    functions. Manually calling this function allows you to atomically apply many instrument settings at once.
+		"""
+		# We wrap up the implementation of the actual commit so we dont expose the update_state parameter to normal users
+		return self._commit(update_state=True)
 
 	def check_uncommitted_state(self):
 		return any(self._localregs)
@@ -452,13 +455,13 @@ class MokuInstrument(object):
 		"""
 		reg = (INSTR_RST if not active else 0)
 		self._localregs[REG_CTL] = reg
-		self.commit(update_state=False)
+		self._commit(update_state=False)
 
 	@needs_commit
 	def set_frontend(self, channel, fiftyr=False, atten=True, ac=False):
 		""" Configures gain, coupling and termination for each channel.
 
-		:type channel: int
+		:type channel: int; {1,2}
 		:param channel: Channel to which the settings should be applied
 
 		:type fiftyr: bool
@@ -487,13 +490,13 @@ class MokuInstrument(object):
 
 	def get_frontend(self, channel):
 		"""
-		:type channel: int
+		:type channel: int; {1,2}
 		:param channel: Channel for which the relay settings are being retrieved
 
-		Return array of bool with the front end configuration of channels
-		[0] 50 Ohm
-		[1] 10xAttenuation
-		[2] AC Coupling
+		:return: Array of bool with the front end configuration of channels
+			- [0] 50 Ohm
+			- [1] 10xAttenuation
+			- [2] AC Coupling
 		"""
 		if channel == 1:
 			r = self.relays_ch1
@@ -623,11 +626,8 @@ class MokuInstrument(object):
 
 	@needs_commit
 	def set_pause(self, pause):
-		"""
-		Pauses or unpauses the instrument's data output.
+		""" Pauses or unpauses the instrument's data output.
 
-		Depending on the instrument, the pause may not take effect until the current operation
-		has completed (e.g. the currently-filling Oscilloscope frame has completely filled).
 		:type pause: bool
 		:param pause: Paused
 		"""

@@ -2,35 +2,16 @@
 Spectrum Analyser Instrument
 ============================
 
-Spectrum Analyser Instrument class.
-
 This instrument provides frequency-domain analysis of input signals. It features switchable window functions, resolution bandwidth, averaging modes and more.
-
-.. note:: The requirement to :any:`commit() <pymoku.instruments.Oscilloscope.commit>` before a change takes effect is the most common cause of program malfunctions when interfacing with the Moku:Lab. Any *set_* or *gen_* function, or any direct manipulation of attributes such as :any:`framerate`, must be explicitly committed.
 
 Example Usage
 -------------
 
-.. TODO: Move back in to the source file?
+For an in-depth walkthrough on using the pymoku Spectrum Analyser Instrument, see the `pymoku Spectrum Analyser tutorial <http://confluence.liquidinstruments.com>`_. For the following example code and a wide range of other pymoku demo scripts, see the `pymoku example repository <https://anaconda.org/liquidinstruments/pymoku-examples>`_.
 
-.. code-block:: python
-
-	from pymoku import Moku
-	from pymoku.instruments import *
-
-	m = Moku.get_by_name('example')
-	i = SpecAn()
-	m.deploy_instrument(i)
-
-	# DC to 100MHz span, apply changes
-	i.set_span(0, 10000000)
-	i.commit()
-
-	# Get the scan results and print them out (power vs frequency, two channels)
-	print(i.get_frame())
-
-	# Close the connection to the Moku.
-	m.close()
+.. literalinclude:: ../examples/basic_specan.py
+	:language: python
+	:caption: basic_specan.py
 
 The SpectrumData Class
 -----------------------
@@ -39,17 +20,10 @@ The SpectrumData Class
 
 	.. Don't use :members: as it doesn't handle instance attributes well. Directives in the source code list required attributes directly.
 
-The DataBuffer Class
---------------------
 
-.. autoclass:: pymoku.instruments.DataBuffer
+The SpectrumAnalyser Class
+--------------------------
 
-	.. Don't use :members: as it doesn't handle instance attributes well. Directives in the source code list required attributes directly.
-
-
-The SpecAn Class
-----------------
-
-.. autoclass:: pymoku.instruments.SpecAn
+.. autoclass:: pymoku.instruments.SpectrumAnalyser
 	:members:
 	:inherited-members:

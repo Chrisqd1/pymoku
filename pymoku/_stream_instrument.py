@@ -35,16 +35,14 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 
 		self.timestep = 0
 
-	def start_stream_data(self, start=0, duration=10, ch1=True, ch2=True):
+	def start_stream_data(self, duration=10, ch1=True, ch2=True):
 		"""	Start streaming instrument data over the network.
 
-	    Samples being streamed can be retrieved by calls to :any:`get_stream_data`.
+		Samples being streamed can be retrieved by calls to `get_stream_data`.
 
-	    All outstanding settings must have been committed before starting the stream. This
-	    will always be true if *pymoku.autocommit=True*, the default.
+		All outstanding settings must have been committed before starting the stream. This
+		will always be true if *pymoku.autocommit=True*, the default.
 
-		:type start: float
-		:param start: Start time in seconds from the time of function call
 		:type duration: float
 		:param duration: Log duration in seconds
 		:type use_sd: bool
@@ -55,15 +53,15 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 		"""
 		if self.check_uncommitted_state():
 			raise UncommittedSettings("Can't start a streaming session due to uncommitted device settings.")
-		self._stream_start(start=start, duration=duration, ch1=ch1, ch2=ch2, use_sd=False, filetype='net')
+		self._stream_start(start=0, duration=duration, ch1=ch1, ch2=ch2, use_sd=False, filetype='net')
 		self._no_data = False
 
 	def stop_stream_data(self):
 		""" Stops instrument data being streamed over the network.
 
-		Should be called exactly once for every *start_stream_data*, even if the streaming session
+		Should be called exactly once for every `start_stream_data` call, even if the streaming session
 		stopped itself due to timeout. Calling this function not only causes the stream to stop, but
-	    also resets error and transfer state, ready to start a new streaming session.
+		also resets error and transfer state, ready to start a new streaming session.
 		"""
 		self._no_data = True
 		self._stream_stop()
@@ -71,20 +69,19 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 	def get_stream_data(self, n=0, timeout=None):
 		""" Get any new instrument samples that have arrived on the network.
 
+		This returns a tuple containing two arrays (one per channel) of up to 'n' samples of instrument data.
+		If a channel is disabled, the corresponding array is empty. If there were less than 'n' samples
+		remaining for the session, then the arrays will contain this remaining amount of samples.
+
 		:type n: int
 		:param n: Number of samples to get off the network. Set this to '0' to get
-		all currently available samples, or '-1' to wait on all samples of the currently
-		running streaming session to be received.
-
+			all currently available samples, or '-1' to wait on all samples of the currently
+			running streaming session to be received.
 		:type timeout: float
 		:param timeout: Timeout in seconds
 
 		:rtype: tuple
-		:returns: A tuple containing two arrays (one per channel) of up to 'n' samples of instrument data.
-		res[0] = Channel 1 Data
-		res[1] = Channel 2 Data
-		If a channel is disabled, the corresponding array is empty. If there were less than 'n' samples
-		remaining for the session, then the arrays will contain this remaining amount of samples.
+		:returns: ([CH1_DATA], [CH2_DATA])
 
 		:raises NoDataException: if the logging session has stopped
 		:raises FrameTimeout: if the timeout expired
@@ -143,8 +140,13 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 
 		return (dout_ch1, dout_ch2)
 
-	def start_data_log(self, start=0, duration=10, ch1=True, ch2=True, use_sd=True, filetype='csv', upload=False):
+	def start_data_log(self, duration=10, ch1=True, ch2=True, use_sd=True, filetype='csv', upload=False):
 		"""	Start logging instrument data to a file.
+
+		Progress of the data log may be checked calling `progress_data_log`.
+
+		All outstanding settings must have been committed before starting the data log. This
+		will always be true if *pymoku.autocommit=True*, the default.
 
 		:type start: float
 		:param start: Start time in seconds from the time of function call
@@ -164,18 +166,19 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 			raise UncommittedSettings("Can't start a logging session due to uncommitted device settings.")
 		if filetype not in ['csv','bin']:
 			raise ValueError('Invalid log file type: %s. Expected \'csv\' or \'bin\'.' % filetype)
-		self._stream_start(start=start, duration=duration, ch1=ch1, ch2=ch2, use_sd=use_sd, filetype=filetype)
+		self._stream_start(start=0, duration=duration, ch1=ch1, ch2=ch2, use_sd=use_sd, filetype=filetype)
 
 	def stop_data_log(self):
 		""" Stops the current instrument data logging session.
 
-		This must be called exactly once for every :any:`start_data_log` call, even if the log terminated itself
-		due to timeout. Calling this function doesn't just stop the session (if it isn't already stopped)
+		This must be called exactly once for every `start_data_log` call, even if the log terminated itself
+		due to timeout. Calling this function doesn't just stop the session (if it isn't already stopped),
+		but also resets error and transfer state, ready to start a new logging session.
 		"""
 		self._stream_stop()
 
 	def progress_data_log(self):
-		""" Estimates progress of a logging session started by a :any:`start_data_log` call.
+		""" Estimates progress of a logging session started by a `start_data_log` call.
 
 		:rtype: float
 		:returns: [0.0-100.0] representing 0 - 100% completion of the current logging session.
@@ -256,8 +259,8 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 	def get_timestep(self):
 		""" Returns the expected time between streamed samples.
 
-		This returns the inverse figure to :any:`get_samplerate`. This form is more useful
-		for constructing time axes to support, for example, :any:`get_stream_data`.
+		This returns the inverse figure to `get_samplerate`. This form is more useful
+		for constructing time axes to support, for example, `get_stream_data`.
 
 		:rtype: float
 		:returns: Time between data samples in seconds.

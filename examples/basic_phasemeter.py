@@ -15,15 +15,20 @@ import math, time
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
 
+# Prepare a new Phasemeter instrument to be deployed
 i = Phasemeter()
 
-# Set up Moku as a Phasemeter, and use the external 10MHz reference clock
+# Deploy the new Phasemeter instrument to the Moku:Lab
+# Also, try to synchronise the Moku:Lab to an external 10MHz reference
 m.deploy_instrument(i, use_external=True)
 
 try:
-	# Set the initial phase-lock loop frequency to 10MHz and a sample rate of ~30Hz
+	# Set the Channel 1 seed frequency to 10MHz and a sample rate of ~30Hz
 	i.set_initfreq(1, 10e6)
 	i.set_samplerate('slow')
+
+	# Restart the frequency-tracking loop on Channel 1
+	i.reacquire(ch=1)
 
 	# Stop an existing log, if any, then start a new one. 10 seconds of both channels to the
 	# SD Card (rather than internal storage). Using CSV format.

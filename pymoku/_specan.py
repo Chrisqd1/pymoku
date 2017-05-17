@@ -146,25 +146,30 @@ _DECIMATIONS_TABLE = sorted([ (d1 * (d2+1) * (d3+1) * (d4+1), d1, d2+1, d3+1, d4
 
 class SpectrumData(_frame_instrument.InstrumentData):
 	"""
-	Object representing a frame of data in units of power vs frequency. This is the native output format of
-	the :any:`SpectrumAnalyser` instrument and similar.
+	Object representing a frame of dual-channel frequency spectrum data (amplitude vs frequency in Hz).
+	Amplitude is in units of either dBm power or RMS Voltage, as indicated by the `dbm` attribute 
+	of the frame. The amplitude scale may be selected by calling :any:`set_dbmscale` on the relevant
+	:any:`SpectrumAnalyser` instrument.
 
-	This object should not be instantiated directly, but will be returned by a supporting *get_frame*
-	implementation.
+	This is the native output format of the :any:`SpectrumAnalyser` instrument.
 
-	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumFrame.ch1
+	This object should not be instantiated directly, but will be returned by a call to
+	:any:`get_data <pymoku.instruments.SpectrumAnalyser.get_data>` on the associated :any:`SpectrumAnalyser`
+	instrument.
+
+	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumData.ch1
 		:annotation: = [CH1_DATA]
 
-	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumFrame.ch2
+	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumData.ch2
 		:annotation: = [CH2_DATA]
 
-	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumFrame.fs
+	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumData.fs
 		:annotation: = [FREQ]
 
-	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumFrame.frameid
-		:annotation: = n
+	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumData.dbm
+		:annotation: = bool
 
-	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumFrame.waveformid
+	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumData.waveformid
 		:annotation: = n
 	"""
 	def __init__(self, scales):
@@ -179,6 +184,9 @@ class SpectrumData(_frame_instrument.InstrumentData):
 
 		#: The frequency range associated with both channels
 		self.frequency = []
+
+		#: Whether the data is in logarithmic (dBm) scale. The alternative is a linear scale.
+		self.dbm = None
 
 		#: Obtain all data scaling factors relevant to current SpectrumAnalyser configuration
 		self._scales = scales
@@ -206,6 +214,8 @@ class SpectrumData(_frame_instrument.InstrumentData):
 		dbmscale = scales['dbmscale']
 
 		try:
+			self.dbm = dbmscale
+
 			# Find the starting index for the valid frame data
 			# SpectrumAnalyser generally gives more than we ask for due to integer decimations
 			start_index = bisect_right(fs,f1)
@@ -258,6 +268,7 @@ class SpectrumData(_frame_instrument.InstrumentData):
 			return
 		scales = self._scales[self._stateid]
 		self.time = [scales['buff_time_min'] + (scales['buff_time_step'] * x) for x in range(_OSC_BUFLEN)]
+		self.dbm = scales['dbmscale']
 		return True
 
 	'''
@@ -336,7 +347,12 @@ class SpectrumData(_frame_instrument.InstrumentData):
 
 
 class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
-	""" Spectrum Analyser instrument object. This should be instantiated and attached to a :any:`Moku` instance.
+	""" Spectrum Analyser instrument object.
+
+	To run a new Spectrum Analyser instrument, this should be instantiated and deployed via a connected
+	:any:`Moku` object using :any:`deploy_instrument`. Alternatively, a pre-configured instrument object
+	can be obtained by discovering an already running Spectrum Analyser instrument on a Moku:Lab device via
+	:any:`discover_instrument`.
 
 	.. automethod:: pymoku.instruments.SpectrumAnalyser.__init__
 
@@ -484,17 +500,16 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		""" Sets the frequency span to be analysed.
 
 		Rounding and quantization in the instrument limits the range of spans for which a full set of 1024
-		data points can be calculated. In this mode, the resultant number of valid points is guaranteed
-		however this may lead to the span being slightly increased from that requested.  See :any:`set_span`
-		for an alternative rounding mode.
-
-		Note that the valid sweep points and the associated frequencies will be given by the :any:`SpectrumFrame`
-		that contains the data.
+		data points can be calculated. This means that the resultant number of data points in
+		:any:`SpectrumData` frames will vary with the set span. Note however that the associated frequencies are 
+		given with the frame containing the data.
 
 		:type f1: float
 		:param f1: Left-most frequency (Hz)
 		:type f2: float
 		:param f2: Right-most frequency (Hz)
+
+		:raises InvalidConfigurationException: if the span is not positive-definite.
 		"""
 		if f1 < 0 or f2 < 0 or f2 <= f1:
 			raise InvalidConfigurationException("Span must be non-negative with f2 > f1")
@@ -509,9 +524,11 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 
 		:type rbw: float
 		:param rbw: Resolution bandwidth (Hz), or ``None`` for auto-mode
+
+		:raises InvalidConfigurationException: if the RBW is not positive-definite or *None*
 		"""
 		if rbw and rbw < 0:
-			raise ValueOutOfRangeException("Invalid RBW (should be >= 0 or None) %d", rbw)
+			raise InvalidConfigurationException("Invalid RBW (should be >= 0 or None) %d", rbw)
 
 		self.rbw = rbw
 
@@ -533,7 +550,12 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 
 	@needs_commit
 	def set_dbmscale(self,dbm=True):
-		""" Configures the Spectrum Analyser to use a logarithmic amplitude axis """
+		""" Configures the scale of the Spectrum Analyser amplitude data.
+		This can be either power in dBm, or RMS Voltage.
+		
+		:type dbm: bool
+		:param dbm: Enable dBm scale
+		"""
 		self.dbmscale = dbm
 
 	@needs_commit
@@ -647,7 +669,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 
 		If *ch* is specified, turn off only a single channel, otherwise turn off both.
 
-		:type ch: int
+		:type ch: int; {1,2}
 		:param ch: Channel number to turn off (None, or leave blank, for both)firmware_is_compatible
 		"""
 		if ch is None or ch == 1:
@@ -660,7 +682,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		"""
 		Configure the output sinewaves on DAC channels
 
-		:type ch: 1, 2
+		:type ch: int; {1,2}
 		:param ch: Output DAC channel to configure
 
 		:type amp: float, 0.0 - 2.0 volts
@@ -671,6 +693,8 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 
 		:type sweep: bool
 		:param sweep: Sweep current frequency span (ignores freq parameter if True). Defaults to False.
+
+		:raises ValueOutOfRangeException: if the specified channel is invalid.
 		"""
 
 		# Taken from iPad library:
@@ -719,12 +743,12 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 
 		log.debug("SW1: %s, AMP1: %f, INCR1: %f, FREQ1: %f/%f, SW2: %s, AMP2: %f, INCR2: %f, FREQ2: %f/%f", self.sweep1, self.tr1_amp, self.tr1_incr, self.tr1_start, self.tr1_stop, self.sweep2, self.tr2_amp, self.tr2_incr, self.tr2_start, self.tr2_stop)
 
-	def commit(self, *args, **kwargs):
+	def commit(self):
 		# Update registers that depend on others being calculated
 		self._update_dependent_regs()
 
 		# Push the controls through to the device
-		super(SpectrumAnalyser, self).commit(*args,**kwargs)
+		super(SpectrumAnalyser, self).commit()
 
 		# Update the scaling factors for processing of incoming frames
 		# stateid allows us to track which scales correspond to which register state
@@ -755,14 +779,14 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		self.f1 = self._f1_full = self.demod - fspan
 		self.scales[self._stateid] = self._calculate_scales()
 
-	def get_data(self, *args, **kwargs):
+	def get_data(self, timeout=None, wait=True):
 		"""
 		Get the latest sweep results.
 
-		On SpectrumAnalyser this is an alias for :any:`get_realtime_data` as the
+		On SpectrumAnalyser this is an alias for :any:`get_realtime_data <pymoku.instruments.SpectrumAnalyser.get_realtime_data>` as the
 		output data is never downsampled from the sweep results.
 		"""
-		return self.get_realtime_data(*args, **kwargs)
+		return self.get_realtime_data(timeout=timeout,wait=wait)
 
 _sa_reg_handlers = {
 	'demod':			(REG_SA_DEMOD,		to_reg_unsigned(0, 32, xform=lambda obj, f: f * _SA_FREQ_SCALE),
