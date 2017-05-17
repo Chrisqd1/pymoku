@@ -87,7 +87,12 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 		:type samplerate: float; *0 < samplerate < 500Msmp/s*
 		:param samplerate: Target samples per second. Will get rounded to the nearest allowable unit.
 
+		:raises InvalidConfigurationException: if either parameter is out of range.
 		"""
+
+		if samplerate <= 0 or samplerate > 500e6 or	trigger_offset < -2**16 + 1 or trigger_offset > 2**32 - 1:
+			raise InvalidConfigurationException("Invalid parameters")
+
 		decimation = _DL_ADC_SMPS / float(samplerate)
 		self.decimation_rate = decimation
 		self.timestep = 1.0/(_DL_ADC_SMPS/decimation)
@@ -127,6 +132,8 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 
 		:type lmode: string, {'clip','round'}
 		:param lmode: DAC Loopback mode (ignored 'in' sources)
+
+		:raises ValueOutOfRangeException: if the channel number is incorrect
 		"""
 		_str_to_lmode = {
 			'round' : _DL_LB_ROUND,
