@@ -432,12 +432,6 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 	def set_trigger(self, source, edge, level, hysteresis=0, hf_reject=False, mode='auto'):
 		""" Sets trigger source and parameters.
 
-		Single trigger mode currently unsupported. You can achieve the same effect by 
-		setting trigger ``mode='normal'``. Then retrieve a single triggered frame using 
-		:any:`get_data <pymoku.instruments.Oscilloscope.get_data>` or 
-		:any:`get_realtime_data <pymoku.instruments.Oscilloscope.get_realtime_data>` with
-		``wait=True``.
-
 		:type source: string, {'in1','in2','out1','out2'}
 		:param source: Trigger Source. May be either an input or output channel,
 						allowing one to trigger off a synthesised waveform.
@@ -456,6 +450,15 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 		:type mode: string, {'auto', 'normal'}
 		:param mode: Trigger mode.
+
+		.. note::
+			Traditional Oscilloscopes have a "Single Trigger" mode that captures an event then
+			pauses the instrument. In pymoku, there is no need to pause the instrument as you
+			can simply choose to continue using the last captured frame.  That is, set trigger
+			``mode='normal'`` then retrieve a single frame using :any:`get_data <pymoku.instruments.Oscilloscope.get_data>`
+			or :any:`get_realtime_data <pymoku.instruments.Oscilloscope.get_realtime_data>`
+			with ``wait=True``.
+
 		"""
 		# Convert the input parameter strings to bit-value mappings
 		_str_to_trigger_source = {
