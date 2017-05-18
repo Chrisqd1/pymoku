@@ -5,5 +5,4 @@ urllib3
 pyzmq
 rfc6266
 requests
-pycapnp
 decorator
