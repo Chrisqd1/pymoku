@@ -321,7 +321,7 @@ class Moku(object):
 	def _get_clock_source(self):
 		self._conn.send(bytearray([0x54, 0x02]))
 		ack = self._conn.recv()
-		status = ord(ack[2])
+		status = struct.unpack("<BBB", ack)[2]
 
 		return bool(status & 0x02), bool(status & 0x01)
 

@@ -241,15 +241,15 @@ class BasicSignalGenerator(MokuInstrument):
 
 
 	@needs_commit
-	def gen_off(ch=None):
+	def gen_off(self, channel=None):
 		""" Turn Signal Generator output(s) off.
 
 		The channel will be turned on when configuring the waveform type but can be turned off
 		using this function. If *ch* is None (the default), both channels will be turned off,
 		otherwise just the one specified by the argument.
 
-		:type ch: int; {1,2}
-		:param ch: Channel to turn off
+		:type channel: int; {1,2}
+		:param channel: Channel to turn off
 
 		:raises ValueOutOfRangeException: if the channel number is invalid
 		"""

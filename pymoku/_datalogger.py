@@ -90,7 +90,7 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 		:raises InvalidConfigurationException: if either parameter is out of range.
 		"""
 
-		if samplerate <= 0 or samplerate > 500e6 or	trigger_offset < -2**16 + 1 or trigger_offset > 2**32 - 1:
+		if samplerate <= 0 or samplerate > 500e6:
 			raise InvalidConfigurationException("Invalid parameters")
 
 		decimation = _DL_ADC_SMPS / float(samplerate)

@@ -126,7 +126,7 @@ class StreamHandler(_instrument.MokuInstrument):
 		if self._moku is None: raise NotDeployedException()
 
 		self._dlserial += 1
-		self.tag = "%04d" % self._dlserial
+		self.tag = u"%04d" % self._dlserial
 
 		self.ch1 = bool(ch1)
 		self.ch2 = bool(ch2)
@@ -392,7 +392,7 @@ class StreamHandler(_instrument.MokuInstrument):
 		ctx = zmq.Context.instance()
 		self._dlskt = ctx.socket(zmq.SUB)
 		self._dlskt.connect("tcp://%s:27186" % self._moku._ip)
-		self._dlskt.setsockopt_string(zmq.SUBSCRIBE, unicode(tag))
+		self._dlskt.setsockopt_string(zmq.SUBSCRIBE, tag)
 
 		self._strparser = dataparser.LIDataParser(self.ch1, self.ch2,
 			self.binstr, self.procstr, self.fmtstr, self.hdrstr,
