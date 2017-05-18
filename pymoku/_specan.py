@@ -3,9 +3,10 @@ import logging
 
 from ._instrument import *
 from . import _frame_instrument
+from . import _utils
 
 from bisect import bisect_right
-import _utils
+
 
 log = logging.getLogger(__name__)
 

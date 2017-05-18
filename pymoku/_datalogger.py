@@ -2,7 +2,7 @@ from ._instrument import *
 
 from . import _stream_instrument
 from . import _siggen
-import _utils
+from . import _utils
 
 REG_DL_OUTSEL		= 65
 REG_DL_ACTL			= 69

@@ -6,7 +6,7 @@ import re
 from ._instrument import *
 from . import _frame_instrument
 from . import _siggen
-import _utils
+from . import _utils
 
 log = logging.getLogger(__name__)
 

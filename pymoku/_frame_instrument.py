@@ -11,7 +11,8 @@ from collections import deque
 from queue import Queue, Empty
 
 from pymoku import Moku, FrameTimeout, NoDataException, StreamException, UncommittedSettings, dataparser, _stream_handler, _get_autocommit
-from _stream_instrument import _STREAM_STATE_NONE, _STREAM_STATE_RUNNING, _STREAM_STATE_WAITING, _STREAM_STATE_INVAL, _STREAM_STATE_FSFULL, _STREAM_STATE_OVERFLOW, _STREAM_STATE_BUSY, _STREAM_STATE_STOPPED
+
+from ._stream_instrument import _STREAM_STATE_NONE, _STREAM_STATE_RUNNING, _STREAM_STATE_WAITING, _STREAM_STATE_INVAL, _STREAM_STATE_FSFULL, _STREAM_STATE_OVERFLOW, _STREAM_STATE_BUSY, _STREAM_STATE_STOPPED
 
 from . import _instrument
 
