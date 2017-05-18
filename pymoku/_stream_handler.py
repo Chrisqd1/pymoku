@@ -3,7 +3,7 @@ import math
 
 from . import _instrument
 from . import dataparser
-from _instrument import *
+from ._instrument import *
 from pymoku import Moku, UncommittedSettings, InvalidConfigurationException, FrameTimeout, BufferTimeout, NotDeployedException, InvalidOperationException, NoDataException, StreamException, InsufficientSpace, MPNotMounted, MPReadOnly, dataparser
 
 _STREAM_STATE_NONE		= 0

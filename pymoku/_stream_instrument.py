@@ -4,7 +4,7 @@ import os, os.path
 import logging, time, threading, math
 import zmq
 
-from _instrument import *
+from ._instrument import *
 from pymoku import Moku, UncommittedSettings, InvalidConfigurationException, FrameTimeout, BufferTimeout, NotDeployedException, InvalidOperationException, NoDataException, StreamException, InsufficientSpace, MPNotMounted, MPReadOnly, dataparser, _stream_handler, _instrument
 
 _STREAM_STATE_NONE		= 0
