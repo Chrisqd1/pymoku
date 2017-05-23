@@ -197,30 +197,10 @@ class VoltsData(_frame_instrument.InstrumentData):
 		return self._get_yaxis_fmt(y,None)['ycoord']
 
 
-class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGenerator):
-	""" Oscilloscope instrument object.
+class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 
-	To run a new Oscilloscope instrument, this should be instantiated and deployed via a connected
-	:any:`Moku` object using :any:`deploy_instrument`. Alternatively, a pre-configured instrument object
-	can be obtained by discovering an already running Oscilloscope instrument on a Moku:Lab device via
-	:any:`discover_instrument`.
-
-	.. automethod:: pymoku.instruments.Oscilloscope.__init__
-
-	.. attribute:: framerate
-		:annotation: = 10
-
-		Frame Rate, range 1 - 30.
-
-	.. attribute:: type
-		:annotation: = "oscilloscope"
-
-		Name of this instrument.
-
-	"""
 	def __init__(self):
-		"""Create a new Oscilloscope instrument, ready to be deploy to a Moku."""
-		super(Oscilloscope, self).__init__()
+		super(_CoreOscilloscope, self).__init__()
 		self._register_accessors(_osc_reg_handlers)
 
 		self.id = 1
@@ -536,8 +516,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 	@needs_commit
 	def set_defaults(self):
 		""" Reset the Oscilloscope to sane defaults. """
-		super(Oscilloscope, self).set_defaults()
-		#TODO this should reset ALL registers
+		super(_CoreOscilloscope, self).set_defaults()
 		self.set_source(1,'in')
 		self.set_source(2,'in')
 		self.set_trigger('in1','rising', 0)
@@ -665,7 +644,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 	def _on_reg_sync(self):
 		# Do the instrument-level post-sync stuff
-		super(Oscilloscope, self)._on_reg_sync()
+		super(_CoreOscilloscope, self)._on_reg_sync()
 
 		# This function is used to update any local variables when a Moku has
 		# had its registers synchronised with the current instrument
@@ -692,13 +671,40 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		self._update_datalogger_params()
 
 		# Commit the register values to the device
-		super(Oscilloscope, self).commit()
+		super(_CoreOscilloscope, self).commit()
 		# Associate new state ID with the scaling factors of the state
 		self.scales[self._stateid] = scales
 		# TODO: Trim scales dictionary, getting rid of old ids
 
 	# Bring in the docstring from the superclass for our docco.
 	commit.__doc__ = MokuInstrument.commit.__doc__
+
+
+class Oscilloscope(_CoreOscilloscope, _siggen.BasicSignalGenerator):
+	""" Oscilloscope instrument object.
+
+	To run a new Oscilloscope instrument, this should be instantiated and deployed via a connected
+	:any:`Moku` object using :any:`deploy_instrument`. Alternatively, a pre-configured instrument object
+	can be obtained by discovering an already running Oscilloscope instrument on a Moku:Lab device via
+	:any:`discover_instrument`.
+
+	.. automethod:: pymoku.instruments.Oscilloscope.__init__
+
+	.. attribute:: framerate
+		:annotation: = 10
+
+		Frame Rate, range 1 - 30.
+
+	.. attribute:: type
+		:annotation: = "oscilloscope"
+
+		Name of this instrument.
+
+	"""
+	# The Oscilloscope core is split out without the siggen so it can be used as embedded in other instruments,
+	# e.g. lockin, pid etc.
+	pass
+
 
 _osc_reg_handlers = {
 	'source_ch1':		(REG_OSC_OUTSEL,	to_reg_unsigned(0, 1, allow_set=[_OSC_SOURCE_ADC, _OSC_SOURCE_DAC]),
