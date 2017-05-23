@@ -1,27 +1,13 @@
 
-import math
 import logging
 
-from _instrument import *
-from _oscilloscope import VoltsFrame
-import _instrument
-import _frame_instrument
-import _siggen
+from math import pi, sqrt
 
-# Annoying that import * doesn't pick up function defs??
-_sgn = _instrument._sgn
-_usgn = _instrument._usgn
+from ._instrument import *
+from ._oscilloscope import _CoreOscilloscope
 
 log = logging.getLogger(__name__)
 
-
-# LOCKINAMP REGISTERS
-REG_PID_OUTSEL		= 65
-REG_PID_TRIGMODE	= 66
-REG_PID_TRIGCTL		= 67
-REG_PID_TRIGLVL		= 68
-REG_PID_ACTL		= 69
-REG_PID_DECIMATION	= 70
 
 REG_PID_ENABLES					= 96
 # CHANNEL 0 REGISTERS
@@ -36,14 +22,9 @@ REG_PID_CH0_INT_IFBGAIN2		= 101
 REG_PID_CH0_INT_PGAIN1			= 102
 REG_PID_CH0_INT_PGAIN2_LSB		= 102
 REG_PID_CH0_INT_PGAIN2_MSB		= 103
-REG_PID_CH0_DIFF_DGAIN1_LSB		= 103
-REG_PID_CH0_DIFF_DGAIN1_MSB		= 104
-REG_PID_CH0_DIFF_DGAIN2			= 104
 REG_PID_CH0_DIFF_PGAIN1			= 105
-REG_PID_CH0_DIFF_PGAIN2_LSB		= 105
-REG_PID_CH0_DIFF_PGAIN2_MSB		= 106
 REG_PID_CH0_DIFF_IGAIN1_LSB		= 106
-REG_PID_CH0_DIFF_IGAIN2_MSB		= 107
+REG_PID_CH0_DIFF_IGAIN1_MSB		= 107
 REG_PID_CH0_DIFF_IFBGAIN1		= 108
 REG_PID_CH0_DIFF_IFBGAIN2		= 109
 REG_PID_CH0_CH0GAIN_LSB			= 108
@@ -59,18 +40,13 @@ REG_PID_CH1_INT_IGAIN2_LSB		= 114
 REG_PID_CH1_INT_IGAIN2_MSB		= 115
 REG_PID_CH1_INT_IFBGAIN1_LSB	= 115
 REG_PID_CH1_INT_IFBGAIN1_MSB	= 116
-REG_PID_CH1_INT_IFBGAIN2		= 117
+REG_PID_CH1_INT_IFBGAIN2		= 116
 REG_PID_CH1_INT_PGAIN1			= 117
 REG_PID_CH1_INT_PGAIN2_LSB		= 118
 REG_PID_CH1_INT_PGAIN2_MSB		= 118
-REG_PID_CH1_DIFF_DGAIN1_LSB		= 119
-REG_PID_CH1_DIFF_DGAIN1_MSB		= 119
-REG_PID_CH1_DIFF_DGAIN2			= 120
 REG_PID_CH1_DIFF_PGAIN1			= 120
-REG_PID_CH1_DIFF_PGAIN2_LSB		= 121
-REG_PID_CH1_DIFF_PGAIN2_MSB		= 121
-REG_PID_CH1_DIFF_IGAIN1_LSB		= 122
-REG_PID_CH1_DIFF_IGAIN2_MSB		= 122
+REG_PID_CH1_DIFF_IGAIN1_LSB		= 121
+REG_PID_CH1_DIFF_IGAIN1_MSB		= 122
 REG_PID_CH1_DIFF_IFBGAIN1		= 123
 REG_PID_CH1_DIFF_IFBGAIN2		= 124
 REG_PID_CH1_CH0GAIN_LSB			= 123
@@ -79,46 +55,11 @@ REG_PID_CH1_OFFSET1				= 125
 REG_PID_CH1_OFFSET2				= 126
 REG_PID_CH1_CH1GAIN				= 127
   
-REG_PID_MONSELECT0				= 96
-REG_PID_MONSELECT1				= 96
-# REG_PID_OUTSEL constants
-PID_SOURCE_ADC		= 0
-PID_SOURCE_DAC		= 1
-
-# REG_PID_TRIGMODE constants
-PID_TRIG_AUTO		= 0
-PID_TRIG_NORMAL		= 1
-PID_TRIG_SINGLE		= 2
-
-# REG_PID_TRIGLVL constants
-PID_TRIG_CH1		= 0
-PID_TRIG_CH2		= 1
-PID_TRIG_DA1		= 2
-PID_TRIG_DA2		= 3
-
-PID_EDGE_RISING		= 0
-PID_EDGE_FALLING	= 1
-PID_EDGE_BOTH		= 2
-
-PID_ROLL			= _instrument.ROLL
-PID_SWEEP			= _instrument.SWEEP
-PID_FULL_FRAME		= _instrument.FULL_FRAME
+REG_PID_MONSELECT				= 104
 
 # SIGNAL PRECISION MODES
 PID_HIGH_PRECISION	= 1
 PID_HIGH_RANGE		= 0
-
-_PID_LB_ROUND		= 0
-_PID_LB_CLIP		= 1
-
-_PID_AIN_DDS		= 0
-_PID_AIN_DECI		= 1
-
-_PID_ADC_SMPS		= _instrument.ADC_SMP_RATE
-_PID_BUFLEN			= _instrument.CHN_BUFLEN
-_PID_SCREEN_WIDTH	= 1024
-_PID_FPS			= 10
-
 
 
 ### Every constant that starts with PID_ will become an attribute of pymoku.instruments ###
@@ -129,16 +70,9 @@ PID_MONITOR_PID		= 2
 PID_MONITOR_INPUT	= 3
 
 _PID_CONTROL_FS 	= 25e6
-_PID_SINE_FS		= 1e9
-_PID_COEFF_WIDTH	= 25
-_PID_FREQSCALE		= float(1e9) / 2**48
-_PID_PHASESCALE		= 1.0 / 2**48
-_PID_AMPSCALE		= 1.0 / (2**15 - 1)
 
 
-
-
-class PIDController(_frame_instrument.FrameBasedInstrument):
+class PIDController(_CoreOscilloscope):
 	""" PIDController instrument object. This should be instantiated and attached to a :any:`Moku` instance.
 
 	.. automethod:: pymoku.instruments.PIDController.__init__
@@ -163,666 +97,327 @@ class PIDController(_frame_instrument.FrameBasedInstrument):
 
 	"""
 	def __init__(self):
-		"""Create a new Lock-In-Amplifier instrument, ready to be attached to a Moku."""
-	
-
 		super(PIDController, self).__init__()
 		self._register_accessors(_PID_reg_hdl)
 
 		self.id = 5
-		self.calibration = None
 
-		self.scales = {}
-		self.decimation_rate = 1
-		self.set_frame_class(VoltsFrame, scales=self.scales)
-
-	def _calculate_scales(self):
-		# Returns the bits-to-volts numbers for each channel in the current state
-
-		sect1 = "calibration.AG-%s-%s-%s-1" % ( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
-								  "L" if self.relays_ch1 & RELAY_LOWG else "H",
-								  "D" if self.relays_ch1 & RELAY_DC else "A")
-
-		sect2 = "calibration.AG-%s-%s-%s-1" % ( "50" if self.relays_ch2 & RELAY_LOWZ else "1M",
-								  "L" if self.relays_ch2 & RELAY_LOWG else "H",
-								  "D" if self.relays_ch2 & RELAY_DC else "A")
-		try:
-			g1 = 1 / float(self.calibration[sect1])
-			g2 = 1 / float(self.calibration[sect2])
-		except (KeyError, TypeError):
-			log.warning("Moku appears uncalibrated")
-			g1 = g2 = 1
-
-		log.debug("gain values for sections %s, %s = %f, %f; deci %f", sect1, sect2, g1, g2, self._deci_gain())
-
-		if self.ain_mode == _PID_AIN_DECI:
-			g1 /= self._deci_gain()
-			g2 /= self._deci_gain()
-
-		return (g1, g2)	
-
-	def commit(self):
-		super(PIDController, self).commit()
-		self.scales[self._stateid] = self._calculate_scales()
-
+	@needs_commit
 	def set_defaults(self):
 		""" Reset the lockinamp to sane defaults. """
 		super(PIDController, self).set_defaults()
-		#TODO this should reset ALL registers
-		self.calibration = None
 
-		self.set_xmode(PID_FULL_FRAME)
-		self.set_timebase(-0.25, 0.25)
-		self.set_precision_mode(False)
-		self.set_frontend(0, False, True, False)
-		self.set_frontend(1, False, True, False)
-		self.framerate = _PID_FPS
-		self.frame_length = _PID_SCREEN_WIDTH
-		self.trig_mode = PID_TRIG_AUTO
-		self.set_trigger(PID_TRIG_CH1, PID_EDGE_RISING, 0)
+		self.set_control_matrix(1, 1, 0)
+		self.set_control_matrix(2, 1, 0)
+		self.set_by_gain(1, 1, 1)
+		self.set_by_gain(2, 1, 1)
 
-		self.Ch0_Ch0_gain = 1.0
-		self.Ch0_Ch1_gain = 0.0
+	@needs_commit
+	def set_by_frequency(self, ch, kp, i_xover=None, d_xover=None, ii_xover=None, si=None, sd=None, in_offset=0, out_offset=0):
 
-		self.Ch1_Ch0_gain = 100.0
-		self.Ch1_Ch1_gain = 0.0
+		# Particularly high or low I or D crossover frequencies (<1Hz, >1MHz) require that some of their gain is
+		# pushed to the overall gain on the end due to dynamic range limitations
+		i_gmin = d_gmin = 1
+		i_gmax = d_gmax = 1
+		if i_xover:
+			i_unity = i_xover / kp
+			i_gmin = min(i_unity, 1)
+			i_gmax = max(i_unity / 1e6, 1)
 
-		self.pid1_int_dc_pole = 0
-		self.pid2_int_dc_pole = 0
+		if d_xover:
+			d_unity = d_xover / kp
+			d_gmin = sd if sd is not None and sd < 1 else max(1.0e6 / d_unity, 1.0)
+			d_gmax = max(1 / d_unity, 1)
 
-		self.Ch0_pid1_bypass = 0
-		self.Ch0_pid2_bypass = 1
-		self.Ch1_pid1_bypass = 0
-		self.Ch1_pid2_bypass = 1
+		g_min = min(i_gmin, d_gmin)
+		g_max = max(i_gmax, d_gmax)
 
-		self.Ch0_pid1_pidgain = 1.0
-		self.Ch0_pid2_pidgain = 1.0
-		self.Ch0_pid1_int_i_gain = 0.00001
-		self.Ch0_pid2_int_i_gain = 0.00
-		self.Ch0_pid1_int_ifb_gain = 0.99999
-		self.Ch0_pid2_int_ifb_gain = 0.0
-		self.Ch0_pid1_int_p_gain = 0.0
-		self.Ch0_pid2_int_p_gain = 0.0
-		self.Ch0_pid1_diff_d_gain = 1.0
-		self.Ch0_pid2_diff_d_gain = 0.0
-		self.Ch0_pid1_diff_p_gain = 0.0
-		self.Ch0_pid2_diff_p_gain = 0.0
-		self.Ch0_pid1_diff_i_gain = 0.0
-		self.Ch0_pid2_diff_i_gain = 0.0
-		self.Ch0_pid1_diff_ifb_gain = 0.999
-		self.Ch0_pid2_diff_ifb_gain = 0.0
-		self.Ch0_slope = 1
-
-		self.Ch1_pid1_pidgain = 1.0
-		self.Ch1_pid2_pidgain = 1.0
-		self.Ch1_pid1_int_i_gain = 1.0
-		self.Ch1_pid2_int_i_gain = 0
-		self.Ch1_pid1_int_ifb_gain = 1.0
-		self.Ch1_pid2_int_ifb_gain = 1.0
-		self.Ch1_pid1_int_p_gain = 0.0
-		self.Ch1_pid2_int_p_gain = 0.0
-		self.Ch1_pid1_diff_d_gain = 0.0
-		self.Ch1_pid2_diff_d_gain = 0.0
-		self.Ch1_pid1_diff_p_gain = 1.0
-		self.Ch1_pid2_diff_p_gain = 1.0
-		self.Ch1_pid1_diff_i_gain = 0.0
-		self.Ch1_pid2_diff_i_gain = 0.0
-		self.Ch1_pid1_diff_ifb_gain = 0.99
-		self.Ch1_pid2_diff_ifb_gain = 0.99
-		self.Ch1_slope = 1
-
-		self.Ch0_pid1_out_offset = 0
-		self.Ch1_pid1_out_offset = 0
-		#self.set_integrator_parameters(0, 0, 100, 1)
-		# self.set_pid_offset(0,0)
-		# self.set_pid_offset(0,1)
-		# self.monitor_select0 = 2
-		# self.monitor_select1 = 2
-		# self.trigger_level = 0
-		
-	
-		# self.pid1_in_offset  = 0
-		# self.pid1_out_offset = 0
-		# self.pid2_in_offset = 0
-		# self.pid2_out_offset = 0
-
-
-
-	def set_integrator_parameters(self, Channel, integrator_gain_dB, max_gain_dB, Order):
-		
-		max_gain = 10**(max_gain_dB / 20.0)
-		gain = 10**(integrator_gain_dB / 20.0)
-		DSPCoeff = 1 - gain/max_gain
-
-		if Channel == 0 :
-			self.Ch0_pid1_int_ifb_gain = DSPCoeff
-			self.Ch0_pid2_int_ifb_gain = DSPCoeff
-
-			self.Ch0_pid1_int_i_gain = 1.0 - DSPCoeff
-			self.Ch0_pid2_int_i_gain = 1.0 - DSPCoeff
-		
-			if Order == 1:
-				self.Ch0_pid2_bypass = 1
-				self.Ch0_slope = 1
-			elif Order == 2:
-				self.Ch0_pid2_bypass = 0
-				self.Ch0_slope = 2
-			else:
-				self.Ch0_pid1_bypass = 1
-				self.Ch0_pid2_bypass = 1
-		elif Channel == 1 :
-			self.Ch1_pid1_int_ifb_gain = DSPCoeff
-			self.Ch1_pid2_int_ifb_gain = DSPCoeff
-
-			self.Ch1_pid1_int_i_gain = 1.0 - DSPCoeff
-			self.Ch1_pid2_int_i_gain = 1.0 - DSPCoeff
-		
-			if Order == 1:
-				self.Ch1_pid2_bypass = 1
-				self.Ch1_slope = 1
-			elif Order == 2:
-				self.Ch1_pid2_bypass = 0
-				self.Ch1_slope = 2
-			else:
-				self.Ch1_pid1_bypass = 1
-				self.Ch1_pid2_bypass = 1
-		else :
-			raise InvalidOperationException("Channel not set : defaulted to Channel 0")
-			self.Ch0_pid1_int_ifb_gain = DSPCoeff
-			self.Ch0_pid2_int_ifb_gain = DSPCoeff
-
-			self.Ch0_pid1_int_i_gain = 1.0 - DSPCoeff
-			self.Ch0_pid2_int_i_gain = 1.0 - DSPCoeff
-		
-			if Order == 1:
-				self.Ch0_pid2_bypass = 1
-				self.Ch0_slope = 1
-			elif Order == 2:
-				self.Ch0_pid2_bypass = 0
-				self.Ch0_slope = 2
-			else:
-				self.Ch0_pid1_bypass = 1
-				self.Ch0_pid2_bypass = 1
-
-	# def set_differentiator_parameteters(self, Channel, integrator_gain_dB, max_gain_dB, Order):
-
-	def _set_gain(self, Gain_dB):
-
-		ImpedenceGain = 1 if (self.relays_ch1 & 2) == 2 else 2
-		AttenGain = 1 if (self.relays_ch1 & 4) == 4 else 10
-		
-		gain_factor = ImpedenceGain * AttenGain * (10**(Gain_dB / 20.0)) * self._get_dac_calibration()[0] / self._get_adc_calibration()[0]
-		log.debug("AttenGain, %f, GainFactor, %f", AttenGain, gain_factor)
-
-		if self.signal_mode == PID_HIGH_PRECISION:
-			if self.slope == 1:
-				self.input_gain = gain_factor
-				self.pid1_pidgain = self.pid2_pidgain = 1.0
-			else :
-				self.input_gain = self.pid1_pidgain =  math.sqrt(gain_factor)
-				self.pid2_pidgain = 1.0
-		elif self.signal_mode == PID_HIGH_RANGE:
-			if self.slope == 1:
-				self.pid1_pidgain =  gain_factor
-				self.input_gain = self.pid2_pidgain = 1.0
-			else :
-				self.pid1_pidgain = self.pid2_pidgain = math.sqrt(gain_factor)
-				self.input_gain = 1.0
+		if g_min < 1 and g_max == 1:
+			best_gain = g_min
+		elif g_max > 1 and g_min == 1:
+			best_gain = g_max
+		elif g_min < 1 and g_max > 1:
+			best_gain = sqrt(g_min * g_max)
 		else:
-			if self.slope == 1:
-				self.pid1_pidgain =  gain_factor
-				self.input_gain = self.pid2_pidgain = 1.0
-			else :
-				self.pid1_pidgain = self.pid2_pidgain = math.sqrt(gain_factor)
-				self.input_gain = 1.0
-			self.signal_mode = PID_HIGH_RANGE
-			raise InvalidOperationException("Signal Mode not set : defaulted to HIGH RANGE MODE")
+			best_gain = 1
 
-	def set_pid_offset(self, offset, Channel):
-		if Channel == 0 :
-			if self.Ch0_slope == 1:
-				self.pid1_out_offset = offset * self._get_dac_calibration()[0]
-				self.pid2_out_offset = 0
-			elif self.Ch0_slope == 2:
-				self.pid1_out_offset = 0
-				self.pid2_out_offset = offset * self._get_dac_calibratioin()[0]
-			else :
-				self.Ch0_slope == 1
-				self.pid1_out_offset = offset * self._get_dac_calibration()[0]
-				self.pid2_out_offset = 0
-				raise InvalidOperationException("PID slope not set : defaulted to slope = %s" % self.slope)
-		elif Channel == 1:
-			if self.Ch1_slope == 1:
-				self.pid1_out_offset = offset * self._get_dac_calibration()[0]
-				self.pid2_out_offset = 0
-			elif self.Ch1_slope == 2:
-				self.pid1_out_offset = 0
-				self.pid2_out_offset = offset * self._get_dac_calibratioin()[0]
-			else :
-				self.Ch1_slope == 1
-				self.pid1_out_offset = offset * self._get_dac_calibration()[0]
-				self.pid2_out_offset = 0
-				raise InvalidOperationException("PID slope not set : defaulted to slope = %s" % self.slope)
+		kp = sqrt(kp) # Not completely understood
 
-	def set_lo_output_amp(self,amplitude):
-		# converts amplitude (V) into the bits required for the register
-		self.sineout_amp = amplitude * self._get_dac_calibration()[1]
+		kp /= best_gain
+		ki = kp * i_xover if i_xover else 0
+		kii = kp * ii_xover if ii_xover else 0
+		kd = kp / d_xover if d_xover else 0
 
-	def set_lo_offset(self, offset):
-		# converts the offset in volts to the bits required for the offset register
-		self.sineout_offset = offset * self._get_dac_calibration()[1] 
-			 
-	def _get_dac_calibration(self):
-		# returns the volts to bits numbers for the DAC channels in the current state
+		self.set_by_gain(ch, best_gain, kp, ki, kd, kii, si, sd, in_offset, out_offset)
 
-		sect1 = "calibration.DG-1"
-		sect2 = "calibration.DG-2"
+	@needs_commit
+	def set_by_gain(self, ch, g, kp, ki=0, kd=0, kii=0, si=None, sd=None, in_offset=0, out_offset=0):
+		# overall gain is:
+		#  - 1/1000 to undo gain from control matrix to optimise rounding strategy
+		#  - 1/16 to convert from ADC bits to DAC bits
+		#  - DAC gain to convert from bits to output volts
+		#  - user-supplied factor so they can optimise the rounding strategy too
+		gain_factor = g / 16.0 / 1000.0 / self._dac_gains()[ch - 1]
 
-		try:
-			g1 = float(self.calibration[sect1])
-			g2 = float(self.calibration[sect2])
-		except (KeyError, TypeError):
-			log.warning("Moku appears uncalibrated")
-			g1 = g2 = 1
+		fs = _PID_CONTROL_FS / (2 * pi)
 
-		log.debug("gain values for dac sections %s, %s = %f, %f", sect1, sect2, g1, g2)
+		# I gain and corner. Factors of FS convert essentially from S- to Z-plane
+		i_gain = ki / g / fs
+		ii_gain = kii / g / fs
 
-		return (g1, g2)
-
-	def _get_adc_calibration(self):
-		# Returns the volts to bits numbers for each channel in the current state
-
-		sect1 = "calibration.AG-%s-%s-%s-1" % ( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
-								  "L" if self.relays_ch1 & RELAY_LOWG else "H",
-								  "D" if self.relays_ch1 & RELAY_DC else "A")
-
-		sect2 = "calibration.AG-%s-%s-%s-2" % ( "50" if self.relays_ch1 & RELAY_LOWZ else "1M",
-								  "L" if self.relays_ch1 & RELAY_LOWG else "H",
-								  "D" if self.relays_ch1 & RELAY_DC else "A")
-
-		try:
-			g1 = float(self.calibration[sect1])
-			g2 = float(self.calibration[sect2])
-		except (KeyError, TypeError):
-			log.warning("Moku adc appears uncalibrated")
-			g1 = g2 = 1
-		log.debug("gain values for adc sections %s, %s = %f, %f", sect1, sect2, g1, g2)
-		return (g1, g2)
-
-	def attach_moku(self, moku):
-		super(LockInAmp, self).attach_moku(moku)
-
-		try:
-			self.calibration = dict(self._moku._get_property_section("calibration"))
-		except:
-			log.warning("Can't read calibration values.")
-
-	attach_moku.__doc__ = MokuInstrument.attach_moku.__doc__
-
-	def _optimal_decimation(self, t1, t2):
-		# Based on mercury_ipad/LISettings::OSCalculateOptimalADCDecimation
-		ts = abs(t1 - t2)
-		return math.ceil(_PID_ADC_SMPS * ts / _PID_BUFLEN)
-
-	def _buffer_offset(self, t1, t2, decimation):
-		# Based on mercury_ipad/LISettings::OSCalculateOptimalBufferOffset
-		# TODO: Roll mode
-
-		buffer_smps = _PID_ADC_SMPS / decimation
-		offset_secs = t1
-		offset = round(min(max(math.ceil(offset_secs * buffer_smps / 4.0), -2**28), 2**12))
-
-		return offset
-
-	def _render_downsample(self, t1, t2, decimation):
-		# Based on mercury_ipad/LISettings::OSCalculateRenderDownsamplingForDecimation
-		buffer_smps = _PID_ADC_SMPS / decimation
-		screen_smps = min(_PID_SCREEN_WIDTH / abs(t1 - t2), _PID_ADC_SMPS)
-
-		return round(min(max(buffer_smps / screen_smps, 1.0), 16.0))
-
-	def _render_offset(self, t1, t2, decimation, buffer_offset, render_decimation):
-		# Based on mercury_ipad/LISettings::OSCalculateFrameOffsetForDecimation
-		buffer_smps = _PID_ADC_SMPS / decimation
-		trig_in_buf = 4 * buffer_offset # TODO: Roll Mode
-		time_buff_start = -trig_in_buf / buffer_smps
-		time_buff_end = time_buff_start + (_PID_BUFLEN - 1) / buffer_smps
-		time_screen_centre = abs(t1 - t2) / 2
-		screen_span = render_decimation / buffer_smps * _PID_SCREEN_WIDTH
-
-		# Allows for scrolling past the end of the trace
-		time_left = max(min(time_screen_centre - screen_span / 2, time_buff_end - screen_span), time_buff_start)
-
-		return math.ceil(-time_left * buffer_smps)
-
-		# For now, only support viewing the whole captured buffer
-		#return buffer_offset * 4
-
-	def _deci_gain(self):
-		if self.decimation_rate == 0:
-			return 1
-
-		if self.decimation_rate < 2**20:
-			return self.decimation_rate
+		if si is None:
+			i_c = i_fb = 0
 		else:
-			return self.decimation_rate / 2**10
+			# Factor of 4 / pi not understood (and different from iPad)
+			i_c = sqrt(ki * kii / si * 4 / pi) if kii else ki * kp / si * 4 / pi
+			i_fb = 1.0 - i_c / fs
 
-	def _update_datalogger_params(self, ch1, ch2):
-		samplerate = _PID_ADC_SMPS / self.decimation_rate
-		self.timestep = 1 / samplerate
+		# D gain and corner, magic factors different from iPad?? Note there's kind of a
+		# magic factor of 1/2 in the d saturation case as I would expect it to be 2*pi
+		d_gain = sd / g * pi if sd else kd / g * fs
+		d_fb = 1.0 - sd / kd / fs if sd else 0
 
-		if self.ain_mode == _PID_AIN_DECI:
-			self.procstr[0] = "*C/{:f}".format(self._deci_gain())
-			self.procstr[1] = "*C/{:f}".format(self._deci_gain())
-		else:
-			self.procstr[0] = "*C"
-			self.procstr[1] = "*C"
-		self.fmtstr = self.get_fmtstr(ch1,ch2)
-		self.hdrstr = self.get_hdrstr(ch1,ch2)
+		double_integrator = kii != 0
 
-	def datalogger_start(self, start, duration, use_sd, ch1, ch2, filetype):
-		self._update_datalogger_params(ch1, ch2)
-		super(LockInAmp, self).datalogger_start(start=start, duration=duration, use_sd=use_sd, ch1=ch1, ch2=ch2, filetype=filetype)
+		if ch == 1:
+			self.ch1_pid1_en = self.ch1_pid2_en = True
+			self.ch1_pid1_pen = kp > 0
+			self.ch1_pid2_pen = double_integrator
+			self.ch1_pid1_ien = ki > 0
+			self.ch1_pid2_ien = ki > 0 and double_integrator
+			self.ch1_pid1_den = kd > 0
+			self.ch1_pid2_den = False
+			self.ch1_input_en = True
+			self.ch1_output_en = True
+			self.ch1_pid1_pidgain = gain_factor
+			self.ch1_pid2_pidgain = kp
 
-	def datalogger_start_single(self, use_sd, ch1, ch2, filetype):
-		self._update_datalogger_params(ch1, ch2)
-		super(LockInAmp, self).datalogger_start_single(use_sd=use_sd, ch1=ch1, ch2=ch2, filetype=filetype)
+			self.ch1_pid1_bypass = False
+			self.ch1_pid1_int_i_gain = i_gain
+			self.ch1_pid1_int_p_gain = kp
+			self.ch1_pid1_int_ifb_gain = i_fb
+			self.ch1_pid1_int_dc_pole = si is None
 
-	def _set_render(self, t1, t2, decimation):
-		self.render_mode = RDR_CUBIC #TODO: Support other
-		self.pretrigger = self._buffer_offset(t1, t2, self.decimation_rate)
-		self.render_deci = self._render_downsample(t1, t2, self.decimation_rate)
-		self.offset = self._render_offset(t1, t2, self.decimation_rate, self.pretrigger, self.render_deci)
+			self.ch1_pid2_bypass = not double_integrator
+			self.ch1_pid2_int_i_gain = ii_gain
+			self.ch1_pid2_int_p_gain = kp
+			self.ch1_pid2_int_ifb_gain = i_fb
+			self.ch1_pid2_int_dc_pole = si is None
 
-		# Set alternates to regular, means we get distorted frames until we get a new trigger
-		self.render_deci_alt = self.render_deci
-		self.offset_alt = self.offset
+			self.ch1_pid1_diff_p_gain = 0
+			self.ch1_pid1_diff_i_gain = d_gain
+			self.ch1_pid1_diff_ifb_gain = d_fb
 
-		log.debug("Render params: Deci %f PT: %f, RDeci: %f, Off: %f", self.decimation_rate, self.pretrigger, self.render_deci, self.offset)
+			# Input offset should be applied on the first PID, output offset should
+			# be on the last /enabled/ pid.
+			self.ch1_pid1_in_offset = in_offset
+			self.ch1_pid2_in_offset = 0
+			self.ch1_pid1_out_offset = out_offset if not double_integrator else 0
+			self.ch1_pid2_out_offset = out_offset if double_integrator else 0
 
-	def set_timebase(self, t1, t2):
-		""" Set the left- and right-hand span for the time axis.
-		Units are seconds relative to the trigger point.
+		elif ch == 2:
+			self.ch2_pid1_en = self.ch2_pid2_en = True
+			self.ch2_pid1_pen = kp > 0
+			self.ch2_pid2_pen = double_integrator
+			self.ch2_pid1_ien = ki > 0
+			self.ch2_pid2_ien = ki > 0 and double_integrator
+			self.ch2_pid1_den = kd > 0
+			self.ch2_pid2_den = False
+			self.ch2_input_en = True
+			self.ch2_output_en = True
+			self.ch2_pid1_pidgain = gain_factor
+			self.ch2_pid2_pidgain = kp
 
-		:type t1: float
-		:param t1:
-			Time, in seconds, from the trigger point to the left of screen. This may be negative (trigger on-screen)
-			or positive (trigger off the left of screen).
+			self.ch2_pid1_bypass = False
+			self.ch2_pid1_int_i_gain = i_gain
+			self.ch2_pid1_int_p_gain = kp
+			self.ch2_pid1_int_ifb_gain = i_fb
+			self.ch2_pid1_int_dc_pole = si is None
 
-		:type t2: float
-		:param t2: As *t1* but to the right of screen.
-		"""
-		self.decimation_rate = self._optimal_decimation(t1, t2)
-		self._set_render(t1, t2, self.decimation_rate)
+			self.ch2_pid2_bypass = not double_integrator
+			self.ch2_pid2_int_i_gain = ii_gain
+			self.ch2_pid2_int_p_gain = kp
+			self.ch2_pid2_int_ifb_gain = i_fb
+			self.ch2_pid2_int_dc_pole = si is None
 
-	def set_samplerate(self, samplerate):
-		""" Manually set the sample rate of the instrument.
+			self.ch2_pid1_diff_p_gain = 0
+			self.ch2_pid1_diff_i_gain = d_gain
+			self.ch2_pid1_diff_ifb_gain = d_fb
 
-		The sample rate is automatically calcluated and set in :any:`set_timebase`; setting it through this
-		interface if you've previously set the scales through that will have unexpected results.
+			# Input offset should be applied on the first PID, output offset should
+			# be on the last /enabled/ pid.
+			self.ch2_pid1_in_offset = in_offset
+			self.ch2_pid2_in_offset = 0
+			self.ch2_pid1_out_offset = out_offset if not double_integrator else 0
+			self.ch2_pid2_out_offset = out_offset if double_integrator else 0
 
-		This interface is most useful for datalogging and similar aquisition where one will not be looking
-		at data frames.
+	@needs_commit
+	def set_control_matrix(self, ch, self_gain, cross_gain):
+		# We chuck in a factor of 1000 here then take it off again in the controller
+		# gain. This optimises the rounding strategy, as the control matrix itself
+		# doesn't have many fractional bits.
+		if ch == 1:
+			self.ch1_ch1_gain = self_gain * 1000
+			self.ch1_ch2_gain = cross_gain * 1000
+		elif ch == 2:
+			self.ch2_ch1_gain = cross_gain * 1000
+			self.ch2_ch2_gain = self_gain * 1000
 
-		:type samplerate: float; *0 < samplerate < 500MSPS*
-		:param samplerate: Target samples per second. Will get rounded to the nearest allowable unit.
-		"""
-		self.decimation_rate = _PID_ADC_SMPS / samplerate
 
-	def get_samplerate(self):
-		return _PID_ADC_SMPS / self.decimation_rate
-
-	def set_xmode(self, xmode):
-		"""
-		Set rendering mode for the horizontal axis.
-
-		:type xmode: *OSC_ROLL*, *OSC_SWEEP*, *OSC_FULL_FRAME*
-		:param xmode:
-			Respectively; Roll Mode (scrolling), Sweep Mode (normal oscilloscope trace sweeping across the screen)
-			or Full Frame (Like sweep, but waits for the frame to be completed).
-		"""
-		self.x_mode = xmode
-
-	def set_precision_mode(self, state):
-		""" Change aquisition mode between downsampling and decimation.
-		Precision mode, a.k.a Decimation, samples at full rate and applies a low-pass filter to the data. This improves
-		precision. Normal mode works by direct downsampling, throwing away points it doesn't need.
-
-		:param state: Select Precision Mode
-		:type state: bool """
-
-	def set_trigger(self, source, edge, level, hysteresis=0, hf_reject=False, mode=PID_TRIG_AUTO):
-		""" Sets trigger source and parameters.
-
-		:type source: OSC_TRIG_CH1, OSC_TRIG_CH2, OSC_TRIG_DA1, OSC_TRIG_DA2
-		:param source: Trigger Source. May be either ADC Channel or either DAC Channel, allowing one to trigger off a synthesised waveform.
-
-		:type edge: OSC_EDGE_RISING, OSC_EDGE_FALLING, OSC_EDGE_BOTH
-		:param edge: Which edge to trigger on.
-
-		:type level: float, volts
-		:param level: Trigger level
-
-		:type hysteresis: float, volts
-		:param hysteresis: Hysteresis to apply around trigger point."""
-		self.trig_ch = source
-		self.trig_edge = edge
-		self.hysteresis = hysteresis
-		self.hf_reject = hf_reject
-		self.trig_mode = mode
-
-	def attach_moku(self, moku):
-		super(PIDController, self).attach_moku(moku)
-
-		try:
-			self.calibration = dict(self._moku._get_property_section("calibration"))
-		except:
-			log.warning("Can't read calibration values.")
 
 _PID_reg_hdl = {
-	'source_ch1':		(REG_PID_OUTSEL,	to_reg_unsigned(0, 1, allow_set=[PID_SOURCE_ADC, PID_SOURCE_DAC]),
-											from_reg_unsigned(0, 1)),
+	'ch1_pid1_bypass':		(REG_PID_ENABLES,	to_reg_bool(0), from_reg_bool(0)),
+	'ch1_pid2_bypass':		(REG_PID_ENABLES,	to_reg_bool(1), from_reg_bool(1)),
+	'ch1_pid1_int_dc_pole':	(REG_PID_ENABLES,	to_reg_bool(2), from_reg_bool(2)),
+	'ch1_pid2_int_dc_pole':	(REG_PID_ENABLES,	to_reg_bool(3), from_reg_bool(3)),
+	'ch2_pid1_bypass':		(REG_PID_ENABLES,	to_reg_bool(4), from_reg_bool(4)),
+	'ch2_pid2_bypass':		(REG_PID_ENABLES,	to_reg_bool(5), from_reg_bool(5)),
+	'ch2_pid1_int_dc_pole':	(REG_PID_ENABLES,	to_reg_bool(6), from_reg_bool(6)),
+	'ch2_pid2_int_dc_pole':	(REG_PID_ENABLES,	to_reg_bool(7), from_reg_bool(7)),
+	'ch1_pid1_en':			(REG_PID_ENABLES,	to_reg_bool(8), from_reg_bool(8)),
+	'ch1_pid2_en':			(REG_PID_ENABLES,	to_reg_bool(9), from_reg_bool(9)),
+	'ch2_pid1_en':			(REG_PID_ENABLES,	to_reg_bool(10), from_reg_bool(10)),
+	'ch2_pid2_en':			(REG_PID_ENABLES,	to_reg_bool(11), from_reg_bool(11)),
+	'ch1_pid1_ien':			(REG_PID_ENABLES,	to_reg_bool(12), from_reg_bool(12)),
+	'ch1_pid2_ien':			(REG_PID_ENABLES,	to_reg_bool(13), from_reg_bool(13)),
+	'ch2_pid1_ien':			(REG_PID_ENABLES,	to_reg_bool(14), from_reg_bool(14)),
+	'ch2_pid2_ien':			(REG_PID_ENABLES,	to_reg_bool(15), from_reg_bool(15)),
+	'ch1_pid1_pen':			(REG_PID_ENABLES,	to_reg_bool(16), from_reg_bool(16)),
+	'ch1_pid2_pen':			(REG_PID_ENABLES,	to_reg_bool(17), from_reg_bool(17)),
+	'ch2_pid1_pen':			(REG_PID_ENABLES,	to_reg_bool(18), from_reg_bool(18)),
+	'ch2_pid2_pen':			(REG_PID_ENABLES,	to_reg_bool(19), from_reg_bool(19)),
+	'ch1_pid1_den':			(REG_PID_ENABLES,	to_reg_bool(20), from_reg_bool(20)),
+	'ch1_pid2_den':			(REG_PID_ENABLES,	to_reg_bool(21), from_reg_bool(21)),
+	'ch2_pid1_den':			(REG_PID_ENABLES,	to_reg_bool(22), from_reg_bool(22)),
+	'ch2_pid2_den':			(REG_PID_ENABLES,	to_reg_bool(23), from_reg_bool(23)),
+	'ch1_output_en':		(REG_PID_ENABLES,	to_reg_bool(24), from_reg_bool(24)),
+	'ch2_output_en':		(REG_PID_ENABLES,	to_reg_bool(25), from_reg_bool(25)),
+	'ch1_input_en':			(REG_PID_MONSELECT,	to_reg_bool(6), from_reg_bool(6)),
+	'ch2_input_en':			(REG_PID_MONSELECT,	to_reg_bool(7), from_reg_bool(7)),
 
-	'source_ch2':		(REG_PID_OUTSEL,	to_reg_unsigned(1, 1, allow_set=[PID_SOURCE_ADC, PID_SOURCE_DAC]),
-											from_reg_unsigned(1, 1)),
+	'ch1_ch1_gain' :		((REG_PID_CH0_CH0GAIN_MSB, REG_PID_CH0_CH0GAIN_LSB),
+												to_reg_signed(24,16, xform=lambda obj, x : x * 2**8 * obj._adc_gains()[0]),
+												from_reg_signed(24,16, xform=lambda obj, x : x / 2**8 / obj._adc_gains()[0])),
 
-	'trig_mode':		(REG_PID_TRIGMODE,	to_reg_unsigned(0, 2, allow_set=[PID_TRIG_AUTO, PID_TRIG_NORMAL, PID_TRIG_SINGLE]),
-											from_reg_unsigned(0, 2)),
+	'ch1_ch2_gain' :		(REG_PID_CH0_CH1GAIN,
+												to_reg_signed(0,16, xform=lambda obj, x : x * 2**8 * obj._adc_gains()[0]),
+												from_reg_signed(0,16, xform=lambda obj, x : x / 2**8 / obj._adc_gains()[0])),
 
-	'trig_edge':		(REG_PID_TRIGCTL,	to_reg_unsigned(0, 2, allow_set=[PID_EDGE_RISING, PID_EDGE_FALLING, PID_EDGE_BOTH]),
-											from_reg_unsigned(0, 2)),
+	'ch2_ch1_gain' :	((REG_PID_CH1_CH0GAIN_MSB, REG_PID_CH1_CH0GAIN_LSB), 
+												to_reg_signed(24,16, xform=lambda obj, x: x * 2**8 * obj._adc_gains()[1]),
+												from_reg_signed(24,16, xform=lambda obj, x: x / 2**8 / obj._adc_gains()[1])),
 
-	'trig_ch':			(REG_PID_TRIGCTL,	to_reg_unsigned(4, 6, allow_set=[PID_TRIG_CH1, PID_TRIG_CH2, PID_TRIG_DA1, PID_TRIG_DA2]),
-											from_reg_unsigned(4, 6)),
+	'ch2_ch2_gain' :	(REG_PID_CH1_CH1GAIN, 	to_reg_signed(16,16, xform=lambda obj, x: x * 2**8 * obj._adc_gains()[1]),
+												from_reg_signed(16,16, xform=lambda obj, x: x / 2**8 / obj._adc_gains()[1])),
 
-	'hf_reject':		(REG_PID_TRIGCTL,	to_reg_bool(12),			from_reg_bool(12)),
-	'hysteresis':		(REG_PID_TRIGCTL,	to_reg_unsigned(16, 16),	from_reg_unsigned(16, 16)),
-	'trigger_level':	(REG_PID_TRIGLVL,	to_reg_signed(0, 32),		to_reg_signed(0, 32)),
+	'ch1_pid1_in_offset':	(REG_PID_CH0_OFFSET1, to_reg_signed(0, 16, xform=lambda obj, x: x / obj._dac_gains()[0]),
+												from_reg_signed(0, 16, xform=lambda obj, x: x * obj._dac_gains()[0])),
 
-	'loopback_mode_ch1':	(REG_PID_ACTL,	to_reg_unsigned(0, 1, allow_set=[_PID_LB_CLIP, _PID_LB_ROUND]),
-											from_reg_unsigned(0, 1)),
-	'loopback_mode_ch2':	(REG_PID_ACTL,	to_reg_unsigned(1, 1, allow_set=[_PID_LB_CLIP, _PID_LB_ROUND]),
-											from_reg_unsigned(1, 1)),
+	'ch1_pid2_in_offset':	(REG_PID_CH0_OFFSET2, to_reg_signed(0, 16, xform=lambda obj, x: x / obj._dac_gains()[0]),
+												from_reg_signed(0, 16, xform=lambda obj, x: x * obj._dac_gains()[0])),
 
-	'ain_mode':			(REG_PID_ACTL,		to_reg_unsigned(2, 16, allow_set=[_PID_AIN_DDS, _PID_AIN_DECI]),
-											from_reg_unsigned(2, 16)),
+	'ch1_pid1_out_offset':	(REG_PID_CH0_OFFSET1, to_reg_signed(16, 16, xform=lambda obj, x: x / obj._dac_gains()[0]),
+												from_reg_signed(16, 16, xform=lambda obj, x: x * obj._dac_gains()[0])),	
 
-	'decimation_rate':	(REG_PID_DECIMATION,to_reg_unsigned(0, 32),	
-											from_reg_unsigned(0, 32)),
+	'ch1_pid2_out_offset':	(REG_PID_CH0_OFFSET2, to_reg_signed(16, 16, xform=lambda obj, x: x / obj._dac_gains()[0]),
+												from_reg_signed(16, 16, xform=lambda obj, x: x * obj._dac_gains()[0])),
 
-	'Ch0_pid1_bypass':	(REG_PID_ENABLES,	to_reg_bool(0),
-											from_reg_bool(0)),
+	'ch1_pid1_pidgain':		(REG_PID_CH0_PIDGAIN1, to_reg_signed(0, 32, xform=lambda obj, x: x * 2**15),
+												from_reg_signed(0, 32, xform=lambda obj, x: x / 2**15)),
 
-	'Ch0_pid2_bypass':	(REG_PID_ENABLES,	to_reg_bool(1),
-											from_reg_bool(1)),
+	'ch1_pid2_pidgain':		(REG_PID_CH0_PIDGAIN2, to_reg_signed(0, 32, xform=lambda obj, x: x * 2**15),
+												from_reg_signed(0, 32, xform=lambda obj, x: x / 2**15)),
 
-	'Ch0_Ch0_gain' :	((REG_PID_CH0_CH0GAIN_MSB, REG_PID_CH0_CH0GAIN_LSB), 
-											to_reg_signed(24,16, xform=lambda x : x * (2**7-1)),
-											from_reg_signed(24,16, xform=lambda x : x / (2**7 -1))),
+	'ch1_pid1_int_i_gain':	(REG_PID_CH0_INT_IGAIN1, to_reg_unsigned(0, 24, xform=lambda obj, x: x*(2**24 -1)),
+												from_reg_unsigned(0, 24, xform=lambda obj, x: x / (2**24-1))),
 
-	'Ch0_Ch1_gain' :	(REG_PID_CH0_CH1GAIN, 
-											to_reg_signed(0,16, xform=lambda x : x * (2**7-1)),
-											from_reg_signed(0,16, xform=lambda x : x / (2**7 -1))),
+	'ch1_pid2_int_i_gain':	((REG_PID_CH0_INT_IGAIN2_MSB, REG_PID_CH0_INT_IGAIN2_LSB),
+												to_reg_unsigned(24, 24, xform=lambda obj, x: x * (2**24 -1)),
+												from_reg_unsigned(24, 24, xform=lambda obj, x: x / (2**24-1))),
 
-	'Ch0_pid1_int_dc_pole':	(REG_PID_ENABLES,	to_reg_bool(2),
-											from_reg_bool(2)),
+	'ch1_pid1_int_ifb_gain':	((REG_PID_CH0_INT_IFBGAIN1_MSB, REG_PID_CH0_INT_IFBGAIN1_LSB),
+												to_reg_unsigned(16, 24, xform=lambda obj, x: x * (2**24 -1)),
+												from_reg_unsigned(16, 24, xform=lambda obj, x: x / (2**24-1))),
 
-	'Ch0_pid2_int_dc_pole':	(REG_PID_ENABLES,	to_reg_bool(3),
-											from_reg_bool(3)),
+	'ch1_pid2_int_ifb_gain':	(REG_PID_CH0_INT_IFBGAIN2,
+												to_reg_unsigned(8, 24, xform=lambda obj, x: x*(2**24 -1)),
+												from_reg_unsigned(8, 24, xform=lambda obj, x: x / (2**24-1))),
 
-	'Ch0_pid1_in_offset':	(REG_PID_CH0_OFFSET1,to_reg_signed(0, 16),
-											from_reg_signed(0, 16)),
+	'ch1_pid1_int_p_gain':	(REG_PID_CH0_INT_PGAIN1,
+												to_reg_unsigned(0, 24, xform=lambda obj, x: x * 2**11),
+												from_reg_unsigned(0, 24, xform=lambda obj, x: x / 2**11)),
 
-	'Ch0_pid2_in_offset':	(REG_PID_CH0_OFFSET2,to_reg_signed(0, 16),
-											from_reg_signed(0, 16)),
+	'ch1_pid2_int_p_gain':	((REG_PID_CH0_INT_PGAIN2_MSB, REG_PID_CH0_INT_PGAIN2_LSB),
+												to_reg_unsigned(24, 24, xform=lambda obj, x: x * 2**11),
+												from_reg_unsigned(24, 24, xform=lambda obj, x: x / 2**11)),
 
-	'Ch0_pid1_out_offset':	(REG_PID_CH0_OFFSET1,to_reg_signed(16, 16),
-											from_reg_signed(16, 16)),	
+	'ch1_pid1_diff_p_gain':	(REG_PID_CH0_DIFF_PGAIN1,	
+												to_reg_unsigned(0, 24, xform=lambda obj, x: x * 2**11),
+												from_reg_unsigned(0, 24, xform=lambda obj, x: x / 2**11)),
 
-	'Ch0_pid2_out_offset':	(REG_PID_CH0_OFFSET2,to_reg_signed(16, 16),
-											from_reg_signed(16, 16)),
+	'ch1_pid1_diff_i_gain':	((REG_PID_CH0_DIFF_IGAIN1_MSB, REG_PID_CH0_DIFF_IGAIN1_LSB),	
+												to_reg_unsigned(16, 24),
+												from_reg_unsigned(16, 24)),
 
-	'Ch0_pid1_pidgain':		(REG_PID_CH0_PIDGAIN1,	to_reg_signed(0, 32, xform=lambda x : x * 2**16),
-											from_reg_signed(0, 32, xform=lambda x: x / 2**16)),
+	'ch1_pid1_diff_ifb_gain':	(REG_PID_CH0_DIFF_IFBGAIN1,	
+												to_reg_unsigned(0, 24, xform=lambda obj, x: x * (2**24 - 1)),
+												from_reg_unsigned(0, 24, xform=lambda obj, x: x / (2**24 - 1))),
 
-	'Ch0_pid2_pidgain':		(REG_PID_CH0_PIDGAIN2,	to_reg_signed(0, 32, xform=lambda x : x * 2**16),
-											from_reg_signed(0, 32, xform=lambda x: x / 2**16)),
+	'ch2_pid1_in_offset':	(REG_PID_CH1_OFFSET1, to_reg_signed(0, 16, xform=lambda obj, x: x / obj._dac_gains()[1]),
+												from_reg_signed(0, 16, xform=lambda obj, x: x * obj._dac_gains()[1])),
 
-	'Ch0_pid1_int_i_gain':	(REG_PID_CH0_INT_IGAIN1,	to_reg_unsigned(0, 24, xform=lambda x: x*(2**24 -1)),
-											from_reg_unsigned(0, 24, xform=lambda x: x / (2**24-1))),
+	'ch2_pid2_in_offset':	(REG_PID_CH1_OFFSET2, to_reg_signed(0, 16, xform=lambda obj, x: x / obj._dac_gains()[1]),
+												from_reg_signed(0, 16, xform=lambda obj, x: x * obj._dac_gains()[1])),
 
-	'Ch0_pid2_int_i_gain':	((REG_PID_CH0_INT_IGAIN2_MSB, REG_PID_CH0_INT_IGAIN2_LSB),	to_reg_unsigned(24, 24, xform=lambda x: (x*(2**24 -1))),
-											from_reg_unsigned(24, 24, xform=lambda x: x / (2**24-1))),
+	'ch2_pid1_out_offset':	(REG_PID_CH1_OFFSET1, to_reg_signed(16, 16, xform=lambda obj, x: x / obj._dac_gains()[1]),
+												from_reg_signed(16, 16, xform=lambda obj, x: x * obj._dac_gains()[1])),	
 
-	'Ch0_pid1_int_ifb_gain':	((REG_PID_CH0_INT_IFBGAIN1_MSB, REG_PID_CH0_INT_IFBGAIN1_LSB),	to_reg_unsigned(16, 24, xform=lambda x: (x*(2**24 -1))),
-											from_reg_unsigned(16, 24, xform=lambda x: x / (2**24-1))),
+	'ch2_pid2_out_offset':	(REG_PID_CH1_OFFSET2, to_reg_signed(16, 16, xform=lambda obj, x: x / obj._dac_gains()[1]),
+												from_reg_signed(16, 16, xform=lambda obj, x: x * obj._dac_gains()[1])),
 
-	'Ch0_pid2_int_ifb_gain':	(REG_PID_CH0_INT_IFBGAIN2,	to_reg_unsigned(8, 24, xform=lambda x: x*(2**24 -1)),
-											from_reg_unsigned(8, 24, xform=lambda x: x / (2**24-1))),
+	'ch2_pid1_pidgain':		(REG_PID_CH1_PIDGAIN1, to_reg_signed(0, 32, xform=lambda obj, x: x * 2**15),
+												from_reg_signed(0, 32, xform=lambda obj, x: x / 2**15)),
 
-	'Ch0_pid1_int_p_gain':	(REG_PID_CH0_INT_PGAIN1,	to_reg_unsigned(0, 24, xform=lambda x: (x*(2**24 -1))),
-											from_reg_unsigned(0, 24, xform=lambda x: x / (2**24-1))),
+	'ch2_pid2_pidgain':		(REG_PID_CH1_PIDGAIN2, to_reg_signed(0, 32, xform=lambda obj, x: x * 2**15),
+												from_reg_signed(0, 32, xform=lambda obj, x: x / 2**15)),
 
-	'Ch0_pid2_int_p_gain':	((REG_PID_CH0_INT_PGAIN2_MSB, REG_PID_CH0_INT_PGAIN2_LSB),	to_reg_unsigned(24, 24, xform=lambda x: x*(2**24 -1)),
-											from_reg_unsigned(24, 24, xform=lambda x: x / (2**24-1))),
+	'ch2_pid1_int_i_gain':	(REG_PID_CH1_INT_IGAIN1, to_reg_unsigned(0, 24, xform=lambda obj, x: x * (2**24 - 1)),
+												from_reg_unsigned(0, 24, xform=lambda obj, x: x / (2**24 - 1))),
 
-	'Ch0_pid1_diff_d_gain':	((REG_PID_CH0_DIFF_DGAIN1_MSB, REG_PID_CH0_DIFF_DGAIN1_LSB),	
-											to_reg_unsigned(16, 24, xform=lambda x: (x*(2**24 -1))),
-											from_reg_unsigned(16, 24, xform=lambda x: x / (2**24-1))),
+	'ch2_pid2_int_i_gain':	((REG_PID_CH1_INT_IGAIN2_MSB, REG_PID_CH1_INT_IGAIN2_LSB),
+												to_reg_unsigned(24, 24, xform=lambda obj, x: x * (2**24 - 1)),
+												from_reg_unsigned(24, 24, xform=lambda obj, x: x / (2**24 - 1))),
 
-	'Ch0_pid2_diff_d_gain':	(REG_PID_CH0_DIFF_DGAIN2,	
-											to_reg_unsigned(8, 24, xform=lambda x: x*(2**24 -1)),
-											from_reg_unsigned(8, 24, xform=lambda x: x / (2**24-1))),
+	'ch2_pid1_int_ifb_gain':	((REG_PID_CH1_INT_IFBGAIN1_MSB, REG_PID_CH1_INT_IFBGAIN1_LSB),
+												to_reg_unsigned(16, 24, xform=lambda obj, x: x * (2**24 - 1)),
+												from_reg_unsigned(16, 24, xform=lambda obj, x: x / (2**24 - 1))),
 
-	'Ch0_pid1_diff_p_gain':	(REG_PID_CH0_DIFF_PGAIN1,	
-											to_reg_unsigned(0, 24, xform=lambda x: x*(2**24 -1)),
-											from_reg_unsigned(0, 24, xform=lambda x: x / (2**24-1))),
+	'ch2_pid2_int_ifb_gain':	(REG_PID_CH1_INT_IFBGAIN2,
+												to_reg_unsigned(8, 24, xform=lambda obj, x: x * (2**24 - 1)),
+												from_reg_unsigned(8, 24, xform=lambda obj, x: x / (2**24 - 1))),
 
-	'Ch0_pid2_diff_p_gain':	((REG_PID_CH0_DIFF_PGAIN2_MSB, REG_PID_CH0_DIFF_PGAIN2_LSB),	
-											to_reg_unsigned(24, 24, xform=lambda x: (x*(2**24 -1))),
-											from_reg_unsigned(24, 24, xform=lambda x: x / (2**24-1))),
+	'ch2_pid1_int_p_gain':	(REG_PID_CH1_INT_PGAIN1,
+												to_reg_unsigned(0, 24, xform=lambda obj, x: x * 2**11),
+												from_reg_unsigned(0, 24, xform=lambda obj, x: x / 2**11)),
 
-	'Ch0_pid1_diff_i_gain':	((REG_PID_CH0_DIFF_IGAIN2_MSB, REG_PID_CH0_DIFF_IGAIN1_LSB),	
-											to_reg_unsigned(16, 24, xform=lambda x: (x*(2**24 -1))),
-											from_reg_unsigned(16, 24, xform=lambda x: x / (2**24-1))),
+	'ch2_pid2_int_p_gain':	((REG_PID_CH1_INT_PGAIN2_MSB, REG_PID_CH1_INT_PGAIN2_LSB),
+												to_reg_unsigned(24, 24, xform=lambda obj, x: x * 2**11),
+												from_reg_unsigned(24, 24, xform=lambda obj, x: x / 2**11)),
 
-	'Ch0_pid1_diff_ifb_gain':	(REG_PID_CH0_DIFF_IFBGAIN1,	
-											to_reg_unsigned(0, 24, xform=lambda x: x*(2**24 -1)),
-											from_reg_unsigned(0, 24, xform=lambda x: x / (2**24-1))),
+	'ch2_pid1_diff_p_gain':	(REG_PID_CH1_DIFF_PGAIN1,	
+												to_reg_unsigned(0, 24, xform=lambda obj, x: x * 2**11),
+												from_reg_unsigned(0, 24, xform=lambda obj, x: x / 2**11)),
 
-	'Ch0_pid2_diff_ifb_gain':	(REG_PID_CH0_DIFF_IFBGAIN2,	
-											to_reg_unsigned(7, 24, xform=lambda x: x*(2**24 -1)),
-											from_reg_unsigned(7, 24, xform=lambda x: x / (2**24-1))),
+	'ch2_pid1_diff_i_gain':	((REG_PID_CH1_DIFF_IGAIN1_MSB, REG_PID_CH1_DIFF_IGAIN1_LSB),	
+												to_reg_unsigned(16, 24),
+												from_reg_unsigned(16, 24)),
 
-	'Ch1_pid1_bypass':	(REG_PID_ENABLES,		to_reg_bool(4),
-											from_reg_bool(4)),
+	'ch2_pid1_diff_ifb_gain':	(REG_PID_CH1_DIFF_IFBGAIN1,	
+												to_reg_unsigned(0, 24, xform=lambda obj, x: x * (2**24 - 1)),
+												from_reg_unsigned(0, 24, xform=lambda obj, x: x / (2**24 - 1))),
 
-	'Ch1_pid2_bypass':	(REG_PID_ENABLES,		to_reg_bool(5),
-											from_reg_bool(5)),
+	'monitor_select0':	(REG_PID_MONSELECT,		to_reg_unsigned(18, 3), from_reg_unsigned(18, 3)),
 
-	'Ch1_pid1_int_dc_pole':	(REG_PID_ENABLES,	to_reg_bool(6),
-											from_reg_bool(6)),
+	'monitor_select1':	(REG_PID_MONSELECT,		to_reg_unsigned(21, 3),	from_reg_unsigned(21, 3)),
 
-	'Ch1_pid2_int_dc_pole':	(REG_PID_ENABLES,	to_reg_bool(7),
-											from_reg_bool(7)),
-
-	'Ch1_Ch0_gain' :	((REG_PID_CH1_CH0GAIN_MSB, REG_PID_CH0_CH0GAIN_LSB), 
-											to_reg_signed(24,16, xform=lambda x : x * (2**7 -1)),
-											from_reg_signed(24,16, xform=lambda x : x / (2**7 -1))),
-
-	'Ch1_Ch1_gain' :	(REG_PID_CH1_CH1GAIN, 
-											to_reg_signed(0,16, xform=lambda x : x * (2**7 -1)),
-											from_reg_signed(0,16, xform=lambda x : x / (2**7 -1))),
-
-	'Ch1_pid1_in_offset':	(REG_PID_CH1_OFFSET1,to_reg_signed(0, 16),
-											from_reg_signed(0, 16)),
-
-	'Ch1_pid2_in_offset':	(REG_PID_CH1_OFFSET2,to_reg_signed(0, 16),
-											from_reg_signed(0, 16)),
-
-	'Ch1_pid1_out_offset':	(REG_PID_CH1_OFFSET1,to_reg_signed(16, 16),
-											from_reg_signed(16, 16)),	
-
-	'Ch1_pid2_out_offset':	(REG_PID_CH1_OFFSET2,to_reg_signed(16, 16),
-											from_reg_signed(16, 16)),
-
-	'Ch1_pid1_pidgain':		(REG_PID_CH1_PIDGAIN1,	to_reg_signed(0, 32, xform=lambda x : x * 2**16),
-											from_reg_signed(0, 32, xform=lambda x: x / 2**16)),
-
-	'Ch1_pid2_pidgain':		(REG_PID_CH1_PIDGAIN2,	to_reg_signed(0, 32, xform=lambda x : x * 2**16),
-											from_reg_signed(0, 32, xform=lambda x: x / 2**16)),
-
-	'Ch1_pid1_int_i_gain':	(REG_PID_CH1_INT_IGAIN1,	to_reg_unsigned(0, 24, xform=lambda x: x*(2**24 -1)),
-											from_reg_unsigned(0, 24, xform=lambda x: x / (2**24-1))),
-
-	'Ch1_pid2_int_i_gain':	((REG_PID_CH1_INT_IGAIN2_MSB, REG_PID_CH1_INT_IGAIN2_LSB),	to_reg_unsigned(24, 24, xform=lambda x: (x*(2**24 -1))),
-											from_reg_unsigned(24, 24, xform=lambda x: x / (2**24-1))),
-
-	'Ch1_pid1_int_ifb_gain':	((REG_PID_CH1_INT_IFBGAIN1_MSB, REG_PID_CH1_INT_IFBGAIN1_LSB),	to_reg_unsigned(16, 24, xform=lambda x: (x*(2**24 -1))),
-											from_reg_unsigned(16, 24, xform=lambda x: x / (2**24-1))),
-
-	'Ch1_pid2_int_ifb_gain':	(REG_PID_CH1_INT_IFBGAIN2,	to_reg_unsigned(8, 24, xform=lambda x: x*(2**24 -1)),
-											from_reg_unsigned(8, 24, xform=lambda x: x / (2**24-1))),
-
-	'Ch1_pid1_int_p_gain':	(REG_PID_CH1_INT_PGAIN1,	to_reg_unsigned(0, 24, xform=lambda x: (x*(2**24 -1))),
-											from_reg_unsigned(0, 24, xform=lambda x: x / (2**24-1))),
-
-	'Ch1_pid2_int_p_gain':	((REG_PID_CH1_INT_PGAIN2_MSB, REG_PID_CH1_INT_PGAIN2_LSB),	to_reg_unsigned(24, 24, xform=lambda x: x*(2**24 -1)),
-											from_reg_unsigned(24, 24, xform=lambda x: x / (2**24-1))),
-
-	'Ch1_pid1_diff_d_gain':	((REG_PID_CH1_DIFF_DGAIN1_MSB, REG_PID_CH1_DIFF_DGAIN1_LSB),	
-											to_reg_unsigned(16, 24, xform=lambda x: (x*(2**24 -1))),
-											from_reg_unsigned(16, 24, xform=lambda x: x / (2**24-1))),
-
-	'Ch1_pid2_diff_d_gain':	(REG_PID_CH1_DIFF_DGAIN2,	
-											to_reg_unsigned(8, 24, xform=lambda x: x*(2**24 -1)),
-											from_reg_unsigned(8, 24, xform=lambda x: x / (2**24-1))),
-
-	'Ch1_pid1_diff_p_gain':	(REG_PID_CH1_DIFF_PGAIN1,	
-											to_reg_unsigned(0, 24, xform=lambda x: x*(2**24 -1)),
-											from_reg_unsigned(0, 24, xform=lambda x: x / (2**24-1))),
-
-	'Ch1_pid2_diff_p_gain':	((REG_PID_CH1_DIFF_PGAIN2_MSB, REG_PID_CH1_DIFF_PGAIN2_LSB),	
-											to_reg_unsigned(24, 24, xform=lambda x: (x*(2**24 -1))),
-											from_reg_unsigned(24, 24, xform=lambda x: x / (2**24-1))),
-
-	'Ch1_pid1_diff_i_gain':	((REG_PID_CH1_DIFF_IGAIN2_MSB, REG_PID_CH1_DIFF_IGAIN1_LSB),	
-											to_reg_unsigned(16, 24, xform=lambda x: (x*(2**24 -1))),
-											from_reg_unsigned(16, 24, xform=lambda x: x / (2**24-1))),
-
-	'Ch1_pid1_diff_ifb_gain':	(REG_PID_CH1_DIFF_IFBGAIN1,	
-											to_reg_unsigned(0, 24, xform=lambda x: x*(2**24 -1)),
-											from_reg_unsigned(0, 24, xform=lambda x: x / (2**24-1))),
-
-	'Ch1_pid2_diff_ifb_gain':	(REG_PID_CH1_DIFF_IFBGAIN2,	
-											to_reg_unsigned(7, 24, xform=lambda x: x*(2**24 -1)),
-											from_reg_unsigned(7, 24, xform=lambda x: x / (2**24-1))),
-	'monitor_select0':	(REG_PID_MONSELECT0,	
-											to_reg_unsigned(18, 3),
-											from_reg_unsigned(18, 3)),
-
-	'monitor_select1':	(REG_PID_MONSELECT1,	
-											to_reg_unsigned(21, 3),
-											from_reg_unsigned(21, 3)),
-	}
-# _instrument._attach_register_handlers(_lia_reg_hdl, LockInAmp)
+}
