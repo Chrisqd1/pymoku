@@ -9,7 +9,7 @@ setup(
 	author='Ben Nizette',
 	author_email='ben.nizette@liquidinstruments.com',
 	packages=['pymoku', 'pymoku.tools'],
-	package_dir={'pymoku': 'pymoku/'},
+	package_dir={'pymoku': 'pymoku'},
 	package_data={
 		'pymoku' : ['version.txt', '*.capnp', 'bin/*']
 	},
