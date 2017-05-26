@@ -34,14 +34,14 @@ id_table = {
 	2: SpectrumAnalyser,
 	3: Phasemeter,
 	4: SignalGenerator,
-	5: None, # PID Controller
-	6: None, # IIR Filter Box
-	7: Datalogger, # Datalogger
+	5: None,
+	6: None,
+	7: Datalogger,
 	8: LockInAmp,
-	9: None, # Bode Analyser
-	10: None, # FIR Filter Box
-	11: None, # PDH Locking
-	12: None, # Software Defined Radio
-	13: None, # Frequency Counter
-	14: None # BoxCar Averager
+	9: None,
+	10: None,
+	11: None,
+	12: None,
+	13: None,
+	14: None
 }
