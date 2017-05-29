@@ -240,15 +240,15 @@ class BasicWaveformGenerator(MokuInstrument):
 
 
 	@needs_commit
-	def gen_off(self, channel=None):
+	def gen_off(self, ch=None):
 		""" Turn Waveform Generator output(s) off.
 
 		The channel will be turned on when configuring the waveform type but can be turned off
 		using this function. If *ch* is None (the default), both channels will be turned off,
 		otherwise just the one specified by the argument.
 
-		:type channel: int; {1,2}
-		:param channel: Channel to turn off
+		:type ch: int; {1,2}
+		:param ch: Channel to turn off
 
 		:raises ValueOutOfRangeException: if the channel number is invalid
 		"""
@@ -282,6 +282,23 @@ class WaveformGenerator(BasicWaveformGenerator):
 		""" Create a new WaveformGenerator instance, ready to be attached to a Moku."""
 		super(WaveformGenerator, self).__init__()
 		self._register_accessors(_siggen_mod_reg_handlers)
+
+	@needs_commit
+	def gen_modulate_off(self, ch=None):
+		"""
+		Turn off modulation for the specified output channel.
+
+		If *ch* is None (the default), both channels will be turned off,
+		otherwise just the one specified by the argument.
+
+		:type ch: int; {1,2}
+		:param ch: Output channel to turn modulation off.
+		"""
+		# Disable modulation by clearing modulation type bits
+		if ch==1:
+			self.out1_modulation = 0
+		if ch==2:
+			self.out2_modulation = 0
 
 	@needs_commit
 	def gen_modulate(self, ch, mtype, source, depth, frequency=0.0):
