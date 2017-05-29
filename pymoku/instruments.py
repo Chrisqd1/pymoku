@@ -2,7 +2,7 @@ import sys
 
 from . import _instrument
 from . import _oscilloscope
-from . import _siggen
+from . import _waveform_generator
 from . import _phasemeter
 from . import _specan
 from . import _lockinamp
@@ -23,7 +23,7 @@ SpectrumData = _specan.SpectrumData
 MokuInstrument = _instrument.MokuInstrument
 
 Oscilloscope = _oscilloscope.Oscilloscope
-SignalGenerator = _siggen.SignalGenerator
+WaveformGenerator = _waveform_generator.WaveformGenerator
 Phasemeter = _phasemeter.Phasemeter
 SpectrumAnalyser = _specan.SpectrumAnalyser
 LockInAmp = _lockinamp.LockInAmp
@@ -33,7 +33,7 @@ id_table = {
 	1: Oscilloscope,
 	2: SpectrumAnalyser,
 	3: Phasemeter,
-	4: SignalGenerator,
+	4: WaveformGenerator,
 	5: None,
 	6: None,
 	7: Datalogger,

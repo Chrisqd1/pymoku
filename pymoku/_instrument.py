@@ -272,7 +272,7 @@ class MokuInstrument(object):
 	"""Superclass for all Instruments that may be attached to a :any:`Moku` object.
 
 	Should never be instantiated directly; instead, instantiate the subclass of the instrument
-	you wish to run (e.g. :any:`Oscilloscope`, :any:`SignalGenerator`)
+	you wish to run (e.g. :any:`Oscilloscope`, :any:`WaveformGenerator`)
 	"""
 
 	def __init__(self):

@@ -5,7 +5,7 @@ import re
 
 from ._instrument import *
 from . import _frame_instrument
-from . import _siggen
+from . import _waveform_generator
 from . import _utils
 
 log = logging.getLogger(__name__)
@@ -197,7 +197,7 @@ class VoltsData(_frame_instrument.InstrumentData):
 		return self._get_yaxis_fmt(y,None)['ycoord']
 
 
-class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGenerator):
+class Oscilloscope(_frame_instrument.FrameBasedInstrument, _waveform_generator.BasicWaveformGenerator):
 	""" Oscilloscope instrument object.
 
 	To run a new Oscilloscope instrument, this should be instantiated and deployed via a connected
@@ -501,7 +501,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 	def set_source(self, ch, source, lmode='round'):
 		""" Sets the source of the channel data to either the analog input or internally looped-back digital output.
 
-		This feature allows the user to preview the Signal Generator outputs.
+		This feature allows the user to preview the Waveform Generator outputs.
 
 		:type ch: int; {1,2}
 		:param ch: Channel Number

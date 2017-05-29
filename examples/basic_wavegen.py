@@ -8,7 +8,7 @@
 # (c) 2017 Liquid Instruments Pty. Ltd.
 #
 from pymoku import *
-from pymoku.instruments import SignalGenerator
+from pymoku.instruments import WaveformGenerator
 import time
 
 # Connect to your Moku by its device name
@@ -16,7 +16,7 @@ import time
 m = Moku.get_by_name('Moku')
 
 # Prepare the Signal Generator instrument
-i = SignalGenerator()
+i = WaveformGenerator()
 
 # Deploy the Signal Generator to your Moku
 m.deploy_instrument(i)

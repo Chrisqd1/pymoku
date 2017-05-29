@@ -22,7 +22,7 @@ Contents
    moku
    oscilloscope
    datalogger
-   siggen
+   wavegen
    specan
    phasemeter
    utils

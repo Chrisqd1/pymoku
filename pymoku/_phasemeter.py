@@ -51,7 +51,7 @@ _PM_CYCLE_SCALE = 2.0 * 2.0**16 / 2.0**48 * _PM_ADC_SMPS / _PM_UPDATE_RATE
 _PM_HERTZ_SCALE = 2.0 * _PM_ADC_SMPS / 2**48
 _PM_VOLTS_SCALE = 2.0 / (_PM_ADC_SMPS * _PM_ADC_SMPS / _PM_UPDATE_RATE / _PM_UPDATE_RATE)
 
-# Phasemeter signal generator constants
+# Phasemeter waveform generator constants
 _PM_SG_AMPSCALE = 2**16 / 4.0
 _PM_SG_FREQSCALE = _PM_FREQSCALE
 
@@ -59,9 +59,9 @@ _PM_SG_FREQSCALE = _PM_FREQSCALE
 _PM_LOGRATE_FAST = 123
 _PM_LOGRATE_SLOW = 31
 
-class Phasemeter_SignalGenerator(MokuInstrument):
+class Phasemeter_WaveformGenerator(MokuInstrument):
 	def __init__(self):
-		super(Phasemeter_SignalGenerator, self).__init__()
+		super(Phasemeter_WaveformGenerator, self).__init__()
 		self._register_accessors(_pm_siggen_reg_hdl)
 
 	@needs_commit
@@ -94,7 +94,7 @@ class Phasemeter_SignalGenerator(MokuInstrument):
 
 	@needs_commit
 	def gen_off(self, ch=None):
-		""" Turn Signal Generator output(s) off.
+		""" Turn Waveform Generator output(s) off.
 
 		The channel will be turned on when configuring the waveform type but can be turned off
 		using this function. If *ch* is None (the default), both channels will be turned off,
@@ -127,7 +127,7 @@ _pm_siggen_reg_hdl = {
 											from_reg_unsigned(16,16, xform=lambda obj, a: a * obj._dac_gains()[1]))
 }
 
-class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_SignalGenerator): #TODO Frame instrument may not be appropriate when we get streaming going.
+class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_WaveformGenerator): #TODO Frame instrument may not be appropriate when we get streaming going.
 	""" Phasemeter instrument object.
 
 	To run a new Phasemeter instrument, this should be instantiated and deployed via a connected

@@ -2,7 +2,7 @@
 Datalogger Instrument
 =======================
 
-The Datalogger instrument provides file logging (to CSV and Binary formats) and network streaming of time-series voltage data. It contains a built-in Signal Generator that can control the Moku:Lab analog outputs as well.
+The Datalogger instrument provides file logging (to CSV and Binary formats) and network streaming of time-series voltage data. It contains a built-in Waveform Generator that can control the Moku:Lab analog outputs as well.
 
 For file logging or network streaming, use the `_data_log` or `_stream_data` type functions, respectively.
 

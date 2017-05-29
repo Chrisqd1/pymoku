@@ -41,7 +41,8 @@ Instruments
 	:maxdepth: 1
 
 	oscilloscope
-	siggen
+	datalogger
+	wavegen
 	specan
 	phasemeter
 	lockin

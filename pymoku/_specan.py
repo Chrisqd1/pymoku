@@ -489,7 +489,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 
 		self.ref_level = 6
 
-		# Output signal generator sweep depends on the instrument parameters for optimal
+		# Output waveform generator sweep depends on the instrument parameters for optimal
 		# increment vs screen update rate
 		self._set_sweep_increments(self.sweep1, self.sweep2, fspan, self._total_decimation, rbw, self.framerate)
 
@@ -666,7 +666,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 	@needs_commit
 	def gen_off(self, ch=None):
 		"""
-		Turn signal generator output off.
+		Turn waveform generator output off.
 
 		If *ch* is specified, turn off only a single channel, otherwise turn off both.
 

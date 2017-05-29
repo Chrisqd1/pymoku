@@ -1,7 +1,7 @@
 from ._instrument import *
 
 from . import _stream_instrument
-from . import _siggen
+from . import _waveform_generator
 from . import _utils
 
 REG_DL_OUTSEL		= 65
@@ -23,7 +23,7 @@ _DL_BUFLEN			= CHN_BUFLEN
 _DL_SCREEN_WIDTH	= 1024
 _DL_ROLL			= ROLL
 
-class Datalogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGenerator):
+class Datalogger(_stream_instrument.StreamBasedInstrument, _waveform_generator.BasicWaveformGenerator):
 	""" Datalogger instrument object.
 
 	To run a new Datalogger instrument, this should be instantiated and deployed via a connected
@@ -64,7 +64,7 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 		self.x_mode = _DL_ROLL
 		self.set_samplerate(1e3)
 
-		# Disable the signal generator by default
+		# Disable the waveform generator by default
 		# TODO: Disable without using a gen_ function
 		self.gen_off()
 
@@ -122,7 +122,7 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 	def set_source(self, ch, source, lmode='round'):
 		""" Sets the source of the channel data to either the analog input or internally looped-back digital output.
 
-		This feature allows the user to capture the Signal Generator outputs.
+		This feature allows the user to capture the Waveform Generator outputs.
 
 		:type ch:  int; {1,2}
 		:param ch: Channel Number

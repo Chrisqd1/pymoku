@@ -63,10 +63,10 @@ _SG_DEPTHSCALE		= 1.0 / 2**15
 _SG_MAX_RISE		= 1e9 - 1
 _SG_TIMESCALE 		= 1.0 / (2**32 - 1) # Doesn't wrap
 
-class BasicSignalGenerator(MokuInstrument):
+class BasicWaveformGenerator(MokuInstrument):
 	"""
 
-	.. automethod:: pymoku.instruments.SignalGenerator.__init__
+	.. automethod:: pymoku.instruments.WaveformGenerator.__init__
 
 	.. attribute:: type
 		:annotation: = "signal_generator"
@@ -75,8 +75,8 @@ class BasicSignalGenerator(MokuInstrument):
 
 	"""
 	def __init__(self):
-		""" Create a new SignalGenerator instance, ready to be attached to a Moku."""
-		super(BasicSignalGenerator, self).__init__()
+		""" Create a new WaveformGenerator instance, ready to be attached to a Moku."""
+		super(BasicWaveformGenerator, self).__init__()
 		self._register_accessors(_siggen_reg_handlers)
 
 		self.id = 4
@@ -87,7 +87,7 @@ class BasicSignalGenerator(MokuInstrument):
 		""" Set sane defaults.
 		Defaults are outputs off, amplitudes and frequencies zero.
 		"""
-		super(BasicSignalGenerator, self).set_defaults()
+		super(BasicWaveformGenerator, self).set_defaults()
 		self.out1_enable = False
 		self.out2_enable = False
 		self.out1_amplitude = 0
@@ -241,7 +241,7 @@ class BasicSignalGenerator(MokuInstrument):
 
 	@needs_commit
 	def gen_off(self, channel=None):
-		""" Turn Signal Generator output(s) off.
+		""" Turn Waveform Generator output(s) off.
 
 		The channel will be turned on when configuring the waveform type but can be turned off
 		using this function. If *ch* is None (the default), both channels will be turned off,
@@ -262,15 +262,15 @@ class BasicSignalGenerator(MokuInstrument):
 			raise ValueOutOfRangeException("Invalid channel")
 
 
-class SignalGenerator(BasicSignalGenerator):
-	""" Signal Generator instrument object.
+class WaveformGenerator(BasicWaveformGenerator):
+	""" Waveform Generator instrument object.
 
-	To run a new Signal Generator instrument, this should be instantiated and deployed via a connected
+	To run a new Waveform Generator instrument, this should be instantiated and deployed via a connected
 	:any:`Moku` object using :any:`deploy_instrument`. Alternatively, a pre-configured instrument object
-	can be obtained by discovering an already running Signal Generator instrument on a Moku:Lab device via
+	can be obtained by discovering an already running Waveform Generator instrument on a Moku:Lab device via
 	:any:`discover_instrument`.
 
-	.. automethod:: pymoku.instruments.SignalGenerator.__init__
+	.. automethod:: pymoku.instruments.WaveformGenerator.__init__
 
 	.. attribute:: type
 		:annotation: = "signal_generator"
@@ -279,8 +279,8 @@ class SignalGenerator(BasicSignalGenerator):
 
 	"""
 	def __init__(self):
-		""" Create a new SignalGenerator instance, ready to be attached to a Moku."""
-		super(SignalGenerator, self).__init__()
+		""" Create a new WaveformGenerator instance, ready to be attached to a Moku."""
+		super(WaveformGenerator, self).__init__()
 		self._register_accessors(_siggen_mod_reg_handlers)
 
 	@needs_commit

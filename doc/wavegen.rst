@@ -1,5 +1,5 @@
 
-Signal Generator Instrument
+Waveform Generator Instrument
 =============================
 
 Supports the generation of Sine, Square and Ramp waves. 
@@ -19,15 +19,15 @@ waveforms.
 Example Usage
 -------------
 
-For an in-depth walkthrough on using the pymoku Signal Generator Instrument, see the `pymoku Signal Generator tutorial <http://confluence.liquidinstruments.com>`_. For the following example code and a wide range of other pymoku demo scripts, see the `pymoku example repository <https://anaconda.org/liquidinstruments/pymoku-examples>`_.
+For an in-depth walkthrough on using the pymoku Waveform Generator Instrument, see the `pymoku Waveform Generator tutorial <http://confluence.liquidinstruments.com>`_. For the following example code and a wide range of other pymoku demo scripts, see the `pymoku example repository <https://anaconda.org/liquidinstruments/pymoku-examples>`_.
 
-.. literalinclude:: ../examples/basic_siggen.py
+.. literalinclude:: ../examples/basic_wavegen.py
 	:language: python
-	:caption: basic_siggen.py
+	:caption: basic_wavegen.py
 
-The SignalGenerator Class
+The WaveformGenerator Class
 -------------------------
 
-.. autoclass:: pymoku.instruments.SignalGenerator
+.. autoclass:: pymoku.instruments.WaveformGenerator
 	:members:
 	:inherited-members:
