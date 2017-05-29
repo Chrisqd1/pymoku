@@ -15,7 +15,7 @@ _STREAM_STATE_OVERFLOW	= 5
 _STREAM_STATE_BUSY		= 6
 _STREAM_STATE_STOPPED	= 7
 
-class StreamHandler(_instrument.MokuInstrument):
+class InputInstrument(_instrument.MokuInstrument):
 	"""
 		Helper class - should not be instantiated directly.
 		This class is intended to handle streams: checking status, receiving/parsing raw data,
@@ -23,7 +23,7 @@ class StreamHandler(_instrument.MokuInstrument):
 	"""
 
 	def __init__(self):
-		super(StreamHandler, self).__init__()
+		super(InputInstrument, self).__init__()
 		# Stream socket connection
 		self._dlskt = None
 		# Data parser for current session
@@ -43,6 +43,54 @@ class StreamHandler(_instrument.MokuInstrument):
 		self.hdrstr = ''
 		self.fmtstr = ''
 
+	"""
+		Expose all the get/set input instrument functions from the MokuInstrument class
+	"""
+	def set_frontend(self, channel, fiftyr=True, atten=False, ac=False):
+		""" Configures gain, coupling and termination for each channel.
+
+		:type channel: int; {1,2}
+		:param channel: Channel to which the settings should be applied
+
+		:type fiftyr: bool
+		:param fiftyr: 50Ohm termination; default is 1MOhm.
+
+		:type atten: bool
+		:param atten: Turn on 10x attenuation. Changes the dynamic range between 1Vpp and 10Vpp.
+
+		:type ac: bool
+		:param ac: AC-couple; default DC.
+		"""
+		return super(InputInstrument, self)._set_frontend(channel, fiftyr, atten, ac)
+
+	def get_frontend(self, channel):
+		""" Get the analog frontend configuration.
+
+		:type channel: int; {1,2}
+		:param channel: Channel for which the relay settings are being retrieved
+
+		:return: Array of bool with the front end configuration of channels
+			- [0] 50 Ohm
+			- [1] 10xAttenuation
+			- [2] AC Coupling
+		"""
+		return super(InputInstrument, self)._get_frontend(channel)
+
+	def set_pause(self, pause):
+		""" Pauses or unpauses the instrument's data output.
+
+		:type pause: bool
+		:param pause: Paused
+		"""
+		return super(InputInstrument, self)._set_pause(pause)
+
+	def get_pause(self):
+		""" Get whether the instrument's data output was paused.
+
+		:rtype: bool
+		:return: Paused
+		"""
+		return super(InputInstrument, self)._get_pause()
 
 	def _max_stream_rate(self, use_sd, filetype):
 		"""

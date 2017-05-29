@@ -5,20 +5,11 @@ import logging, time, threading, math
 import zmq
 
 from ._instrument import *
-from pymoku import Moku, UncommittedSettings, InvalidConfigurationException, FrameTimeout, BufferTimeout, NotDeployedException, InvalidOperationException, NoDataException, StreamException, InsufficientSpace, MPNotMounted, MPReadOnly, dataparser, _stream_handler, _instrument
-
-_STREAM_STATE_NONE		= 0
-_STREAM_STATE_RUNNING 	= 1
-_STREAM_STATE_WAITING 	= 2
-_STREAM_STATE_INVAL		= 3
-_STREAM_STATE_FSFULL	= 4
-_STREAM_STATE_OVERFLOW	= 5
-_STREAM_STATE_BUSY		= 6
-_STREAM_STATE_STOPPED	= 7
+from pymoku import Moku, UncommittedSettings, InvalidConfigurationException, FrameTimeout, BufferTimeout, NotDeployedException, InvalidOperationException, NoDataException, StreamException, InsufficientSpace, MPNotMounted, MPReadOnly, dataparser, _input_instrument, _instrument
 
 log = logging.getLogger(__name__)
 
-class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstrument):
+class StreamBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuInstrument):
 
 	def __init__(self):
 		super(StreamBasedInstrument, self).__init__()

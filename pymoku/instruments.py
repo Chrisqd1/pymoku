@@ -9,7 +9,7 @@ from . import _lockinamp
 from . import _datalogger
 from . import _stream_instrument
 from . import _frame_instrument
-from . import _stream_handler
+from . import _input_instrument
 
 ''' Preferred import point. Aggregates the separate instruments and helper classes
     to flatten the import heirarchy (e.g. pymoku.instruments.Oscilloscope rather

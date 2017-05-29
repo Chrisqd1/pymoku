@@ -10,9 +10,7 @@ import zmq
 from collections import deque
 from queue import Queue, Empty
 
-from pymoku import Moku, FrameTimeout, NoDataException, StreamException, UncommittedSettings, dataparser, _stream_handler, _get_autocommit
-
-from ._stream_instrument import _STREAM_STATE_NONE, _STREAM_STATE_RUNNING, _STREAM_STATE_WAITING, _STREAM_STATE_INVAL, _STREAM_STATE_FSFULL, _STREAM_STATE_OVERFLOW, _STREAM_STATE_BUSY, _STREAM_STATE_STOPPED
+from pymoku import Moku, FrameTimeout, NoDataException, StreamException, UncommittedSettings, dataparser, _input_instrument, _get_autocommit
 
 from . import _instrument
 
@@ -140,7 +138,7 @@ class InstrumentData(object):
 
 
 # Revisit: Should this be a Mixin? Are there more instrument classifications of this type, recording ability, for example?
-class FrameBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstrument):
+class FrameBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuInstrument):
 	def __init__(self):
 		super(FrameBasedInstrument, self).__init__()
 		self._buflen = 1
