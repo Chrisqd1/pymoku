@@ -4,8 +4,8 @@ import os, os.path
 import logging, time, threading, math
 import zmq
 
-from ._instrument import *
-from pymoku import Moku, UncommittedSettings, InvalidConfigurationException, FrameTimeout, BufferTimeout, NotDeployedException, InvalidOperationException, NoDataException, StreamException, InsufficientSpace, MPNotMounted, MPReadOnly, dataparser, _input_instrument, _instrument
+from . import *
+from . import dataparser, _input_instrument, _instrument
 
 log = logging.getLogger(__name__)
 

@@ -10,9 +10,8 @@ import zmq
 from collections import deque
 from queue import Queue, Empty
 
-from pymoku import Moku, FrameTimeout, NoDataException, StreamException, UncommittedSettings, dataparser, _input_instrument, _get_autocommit
-
-from . import _instrument
+from . import *
+from . import _instrument, _get_autocommit, _input_instrument
 
 log = logging.getLogger(__name__)
 

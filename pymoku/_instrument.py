@@ -1,11 +1,7 @@
-import threading, collections, time, struct, socket, logging
+import threading, collections, time, struct, socket, logging, decorator
 
-from pymoku import _get_autocommit, _set_autocommit
-
-import decorator
-from functools import partial
-from types import MethodType
-from pymoku import NotDeployedException, ValueOutOfRangeException, InvalidConfigurationException
+from . import *
+from . import _get_autocommit, _set_autocommit
 
 REG_CTL 	= 0
 REG_STAT	= 1

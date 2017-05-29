@@ -8,9 +8,8 @@
 #
 # (c) 2017 Liquid Instruments Pty. Ltd.
 #
-import pymoku
-from pymoku import Moku, StreamException
-from pymoku.instruments import *
+from pymoku import *
+from pymoku.instruments import Phasemeter
 import math, numpy
 import matplotlib.pyplot as plt
 

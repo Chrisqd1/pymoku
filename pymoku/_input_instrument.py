@@ -1,10 +1,9 @@
 import zmq
 import math
+import time
 
-from . import _instrument
-from . import dataparser
-from ._instrument import *
-from pymoku import Moku, UncommittedSettings, InvalidConfigurationException, FrameTimeout, BufferTimeout, NotDeployedException, InvalidOperationException, NoDataException, StreamException, InsufficientSpace, MPNotMounted, MPReadOnly, dataparser
+from . import *
+from . import _instrument, dataparser
 
 _STREAM_STATE_NONE		= 0
 _STREAM_STATE_RUNNING 	= 1

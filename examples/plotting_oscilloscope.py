@@ -6,8 +6,8 @@
 #
 # (c) 2017 Liquid Instruments Pty. Ltd.
 #
-from pymoku import Moku
-from pymoku.instruments import *
+from pymoku import *
+from pymoku.instruments import Oscilloscope
 import time, logging
 
 import matplotlib

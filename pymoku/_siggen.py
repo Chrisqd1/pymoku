@@ -4,7 +4,6 @@ import logging
 
 from ._instrument import *
 from ._instrument import _usgn, _sgn
-from . import _frame_instrument
 from . import _utils
 
 log = logging.getLogger(__name__)

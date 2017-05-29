@@ -4,9 +4,7 @@ import logging
 
 from ._instrument import *
 from . import _instrument
-from . import _frame_instrument
 from . import _stream_instrument
-from . import _siggen
 from . import _utils
 
 from struct import unpack

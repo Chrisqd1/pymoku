@@ -1,5 +1,3 @@
-
-
 import socket, select, struct, logging
 import os.path
 import zmq
