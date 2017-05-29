@@ -45,7 +45,6 @@ Instruments
 	wavegen
 	specan
 	phasemeter
-	lockin
 
 ----------
 Exceptions
