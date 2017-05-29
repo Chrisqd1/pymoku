@@ -423,19 +423,29 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		Precision mode, a.k.a Decimation, samples at full rate and applies a low-pass filter to the data. This improves
 		precision. Normal mode works by direct downsampling, throwing away points it doesn't need.
 
+		Precision mode canot be enabled if the trigger hysteresis has been explicitly set to an explicit, non-zero voltage.
+		See :any:`set_trigger <pymoku.instruments.Oscilloscope.set_trigger`.
+
 		:param state: Select Precision Mode
 		:type state: bool
 		"""
-		if state and self.hysteresis > 0 :
-			raise InvalidConfigurationException("Precision mode and Hysteresis can't be set at the same time.")
+		if state and self.hysteresis_volts not in ['auto', 'noise'] and self.hysteresis_volts > 0 :
+			raise InvalidConfigurationException("Precision mode can't be enabled while hysteresis is explicitly set to a voltage.")
 		self.ain_mode = _OSC_AIN_DECI if state else _OSC_AIN_DDS
 
 	def is_precision_mode(self):
 		return self.ain_mode is _OSC_AIN_DECI
 
 	@needs_commit
-	def set_trigger(self, source, edge, level, hysteresis=0, hf_reject=False, mode='auto'):
+	def set_trigger(self, source, edge, level, hysteresis='auto', hf_reject=False, mode='auto'):
 		""" Sets trigger source and parameters.
+
+		The hysteresis value changes behaviour based on aquisition mode, due to hardware limitations.  If the
+		Oscilloscope is in precision mode, hysteresis must be 0 or one of the strings 'auto' or 'noise'; an explicit,
+		non-zero value in volts can only be specified for normal aquisition (see
+		:any:`set_precision_mode <pymoku.instruments.Oscilloscope.set_precision_mode>`).  If hysteresis is 'auto' or
+		'noise', a small value will be automatically calulated based on decimation. Values 'auto' and 'noise' are suitable
+		for high- and low-SNR signals respectively.
 
 		:type source: string, {'in1','in2','out1','out2'}
 		:param source: Trigger Source. May be either an input or output channel,
@@ -447,8 +457,9 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		:type level: float, volts
 		:param level: Trigger level
 
-		:type hysteresis: float, volts
-		:param hysteresis: Hysteresis to apply around trigger point.
+		:type hysteresis: float, volts; or string {'auto', 'noise'}
+		:param hysteresis: Hysteresis to apply around trigger point. If *None*, automatically calculate based
+		on aquisition mode. Only *None* or 0V is supported in precision mode 
 
 		:type hf_reject: bool
 		:param hf_reject: Enable high-frequency noise rejection
@@ -488,9 +499,9 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 		self.trig_ch = source
 		self.trig_edge = edge
-		# Precision mode should be off if hysteresis is being used
-		if self.ain_mode == _OSC_AIN_DECI and hysteresis > 0:
-			raise InvalidConfigurationException("Precision mode and Hysteresis can't be set at the same time.")
+
+		if self.ain_mode == _OSC_AIN_DECI and hysteresis not in ['auto', 'noise'] and hysteresis > 0:
+			raise InvalidConfigurationException("Hysteresis can't be explicitly set while in precision mode.")
 		self.hysteresis_volts = hysteresis
 
 		self.hf_reject = hf_reject
@@ -621,7 +632,13 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 	def _update_dependent_regs(self, scales):
 		# Trigger level must be scaled depending on the current relay settings and chosen trigger source
 		self.trigger_level = self.trig_volts / self._source_volts_per_bit(self.trig_ch, scales)
-		self.hysteresis = self.hysteresis_volts / self._source_volts_per_bit(self.trig_ch, scales)
+
+		if self.hysteresis_volts == 'auto':
+			self.hysteresis = 5
+		elif self.hysteresis_volts == 'noise':
+			self.hysteresis = 25
+		else:
+			self.hysteresis = self.hysteresis_volts / self._source_volts_per_bit(self.trig_ch, scales)
 
 	def _update_datalogger_params(self):
 		scales = self._calculate_scales()
@@ -680,7 +697,13 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 		# Update internal state given new reg values. This is the inverse of update_dependent_regs
 		self.trig_volts = self.trigger_level * self._source_volts_per_bit(self.trig_ch, scales)
-		self.hysteresis_volts = self.hysteresis * self._source_volts_per_bit(self.trig_ch, scales)
+
+		if self.hysteresis == 5:
+			self.hysteresis_volts = 'auto'
+		elif self.hysteresis == 25:
+			self.hysteresis_volts = 'noise'
+		else:
+			self.hysteresis_volts = self.hysteresis * self._source_volts_per_bit(self.trig_ch, scales)
 
 		self._update_datalogger_params()
 
