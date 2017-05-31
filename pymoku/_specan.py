@@ -133,18 +133,6 @@ _SA_ADC_FREQ_RESP_20 = [ 1.0000,
 	0.7595, 0.7526, 0.7453, 0.7387, 0.7310, 0.7228, 0.7139, 0.7054, 0.6965, 0.6872, 0.6786, 0.6702, 0.6619, 0.6538, 0.6452, 0.6385,
 	0.6320, 0.6270, 0.6211, 0.6158, 0.6107, 0.6061, 0.6016, 0.5972, 0.5929, 0.5895, 0.5863, 0.5832, 0.5814, 0.5794, 0.5780, 0.5765 ]
 
-'''
-	IDEAL DECIMATIONS TABLE
-	TODO: Use this in _calculate_decimations function so we aren't underutilising the CIC/IIR filters
-'''
-'''
-_DECIMATIONS_TABLE = sorted([ (d1 * (d2+1) * (d3+1) * (d4+1), d1, d2+1, d3+1, d4+1)
-								for d1 in [4]
-								for d2 in range(64)
-								for d3 in range(16)
-								for d4 in range(16)], key=lambda x: (x[0],x[4],x[3]))
-'''
-
 class SpectrumData(_frame_instrument.InstrumentData):
 	"""
 	Object representing a frame of dual-channel frequency spectrum data (amplitude vs frequency in Hz).
@@ -164,7 +152,7 @@ class SpectrumData(_frame_instrument.InstrumentData):
 	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumData.ch2
 		:annotation: = [CH2_DATA]
 
-	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumData.fs
+	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumData.frequency
 		:annotation: = [FREQ]
 
 	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumData.dbm
@@ -193,7 +181,7 @@ class SpectrumData(_frame_instrument.InstrumentData):
 		self._scales = scales
 
 	def __json__(self):
-		return { 'ch1' : self.ch1, 'ch2' : self.ch2, 'frequency' : self.frequency, 'waveform_id' : self.waveformid }
+		return { 'ch1' : self.ch1, 'ch2' : self.ch2, 'frequency' : self.frequency, 'dbm' : self.dbm, 'waveform_id' : self.waveformid }
 
 	# convert an RMS voltage to a power level (assuming 50Ohm load)
 	def _vrms_to_dbm(self, v):
