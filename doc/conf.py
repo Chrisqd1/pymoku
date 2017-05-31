@@ -120,9 +120,7 @@ html_theme = 'alabaster'
 # documentation.
 html_theme_options = {
 	'logo'			: 'logo.png',
-	'github_user'	: 'benizl',
-	'github_repo'	: 'pymoku',
-	'github_banner'	: True,
+	'github_banner'	: False,
 	'description'	: "Python control library for the Liquid Instruments Moku:Lab",
 	'page_width'	: '70%'
 }
