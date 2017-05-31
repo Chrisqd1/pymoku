@@ -170,8 +170,8 @@ class FrameBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuIn
 	def get_data(self, timeout=None, wait=True):
 		""" Get full-resolution data from the instrument.
 
-		This will pause the instrument and download the entire contents of the instrument's
-		internal memory. This may include slightly more data than the instrument is set up
+		This will pause the instrument and download the entire contents of the instrument's 
+		internal memory. This may include slightly more data than the instrument is set up 
 		to record due to rounding of some parameters in the instrument.
 
 		All settings must be committed before you call this function. If *pymoku.autocommit=True*
@@ -181,9 +181,20 @@ class FrameBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuIn
 		The download process may take a second or so to complete. If you require high rate
 		data, e.g. for rendering a plot, see `get_realtime_data`.
 
+		If the *wait* parameter is true (the default), this function will wait for any new
+		settings to be applied before returning. That is, if you have set a new timebase (for example),
+		calling this with *wait=True* will guarantee that the data returned has this new timebase. 
+		
+		Note that if instrument configuration is changed, a trigger event must occur before data 
+		captured with that configuration set can become available. This can take an arbitrary amount 
+		of time. For this reason the *timeout* should be set appropriately.
+
 		:type timeout: float
-		:param timeout: Maximum time to wait to receive the samples over the network, or *None* 
-			for indefinite.
+		:param timeout: Maximum time to wait for new data, or *None* for indefinite.
+
+		:type wait: bool
+		:param wait: If *true* (default), waits for a new waveform to be captured with the most
+			recently-applied settings, otherwise just return the most recently captured valid data.
 
 		:return: :any:`InstrumentData` subclass, specific to the instrument.
 		"""
@@ -264,17 +275,19 @@ class FrameBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuIn
 
 		If the *wait* parameter is true (the default), this function will wait for any new
 		settings to be applied before returning. That is, if you have set a new timebase (for example),
-		calling this with *wait=True* will guarantee that the object returned has this new timebase.
-		This may include waiting for a trigger event, and therefore can take an arbitrary amount of
-		time to return, or not return at all (if for example the instrument is paused), and therefore
-		must have *timeout* set appropriately.
+		calling this with *wait=True* will guarantee that the data returned has this new timebase. 
+		
+		Note that if instrument configuration is changed, a trigger event must occur before data 
+		captured with that configuration set can become available. This can take an arbitrary amount 
+		of time. For this reason the *timeout* should be set appropriately.
+
+		:type timeout: float
+		:param timeout: Maximum time to wait for new data, or *None* for indefinite.
 
 		:type wait: bool
 		:param wait: If *true* (default), waits for a new waveform to be captured with the most
-			recently-applied settings, otherwise just return the most recently captured data.
-		:type timeout: float
-		:param timeout: Maximum time to wait for a new frame. This makes most sense when combined
-			with the *wait* parameter.
+			recently-applied settings, otherwise just return the most recently captured valid data.
+
 		:return: :any:`InstrumentData` subclass, specific to the instrument.
 		"""
 		try:
@@ -282,11 +295,11 @@ class FrameBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuIn
 			endtime = time.time() + (timeout or sys.maxsize)
 			while self._running:
 				frame = self._queue.get(block=True, timeout=timeout)
-				# Should really just wait for the new stateid to propagte through, but
-				# at the moment we don't support stateid and stateid_alt being different;
-				# i.e. we can't rerender already aquired data. Until we fix this, wait
-				# for a trigger to propagate through so we don't at least render garbage
-				if not wait or frame._trigstate == self._stateid:
+				# Return only frames with a triggered and rendered state being equal (so we can
+				# interpret the data correctly using the entire state)
+				# If wait is set, only frames that have the triggered state equal to the
+				# currently committed state will be returned. 
+				if (not wait and frame._trigstate == frame._stateid) or (frame._trigstate == self._stateid):
 					return frame
 				elif time.time() > endtime:
 					raise FrameTimeout()
