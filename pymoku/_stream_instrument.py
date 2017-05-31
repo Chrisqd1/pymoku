@@ -131,7 +131,7 @@ class StreamBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuI
 
 		return (dout_ch1, dout_ch2)
 
-	def start_data_log(self, duration=10, ch1=True, ch2=True, use_sd=True, filetype='csv', upload=False):
+	def start_data_log(self, duration=10, ch1=True, ch2=True, use_sd=True, filetype='csv'):
 		"""	Start logging instrument data to a file.
 
 		Progress of the data log may be checked calling `progress_data_log`.
@@ -139,19 +139,20 @@ class StreamBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuI
 		All outstanding settings must have been committed before starting the data log. This
 		will always be true if *pymoku.autocommit=True*, the default.
 
-		:type start: float
-		:param start: Start time in seconds from the time of function call
+		.. note:: The Moku's internal filesystem is volatile and will be wiped when the Moku is turned off.
+			If you want your data logs to persist either save to SD card or move them to a permanent
+			storage location prior to powering your Moku off. 
+
 		:type duration: float
 		:param duration: Log duration in seconds
-		:type use_sd: bool
 		:type ch1: bool
 		:param ch1: Enable streaming on Channel 1
 		:type ch2: bool
 		:param ch2: Enable streaming on Channel 2
+		:type use_sd: bool
+		:param use_sd: Whether to log to the SD card, else the internal Moku filesystem.
 		:type filetype: string
 		:param filetype: Log file type, one of {'csv','bin'} for CSV or Binary respectively.
-		:type upload: bool
-		:param upload: When true, the log will be uploaded to the local directory on completion.
 		"""
 		if self.check_uncommitted_state():
 			raise UncommittedSettings("Can't start a logging session due to uncommitted device settings.")
