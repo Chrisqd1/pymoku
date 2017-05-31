@@ -206,12 +206,9 @@ class FrameBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuIn
 		# Stop existing logging sessions
 		self._stream_stop()
 
-		# Block waiting on state to propagate (if wait=True)
+		# Block waiting on state to propagate (if wait=True) or a trigger to occur (wait=False)
 		# This also gives us acquisition parameters for the buffer we will subsequently stream
-		try:
-			frame = self.get_realtime_data(timeout=timeout, wait=wait)
-		except FrameTimeout:
-			raise BufferTimeout('Timed out waiting on valid data.')
+		frame = self.get_realtime_data(timeout=timeout, wait=wait)
 
 		# Check if it is already paused
 		was_paused = self.get_pause()

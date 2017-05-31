@@ -52,7 +52,6 @@ Exceptions
 
 .. Can't get automodule to work properly for this..
 .. autoexception:: MokuException
-.. autoexception:: BufferTimeout
 .. autoexception:: DeployException
 .. autoexception:: FileNotFound
 .. autoexception:: FrameTimeout
