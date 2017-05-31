@@ -19,7 +19,7 @@ waveforms.
 Example Usage
 -------------
 
-For an in-depth walkthrough on using the pymoku Waveform Generator Instrument, see the `pymoku Waveform Generator tutorial <http://confluence.liquidinstruments.com>`_. For the following example code and a wide range of other pymoku demo scripts, see the `pymoku example repository <https://anaconda.org/liquidinstruments/pymoku-examples>`_.
+For an in-depth walkthrough on using the pymoku Waveform Generator Instrument, see the `pymoku Waveform Generator tutorial <http://confluence.liquidinstruments.com>`_. For the following example code and a wide range of other pymoku demo scripts, see the `pymoku example repository <https://anaconda.org/liquidinstruments/pymoku-examples/files>`_.
 
 .. literalinclude:: ../examples/basic_wavegen.py
 	:language: python
