@@ -313,11 +313,11 @@ class InputInstrument(_instrument.MokuInstrument):
 		"""
 		return self._stream_status()[1]
 
-	def _stream_completed(self, status):
+	def _stream_completed(self, status=None):
 		""" Returns whether or not the datalogger is expecting to log any more data.
 
 		If the log is completed then the results files are ready to be uploaded or simply
-		read off the SD card. At most one subsequent :any:`datalogger_get_samples` call
+		read off the SD card. At most one subsequent :any:`get_stream_data` call
 		will return without timeout.
 
 		If the datalogger has entered an error state, a StreamException is raised.
@@ -327,9 +327,16 @@ class InputInstrument(_instrument.MokuInstrument):
 
 		:raises StreamException: if the session has entered an error state
 		"""
-		if not status:
+		if status == None:
 			status = self._stream_status()[0]
+
+		# Check the status for error state
 		self._stream_error(status=status)
+
+		# No session in progress
+		if status == _STREAM_STATE_NONE:
+			raise StreamException("Attempted to check progress of non-existent streaming session.")
+
 		return status not in [_STREAM_STATE_RUNNING, _STREAM_STATE_WAITING]
 
 	def _stream_error(self, status=None):

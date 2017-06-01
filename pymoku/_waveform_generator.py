@@ -252,13 +252,13 @@ class BasicWaveformGenerator(MokuInstrument):
 
 		:raises ValueOutOfRangeException: if the channel number is invalid
 		"""
-		if channel is None or channel == 1:
+		if ch is None or ch == 1:
 			self.out1_enable = False
 
-		if channel is None or channel == 2:
+		if ch is None or ch == 2:
 			self.out2_enable = False
 
-		if channel is not None and channel > 2:
+		if ch is not None and ch > 2:
 			raise ValueOutOfRangeException("Invalid channel")
 
 
