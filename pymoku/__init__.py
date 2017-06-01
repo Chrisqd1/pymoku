@@ -281,6 +281,36 @@ class Moku(object):
 			raise NetworkError()
 
 
+	def _read_regs_extended(self, regs):
+		# TODO: replace the above implementation with this once firmware supporing
+		# the extended read is widely available
+
+		packet_data = struct.pack("<BBHB", 0x55, 0, len(regs), 0)
+		packet_data += b''.join([struct.pack("<H", r) for r in regs])
+
+		self._conn.send(packet_data)
+		ack = self._conn.recv()
+
+		t, _, c = struct.unpack("<BBH", ack[:4])
+
+		if t != 0x55 or c != len(regs):
+			raise NetworkError()
+
+		return struct.unpack("<" + "I" * c, ack[4:])
+
+	def _write_regs_extended(self, regs):
+		# TODO: As above
+		packet_data = struct.pack("<BBHB", 0x55, 0, len(regs), 1)
+		packet_data += b''.join([ struct.pack("<HI", a, d) for a, d in regs])
+		self._conn.send(packet_data)
+		ack = self._conn.recv()
+
+		t, _, c = struct.unpack("<BBH", ack[:4])
+
+		if t != 0x55 or c > 0:
+			raise NetworkError()
+
+
 	def _deploy(self, partial_index=0, use_external=False):
 		if self._instrument is None:
 			DeployException("No Instrument Selected")
