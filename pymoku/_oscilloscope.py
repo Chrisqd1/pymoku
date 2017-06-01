@@ -100,7 +100,7 @@ class VoltsData(_frame_instrument.InstrumentData):
 
 	def process_complete(self):
 		if self._stateid not in self._scales:
-			log.error("Can't render voltage frame, haven't saved calibration data for state %d", self._stateid)
+			log.info("Can't render voltage frame, haven't saved calibration data for state %d", self._stateid)
 			return
 
 		scales = self._scales[self._stateid]
@@ -140,7 +140,7 @@ class VoltsData(_frame_instrument.InstrumentData):
 			log.error("Can't process buffer - haven't saved calibration for state %d", self._stateid)
 			return
 		scales = self._scales[self._stateid]
-		self.time = [scales['buff_time_min'] + (scales['buff_time_step'] * x) for x in range(_OSC_BUFLEN)]
+		self.time = [scales['buff_time_min'] + (scales['buff_time_step'] * x) for x in range(len(self.ch1))]
 		return True
 	'''
 		Plotting helper functions
