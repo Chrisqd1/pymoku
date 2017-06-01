@@ -296,7 +296,8 @@ class Moku(object):
 		if t != 0x55 or c != len(regs):
 			raise NetworkError()
 
-		return struct.unpack("<" + "I" * c, ack[4:])
+		ack = ack[4:]
+		return [struct.unpack('<HI', ack[x:x + 6]) for x in range(0, c * 6, 6)]
 
 	def _write_regs_extended(self, regs):
 		# TODO: As above
