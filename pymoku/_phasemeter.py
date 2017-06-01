@@ -37,6 +37,10 @@ REG_PM_SG_FREQ1_H = 98
 REG_PM_SG_FREQ2_L = 99
 REG_PM_SG_FREQ2_H = 100
 REG_PM_SG_AMP = 105
+REG_PM_SG_PHASE1_L = 101
+REG_PM_SG_PHASE1_H = 102
+REG_PM_SG_PHASE2_L = 103
+REG_PM_SG_PHASE2_H = 104
 
 # Phasemeter specific instrument constants
 _PM_ADC_SMPS = _instrument.ADC_SMP_RATE
@@ -54,6 +58,7 @@ _PM_VOLTS_SCALE = 2.0 / (_PM_ADC_SMPS * _PM_ADC_SMPS / _PM_UPDATE_RATE / _PM_UPD
 # Phasemeter waveform generator constants
 _PM_SG_AMPSCALE = 2**16 / 4.0
 _PM_SG_FREQSCALE = _PM_FREQSCALE
+_PM_SG_PHASESCALE = 360.0 / (2**48) # Wraps
 
 # Pre-defined log rates which ensure samplerate will set to ~120Hz or ~30Hz
 _PM_LOGRATE_FAST = 123
@@ -70,7 +75,7 @@ class Phasemeter_WaveformGenerator(MokuInstrument):
 		self.gen_off()
 
 	@needs_commit
-	def gen_sinewave(self, ch, amplitude, frequency):
+	def gen_sinewave(self, ch, amplitude, frequency, phase=0.0):
 		""" Generate a sinewave signal on the specified output channel
 		
 		:type ch: int; {1,2}
@@ -79,15 +84,19 @@ class Phasemeter_WaveformGenerator(MokuInstrument):
 		:param amplitude: Signal amplitude
 		:type frequency: float; Hz
 		:param frequency: Frequency
+		:type phase: float; degrees
+		:param phase: Phase
 
 		:raises ValueOutOfRangeException: if the channel number is invalid
 		"""
 		if ch == 1:
 			self.pm_out1_frequency = frequency
 			self.pm_out1_amplitude = amplitude
+			self.pm_out1_phase = phase
 		elif ch == 2:
 			self.pm_out2_frequency = frequency
 			self.pm_out2_amplitude = amplitude
+			self.pm_out2_phase = phase
 		else:
 			raise ValueOutOfRangeException("Invalid channel number")
 
@@ -124,7 +133,13 @@ _pm_siggen_reg_hdl = {
 	'pm_out1_amplitude':	(REG_PM_SG_AMP, to_reg_unsigned(0, 16, xform=lambda obj, a: a / obj._dac_gains()[0]),
 											from_reg_unsigned(0,16, xform=lambda obj, a: a * obj._dac_gains()[0])),
 	'pm_out2_amplitude':	(REG_PM_SG_AMP, to_reg_unsigned(16, 16, xform=lambda obj, a: a / obj._dac_gains()[1]),
-											from_reg_unsigned(16,16, xform=lambda obj, a: a * obj._dac_gains()[1]))
+											from_reg_unsigned(16,16, xform=lambda obj, a: a * obj._dac_gains()[1])),
+	'pm_out1_phase':		((REG_PM_SG_PHASE1_H, REG_PM_SG_PHASE1_L),
+											to_reg_unsigned(0, 48, xform=lambda obj, p:(p / _PM_SG_PHASESCALE)),
+											from_reg_unsigned(0, 48, xform=lambda obj, p: p * _PM_SG_PHASESCALE )),
+	'pm_out2_phase':		((REG_PM_SG_PHASE2_H, REG_PM_SG_PHASE2_L),
+											to_reg_unsigned(0, 48, xform=lambda obj, p: (p / _PM_SG_PHASESCALE)),
+											from_reg_unsigned(0, 48, xform=lambda obj, p : p * _PM_SG_PHASESCALE ))
 }
 
 class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_WaveformGenerator): #TODO Frame instrument may not be appropriate when we get streaming going.
