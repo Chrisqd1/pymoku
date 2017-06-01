@@ -256,13 +256,17 @@ def needs_commit(func, self, *args, **kwargs):
 		if not _awaiting_commit:
 			_awaiting_commit = True # Lock the commit
 
-		res = func(self, *args, **kwargs)
-
-		# Commit if we weren't already waiting for one before
-		if not was_awaiting:
-			self.commit()
-			# Reset the intention to commit
-			_awaiting_commit = False
+		try:
+			# Attempt to call the wrapped function
+			res = func(self, *args, **kwargs)
+		finally:
+			# Do this even if the function raises an Exception
+			
+			# Commit if we weren't already waiting for one before
+			if not was_awaiting:
+				self.commit()
+				# Reset the intention to commit
+				_awaiting_commit = False
 
 		return res
 
