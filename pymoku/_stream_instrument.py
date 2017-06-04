@@ -100,7 +100,7 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 		processed_samples = self._stream_get_processed_samples()
 		if n > 0:
 			# Actual number of samples processed already
-			num_processed_samples = map(len, processed_samples)
+			num_processed_samples = [len(x) for x in processed_samples]
 		else:
 			# We don't need to track the number of processed samples if n = [0,1]
 			num_processed_samples = [-1,-1]
@@ -121,7 +121,7 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 			processed_samples = self._stream_get_processed_samples()
 			if n != -1:
 				# Update the number of processed samples if we aren't asking for 'all' of them
-				num_processed_samples = map(len, processed_samples)
+				num_processed_samples = [len(x) for x in processed_samples]
 
 			# Check if the streaming session has completed
 			if self._no_data:
