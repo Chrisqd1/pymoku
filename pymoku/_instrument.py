@@ -461,13 +461,9 @@ class MokuInstrument(object):
 			g1 = g2 = 1
 			gt1 = gt2 = 0
 
-		log.debug("DAC gain values for sections %s, %s, %s, %s = %f, %f, %f, %f", g1s, g2s, gt1s, gt2s, g1, g2, gt1, gt2)
-
 		# For now, assume a fixed 48 degrees C board temperature. In future, should read temperature registers
 		g1 += gt1 * 48.0
 		g2 += gt2 * 48.0
-
-		log.debug("Calculated temperature corrected gains as %f, %f", g1, g2)
 
 		# The sense of these parameters as used in pymoku is inverted from the storage on the Moku
 		g1 = 1 / g1
@@ -490,8 +486,6 @@ class MokuInstrument(object):
 			log.warning("Moku appears uncalibrated")
 			o1 = o2 = 0
 			ot1 = ot2 = 0
-
-		log.debug("DAC offset values for sections %s, %s, %s, %s = %f, %f, %f, %f", o1s, o2s, ot1s, ot2s, o1, o2, ot1, ot2)
 
 		return o1, ot1, o2, ot2
 
@@ -521,13 +515,9 @@ class MokuInstrument(object):
 			g1 = g2 = 1
 			gt1 = gt2 = 0
 
-		log.debug("ADC gain values for sections %s, %s, %s, %s = %f, %f, %f, %f", g1s, g2s, gt1s, gt2s, g1, g2, gt1, gt2)
-
 		# For now, assume a fixed 48 degrees C board temperature. In future, should read temperature registers
 		g1 += gt1 * 48.0
 		g2 += gt2 * 48.0
-
-		log.debug("Calculated temperature corrected gains as %f, %f", g1, g2)
 
 		# The sense of these parameters as used in pymoku is inverted from the storage on the Moku
 		g1 = 1 / g1
@@ -559,8 +549,6 @@ class MokuInstrument(object):
 			log.warning("Moku appears uncalibrated")
 			o1 = o2 = 0
 			ot1 = ot2 = 0
-
-		log.debug("ADC offset values for sections %s, %s, %s, %s = %f, %f, %f, %f", o1s, o2s, ot1s, ot2s, o1, o2, ot1, ot2)
 
 		return o1, ot1, o2, ot2
 
