@@ -7,6 +7,7 @@ from . import _phasemeter
 from . import _specan
 from . import _lockinamp
 from . import _datalogger
+from . import _bodeanalyser
 from . import _stream_instrument
 from . import _frame_instrument
 from . import _stream_handler
@@ -28,6 +29,7 @@ Phasemeter = _phasemeter.Phasemeter
 SpectrumAnalyser = _specan.SpectrumAnalyser
 LockInAmp = _lockinamp.LockInAmp
 Datalogger = _datalogger.Datalogger
+BodeAnalyser = _bodeanalyser.BodeAnalyser
 
 id_table = {
 	1: Oscilloscope,
@@ -38,7 +40,7 @@ id_table = {
 	6: None, # IIR Filter Box
 	7: Datalogger, # Datalogger
 	8: LockInAmp,
-	9: None, # Bode Analyser
+	9: BodeAnalyser,
 	10: None, # FIR Filter Box
 	11: None, # PDH Locking
 	12: None, # Software Defined Radio
