@@ -829,20 +829,12 @@ class Moku(object):
 		return list(zip(*fs))[0]
 
 	def _list_bitstreams(self, include_version=True):
-		fs = self._fs_list('b', calculate_sha=include_version)
+		fs = self._fs_list('p', calculate_sha=include_version)
 
 		if include_version:
 			return [(b.split('.')[0], c) for b, c, s in fs if b.endswith('.bit')]
 		else:
 			return [b.split('.')[0] for b, c, s in fs if b.endswith('.bit')]
-
-	def _list_package(self, include_version=False):
-		fs = self._fs_list('p', calculate_checksums=include_version)
-
-		if include_version:
-			return [b.split('.')[0] + '-{:X}'.format(c) for b, c, s in fs if b.endswith('.hgp')]
-		else:
-			return [b.split('.')[0] for b, c, s in fs if b.endswith('.hgp')]
 
 	def _trigger_fwload(self):
 		self._set_timeout(seconds=20)

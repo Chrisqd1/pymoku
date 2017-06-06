@@ -108,34 +108,25 @@ parser_instruments.set_defaults(func=instrument)
 
 # View and load new packages
 def package(moku, args):
-	if args.action == 'list':
-		packs = moku._list_package(include_version=True)
-
-		if len(packs):
-			print("The following packages are available on your Moku:")
-			for i in packs:
-				print('\t{}'.format(i))
-		else:
-			print("No packages found on your Moku.")
-	elif args.action == 'load':
+	if args.action == 'load':
 		if not args.file or not args.file.endswith('hgp'):
 			print('Package load requires an HGP file to be specified')
 			return
 
 		fname = os.path.basename(args.file)
-		chk = moku._load_persistent(args.file)
+		moku._send_file('f', args.file)
 
 		if os.path.exists(args.file + '.sha256'):
-			moku._load_persistent(args.file + '.sha256')
+			moku._send_file('f', args.file + '.sha256')
 		else:
 			print("WARNING: No signing information found, this package might not run correctly on your Moku.")
 
-		print("Successfully loaded new instrument {} version {:X}".format(fname, chk))
+		print("Successfully loaded new package {}".format(fname))
 	else:
 		exit(1)
 
 parser_package = subparsers.add_parser('package', help="Check and update special feature packages on the Moku.")
-parser_package.add_argument('action', help='Action to perform', choices=['list', 'load'])
+parser_package.add_argument('action', help='Action to perform', choices=['load'])
 parser_package.add_argument('file', nargs='?', default=None, help="Path to local package file, if any")
 parser_package.set_defaults(func=package)
 
