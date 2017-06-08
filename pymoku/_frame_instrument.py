@@ -211,11 +211,11 @@ class FrameBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuIn
 		frame = self.get_realtime_data(timeout=timeout, wait=wait)
 
 		# Check if it is already paused
-		was_paused = self.get_pause()
+		was_paused = self._get_pause()
 
 		# Force a pause so we can start streaming the buffer out
 		if not was_paused:
-			self.set_pause(True)
+			self._set_pause(True)
 			if not _get_autocommit():
 				self.commit()
 
@@ -233,7 +233,7 @@ class FrameBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuIn
 
 		# Set pause state to what it was before
 		if not was_paused:
-			self.set_pause(False)
+			self._set_pause(False)
 			if not _get_autocommit():
 				self.commit()
 

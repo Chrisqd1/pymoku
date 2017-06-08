@@ -543,7 +543,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _waveform_generator.B
 		self.set_trigger('in1','rising', 0)
 		self.set_precision_mode(False)
 		self.set_timebase(-1, 1)
-		self.set_pause(False)
+		self._set_pause(False)
 
 		self.framerate = _OSC_FPS
 		self.frame_length = _OSC_SCREEN_WIDTH

@@ -75,7 +75,7 @@ class InputInstrument(_instrument.MokuInstrument):
 		"""
 		return super(InputInstrument, self)._get_frontend(channel)
 
-	def set_pause(self, pause):
+	def _set_pause(self, pause):
 		""" Pauses or unpauses the instrument's data output.
 
 		:type pause: bool
@@ -83,7 +83,7 @@ class InputInstrument(_instrument.MokuInstrument):
 		"""
 		return super(InputInstrument, self)._set_pause(pause)
 
-	def get_pause(self):
+	def _get_pause(self):
 		""" Get whether the instrument's data output was paused.
 
 		:rtype: bool

@@ -71,7 +71,7 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _waveform_generator.B
 		self.set_source(1,'in')
 		self.set_source(2,'in')
 		self.set_precision_mode(False)
-		self.set_pause(False)
+		self._set_pause(False)
 
 		self.set_frontend(1, fiftyr=True, atten=False, ac=False)
 		self.set_frontend(2, fiftyr=True, atten=False, ac=False)
