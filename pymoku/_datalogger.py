@@ -84,10 +84,14 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _waveform_generator.B
 
 		This interface allows you to specify the rate at which data is sampled.
 
-		:type samplerate: float; *0 < samplerate < 500Msmp/s*
-		:param samplerate: Target samples per second. Will get rounded to the nearest allowable unit.
+		.. note::
+			The samplerate must be set to within the allowed range for your datalogging session type.
+			See the Datalogger instrument tutorial for more details.
 
-		:raises InvalidConfigurationException: if either parameter is out of range.
+		:type samplerate: float; *0 < samplerate < 500Msmp/s*
+		:param samplerate: Target samples per second. Will get rounded to the nearest unit.
+
+		:raises InvalidConfigurationException: if parameter is out of range.
 		"""
 
 		if samplerate <= 0 or samplerate > 500e6:

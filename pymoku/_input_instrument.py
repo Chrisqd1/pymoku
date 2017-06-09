@@ -195,7 +195,8 @@ class InputInstrument(_instrument.MokuInstrument):
 		if duration > 0:
 			maxrate = self._max_stream_rate(use_sd, filetype)
 			if math.floor(1.0 / self.timestep) > maxrate:
-				raise InvalidOperationException("Sample Rate %d too high for file type %s. Maximum rate: %d" % (1.0 / self.timestep, filetype, maxrates[filetype]))
+				session_type = "Filetype: %s, #Channels: %d, SDCard: %s" % (filetype, self.nch, use_sd)
+				raise InvalidOperationException("Sample rate (%d smp/s) too high for datalogging session type (%s). Maximum rate is %d smp/s. " % (1.0 / self.timestep, session_type, maxrate))
 
 			if self.x_mode != _instrument.ROLL:
 				raise InvalidOperationException("Instrument must be in roll mode to perform data logging")
