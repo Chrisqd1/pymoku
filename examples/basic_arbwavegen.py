@@ -40,49 +40,31 @@ xdata, ydata = pickle.loads(zlib.decompress(base64.b64decode(
    fv4HtdVAJw=='''
 )))
 
-with open('data.dat', 'wb') as f:
-	for n in range(8):
-		for d in xdata:
-			f.write(struct.pack('<i', d))
-		for i in range(LENGTH - len(xdata)):
-			f.write(struct.pack('<i', 0))
-
-	#channel 2
-	for n in range(8):
-		for d in ydata:
-			f.write(struct.pack('<i', d))
-		for i in range(LENGTH - len(ydata)):
-			f.write(struct.pack('<i', 0))
-
-m = Moku('192.168.69.135')
+m = Moku('192.168.1.99')
 i = ArbWaveGen()
 m.deploy_instrument(i)
 
 try:
 	i.set_defaults()
-	i.mode1 = 0
-	i.mode2 = 0
 	i.interpolation1 = True
 	i.interpolation2 = True
-	i.lut_length1 = len(xdata)-1
-	i.lut_length2 = len(xdata)-1
-	i.phase_modulo1 = 2**17 * (len(xdata)) - 1
-	i.phase_modulo2 = 2**17 * (len(xdata)) - 1
+	i.phase_modulo1 = 2**17 * (len(xdata))
+	i.phase_modulo2 = 2**17 * (len(xdata))
 	i.dead_value1 = 0x0000
 	i.dead_value2 = 0x0000
-	i.phase_step1 = 2**10
-	i.phase_step2 = 2**10
+	i.phase_step1 = 2**14
+	i.phase_step2 = 2**14
 
-	i.mmap_access = True
-	i.commit()
+	i.write_lut(1, xdata, 3)
+	i.write_lut(2, ydata, 3)
 
-	m._send_file('j', 'data.dat')
-
-	i.mmap_access = False
 	i.enable1 = True
 	i.enable2 = True
 	i.phase_rst1 = True
 	i.phase_rst2 = True
+	i.offset2 = 0.1
+	i.amplitude1 = 1.0
+	i.amplitude2 = 1.0
 	i.commit()
 
 	i.set_source(1, 'out', lmode='round')
