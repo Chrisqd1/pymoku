@@ -79,14 +79,15 @@ class ArbWaveGen(_oscilloscope.Oscilloscope):
 			else:       self.mode2 = srate
 
 		mode = [self.mode1, self.mode2][ch-1]
-		assert mode == _ARB_MODE_125, "Only 125MHz implemented..."
 		assert len(data) <= 2**13 or mode in [_ARB_MODE_125, _ARB_MODE_250, _ARB_MODE_500]
 		assert len(data) <= 2**14 or mode in [_ARB_MODE_125, _ARB_MODE_250]
 		assert len(data) <= 2**15 or mode in [_ARB_MODE_125]
 		assert len(data) <= 2**16
 
+		steps, stepsize = [(8, 8192), (4, 8192 * 2), (2, 8192 * 4), (1, 8192 * 8)][mode]
+
 		with open('.lutdata.dat', 'r+b') as f:
-			#first check make the file the right size
+			#first check and make the file the right size
 			f.seek(0, os.SEEK_END)
 			size = f.tell()
 			f.write('\0' * (_ARB_LUT_LENGTH * 8 * 4 * 2 - size))
@@ -99,7 +100,9 @@ class ArbWaveGen(_oscilloscope.Oscilloscope):
 			else:
 				f.seek(_ARB_LUT_LENGTH * 8 * 4)
 				self.lut_length2 = len(data) - 1
-			f.write(''.join([struct.pack('<i', d) for d in data]))
+			for step in range(steps):
+				f.write(''.join([struct.pack('<i', round(2.0**15 * d)) for d in data]))
+				f.seek((step + 1) * stepsize)
 			f.flush()
 
 		self._set_mmap_access(True)
