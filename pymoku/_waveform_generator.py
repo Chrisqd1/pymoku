@@ -442,11 +442,11 @@ _siggen_reg_handlers = {
 	'out2_phase':		(REG_SG_PHASE2,		to_reg_unsigned(0, 32, xform=lambda obj, p: (p / _SG_PHASESCALE) % (2**32)),
 											from_reg_unsigned(0, 32, xform=lambda obj, p:p * _SG_PHASESCALE)),
 
-	'out1_amplitude':	(REG_SG_AMP1,		to_reg_unsigned(0, 16, xform=lambda obj, p:p / obj._dac_gains()[0]),
-											from_reg_unsigned(0, 16, xform=lambda obj, p:p * obj._dac_gains()[0])),
+	'out1_amplitude':	(REG_SG_AMP1,		to_reg_unsigned(0, 16, xform=lambda obj, a:a / obj._dac_gains()[0]),
+											from_reg_unsigned(0, 16, xform=lambda obj, a:a * obj._dac_gains()[0])),
 
-	'out2_amplitude':	(REG_SG_AMP2,		to_reg_unsigned(0, 16, xform=lambda obj, p:p / obj._dac_gains()[1]),
-											from_reg_unsigned(0, 16, xform=lambda obj, p:p * obj._dac_gains()[1])),
+	'out2_amplitude':	(REG_SG_AMP2,		to_reg_unsigned(0, 16, xform=lambda obj, a:a / obj._dac_gains()[1]),
+											from_reg_unsigned(0, 16, xform=lambda obj, a:a * obj._dac_gains()[1])),
 
 	'out1_t0':			(REG_SG_T01,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_TIMESCALE),
 											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_TIMESCALE)),

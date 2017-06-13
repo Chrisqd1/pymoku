@@ -49,9 +49,9 @@ REG_SA_TR2_INCR_L 	= 109
 _SA_WIN_BH			= 0
 _SA_WIN_FLATTOP		= 1
 _SA_WIN_HANNING		= 2
-_SA_WIN_NONE			= 3
+_SA_WIN_NONE		= 3
 
-_SA_ADC_SMPS		= 500e6
+_SA_ADC_SMPS		= ADC_SMP_RATE
 _SA_BUFLEN			= 2**14
 _SA_SCREEN_WIDTH	= 1024
 _SA_SCREEN_STEPS	= _SA_SCREEN_WIDTH - 1
@@ -373,16 +373,19 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		self.sweep1 = False
 		self.sweep2 = False
 
-		self.f1 = self._f1_full = 0
-		self.f2 = self._f2_full = 250e6
+		self.f1 = 0
+		self.f2 = 250e6
 
 		self.rbw = None
 		self.dbmscale = True
 
 
-	def _calculate_decimations(self, f1, f2):
+	def _calculate_decimations(self):
 		# Computes the decimations given the input span
 		# Doesn't guarantee a total decimation of the ideal value, even if such an integer sequence exists
+		f1 = self.f1
+		f2 = self.f2
+
 		fspan = f2 - f1
 		ideal = math.floor(_SA_ADC_SMPS / 8.0 /  fspan)
 		if ideal < 2:
@@ -408,8 +411,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 
 		return [d1, d2, d3, d4, ideal]
 
-	def _set_decimations(self, f1, f2):
-		d1, d2, d3, d4, ideal = self._calculate_decimations(f1, f2)
+	def _set_decimations(self, d1, d2, d3, d4, ideal):
 
 		# d1 can only be x4 decimation
 		self.bs_cic2 = math.ceil(2 * math.log(d2, 2))
@@ -425,29 +427,29 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 
 		log.debug("Decimations: %d %d %d %d = %d (ideal %f)", d1, d2, d3, d4, total_decimation, ideal)
 
-	def _calculate_rbw(self, rbw, decimation, window, fspan, sweep):
+	def _calculate_rbw(self):
 		"""
 			Calculates the RBW value based on current mode
 		"""
+		fspan = self.f2 - self.f1
+		rbw = self.rbw
+
 		if rbw == None:
-			if sweep:
+			if self.sweep1 or self.sweep2:
 				rbw = fspan / 50.0
 			else:
 				rbw = 5.0 * fspan / _SA_SCREEN_STEPS
 
-		window_factor = _SA_WINDOW_WIDTH[window]
-		fbin_resolution = ADC_SMP_RATE / 2.0 /_SA_FFT_LENGTH / decimation
+		window_factor = _SA_WINDOW_WIDTH[self.window]
+		fbin_resolution = _SA_ADC_SMPS / 2.0 /_SA_FFT_LENGTH / self._total_decimation
 
 		return min(max(rbw, (17.0 / 16.0) * fbin_resolution * window_factor), 2**10.0 * fbin_resolution * window_factor)
 
-	def _set_rbw_ratio(self, rbw, decimation, window, fspan, sweep):
-		rbw = self._calculate_rbw(rbw, decimation, window, fspan, sweep)
-
-		window_factor = _SA_WINDOW_WIDTH[window]
-		fbin_resolution = ADC_SMP_RATE / 2.0 / _SA_FFT_LENGTH / decimation
+	def _set_rbw_ratio(self, rbw):
+		window_factor = _SA_WINDOW_WIDTH[self.window]
+		fbin_resolution = _SA_ADC_SMPS / 2.0 / _SA_FFT_LENGTH / self._total_decimation
 
 		self.rbw_ratio = rbw / window_factor / fbin_resolution
-		return rbw
 
 	def _update_dependent_regs(self):
 		"""
@@ -458,7 +460,8 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		self.demod = self.f2
 
 		# Set the CIC decimations
-		self._set_decimations(self.f1, self.f2)
+		d1, d2, d3, d4, ideal = self._calculate_decimations()
+		self._set_decimations(d1, d2, d3, d4, ideal)
 
 		# Set the filter gains based on the set CIC decimations
 		filter_set = _SA_IIR_COEFFS[self.dec_iir-1]
@@ -472,14 +475,15 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		self.render_dds = min(max(math.ceil(fspan / buffer_span * _SA_FFT_LENGTH/ _SA_SCREEN_STEPS), 1.0), 4.0)
 		self.render_dds_alt = self.render_dds
 
-		# Calculate the Resolution Bandwidth (RBW)
-		rbw = self._set_rbw_ratio(self.rbw, self._total_decimation, self.window, fspan, self.sweep1 or self.sweep2)
+		# Calculate and set the Resolution Bandwidth (RBW)
+		rbw = self._calculate_rbw()
+		self._set_rbw_ratio(rbw)
 
 		self.ref_level = 6
 
 		# Output waveform generator sweep depends on the instrument parameters for optimal
 		# increment vs screen update rate
-		self._set_sweep_increments(self.sweep1, self.sweep2, fspan, self._total_decimation, rbw, self.framerate)
+		self._set_sweep_increments()
 
 		log.debug("DM: %f FS: %f, BS: %f, RD: %f, W:%d, RBW: %f, RBR: %f", self.demod, fspan, buffer_span, self.render_dds, self.window, rbw, self.rbw_ratio)
 
@@ -581,17 +585,17 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		self.set_span(0,250e6)
 		self.window = _SA_WIN_BH
 
-	def _calculate_freq_step(self, decimation, render_downsamp):
-		bufspan = _SA_ADC_SMPS / 2.0 / decimation
+	def _calculate_freq_step(self):
+		bufspan = _SA_ADC_SMPS / 2.0 / self._total_decimation
 		buf_freq_step = bufspan / _SA_FFT_LENGTH
 
-		return (buf_freq_step * render_downsamp)
+		return (buf_freq_step * self.render_dds)
 
-	def _calculate_start_freq(self, decimation, demod_freq, render_downsamp, frame_offset):
-		freq_step = self._calculate_freq_step(decimation, render_downsamp)
+	def _calculate_start_freq(self):
+		freq_step = self._calculate_freq_step()
 
-		bufspan = _SA_ADC_SMPS / 2.0 / decimation
-		buf_start_freq = demod_freq
+		bufspan = _SA_ADC_SMPS / 2.0 / self._total_decimation
+		buf_start_freq = self.demod
 		buf_freq_step = bufspan / _SA_FFT_LENGTH
 
 		dev_stop_freq = buf_start_freq + (self.offset + 4) * buf_freq_step
@@ -599,20 +603,23 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		return (dev_stop_freq - _SA_SCREEN_WIDTH * freq_step)
 
 	def _calculate_adc_freq_resp(self, f, atten):
-		from math import floor, ceil
 		frac_idx = f / (_SA_ADC_SMPS / 2.0)
 
 		idx = (len(_SA_ADC_FREQ_RESP_0) - 1) * min(max(frac_idx, 0.0), 1.0)
 		r = _SA_ADC_FREQ_RESP_20 if atten else _SA_ADC_FREQ_RESP_0
 
 		# Return linear interpolation of table values
-		correction = r[int(floor(idx))] + (idx - floor(idx)) * (r[int(ceil(idx))] - r[int(floor(idx))])
+		correction = r[int(math.floor(idx))] + (idx - math.floor(idx)) * (r[int(math.ceil(idx))] - r[int(math.floor(idx))])
 		return correction
 
 	def _calculate_cic_freq_resp(self, f, dec, order):
+		""" 
+		Calculate the CIC filter droop correction. 
+		In this case 'f' is the frequency (Hz) relative to the demodulation frequency.
+		"""
 		freq = f/_SA_ADC_SMPS
 
-		correction = 1.0 if (freq == 0.0) else pow(math.fabs(math.sin(math.pi*freq*dec)/(math.sin(math.pi*freq)*dec)),order)
+		correction = 1.0 if (freq == 0.0) else math.pow(math.fabs(math.sin(math.pi*freq*dec)/(math.sin(math.pi*freq)*dec)), order)
 
 		return correction
 
@@ -636,18 +643,18 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		g2 *= _SA_INT_VOLTS_SCALE * filt_gain * window_gain * self.rbw_ratio * (2**10)
 
 		# Find approximate frequency bin values
-		dev_start_freq = self._calculate_start_freq(self._total_decimation,self.demod,self.render_dds,self.offset)
-		dev_freq_step = self._calculate_freq_step(self._total_decimation, self.render_dds)
+		dev_start_freq = self._calculate_start_freq()
+		dev_freq_step = self._calculate_freq_step()
 		freqs = [ (dev_start_freq + dev_freq_step*i) for i in range(_SA_SCREEN_WIDTH)]
 
 		# Compute the frequency dependent correction arrays
 		# The CIC correction is only for CIC1 which is decimation=4 only, and 10th order
-		if self._total_decimation < 4:
-			cic_corrs = [ self._calculate_cic_freq_resp(f / ADC_SMP_RATE, 4, 10) for f in freqs]
+		if self._total_decimation >= 4:
+			cic_corrs = [ self._calculate_cic_freq_resp(i*dev_freq_step, 4, 10) for i in range(len(freqs))]
 		else:
-			cic_corrs = [1] * len(freqs)
+			cic_corrs = [1.0] * len(freqs)
 
-		fcorrs = [ (1 / self._calculate_adc_freq_resp(f / ADC_SMP_RATE, True) / cic_corr) for f, cic_corr in zip(freqs, cic_corrs)]
+		fcorrs = [ (1 / self._calculate_adc_freq_resp(f, True) / cic_corr) for f, cic_corr in zip(freqs, cic_corrs)]
 
 		return {'g1': g1, 'g2': g2, 'fs': freqs, 'fcorrs': fcorrs, 'fspan': [self.f1, self.f2], 'dbmscale': self.dbmscale}
 
@@ -711,23 +718,27 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		else:
 			raise ValueOutOfRangeException("Invalid channel number")
 
-	def _set_sweep_increments(self, sweep1, sweep2, fspan, decimation, rbw, framerate):
+	def _set_sweep_increments(self):
 		"""
 		Calculates the optimal frequency increment for the generated output sinewaves sweep
 		based on FFT computation time and framerate.
 		"""
+		fspan = self.f2 - self.f1
+		framerate = self.framerate
+		decimation = self._total_decimation
+
 		increment = 0
-		if sweep1 or sweep2:
+		if self.sweep1 or self.sweep2:
 			samplerate = _SA_ADC_SMPS / decimation
-			windowed_points = 2*_SA_FFT_LENGTH/rbw
+			windowed_points = 2*_SA_FFT_LENGTH/self.rbw_ratio
 			fft_time = windowed_points / samplerate + (2*_SA_FFT_LENGTH - windowed_points)/125e6 + (1.0/1788.8)
 			screen_update_time = max(round(fft_time*framerate)/framerate, 1.0/framerate)
 
 			increment =  fspan / 100.5 * (fft_time / screen_update_time)
 
-		if sweep1:
+		if self.sweep1:
 			self.tr1_incr = increment
-		if sweep2:
+		if self.sweep2:
 			self.tr2_incr = increment
 
 		log.debug("SW1: %s, AMP1: %f, INCR1: %f, FREQ1: %f/%f, SW2: %s, AMP2: %f, INCR2: %f, FREQ2: %f/%f", self.sweep1, self.tr1_amp, self.tr1_incr, self.tr1_start, self.tr1_stop, self.sweep2, self.tr2_amp, self.tr2_incr, self.tr2_start, self.tr2_stop)
@@ -758,14 +769,15 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 			total_decimation = 1
 		self._total_decimation = total_decimation
 
-		fspan = ADC_SMP_RATE / 2.0 / self._total_decimation
+		fspan = _SA_ADC_SMPS / 2.0 / self._total_decimation
 
 		fbin_resolution = fspan / _SA_FFT_LENGTH
 		window_factor = _SA_WINDOW_WIDTH[self.window]
 
 		self.rbw = self.rbw_ratio * window_factor * fbin_resolution
-		self.f2 = self._f2_full = self.demod
-		self.f1 = self._f1_full = self.demod - fspan
+
+		self.f2 = self.demod
+		self.f1 = self.demod - fspan
 		self.scales[self._stateid] = self._calculate_scales()
 
 	def get_data(self, timeout=None, wait=True):
