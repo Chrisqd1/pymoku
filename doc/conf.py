@@ -122,7 +122,7 @@ html_theme_options = {
 	'logo'			: 'logo.png',
 	'github_banner'	: False,
 	'description'	: "Python control library for the Liquid Instruments Moku:Lab",
-	'page_width'	: '70%'
+	'page_width'	: '60%'
 }
 
 # Add any paths that contain custom themes here, relative to this directory.

@@ -6,12 +6,12 @@ pymoku is a Python library for the command, control and monitoring of Liquid Ins
 Moku:Lab devices.  This interface can supplement or replace the default iPad interface,
 allowing the Moku:Lab to be scripted tightly in to your next experiment.
 
-For example usage, see the individual instrument pages or refer to the `pymoku tutorials <http://www.liquidinstruments.com>`_ and `example scripts <https://anaconda.org/liquidinstruments/pymoku-examples/files>`_.
+For example usage, see the individual instrument pages or refer to the `pymoku tutorials <https://liquidinstruments.atlassian.net/wiki/display/MCS/Pymoku+Tutorials>`_ and `example scripts <https://anaconda.org/liquidinstruments/pymoku-examples/files>`_.
 
 Installation
 ============
 
-pymoku may be installed on Linux, Mac and Windows operating systems. For details please refer to the `installation procedures <http://confluence.liquidinstruments.com/display/MCS/Quick+Install>`_.
+pymoku may be installed on Linux, Mac and Windows operating systems. For details please refer to the `installation procedures <https://liquidinstruments.atlassian.net/wiki/display/MCS/Pymoku+Installation>`_.
 
 Contents
 ========
