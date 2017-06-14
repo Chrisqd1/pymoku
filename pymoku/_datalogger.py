@@ -91,11 +91,9 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _waveform_generator.B
 		:type samplerate: float; *0 < samplerate < 500Msmp/s*
 		:param samplerate: Target samples per second. Will get rounded to the nearest unit.
 
-		:raises InvalidConfigurationException: if parameter is out of range.
+		:raises ValueOutOfRangeException: if samplerate is out of range.
 		"""
-
-		if samplerate <= 0 or samplerate > 500e6:
-			raise InvalidConfigurationException("Invalid parameters")
+		_utils.check_parameter_valid('range', samplerate, [0,500e6], 'samplerate', 'Hz')
 
 		decimation = _DL_ADC_SMPS / float(samplerate)
 		self.decimation_rate = decimation
@@ -116,7 +114,10 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _waveform_generator.B
 
 		:param state: Select Precision Mode
 		:type state: bool
+
+		:raises ValueError: if input parameter is invalid
 		"""
+		_utils.check_parameter_valid('bool', state, desc='precision mode')
 		self.ain_mode = _DL_AIN_DECI if state else _DL_AIN_DDS
 
 	def is_precision_mode(self):
@@ -138,6 +139,7 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _waveform_generator.B
 		:param lmode: DAC Loopback mode (ignored 'in' sources)
 
 		:raises ValueOutOfRangeException: if the channel number is incorrect
+		:raises ValueError: if any of the string parameters are incorrect
 		"""
 		_str_to_lmode = {
 			'round' : _DL_LB_ROUND,
@@ -147,6 +149,7 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _waveform_generator.B
 			'in' : _DL_SOURCE_ADC,
 			'out' : _DL_SOURCE_DAC
 		}
+		_utils.check_parameter_valid('set', ch, [1,2], 'channel')
 		source = _utils.str_to_val(_str_to_channel_data_source, source, 'channel data source')
 		lmode = _utils.str_to_val(_str_to_lmode, lmode, 'DAC loopback mode')
 		if ch == 1:
@@ -157,8 +160,6 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _waveform_generator.B
 			self.source_ch2 = source
 			if source == _DL_SOURCE_DAC:
 				self.loopback_mode_ch2 = lmode
-		else:
-			raise ValueOutOfRangeException("Incorrect channel number %d", ch)
 
 	def _update_datalogger_params(self):
 		scales = self._calculate_scales()

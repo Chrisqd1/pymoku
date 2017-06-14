@@ -4,6 +4,7 @@ import time
 
 from . import *
 from . import _instrument, dataparser
+from . import _utils
 
 _STREAM_STATE_NONE		= 0
 _STREAM_STATE_RUNNING 	= 1
@@ -60,6 +61,10 @@ class InputInstrument(_instrument.MokuInstrument):
 		:type ac: bool
 		:param ac: AC-couple; default DC.
 		"""
+		_utils.check_parameter_valid('set', channel, [1,2], 'channel')
+		_utils.check_parameter_valid('bool', fiftyr, desc='50 Ohm termination')
+		_utils.check_parameter_valid('bool', atten, desc='attenuation')
+		_utils.check_parameter_valid('bool', ac, desc='AC coupling')
 		return super(InputInstrument, self)._set_frontend(channel, fiftyr, atten, ac)
 
 	def get_frontend(self, channel):
@@ -73,6 +78,7 @@ class InputInstrument(_instrument.MokuInstrument):
 			- [1] 10xAttenuation
 			- [2] AC Coupling
 		"""
+		_utils.check_parameter_valid('set', channel, [1,2], 'channel')
 		return super(InputInstrument, self)._get_frontend(channel)
 
 	def _set_pause(self, pause):

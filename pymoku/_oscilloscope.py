@@ -375,11 +375,10 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _waveform_generator.B
 		:type trigger_offset: int; *-2^16 + 1 < trigger_offset < 2^32*
 		:param trigger_offset: Number of samples before (-) or after (+) the trigger point to start capturing.
 
-		:raises InvalidConfigurationException: if either parameter is out of range.
+		:raises ValueOutOfRangeException: if either parameter is out of range.
 		"""
-
-		if samplerate <= 0 or samplerate > 500e6 or	trigger_offset < -2**16 + 1 or trigger_offset > 2**32 - 1:
-			raise InvalidConfigurationException("Invalid parameters")
+		_utils.check_parameter_valid('range', samplerate, [0,500e6], 'samplerate', 'Hz')
+		_utils.check_parameter_valid('range', trigger_offset, (-2**16 + 1, 2**32 - 1), 'trigger offset', 'samples')
 
 		decimation = _OSC_ADC_SMPS / samplerate
 
@@ -447,7 +446,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _waveform_generator.B
 		:type level: float, volts
 		:param level: Trigger level
 
-		:type hysteresis: float, volts
+		:type hysteresis: float, [0,0.1] volts
 		:param hysteresis: Hysteresis to apply around trigger point.
 
 		:type hf_reject: bool
@@ -466,6 +465,14 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _waveform_generator.B
 
 		"""
 		# Convert the input parameter strings to bit-value mappings
+
+		#_utils.check_parameter_valid(hysteresis)
+		_utils.check_parameter_valid('range', hysteresis, [0,0.1], 'hysteresis')
+		# Precision mode should be off if hysteresis is being used
+		if self.ain_mode == _OSC_AIN_DECI and hysteresis > 0:
+			raise InvalidConfigurationException("Precision mode and Hysteresis can't be set at the same time.")
+		self.hysteresis_volts = hysteresis
+
 		_str_to_trigger_source = {
 			'in1' : _OSC_TRIG_CH1,
 			'in2' : _OSC_TRIG_CH2,
@@ -488,10 +495,6 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _waveform_generator.B
 
 		self.trig_ch = source
 		self.trig_edge = edge
-		# Precision mode should be off if hysteresis is being used
-		if self.ain_mode == _OSC_AIN_DECI and hysteresis > 0:
-			raise InvalidConfigurationException("Precision mode and Hysteresis can't be set at the same time.")
-		self.hysteresis_volts = hysteresis
 
 		self.hf_reject = hf_reject
 		self.trig_mode = mode
