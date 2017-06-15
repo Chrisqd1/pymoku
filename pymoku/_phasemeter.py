@@ -61,8 +61,9 @@ _PM_SG_FREQSCALE = _PM_FREQSCALE
 _PM_SG_PHASESCALE = 360.0 / (2**48) # Wraps
 
 # Pre-defined log rates which ensure samplerate will set to ~120Hz or ~30Hz
-_PM_LOGRATE_FAST = 123
-_PM_LOGRATE_SLOW = 31
+_PM_LOGRATE_FAST = 9
+_PM_LOGRATE_MEDIUM = 13
+_PM_LOGRATE_SLOW = 15
 
 class Phasemeter_WaveformGenerator(MokuInstrument):
 	def __init__(self):
@@ -178,29 +179,24 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_WaveformGe
 
 	@needs_commit
 	def set_samplerate(self, samplerate):
-		""" Manually set the sample rate of the Phasemeter.
+		""" Set the sample rate of the Phasemeter.
 
-		The chosen samplerate will be rounded down to nearest allowable rate
-		based on R(Hz) = 1e6/(2^N) where N in range [13,16].
+		Options are {'slow','medium','fast'} corresponding to ~30smp/s, ~120smp/s and ~1.9kSmp/s.
 
-		Alternatively use samplerate = {'slow','fast'}
-		to set ~30Hz or ~120Hz.
-
-		:type samplerate: float, or string = {'slow','fast'}
-		:param samplerate: Desired sample rate in samples per second, or a string alias
+		:type samplerate: string, {'slow','medium','fast'}
+		:param samplerate: Desired sample rate
 		"""
-		if type(samplerate) is str:
-			_str_to_samplerate = {
-				'slow' : _PM_LOGRATE_SLOW,
-				'fast' : _PM_LOGRATE_FAST
-			}
-			samplerate = _utils.str_to_val(_str_to_samplerate, samplerate, 'samplerate')
-		new_samplerate = _PM_UPDATE_RATE/min(max(1,samplerate),200)
-		shift = min(math.ceil(math.log(new_samplerate,2)),16)
-		self.output_decimation = 2**shift
-		self.output_shift = shift
+		_str_to_samplerate_index = {
+			'slow' : _PM_LOGRATE_SLOW,
+			'medium': _PM_LOGRATE_MEDIUM,
+			'fast' : _PM_LOGRATE_FAST
+		}
+		N = _utils.str_to_val(_str_to_samplerate_index, samplerate, 'samplerate')
+
+		self.output_decimation = 2**N
+		self.output_shift = N
 		self.timestep = 1.0/(_PM_UPDATE_RATE/self.output_decimation)
-		log.info("Samplerate set to %.2f Hz", _PM_UPDATE_RATE/float(self.output_decimation) )
+		log.info("Samplerate set to %.2f smp/s", _PM_UPDATE_RATE/float(self.output_decimation))
 
 	def get_samplerate(self):
 		""" Get the samplerate of the Phasemeter
