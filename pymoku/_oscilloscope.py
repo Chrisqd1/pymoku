@@ -53,8 +53,16 @@ _OSC_BUFLEN			= CHN_BUFLEN
 _OSC_SCREEN_WIDTH	= 1024
 _OSC_FPS			= 10
 
-_OSC_MAX_PRETRIGGER = (2**12)-1
-_OSC_MAX_POSTTRIGGER = -2**28
+# Max/min values for instrument settings
+_OSC_TRIGLVL_MAX = 10.0 # V
+_OSC_TRIGLVL_MIN = -10.0 # V
+
+_OSC_SAMPLERATE_MIN = 0
+_OSC_SAMPLERATE_MAX = _OSC_ADC_SMPS
+
+_OSC_PRETRIGGER_MAX = (2**12)-1
+_OSC_POSTTRIGGER_MAX = -2**28
+
 
 class VoltsData(_frame_instrument.InstrumentData):
 	"""
@@ -283,7 +291,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _waveform_generator.B
 		# Calculate the number of pretrigger samples and offset it by an additional (CubicRatio) samples
 		buffer_smp_rate = ADC_SMP_RATE/decimation
 		buffer_offset_secs = -1.0 * t1
-		buffer_offset = math.ceil(min(max(math.ceil(buffer_offset_secs * buffer_smp_rate / 4.0), _OSC_MAX_POSTTRIGGER), _OSC_MAX_PRETRIGGER))
+		buffer_offset = math.ceil(min(max(math.ceil(buffer_offset_secs * buffer_smp_rate / 4.0), _OSC_POSTTRIGGER_MAX), _OSC_PRETRIGGER_MAX))
 
 		# Apply a correction in pretrigger because of the way cubic interpolation occurs when rendering
 		return buffer_offset
@@ -369,16 +377,16 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _waveform_generator.B
 		a trigger offset in number of samples. This interface is useful for datalogging and capturing
 		of data frames.
 
-		:type samplerate: float; *0 < samplerate <= 500MSPS*
+		:type samplerate: float; *0 < samplerate <= 500 Msmp/s*
 		:param samplerate: Target samples per second. Will get rounded to the nearest allowable unit.
 
-		:type trigger_offset: int; *-2^16 + 1 < trigger_offset < 2^32*
+		:type trigger_offset: int; *-2^16 < trigger_offset < 2^31 *
 		:param trigger_offset: Number of samples before (-) or after (+) the trigger point to start capturing.
 
 		:raises ValueOutOfRangeException: if either parameter is out of range.
 		"""
-		_utils.check_parameter_valid('range', samplerate, [0,500e6], 'samplerate', 'Hz')
-		_utils.check_parameter_valid('range', trigger_offset, (-2**16 + 1, 2**32 - 1), 'trigger offset', 'samples')
+		_utils.check_parameter_valid('range', samplerate, [_OSC_SAMPLERATE_MIN,_OSC_SAMPLERATE_MAX], 'samplerate', 'smp/s')
+		_utils.check_parameter_valid('range', trigger_offset, [-2**16 + 1, 2**31 - 1], 'trigger offset', 'samples')
 
 		decimation = _OSC_ADC_SMPS / samplerate
 
@@ -425,6 +433,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _waveform_generator.B
 		:param state: Select Precision Mode
 		:type state: bool
 		"""
+		_utils.check_parameter_valid('bool', state, desc='precision mode enable')
 		if state and self.hysteresis > 0 :
 			raise InvalidConfigurationException("Precision mode and Hysteresis can't be set at the same time.")
 		self.ain_mode = _OSC_AIN_DECI if state else _OSC_AIN_DDS
@@ -443,7 +452,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _waveform_generator.B
 		:type edge: string, {'rising','falling','both'}
 		:param edge: Which edge to trigger on.
 
-		:type level: float, volts
+		:type level: float, [-10.0, 10.0] volts
 		:param level: Trigger level
 
 		:type hysteresis: float, [0,0.1] volts
@@ -467,7 +476,10 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _waveform_generator.B
 		# Convert the input parameter strings to bit-value mappings
 
 		#_utils.check_parameter_valid(hysteresis)
-		_utils.check_parameter_valid('range', hysteresis, [0,0.1], 'hysteresis')
+		_utils.check_parameter_valid('range', hysteresis, [0,0.1], 'hysteresis', 'Volts')
+		_utils.check_parameter_valid('range', level, [_OSC_TRIGLVL_MIN, _OSC_TRIGLVL_MAX], 'trigger level', 'Volts')
+		_utils.check_parameter_valid('bool', hf_reject, 'High-frequency reject enable')
+
 		# Precision mode should be off if hysteresis is being used
 		if self.ain_mode == _OSC_AIN_DECI and hysteresis > 0:
 			raise InvalidConfigurationException("Precision mode and Hysteresis can't be set at the same time.")
@@ -515,6 +527,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _waveform_generator.B
 		:type lmode: string, {'clip','round'}
 		:param lmode: DAC Loopback mode (ignored 'in' sources)
 		"""
+		_utils.check_parameter_valid('set', ch, [1,2], 'channel')
 		_str_to_lmode = {
 			'round' : _OSC_LB_ROUND,
 			'clip' : _OSC_LB_CLIP
