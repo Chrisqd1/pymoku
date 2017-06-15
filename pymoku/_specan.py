@@ -449,7 +449,9 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		window_factor = _SA_WINDOW_WIDTH[self.window]
 		fbin_resolution = _SA_ADC_SMPS / 2.0 / _SA_FFT_LENGTH / self._total_decimation
 
+		self.rbw = rbw
 		self.rbw_ratio = rbw / window_factor / fbin_resolution
+		log.info("Resolution bandwidth set to %.2f Hz", self.rbw)
 
 	def _update_dependent_regs(self):
 		"""
@@ -504,7 +506,9 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 
 		:raises InvalidConfigurationException: if the span is not positive-definite.
 		"""
-		if f1 < 0 or f2 < 0 or f2 <= f1:
+		_utils.check_parameter_valid('range', f1, [0,250e6], 'left frequency', 'Hz')
+		_utils.check_parameter_valid('range', f2, [0,250e6], 'right frequency', 'Hz')
+		if f2 <= f1:
 			raise InvalidConfigurationException("Span must be non-negative with f2 > f1")
 
 		# Set the actual input frequencies
@@ -513,17 +517,24 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 
 	@needs_commit
 	def set_rbw(self, rbw=None):
-		""" Set Resolution Bandwidth
+		""" Set desired Resolution Bandwidth
+
+		Actual resolution bandwidth will be rounded to the nearest allowable unit
+		when settings are applied to the device.
 
 		:type rbw: float
-		:param rbw: Resolution bandwidth (Hz), or ``None`` for auto-mode
+		:param rbw: Desired resolution bandwidth (Hz), or ``None`` for auto-mode
 
-		:raises InvalidConfigurationException: if the RBW is not positive-definite or *None*
+		:raises ValueError: if the RBW is not positive-definite or *None*
 		"""
 		if rbw and rbw < 0:
-			raise InvalidConfigurationException("Invalid RBW (should be >= 0 or None) %d", rbw)
+			raise ValueError("Invalid RBW (should be >= 0 or None) %d", rbw)
 
 		self.rbw = rbw
+
+	def get_rbw(self):
+		""":return: The current resolution bandwidth (Hz) """
+		return self.rbw
 
 	@needs_commit
 	def set_window(self, window):
@@ -549,6 +560,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		:type dbm: bool
 		:param dbm: Enable dBm scale
 		"""
+		_utils.check_parameter_valid('bool', dbm, desc='enable dBm scale')
 		self.dbmscale = dbm
 
 	@needs_commit
@@ -668,6 +680,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		:type ch: int; {1,2}
 		:param ch: Channel number to turn off (None, or leave blank, for both)firmware_is_compatible
 		"""
+		_utils.check_parameter_valid('set', ch, [1,2,None],'output channel')
 		if ch is None or ch == 1:
 			self.tr1_amp = 0
 		if ch is None or ch == 2:
@@ -690,11 +703,15 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		:type sweep: bool
 		:param sweep: Sweep current frequency span (ignores freq parameter if True). Defaults to False.
 
-		:raises ValueOutOfRangeException: if the specified channel is invalid.
-		"""
+		:raises ValueError: if the channel number is invalid
+		:raises ValueOutOfRangeException: if wave parameters are out of range
 
-		# Taken from iPad library:
-		# time taken for FFT is W points at decimated rate plus 8192-w points at 125 MHz plus 1/1788.8 seconds
+		"""
+		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
+		_utils.check_parameter_valid('range', amp, [0.0, 2.0],'sinewave amplitude','Volts')
+		_utils.check_parameter_valid('range', freq, [0,250e6],'sinewave frequency', 'Hz')
+		_utils.check_parameter_valid('bool', sweep, desc='sweep enable')
+
 		if ch == 1:
 			self.sweep1 = sweep
 			self.tr1_amp = amp
@@ -715,8 +732,6 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 				self.tr2_start = freq
 				self.tr2_stop = 0
 				self.tr2_incr = 0
-		else:
-			raise ValueOutOfRangeException("Invalid channel number")
 
 	def _set_sweep_increments(self):
 		"""
@@ -787,6 +802,8 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		On SpectrumAnalyser this is an alias for :any:`get_realtime_data <pymoku.instruments.SpectrumAnalyser.get_realtime_data>` as the
 		output data is never downsampled from the sweep results.
 		"""
+		_utils.check_parameter_valid('bool', timeout, desc='data timeout')
+		_utils.check_parameter_valid('bool', wait, desc='data wait')
 		return self.get_realtime_data(timeout=timeout,wait=wait)
 
 _sa_reg_handlers = {
