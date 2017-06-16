@@ -6,6 +6,7 @@ import zmq
 
 from . import *
 from . import dataparser, _input_instrument, _instrument
+from . import _utils
 
 log = logging.getLogger(__name__)
 
@@ -41,7 +42,14 @@ class StreamBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuI
 		:param ch1: Enable streaming on Channel 1
 		:type ch2: bool
 		:param ch2: Enable streaming on Channel 2
+
+		:raises ValueError: if invalid channel enable parameter
+		:raises ValueOutOfRangeException: if duration is invalid
 		"""
+		_utils.check_parameter_valid('bool', ch1, desc='stream channel 1')
+		_utils.check_parameter_valid('bool', ch2, desc='stream channel 2')
+		_utils.check_parameter_valid('range', duration, [0,10*24*60*60], 'stream duration', 'sec')
+
 		if self.check_uncommitted_state():
 			raise UncommittedSettings("Can't start a streaming session due to uncommitted device settings.")
 		self._stream_start(start=0, duration=duration, ch1=ch1, ch2=ch2, use_sd=False, filetype='net')
@@ -77,7 +85,13 @@ class StreamBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuI
 		:raises NoDataException: if the logging session has stopped
 		:raises FrameTimeout: if the timeout expired
 		:raises InvalidOperationException: if there is no streaming session running
+		:raises ValueOutOfRangeException: invalid input parameters
 		"""
+		if timeout and timeout <= 0:
+			raise ValueOutOfRangeException("Timeout must be positive or 'None'")
+		if n <= -1:
+			raise ValueOutOfRangeException("Invalid number of samples. Expected (n >= -1).")
+
 		# If no network session exists, can't get samples
 		if not self._stream_net_is_running():
 			raise InvalidOperationException("No network streaming session is running.")
@@ -153,11 +167,18 @@ class StreamBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuI
 		:param use_sd: Whether to log to the SD card, else the internal Moku filesystem.
 		:type filetype: string
 		:param filetype: Log file type, one of {'csv','bin'} for CSV or Binary respectively.
+
+		:raises ValueError: if invalid channel enable parameter
+		:raises ValueOutOfRangeException: if duration is invalid
 		"""
+		_utils.check_parameter_valid('bool', ch1, desc='log channel 1')
+		_utils.check_parameter_valid('bool', ch2, desc='log channel 2')
+		_utils.check_parameter_valid('bool', use_sd, desc='log to SD card')
+		_utils.check_parameter_valid('range', duration, [0,10*24*60*60], 'log duration', 'sec')
+		_utils.check_parameter_valid('set', filetype, ['csv','bin'], 'log filetype')
+
 		if self.check_uncommitted_state():
 			raise UncommittedSettings("Can't start a logging session due to uncommitted device settings.")
-		if filetype not in ['csv','bin']:
-			raise ValueError('Invalid log file type: %s. Expected \'csv\' or \'bin\'.' % filetype)
 		self._stream_start(start=0, duration=duration, ch1=ch1, ch2=ch2, use_sd=use_sd, filetype=filetype)
 
 	def stop_data_log(self):
