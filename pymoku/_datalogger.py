@@ -23,6 +23,9 @@ _DL_BUFLEN			= CHN_BUFLEN
 _DL_SCREEN_WIDTH	= 1024
 _DL_ROLL			= ROLL
 
+_DL_SAMPLERATE_MIN = 10				# Smp/s
+_DL_SAMPLERATE_MAX = _DL_ADC_SMPS 	# 500MSmp/s
+
 class Datalogger(_stream_instrument.StreamBasedInstrument, _waveform_generator.BasicWaveformGenerator):
 	""" Datalogger instrument object.
 
@@ -93,7 +96,7 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _waveform_generator.B
 
 		:raises ValueOutOfRangeException: if samplerate is out of range.
 		"""
-		_utils.check_parameter_valid('range', samplerate, [0,500e6], 'samplerate', 'Hz')
+		_utils.check_parameter_valid('range', samplerate, [_DL_SAMPLERATE_MIN,_DL_SAMPLERATE_MAX], 'samplerate', 'Hz')
 
 		decimation = _DL_ADC_SMPS / float(samplerate)
 		self.decimation_rate = decimation
