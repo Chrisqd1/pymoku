@@ -243,7 +243,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _waveform_generator.B
 		# Define any (non-register-mapped) properties that are used when committing
 		# as a commit is called when the instrument is set running
 		self.trig_volts = 0
-		self.hysteresis_volts = 0
+		#self.hysteresis_volts = 0
 
 		# All instruments need a binstr, procstr and format string.
 		self.logname = "MokuOscilloscopeData"
@@ -434,15 +434,15 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _waveform_generator.B
 		:type state: bool
 		"""
 		_utils.check_parameter_valid('bool', state, desc='precision mode enable')
-		if state and self.hysteresis > 0 :
-			raise InvalidConfigurationException("Precision mode and Hysteresis can't be set at the same time.")
+		#if state and self.hysteresis > 0 :
+		#	raise InvalidConfigurationException("Precision mode and Hysteresis can't be set at the same time.")
 		self.ain_mode = _OSC_AIN_DECI if state else _OSC_AIN_DDS
 
 	def is_precision_mode(self):
 		return self.ain_mode is _OSC_AIN_DECI
 
 	@needs_commit
-	def set_trigger(self, source, edge, level, hysteresis=0, hf_reject=False, mode='auto'):
+	def set_trigger(self, source, edge, level, hysteresis=False, hf_reject=False, mode='auto'):
 		""" Sets trigger source and parameters.
 
 		:type source: string, {'in1','in2','out1','out2'}
@@ -455,8 +455,8 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _waveform_generator.B
 		:type level: float, [-10.0, 10.0] volts
 		:param level: Trigger level
 
-		:type hysteresis: float, [0,0.1] volts
-		:param hysteresis: Hysteresis to apply around trigger point.
+		:type hysteresis: bool
+		:param hysteresis: Enable Hysteresis around trigger point.
 
 		:type hf_reject: bool
 		:param hf_reject: Enable high-frequency noise rejection
@@ -474,16 +474,17 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _waveform_generator.B
 
 		"""
 		# Convert the input parameter strings to bit-value mappings
-
-		#_utils.check_parameter_valid(hysteresis)
-		_utils.check_parameter_valid('range', hysteresis, [0,0.1], 'hysteresis', 'Volts')
+		_utils.check_parameter_valid('bool', hysteresis, desc="enable hysteresis")
 		_utils.check_parameter_valid('range', level, [_OSC_TRIGLVL_MIN, _OSC_TRIGLVL_MAX], 'trigger level', 'Volts')
 		_utils.check_parameter_valid('bool', hf_reject, 'High-frequency reject enable')
 
 		# Precision mode should be off if hysteresis is being used
-		if self.ain_mode == _OSC_AIN_DECI and hysteresis > 0:
-			raise InvalidConfigurationException("Precision mode and Hysteresis can't be set at the same time.")
-		self.hysteresis_volts = hysteresis
+		#if self.ain_mode == _OSC_AIN_DECI and hysteresis > 0:
+		#	raise InvalidConfigurationException("Precision mode and Hysteresis can't be set at the same time.")
+		
+		# self.hysteresis_volts = hysteresis
+		# TODO: Enable setting hysteresis level. For now we use the iPad LSB values for ON/OFF.
+		self.hysteresis = 25 if hysteresis else 5
 
 		_str_to_trigger_source = {
 			'in1' : _OSC_TRIG_CH1,
@@ -637,7 +638,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _waveform_generator.B
 	def _update_dependent_regs(self, scales):
 		# Trigger level must be scaled depending on the current relay settings and chosen trigger source
 		self.trigger_level = self.trig_volts / self._source_volts_per_bit(self.trig_ch, scales)
-		self.hysteresis = self.hysteresis_volts / self._source_volts_per_bit(self.trig_ch, scales)
+		#self.hysteresis = self.hysteresis_volts / self._source_volts_per_bit(self.trig_ch, scales)
 
 	def _update_datalogger_params(self):
 		scales = self._calculate_scales()
@@ -696,7 +697,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _waveform_generator.B
 
 		# Update internal state given new reg values. This is the inverse of update_dependent_regs
 		self.trig_volts = self.trigger_level * self._source_volts_per_bit(self.trig_ch, scales)
-		self.hysteresis_volts = self.hysteresis * self._source_volts_per_bit(self.trig_ch, scales)
+		# self.hysteresis_volts = self.hysteresis * self._source_volts_per_bit(self.trig_ch, scales)
 
 		self._update_datalogger_params()
 
