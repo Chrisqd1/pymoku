@@ -3,6 +3,7 @@ import logging
 
 from ._instrument import *
 from . import _frame_instrument
+from . import _utils
 
 log = logging.getLogger(__name__)
 
@@ -30,45 +31,52 @@ _NA_FREQ_SCALE		= 2**48 / _NA_DAC_SMPS
 _NA_FXP_SCALE 		= 2.0**30
 
 
-class _BAChannel():
+class _BodeChannelData():
 
-	def __init__(self, input_signal, gain_correction, front_end_scale, output_amp, reference):
-		# De-interleave and trim
+	def __init__(self, input_signal, gain_correction, front_end_scale, output_amp):
+
+		# Extract the length of the signal (this varies with number of sweep points)
 		sig_len = len(gain_correction)
+
+		# De-interleave IQ values
 		self.i_sig, self.q_sig = zip(*zip(*[iter(input_signal)]*2))
 		self.i_sig = self.i_sig[:sig_len]
 		self.q_sig = self.q_sig[:sig_len]
 
-		# Each I, Q and/or G entry may be None in some circumstances
-		self.magnitude = [ None if not I and not Q else 2.0 * math.sqrt((I or 0)**2 + (Q or 0)**2) / (G or 1) * front_end_scale for I, Q, G in zip(self.i_sig, self.q_sig, gain_correction) ]
+		# Calculates magnitude of a sample given I,Q and gain correction factors
+		def calculate_magnitude(I,Q,G,frontend_scale):
+			if I is None or Q is None:
+				return None
+			else:
+				return 2.0 * math.sqrt((I or 0)**2 + (Q or 0)**2) * front_end_scale / (G or 1)
 
-		if reference is not None:
-			self.magnitude = [ None if not M else M / (C or 1) * output_amp for M, C in zip(self.magnitude, reference) ]
+		self.magnitude = [calculate_magnitude(I,Q,G,front_end_scale) for I, Q, G in zip(self.i_sig, self.q_sig, gain_correction)]
 
 		self.magnitude_dB = [ None if not x else 20.0 * math.log10(x / output_amp) for x in self.magnitude ]
 
-		self.phase = [ math.atan2(Q or 0, I or 0) for I, Q in zip(self.i_sig, self.q_sig)]
+		self.phase = [ None if (I is None or Q is None) else (math.atan2(Q or 0, I or 0))/(2.0*math.pi) for I, Q in zip(self.i_sig, self.q_sig)]
+
+	# Helper function to seralise the channel data for JSON
+	def _serialise(self):
+		return { 'magnitude' : self.magnitude, 'magnitude_dB' : self.magnitude_dB, 'phase' : self.phase }
 
 
-class BAData(_frame_instrument.InstrumentData):
+class BodeData(_frame_instrument.InstrumentData):
 	def __init__(self, scales):
-		super(BAData, self).__init__()
-
-		#: Channel 1 data array in units of power. Present whether or not the channel is enabled, but the
-		#: contents are undefined in the latter case.
+		super(BodeData, self).__init__()
 
 		#: The frequency range associated with both channels
-		self.fs = []
+		self.frequency = []
 
 		#: Obtain all data scaling factors relevant to current NetAn configuration
 		self.scales = scales
 
 	def __json__(self):
-		return { 'ch1' : self.ch1, 'ch2' : self.ch2, 'fs' : self.fs, 'waveform_id' : self.waveformid }
+		return { 'ch1' : self.ch1._serialise(), 'ch2' : self.ch2._serialise(), 'frequency' : self.frequency, 'waveform_id' : self.waveformid }
 
 	def process_complete(self):
 		if self._stateid not in self.scales:
-			log.debug("Can't render NetAn frame, haven't saved calibration data for state %d", self.stateid)
+			log.debug("Can't render BodeData frame, haven't saved calibration data for state %d", self._stateid)
 			self.complete = False
 			return
 
@@ -76,100 +84,30 @@ class BAData(_frame_instrument.InstrumentData):
 		scales = self.scales[self._stateid]
 
 		try:
-			# Set the frequency range of valid data in the current frame (same for both channels)
-			self.fs = scales['frequency_axis']
+			self.frequency = scales['frequency_axis']
 
 			smpls = int(len(self._raw1) / 4)
 			dat = struct.unpack('<' + 'i' * smpls, self._raw1)
 			dat = [ x if x != -0x80000000 else None for x in dat ]
 
-			# NetAn data is backwards because $(EXPLETIVE), also remove zeros for the sake of common
-			# display on a log axis.
-			self.ch1_bits = [ float(x) if x is not None else None for x in dat[:1024] ]
-			self.ch1 = _BAChannel(self.ch1_bits, scales['gain_correction'], scales['g1'], scales['sweep_amplitude_ch1'], scales['reference_ch1'])
-
+			self.ch1_bits = [ float(x) if x is not None else None for x in dat ]
+			self.ch1 = _BodeChannelData(self.ch1_bits, scales['gain_correction'], scales['g1'], scales['sweep_amplitude_ch1'])
 
 			smpls = int(len(self._raw2) / 4)
 			dat = struct.unpack('<' + 'i' * smpls, self._raw2)
 			dat = [ x if x != -0x80000000 else None for x in dat ]
 
-			self.ch2_bits = [ float(x) if x is not None else None for x in dat[:1024] ]
-			self.ch2 = _BAChannel(self.ch2_bits, scales['gain_correction'], scales['g2'], scales['sweep_amplitude_ch2'], scales['reference_ch2'])
+			self.ch2_bits = [ float(x) if x is not None else None for x in dat ]
+			self.ch2 = _BodeChannelData(self.ch2_bits, scales['gain_correction'], scales['g2'], scales['sweep_amplitude_ch2'])
 
 		except (IndexError, TypeError, struct.error):
 			# If the data is bollocksed, force a reinitialisation on next packet
-			log.exception("NetAn packet")
+			log.exception("Invalid Bode Analyser packet")
 			self.frameid = None
 			self.complete = False
 
 		# A valid frame is there's at least one valid sample in each channel
 		return self.ch1 and self.ch2
-
-
-	def _get_freqScale(self, f):
-		# Returns a scaling factor and units for frequency 'X'
-		if(f > 1e6):
-			scale_str = 'MHz'
-			scale_const = 1e-6
-		elif (f > 1e3):
-			scale_str = 'kHz'
-			scale_const = 1e-3
-		elif (f > 1):
-			scale_str = 'Hz'
-			scale_const = 1
-		elif (f > 1e-3):
-			scale_str = 'mHz'
-			scale_const = 1e3
-		else:
-			scale_str = 'uHz'
-			scale_const = 1e6
-
-		return [scale_str, scale_const]
-
-	def _get_xaxis_fmt(self, x, pos):
-		# This function returns a format string for the x-axis ticks and x-coordinates along the frequency scale
-		# Use this to set an x-axis format during plotting of NetAn frames
-		if self.stateid not in self.scales:
-			log.error("Can't get x-axis format, haven't saved calibration data for state %d", self.stateid)
-			return
-
-		scales = self.scales[self.stateid]
-		f1, f2 = scales['fspan']
-
-		fscale_str, fscale_const = self._get_freqScale(f2)
-
-		return {'xaxis': '%.1f %s' % (x*fscale_const, fscale_str), 'xcoord': '%.3f %s' % (x*fscale_const, fscale_str)}
-
-	def get_xaxis_fmt(self, x, pos):
-		return self._get_xaxis_fmt(x,pos)['xaxis']
-
-	def get_xcoord_fmt(self, x):
-		return self._get_xaxis_fmt(x,None)['xcoord']
-
-	def _get_yaxis_fmt(self, y, pos, scale='log'):
-		yfmt = {
-			'linear' : '%.1f %s' % (y,'V'),
-			'log' : '%.1f %s' % (y,'dBm')
-		}
-		ycoord = {
-			'linear' : '%.3f %s' % (y,'V'),
-			'log' : '%.3f %s' % (y,'dBm')
-		}
-
-		return {'yaxis': yfmt[scale], 'ycoord': ycoord[scale]}
-
-	def get_linear_yaxis_fmt(self, y, pos):
-		return self._get_yaxis_fmt(y, pos, 'linear')['yaxis']
-
-	def get_log_yaxis_fmt(self, y, pos):
-		return self._get_yaxis_fmt(y, pos, 'log')['yaxis']
-
-	def get_linear_ycoord_fmt(self, y):
-		return self._get_yaxis_fmt(y, None, 'linear')['ycoord']
-
-	def get_log_ycoord_fmt(self, y):
-		return self._get_yaxis_fmt(y, None, 'log')['ycoord']
-
 
 class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 	""" Bode Analyser instrument object. This should be instantiated and attached to a :any:`Moku` instance.
@@ -179,7 +117,7 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 		self._register_accessors(_na_reg_handlers)
 
 		self.scales = {}
-		self._set_frame_class(BAData, scales=self.scales)
+		self._set_frame_class(BodeData, scales=self.scales)
 
 		self.id = 9
 		self.type = "BodeAnalyser"
@@ -187,10 +125,9 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 		self.sweep_amp_volts_ch1 = 0
 		self.sweep_amp_volts_ch2 = 0
 
-		self.reference_ch1 = None
-		self.reference_ch2 = None
-
 	def _calculate_sweep_delta(self, start_frequency, end_frequency, sweep_length, log_scale):
+		# Handle negative sweep direction
+
 		if log_scale:
 			sweep_freq_delta = round(((end_frequency / start_frequency)**(1.0/(sweep_length - 1)) - 1) * _NA_FXP_SCALE)
 		else:
@@ -199,28 +136,21 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 		return sweep_freq_delta
 
 	def _calculate_freq_axis(self):
-		# generates the frequency vector for plotting. The logarithmic scale is calculated on the FPGA with fixed point precision,
-		# hence the forced fxp calculation when log_scale = True.
+		# Generates the frequency vector for plotting. 
+		f_start = self.sweep_freq_min
+		fs = []
 
-		F_start = self.sweep_freq_min * _NA_FREQ_SCALE
-		F_axis = [F_start]
+		if self.log_en:
+			# Delta register becomes a multiplier in the logarithmic case
+			# Fixed-point precision is used in the FPGA multiplier (30 fractional bits)
+			fs = [ f_start*(1 + (self.sweep_freq_delta/ _NA_FXP_SCALE))**n for n in range(self.sweep_length)]
+		else:
+			fs = [ (f_start + n*(self.sweep_freq_delta/_NA_FREQ_SCALE)) for n in range(self.sweep_length) ]
 
-		for k in range(1, self.sweep_length):
-			if self.log_en:
-				F_axis.append(math.floor(F_axis[k-1] * (self.sweep_freq_delta / _NA_FXP_SCALE)) + F_axis[k-1])
-			else :
-				F_axis.append(F_axis[k-1] + self.sweep_freq_delta)
+		return fs
 
-		freq_axis = [(x/_NA_FREQ_SCALE) for x in F_axis]
-
-		# Dubyeu tee eff mate?
-		if self.sweep_length <= 510 :
-			freq_axis = [1, 1] + freq_axis[1: -1]
-
-		return freq_axis
-
-	def _calculate_gain_correction(self):
-		sweep_freq = self._calculate_freq_axis()
+	def _calculate_gain_correction(self, fs):
+		sweep_freq = fs
 
 		cycles_time = [0.0] * self.sweep_length
 
@@ -232,7 +162,7 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 		average_gain = [0.0] * self.sweep_length
 		gain_scale = [0.0] * self.sweep_length
 
-		#Calculate gain scaling due to accumulator bit ranging
+		# Calculate gain scaling due to accumulator bit ranging
 		for f in range(self.sweep_length):
 			sweep_period = 1 / sweep_freq[f]
 
@@ -272,30 +202,26 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 
 	def _calculate_scales(self):
 		g1, g2 = self._adc_gains()
+		fs = self._calculate_freq_axis()
+		gs = self._calculate_gain_correction(fs)
 
 		return {'g1': g1, 'g2': g2,
-				'gain_correction' : self._calculate_gain_correction(),
-				'frequency_axis' : self._calculate_freq_axis(),
+				'gain_correction' : gs,
+				'frequency_axis' : fs,
 				'sweep_freq_min': self.sweep_freq_min,
 				'sweep_freq_delta': self.sweep_freq_delta,
 				'sweep_length': self.sweep_length,
 				'log_en': self.log_en,
 				'averaging_time': self.averaging_time,
 				'sweep_amplitude_ch1' : self.sweep_amp_volts_ch1,
-				'sweep_amplitude_ch2' : self.sweep_amp_volts_ch2,
-				'reference_ch1' : self.reference_ch1,
-				'reference_ch2' : self.reference_ch2,
+				'sweep_amplitude_ch2' : self.sweep_amp_volts_ch2
 				}
 
-
 	@needs_commit
-	def start_sweep(self, f_start=100, f_end=125e6, sweep_points=512, sweep_log=False, single_sweep=False, averaging_time=1e-3, settling_time=1e-3, averaging_cycles=1, settling_cycles=1):
+	def set_sweep(self, f_start=100, f_end=125e6, sweep_points=512, sweep_log=False, averaging_time=1e-3, settling_time=1e-3, averaging_cycles=1, settling_cycles=1):
 		self.sweep_freq_min = f_start
 		self.sweep_length = sweep_points
 		self.log_en = sweep_log
-
-		self.single_sweep = single_sweep
-		self.loop_sweep = not single_sweep
 
 		self.averaging_time = averaging_time
 		self.averaging_cycles = averaging_cycles
@@ -305,28 +231,31 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 		self.settling_cycles = settling_cycles
 
 	@needs_commit
+	def start_sweep(self, single=False):
+		self.single_sweep = single
+		self.loop_sweep = not single
+
+	@needs_commit
 	def stop_sweep(self):
 		self.single_sweep = self.loop_sweep = False
 
+	def _restart_sweep(self):
+		self.sweep_reset = True
+
 	@needs_commit
-	def set_output_amplitude(self, ch, amplitude):
+	def set_output(self, ch, amplitude):
+
 		# Set up the output scaling register but also save the voltage value away for use
 		# in the state dictionary to scale incoming data
 		if ch == 1:
 			self.sweep_amplitude_ch1 = amplitude
 			self.sweep_amp_volts_ch1 = amplitude
 			self.channel1_en = amplitude > 0
+
 		elif ch == 2:
 			self.sweep_amplitude_ch2 = amplitude
 			self.sweep_amp_volts_ch2 = amplitude
 			self.channel2_en = amplitude > 0
-
-	# Doesn't really need commit, but does need a new scales dictionary which needs to be
-	# indexed by a new state ID (well, could use an old one, but argh..)
-	@needs_commit
-	def set_reference_trace(self, reference):
-		self.reference_ch1 = reference.ch1.magnitude
-		self.reference_ch2 = reference.ch2.magnitude
 
 	@needs_commit
 	def set_defaults(self):
@@ -335,14 +264,22 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 		self.framerate = _NA_FPS
 		self.frame_length = _NA_SCREEN_WIDTH
 
+		self.x_mode = SWEEP
+		self.render_mode = RDR_DDS
+
 		self.en_in_ch1 = True
 		self.en_in_ch2 = True
 
 		self.set_frontend(1, True, False, False)
 		self.set_frontend(2, True, False, False)
 
-		self.x_mode = SWEEP
-		self.render_mode = RDR_DDS
+		self.set_sweep()
+		
+		# 100mVpp swept outputs
+		self.set_output(1,0.1)
+		self.set_output(2,0.1)
+
+		self.start_sweep()
 
 
 	def get_data(self, timeout=None, wait=True):
@@ -353,6 +290,9 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 
 
 	def commit(self):
+		# Restart the sweep as instrument settings are being changed
+		self._restart_sweep()
+
 		super(BodeAnalyser, self).commit()
 
 		# Update the scaling factors for processing of incoming frames

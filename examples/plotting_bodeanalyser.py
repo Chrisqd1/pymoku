@@ -67,16 +67,16 @@ try:
 		line1.set_ydata(frame.ch1.magnitude_dB)
 		line2.set_ydata(frame.ch2.magnitude_dB)
 
-		line1.set_xdata(frame.fs)
-		line2.set_xdata(frame.fs)
+		line1.set_xdata(frame.frequency)
+		line2.set_xdata(frame.frequency)
 
 		# Phase
 		plt.subplot(212)
 		line3.set_ydata(frame.ch1.phase)
 		line4.set_ydata(frame.ch2.phase)
 
-		line3.set_xdata(frame.fs)
-		line4.set_xdata(frame.fs)
+		line3.set_xdata(frame.frequency)
+		line4.set_xdata(frame.frequency)
 
 		# Ensure the frequency axis is a tight fit
 		ax_1.relim()
