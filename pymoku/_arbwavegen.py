@@ -46,6 +46,7 @@ _ARB_MODE_125 = 0x3
 _ARB_AMPSCALE = 2.0**16
 _ARB_VOLTSCALE = 2.0**15
 _ARB_LUT_LENGTH = 8192
+_ARB_LUT_LSB = 2.0**30
 
 class ArbWaveGen(_oscilloscope.Oscilloscope):
 	def __init__(self):
@@ -62,8 +63,8 @@ class ArbWaveGen(_oscilloscope.Oscilloscope):
 		self.phase_modulo1 = 2**29
 		self.dead_value1 = 0
 		self.interpolation1 = False
-		self.phase_step1 = 2**17
-		self.phase_step2 = 2**17
+		self.phase_step1 = _ARB_LUT_LSB
+		self.phase_step2 = _ARB_LUT_LSB
 		self.enable1 = False
 		self.enable2 = False
 		self.amplitude1 = 1.0
@@ -95,14 +96,15 @@ class ArbWaveGen(_oscilloscope.Oscilloscope):
 			#Leave the previous data file so we just rewite the new part,
 			#as we have to upload both channels at once.
 			if ch == 1:
-				f.seek(0)
+				offset = _ARB_LUT_LENGTH * 8 * 4
 				self.lut_length1 = len(data) - 1
 			else:
-				f.seek(_ARB_LUT_LENGTH * 8 * 4)
+				offset = _ARB_LUT_LENGTH * 8 * 4
 				self.lut_length2 = len(data) - 1
 			for step in range(steps):
+				f.seek(offset + (step * stepsize * 4))
 				f.write(''.join([struct.pack('<i', round(2.0**15 * d)) for d in data]))
-				f.seek((step + 1) * stepsize)
+
 			f.flush()
 
 		self._set_mmap_access(True)
@@ -128,7 +130,7 @@ _arb_reg_handlers = {
 	'phase_offset1':	((REG_ARB_PHASE_OFFSET1_H, REG_ARB_PHASE_OFFSET1_L),
 												to_reg_unsigned(0, 64), from_reg_unsigned(0, 64)),
 	'phase_step1':		((REG_ARB_PHASE_STEP1_H, REG_ARB_PHASE_STEP1_L),
-												to_reg_unsigned(0, 48), from_reg_unsigned(0, 48)),
+												to_reg_unsigned(0, 64), from_reg_unsigned(0, 64)),
 	'enable2':			(REG_ARB_SETTINGS,		to_reg_bool(17),		from_reg_bool(17)),
 	'phase_rst2':		(REG_ARB_SETTINGS,		to_reg_bool(21),		from_reg_bool(21)),
 	'phase_sync2':		(REG_ARB_SETTINGS,		to_reg_bool(23),		from_reg_bool(23)),
@@ -146,5 +148,5 @@ _arb_reg_handlers = {
 	'phase_offset2':	((REG_ARB_PHASE_OFFSET2_H, REG_ARB_PHASE_OFFSET2_L),
 												to_reg_unsigned(0, 64), from_reg_unsigned(0, 64)),
 	'phase_step2':		((REG_ARB_PHASE_STEP2_H, REG_ARB_PHASE_STEP2_L),
-												to_reg_unsigned(0, 48), from_reg_unsigned(0, 48))
+												to_reg_unsigned(0, 64), from_reg_unsigned(0, 64))
 }

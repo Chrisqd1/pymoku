@@ -48,12 +48,12 @@ try:
 	i.set_defaults()
 	i.interpolation1 = True
 	i.interpolation2 = True
-	i.phase_modulo1 = 2**17 * (len(xdata))
-	i.phase_modulo2 = 2**17 * (len(xdata))
+	i.phase_modulo1 = 2**30 * len(xdata)
+	i.phase_modulo2 = 2**30 * len(ydata)
 	i.dead_value1 = 0x0000
 	i.dead_value2 = 0x0000
-	i.phase_step1 = 2**14
-	i.phase_step2 = 2**14
+	i.phase_step1 = 2**27
+	i.phase_step2 = 2**27
 
 	i.write_lut(1, xdata, 3)
 	i.write_lut(2, ydata, 3)
