@@ -25,6 +25,7 @@ Contents
    wavegen
    specan
    phasemeter
+   bodeanalyser
    utils
 
 
