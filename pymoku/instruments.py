@@ -20,6 +20,7 @@ from . import _stream_handler
 InstrumentData = _frame_instrument.InstrumentData
 VoltsData = _oscilloscope.VoltsData
 SpectrumData = _specan.SpectrumData
+BodeData = _bodeanalyser.BodeData
 
 MokuInstrument = _instrument.MokuInstrument
 

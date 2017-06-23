@@ -56,12 +56,31 @@ class _BodeChannelData():
 
 		self.phase = [ None if (I is None or Q is None) else (math.atan2(Q or 0, I or 0))/(2.0*math.pi) for I, Q in zip(self.i_sig, self.q_sig)]
 
-	# Helper function to seralise the channel data for JSON
-	def _serialise(self):
+	def __json__(self):
 		return { 'magnitude' : self.magnitude, 'magnitude_dB' : self.magnitude_dB, 'phase' : self.phase }
 
 
 class BodeData(_frame_instrument.InstrumentData):
+	"""
+	Object representing a frame of dual-channel (amplitude and phase) vs frequency response data.
+
+	This is the native output format of the :any:`BodeAnalyser` instrument.
+
+	This object should not be instantiated directly, but will be returned by a call to
+	:any:`get_data <pymoku.instruments.BodeAnalyser.get_data>` on the associated :any:`BodeAnalyser`
+	instrument.
+
+	- ``ch1.magnitude`` = ``[CH1_MAG_DATA]`` 
+	- ``ch1.magnitude_dB`` = ``[CH1_MAG_DATA_DB]`` 
+	- ``ch1.phase`` = ``[CH1_PHASE_DATA]`` 
+	- ``ch2.magnitude`` = ``[CH2_MAG_DATA]`` 
+	- ``ch2.magnitude_dB`` = ``[CH2_MAG_DATA_DB]`` 
+	- ``ch2.phase`` = ``[CH2_PHASE_DATA]`` 
+	- ``frequency`` = ``[FREQ]`` 
+	- ``waveformid`` = ``n`` 
+
+	"""
+
 	def __init__(self, scales):
 		super(BodeData, self).__init__()
 
@@ -72,7 +91,7 @@ class BodeData(_frame_instrument.InstrumentData):
 		self.scales = scales
 
 	def __json__(self):
-		return { 'ch1' : self.ch1._serialise(), 'ch2' : self.ch2._serialise(), 'frequency' : self.frequency, 'waveform_id' : self.waveformid }
+		return { 'ch1' : self.ch1, 'ch2' : self.ch2, 'frequency' : self.frequency, 'waveform_id' : self.waveformid }
 
 	def process_complete(self):
 		if self._stateid not in self.scales:
@@ -126,8 +145,6 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 		self.sweep_amp_volts_ch2 = 0
 
 	def _calculate_sweep_delta(self, start_frequency, end_frequency, sweep_length, log_scale):
-		# Handle negative sweep direction
-
 		if log_scale:
 			sweep_freq_delta = round(((end_frequency / start_frequency)**(1.0/(sweep_length - 1)) - 1) * _NA_FXP_SCALE)
 		else:
@@ -219,6 +236,45 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 
 	@needs_commit
 	def set_sweep(self, f_start=100, f_end=125e6, sweep_points=512, sweep_log=False, averaging_time=1e-3, settling_time=1e-3, averaging_cycles=1, settling_cycles=1):
+		""" Set the output sweep parameters
+
+		:type f_start: int; 1 <= f_start <= 125e6 Hz
+		:param f_start: Sweep start frequency
+
+		:type f_end: int; 1 <= f_end <= 125e6 Hz
+		:param f_end: Sweep end frequency
+
+		:type sweep_points: int; 32 <= sweep_points <= 512
+		:param sweep_points: Number of points in the sweep (rounded to nearest power of 2).
+
+		:type sweep_log: bool
+		:param sweep_log: Enable logarithmic frequency sweep scale.
+
+		:type averaging_time: float; sec
+		:param averaging_time: Minimum averaging time per sweep point.
+
+		:type settling_time: float; sec
+		:param settling_time: Minimum setting time per sweep point.
+
+		:type averaging_cycles: int; cycles
+		:param averaging_cycles: Minimum averaging cycles per sweep point.
+		
+		:type settling_cycles: int; cycles
+		:param settling_cycles: Minimum settling cycles per sweep point.
+		"""
+		_utils.check_parameter_valid('range', f_start, [1,125e6],'sweep start frequency', 'Hz')
+		_utils.check_parameter_valid('range', f_end, [1,125e6],'sweep end frequency', 'Hz')
+		_utils.check_parameter_valid('range', sweep_points, [32,512],'sweep points')
+		_utils.check_parameter_valid('bool', sweep_log, desc='sweep log scale enable')
+		_utils.check_parameter_valid('range', averaging_time, [1e-6,10], 'sweep averaging time', 'sec')
+		_utils.check_parameter_valid('range', settling_time, [1e-6,10], 'sweep settling time', 'sec')
+		_utils.check_parameter_valid('range', averaging_cycles, [1,2**20], 'sweep averaging cycles', 'cycles')
+		_utils.check_parameter_valid('range', settling_cycles, [1,2**20], 'sweep settling cycles', 'cycles')
+
+		# Frequency span check
+		if (f_end - f_start) == 0:
+			raise ValueOutOfRangeException("Sweep frequency span must be non-zero: f_start/f_end/span - %.2f/%.2f/%.2f." % (f_start, f_end, f_end-f_start))
+
 		self.sweep_freq_min = f_start
 		self.sweep_length = sweep_points
 		self.log_en = sweep_log
@@ -232,11 +288,22 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 
 	@needs_commit
 	def start_sweep(self, single=False):
+		"""	Start sweeping
+
+		:type single: bool
+		:param single: Enable single sweep (otherwise loop)
+		"""
+		_utils.check_parameter_valid('bool', single, desc='enable single sweep')
+
 		self.single_sweep = single
 		self.loop_sweep = not single
 
 	@needs_commit
 	def stop_sweep(self):
+		""" Stop sweeping. 
+
+		This will stop new data frames from being received, so ensure you implement a timeout
+		on :any:`get_data<pymoku.instruments.BodeAnalyser.get_data>` calls. """
 		self.single_sweep = self.loop_sweep = False
 
 	def _restart_sweep(self):
@@ -244,6 +311,21 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 
 	@needs_commit
 	def set_output(self, ch, amplitude):
+		""" Set the output sweep amplitude.
+
+		.. note::
+			Ensure that the output amplitude is set so as to not saturate the inputs.
+			Inputs are limited to 1.0Vpp with attenuation turned off.
+
+		:param ch: int; {1,2}
+		:type ch: Output channel
+
+		:param amplitude: float; [0.0,2.0] Vpp
+		:type amplitude: Sweep amplitude
+
+		"""
+		_utils.check_parameter_valid('set', ch, [1,2], 'output channel')
+		_utils.check_parameter_valid('range', amplitude, [0,2.0], 'sweep amplitude','Vpp')
 
 		# Set up the output scaling register but also save the voltage value away for use
 		# in the state dictionary to scale incoming data
@@ -259,6 +341,7 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 
 	@needs_commit
 	def set_defaults(self):
+		""" Reset the Bode Analyser to sane defaults """
 		super(BodeAnalyser, self).set_defaults()
 
 		self.framerate = _NA_FPS
@@ -270,8 +353,8 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 		self.en_in_ch1 = True
 		self.en_in_ch2 = True
 
-		self.set_frontend(1, True, False, False)
-		self.set_frontend(2, True, False, False)
+		self.set_frontend(1, fiftyr=True, atten=False, ac=False)
+		self.set_frontend(2, fiftyr=True, atten=False, ac=False)
 
 		self.set_sweep()
 		
@@ -281,13 +364,11 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 
 		self.start_sweep()
 
-
 	def get_data(self, timeout=None, wait=True):
 		""" Get current sweep data.
-		In the BodeAnalyser this is an alias for :any:`get_realtime_data` as the data
+		In the BodeAnalyser this is an alias for ``get_realtime_data`` as the data
 		is never downsampled. """
 		return super(BodeAnalyser, self).get_realtime_data(timeout, wait)
-
 
 	def commit(self):
 		# Restart the sweep as instrument settings are being changed

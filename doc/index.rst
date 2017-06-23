@@ -25,6 +25,7 @@ Contents
    siggen
    specan
    phasemeter
+   bodeanalyser
    utils
 
 

@@ -1,72 +1,97 @@
-from pymoku import Moku
+#
+# pymoku example: Plotting Bode Analyser
+#
+# This example demonstrates how you can generate output sweeps using the
+# Bode Analyser instrument, and view transfer function data in real-time.
+#
+# (c) 2017 Liquid Instruments Pty. Ltd.
+#
+from pymoku import *
 from pymoku.instruments import *
-
 import logging
 
 import matplotlib
 import matplotlib.pyplot as plt
 
 logging.basicConfig(format='%(asctime)s:%(name)s:%(levelname)s::%(message)s')
-logging.getLogger('pymoku').setLevel(logging.DEBUG)
+logging.getLogger('pymoku').setLevel(logging.INFO)
 
-m = Moku('192.168.69.234')#.get_by_name('Moku')
+# Connect to your Moku by its device name
+# Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
+m = Moku.get_by_name('Moku')
 
-i = BodeAnalyser()
-m.deploy_instrument(i)
+# See whether there's already a Bode Analyser running. If there is, take
+# control of it; if not, deploy a new Bode Analyser instrument
+i = m.discover_instrument()
+if i is None or i.type != 'bodeanalyser':
+	print("No or wrong instrument deployed")
+	i = BodeAnalyser()
+	m.deploy_instrument(i)
+else:
+	print("Attached to existing Bode Analyser")
+	m.take_ownership()
 
-f_start = 1e5 # Hz
-f_end = 2e6  # Hz
+# Define output sweep parameters here for readability
+f_start = 100 # Hz
+f_end = 100e6 # Hz
 sweep_length = 512
 log_scale = True
 single_sweep = False
-amp_ch1 = 1.0 # Volts peak-to-peak (assuming 50 Ohm impedance)
-amp_ch2 = 1.0 # Volts peak-to-peak (assuming 50 Ohm impedance)
-averaging_time = 1e-3 # seconds
-settling_time = 1e-3# seconds
-averaging_cycles = 1 #2**16-20
-settling_cycles = 1 #10000
-
-i.set_output_amplitude(1, amp_ch1)
-i.set_output_amplitude(2, amp_ch2)
-i.start_sweep(f_start, f_end, sweep_length, log_scale, single_sweep, averaging_time, settling_time, averaging_cycles, settling_cycles)
-
-plt.subplot(211)
-line1, = plt.semilogx([])
-line2, = plt.semilogx([])
-
-plt.ion()
-plt.show()
-
-plt.grid(b=True)
-
-## Create empty line vectors for ch1 and ch2 phase plots
-plt.subplot(212)
-line3, = plt.semilogx([])
-line4, = plt.semilogx([])
+amp_ch1 = 0.5 # Vpp
+amp_ch2 = 0.5 # Vpp
+averaging_time = 1e-6 # sec
+settling_time = 1e-6 # sec
+averaging_cycles = 1
+settling_cycles = 1
 
 try:
-	# Format the x-axis as a frequency scale
+	# Set the output sweep amplitudes
+	i.set_output(1, amp_ch1)
+	i.set_output(2, amp_ch2)
+
+	# Set the sweep configuration
+	i.set_sweep(f_start, f_end, sweep_length, log_scale, averaging_time, settling_time, averaging_cycles, settling_cycles)
+	
+	# Start the output sweep in loop mode
+	i.start_sweep(single=single_sweep)
+
+	# Set up the amplitude plot
 	plt.subplot(211)
+	if log_scale:
+		# Plot log x-axis if frequency sweep scale is logarithmic
+		line1, = plt.semilogx([])
+		line2, = plt.semilogx([])
+	else:
+		line1, = plt.plot([])
+		line2, = plt.plot([])
 	ax_1 = plt.gca()
-	ax_1.set_xlim(f_start, f_end)
+	ax_1.set_xlabel('Frequency (Hz)')
+	ax_1.set_ylabel('Magnitude (dB)')
 
-
+	# Set up the phase plot
 	plt.subplot(212)
+	if log_scale:
+		line3, = plt.semilogx([])
+		line4, = plt.semilogx([])
+	else:
+		line3, = plt.plot([])
+		line4, = plt.plot([])
 	ax_2 = plt.gca()
-	ax_2.set_xlim(f_start, f_end)
+	ax_2.set_xlabel('Frequency (Hz)')
+	ax_2.set_ylabel('Magnitude (dB)')
 
-	# Start drawing new frames
+	plt.ion()
+	plt.show()
+	plt.grid(b=True)
+
+	# Retrieves and plot new data
 	while True:
-		frame = i.get_data()
-		print(len(frame.ch2.phase), len(frame.fs))
-		#exit(0)
-		plt.pause(0.001)
+		frame = i.get_data(timeout=5)
 
 		# Set the frame data for each channel plot
 		plt.subplot(211)
 		line1.set_ydata(frame.ch1.magnitude_dB)
 		line2.set_ydata(frame.ch2.magnitude_dB)
-
 		line1.set_xdata(frame.frequency)
 		line2.set_xdata(frame.frequency)
 
@@ -74,19 +99,20 @@ try:
 		plt.subplot(212)
 		line3.set_ydata(frame.ch1.phase)
 		line4.set_ydata(frame.ch2.phase)
-
 		line3.set_xdata(frame.frequency)
 		line4.set_xdata(frame.frequency)
 
 		# Ensure the frequency axis is a tight fit
+		ax_1.set_xlim(min(frame.frequency), max(frame.frequency))
+		ax_2.set_xlim(min(frame.frequency), max(frame.frequency))
 		ax_1.relim()
 		ax_1.autoscale_view()
-
 		ax_2.relim()
 		ax_2.autoscale_view()
 
 		# Redraw the lines
 		plt.draw()
 
+		plt.pause(0.001)
 finally:
 	m.close()
