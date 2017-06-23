@@ -61,7 +61,6 @@ _LIA_MON_LO		= 6
 _LIA_CONTROL_FS 	= 25.0e6
 _LIA_FREQSCALE		= 1.0e9 / 2**48
 _LIA_PHASESCALE		= 1.0 / 2**48
-_LIA_AMPSCALE		= 1.0 / (2**15 - 1)
 _LIA_P_GAINSCALE	= 2.0**16
 _LIA_ID_GAINSCALE	= 2.0**24 - 1
 
@@ -96,9 +95,9 @@ class LockInAmp(_CoreOscilloscope):
 
 		self._pid_offset = 0
 
-		self.set_filter_parameters(20, 1000, 1)
+		self.set_filter_parameters(1, 1000, 1)
 		self.set_output_offset(0)
-		self.set_lo_parameters(40e6, 0)
+		self.set_lo_parameters(1e6, 0)
 
 		self.pid1_int_p_gain = 0.0
 		self.pid2_int_p_gain = 0.0
@@ -113,7 +112,7 @@ class LockInAmp(_CoreOscilloscope):
 		self.decimation_bitshift = 0
 
 		self.monitor_select0 = _LIA_MON_IN
-		self.monitor_select1 = _LIA_MON_PID
+		self.monitor_select1 = _LIA_MON_I
 
 		self.input_gain = 1
 		self.set_lo_output(0.5, 0)
@@ -150,7 +149,7 @@ class LockInAmp(_CoreOscilloscope):
 		atten_gain = 1 if (self.relays_ch1 & RELAY_LOWG) else 10
 		gain_factor = impedence_gain * atten_gain * (10**(gain / 20.0)) * self._dac_gains()[0] / self._adc_gains()[0]
 
-		coeff = 1 - (2 * math.pi * f_corner) /_LIA_CONTROL_FS
+		coeff = 1 - (math.pi * f_corner) /_LIA_CONTROL_FS
 
 		self.pid1_int_ifb_gain = coeff
 		self.pid2_int_ifb_gain = coeff
@@ -414,11 +413,11 @@ _lia_reg_hdl = {
 	'monitor_select1':	(REG_LIA_MONSELECT1,	to_reg_unsigned(0, 3, allow_set=[_LIA_MON_NONE, _LIA_MON_IN, _LIA_MON_PID, _LIA_MON_I, _LIA_MON_Q, _LIA_MON_LO]),
 												from_reg_unsigned(0, 3)),
 
-	'sineout_amp':		(REG_LIA_SINEOUTAMP,	to_reg_signed(0, 16, xform=lambda obj, x: x *  obj._dac_gains()[1] / _LIA_AMPSCALE),
-												from_reg_signed(0, 16, xform=lambda obj, x: x * _LIA_AMPSCALE /  obj._dac_gains()[1])),
+	'sineout_amp':		(REG_LIA_SINEOUTAMP,	to_reg_signed(0, 16, xform=lambda obj, x: x / obj._dac_gains()[1]),
+												from_reg_signed(0, 16, xform=lambda obj, x: x * obj._dac_gains()[1])),
 
-	'sineout_offset':	(REG_LIA_SINEOUTOFF,	to_reg_signed(0, 16, xform=lambda obj, x: x * obj._dac_gains()[1] / _LIA_AMPSCALE),
-												from_reg_signed(0, 16, xform=lambda obj, x: x * _LIA_AMPSCALE / obj._dac_gains()[1])),
+	'sineout_offset':	(REG_LIA_SINEOUTOFF,	to_reg_signed(0, 16, xform=lambda obj, x: x / obj._dac_gains()[1]),
+												from_reg_signed(0, 16, xform=lambda obj, x: x * obj._dac_gains()[1])),
 
 	'input_gain':		(REG_LIA_INPUT_GAIN,	to_reg_signed(0,32, xform=lambda obj, x: x * _LIA_P_GAINSCALE),
 												from_reg_signed(0,32, xform=lambda obj, x: x / _LIA_P_GAINSCALE)),
