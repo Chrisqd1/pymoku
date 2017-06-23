@@ -40,7 +40,7 @@ id_table = {
 	6: None,
 	7: Datalogger,
 	8: LockInAmp,
-	9: None,
+	9: BodeAnalyser,
 	10: None,
 	11: None,
 	12: None,
