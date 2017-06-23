@@ -8,9 +8,8 @@
 #
 # (c) 2017 Liquid Instruments Pty. Ltd.
 #
-import pymoku
-from pymoku import Moku, StreamException
-from pymoku.instruments import *
+from pymoku import *
+from pymoku.instruments import Phasemeter
 import math, numpy
 import matplotlib.pyplot as plt
 
@@ -32,9 +31,11 @@ try:
 	# Set samplerate to slow mode ~30Hz
 	i.set_samplerate('slow')
 
-	# Set up signal generator output, 10MHz, 1Vpp on both channels
+	# Set up signal generator outputs
+	# Channel 1 - 5MHz, 0.5Vpp Sinewave
+	# Channel 2 - 10MHz, 1.0Vpp Sinewave
 	i.gen_sinewave(1, 0.5, 5e6)
-	i.gen_sinewave(2, 1, 10e6)
+	i.gen_sinewave(2, 1.0, 10e6)
 
 	# Restart the phase-lock loop for both channels, and automatically
 	# resolve the starting frequency (as opposed to manually setting a seed frequency)

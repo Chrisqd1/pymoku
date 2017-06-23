@@ -7,8 +7,8 @@
 #
 # (c) 2017 Liquid Instruments Pty. Ltd.
 #
-from pymoku import Moku, StreamException
-from pymoku.instruments import *
+from pymoku import *
+from pymoku.instruments import Phasemeter
 import math, time
 
 # Connect to your Moku by its device name

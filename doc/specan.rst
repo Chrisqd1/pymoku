@@ -7,7 +7,7 @@ This instrument provides frequency-domain analysis of input signals. It features
 Example Usage
 -------------
 
-For an in-depth walkthrough on using the pymoku Spectrum Analyser Instrument, see the `pymoku Spectrum Analyser tutorial <http://confluence.liquidinstruments.com>`_. For the following example code and a wide range of other pymoku demo scripts, see the `pymoku example repository <https://anaconda.org/liquidinstruments/pymoku-examples>`_.
+For an in-depth walkthrough on using the pymoku Spectrum Analyser Instrument, see the `pymoku Spectrum Analyser tutorial <https://liquidinstruments.atlassian.net/wiki/display/MCS/The+Spectrum+Analyser>`_. For the following example code and a wide range of other pymoku demo scripts, see the `pymoku example repository <https://anaconda.org/liquidinstruments/pymoku-examples/files>`_.
 
 .. literalinclude:: ../examples/basic_specan.py
 	:language: python

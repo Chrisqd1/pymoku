@@ -2,7 +2,7 @@
 Datalogger Instrument
 =======================
 
-The Datalogger instrument provides file logging (to CSV and Binary formats) and network streaming of time-series voltage data. It contains a built-in Signal Generator that can control the Moku:Lab analog outputs as well.
+The Datalogger instrument provides file logging (to CSV and Binary formats) and network streaming of time-series voltage data. It contains a built-in Waveform Generator that can control the Moku:Lab analog outputs as well.
 
 For file logging or network streaming, use the `_data_log` or `_stream_data` type functions, respectively.
 
@@ -12,7 +12,7 @@ For file logging or network streaming, use the `_data_log` or `_stream_data` typ
 Example Usage
 -------------
 
-For an in-depth walkthrough on using the pymoku Datalogger Instrument, see the `pymoku Datalogger tutorial <http://confluence.liquidinstruments.com>`_. For the following example code and a wide range of other pymoku demo scripts, see the `pymoku example repository <https://anaconda.org/liquidinstruments/pymoku-examples>`_.
+For an in-depth walkthrough on using the pymoku Datalogger Instrument, see the `pymoku Datalogger tutorial <https://liquidinstruments.atlassian.net/wiki/display/MCS/The+Datalogger>`_. For the following example code and a wide range of other pymoku demo scripts, see the `pymoku example repository <https://anaconda.org/liquidinstruments/pymoku-examples/files>`_.
 
 .. literalinclude:: ../examples/basic_datalogger.py
 	:language: python

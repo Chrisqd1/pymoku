@@ -2,11 +2,11 @@
 import math
 import logging
 
-from pymoku._instrument import *
+from ._instrument import *
 from . import _instrument
 from . import _frame_instrument
 from . import _stream_instrument
-from . import _siggen
+from . import _waveform_generator
 
 log = logging.getLogger(__name__)
 

@@ -4,9 +4,7 @@ import logging
 
 from ._instrument import *
 from . import _instrument
-from . import _frame_instrument
 from . import _stream_instrument
-from . import _siggen
 from . import _utils
 
 from struct import unpack
@@ -39,6 +37,10 @@ REG_PM_SG_FREQ1_H = 98
 REG_PM_SG_FREQ2_L = 99
 REG_PM_SG_FREQ2_H = 100
 REG_PM_SG_AMP = 105
+REG_PM_SG_PHASE1_L = 101
+REG_PM_SG_PHASE1_H = 102
+REG_PM_SG_PHASE2_L = 103
+REG_PM_SG_PHASE2_H = 104
 
 # Phasemeter specific instrument constants
 _PM_ADC_SMPS = _instrument.ADC_SMP_RATE
@@ -53,17 +55,19 @@ _PM_CYCLE_SCALE = 2.0 * 2.0**16 / 2.0**48 * _PM_ADC_SMPS / _PM_UPDATE_RATE
 _PM_HERTZ_SCALE = 2.0 * _PM_ADC_SMPS / 2**48
 _PM_VOLTS_SCALE = 2.0 / (_PM_ADC_SMPS * _PM_ADC_SMPS / _PM_UPDATE_RATE / _PM_UPDATE_RATE)
 
-# Phasemeter signal generator constants
+# Phasemeter waveform generator constants
 _PM_SG_AMPSCALE = 2**16 / 4.0
 _PM_SG_FREQSCALE = _PM_FREQSCALE
+_PM_SG_PHASESCALE = 360.0 / (2**48) # Wraps
 
 # Pre-defined log rates which ensure samplerate will set to ~120Hz or ~30Hz
-_PM_LOGRATE_FAST = 123
-_PM_LOGRATE_SLOW = 31
+_PM_LOGRATE_FAST = 9
+_PM_LOGRATE_MEDIUM = 13
+_PM_LOGRATE_SLOW = 15
 
-class Phasemeter_SignalGenerator(MokuInstrument):
+class Phasemeter_WaveformGenerator(MokuInstrument):
 	def __init__(self):
-		super(Phasemeter_SignalGenerator, self).__init__()
+		super(Phasemeter_WaveformGenerator, self).__init__()
 		self._register_accessors(_pm_siggen_reg_hdl)
 
 	@needs_commit
@@ -72,31 +76,39 @@ class Phasemeter_SignalGenerator(MokuInstrument):
 		self.gen_off()
 
 	@needs_commit
-	def gen_sinewave(self, ch, amplitude, frequency):
+	def gen_sinewave(self, ch, amplitude, frequency, phase=0.0):
 		""" Generate a sinewave signal on the specified output channel
 		
 		:type ch: int; {1,2}
 		:param ch: Channel number
 		:type amplitude: float; V
-		:param amplitude: Signal amplitude
+		:param amplitude: Signal peak-to-peak amplitude
 		:type frequency: float; Hz
 		:param frequency: Frequency
+		:type phase: float; degrees
+		:param phase: Phase
 
-		:raises ValueOutOfRangeException: if the channel number is invalid
+		:raises ValueError: if the channel number is invalid
+		:raises ValueOutOfRangeException: if wave parameters are out of range
+
 		"""
+		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
+		_utils.check_parameter_valid('range', amplitude, [0.0, 2.0],'sinewave amplitude','Volts')
+		_utils.check_parameter_valid('range', frequency, [0,250e6],'sinewave frequency', 'Hz')
+		_utils.check_parameter_valid('range', phase, [0,360], 'sinewave phase', 'degrees')
+
 		if ch == 1:
 			self.pm_out1_frequency = frequency
 			self.pm_out1_amplitude = amplitude
+			self.pm_out1_phase = phase
 		elif ch == 2:
 			self.pm_out2_frequency = frequency
 			self.pm_out2_amplitude = amplitude
-		else:
-			raise ValueOutOfRangeException("Invalid channel number")
-
+			self.pm_out2_phase = phase
 
 	@needs_commit
 	def gen_off(self, ch=None):
-		""" Turn Signal Generator output(s) off.
+		""" Turn Waveform Generator output(s) off.
 
 		The channel will be turned on when configuring the waveform type but can be turned off
 		using this function. If *ch* is None (the default), both channels will be turned off,
@@ -107,13 +119,12 @@ class Phasemeter_SignalGenerator(MokuInstrument):
 
 		:raises ValueOutOfRangeException: if the channel number is invalid
 		"""
+		_utils.check_parameter_valid('set', ch, [1,2],'output channel', allow_none=True)
+
 		if (ch is None) or ch == 1:
 			self.pm_out1_amplitude = 0
 		if (ch is None) or ch == 2:
 			self.pm_out2_amplitude = 0
-
-		if ch is not None and ch > 2:
-			raise ValueOutOfRangeException("Invalid channel number")
 
 
 _pm_siggen_reg_hdl = {
@@ -126,10 +137,16 @@ _pm_siggen_reg_hdl = {
 	'pm_out1_amplitude':	(REG_PM_SG_AMP, to_reg_unsigned(0, 16, xform=lambda obj, a: a / obj._dac_gains()[0]),
 											from_reg_unsigned(0,16, xform=lambda obj, a: a * obj._dac_gains()[0])),
 	'pm_out2_amplitude':	(REG_PM_SG_AMP, to_reg_unsigned(16, 16, xform=lambda obj, a: a / obj._dac_gains()[1]),
-											from_reg_unsigned(16,16, xform=lambda obj, a: a * obj._dac_gains()[1]))
+											from_reg_unsigned(16,16, xform=lambda obj, a: a * obj._dac_gains()[1])),
+	'pm_out1_phase':		((REG_PM_SG_PHASE1_H, REG_PM_SG_PHASE1_L),
+											to_reg_unsigned(0, 48, xform=lambda obj, p:(p / _PM_SG_PHASESCALE)),
+											from_reg_unsigned(0, 48, xform=lambda obj, p: p * _PM_SG_PHASESCALE )),
+	'pm_out2_phase':		((REG_PM_SG_PHASE2_H, REG_PM_SG_PHASE2_L),
+											to_reg_unsigned(0, 48, xform=lambda obj, p: (p / _PM_SG_PHASESCALE)),
+											from_reg_unsigned(0, 48, xform=lambda obj, p : p * _PM_SG_PHASESCALE ))
 }
 
-class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_SignalGenerator): #TODO Frame instrument may not be appropriate when we get streaming going.
+class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_WaveformGenerator): #TODO Frame instrument may not be appropriate when we get streaming going.
 	""" Phasemeter instrument object.
 
 	To run a new Phasemeter instrument, this should be instantiated and deployed via a connected
@@ -165,29 +182,26 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_SignalGene
 
 	@needs_commit
 	def set_samplerate(self, samplerate):
-		""" Manually set the sample rate of the Phasemeter.
+		""" Set the sample rate of the Phasemeter.
 
-		The chosen samplerate will be rounded down to nearest allowable rate
-		based on R(Hz) = 1e6/(2^N) where N in range [13,16].
+		Options are {'slow','medium','fast'} corresponding to ~30smp/s, ~120smp/s and ~1.9kSmp/s.
 
-		Alternatively use samplerate = {'slow','fast'}
-		to set ~30Hz or ~120Hz.
+		:type samplerate: string, {'slow','medium','fast'}
+		:param samplerate: Desired sample rate
 
-		:type samplerate: float, or string = {'slow','fast'}
-		:param samplerate: Desired sample rate in samples per second, or a string alias
+		:raises ValueError: If samplerate parameter is invalid.
 		"""
-		if type(samplerate) is str:
-			_str_to_samplerate = {
-				'slow' : _PM_LOGRATE_SLOW,
-				'fast' : _PM_LOGRATE_FAST
-			}
-			samplerate = _utils.str_to_val(_str_to_samplerate, samplerate, 'samplerate')
-		new_samplerate = _PM_UPDATE_RATE/min(max(1,samplerate),200)
-		shift = min(math.ceil(math.log(new_samplerate,2)),16)
-		self.output_decimation = 2**shift
-		self.output_shift = shift
+		_str_to_samplerate_index = {
+			'slow' : _PM_LOGRATE_SLOW,
+			'medium': _PM_LOGRATE_MEDIUM,
+			'fast' : _PM_LOGRATE_FAST
+		}
+		N = _utils.str_to_val(_str_to_samplerate_index, samplerate, 'samplerate')
+
+		self.output_decimation = 2**N
+		self.output_shift = N
 		self.timestep = 1.0/(_PM_UPDATE_RATE/self.output_decimation)
-		log.info("Samplerate set to %.2f Hz", _PM_UPDATE_RATE/float(self.output_decimation) )
+		log.info("Samplerate set to %.2f smp/s", _PM_UPDATE_RATE/float(self.output_decimation))
 
 	def get_samplerate(self):
 		""" Get the samplerate of the Phasemeter
@@ -207,17 +221,15 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_SignalGene
 		:type f: int; *2e6 < f < 200e6*
 		:param f: Initial locking frequency of the designated channel
 
-		:raises ValueOutOfRangeException: If the channel number or frequency are invalid
+		:raises ValueError: If the channel number is invalid.
+		:raises ValueOutOfRangeException: If the frequency parameter is out of range.
 		"""
-		if _PM_FREQ_MIN <= f <= _PM_FREQ_MAX:
-			if ch == 1:
-				self.init_freq_ch1 = int(f);
-			elif ch == 2:
-				self.init_freq_ch2 = int(f);
-			else:
-				raise ValueOutOfRangeException("Invalid channel number")
-		else:
-			raise ValueOutOfRangeException("Initial frequency is not within the valid range.")
+		_utils.check_parameter_valid('range', f, [_PM_FREQ_MIN,_PM_FREQ_MAX], 'initial frequency')
+		_utils.check_parameter_valid('set', ch, [1,2], 'channel')
+		if ch == 1:
+			self.init_freq_ch1 = int(f);
+		elif ch == 2:
+			self.init_freq_ch2 = int(f);
 
 	def get_initfreq(self, ch):
 		"""
@@ -229,14 +241,13 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_SignalGene
 		:rtype: float; Hz
 		:return: Seed frequency
 
-		:raises ValueOutOfRangeException: if the channel number is invalid
+		:raises ValueError: If the channel number is invalid.
 		"""
+		_utils.check_parameter_valid('set', ch, [1,2], 'channel')
 		if ch == 1:
 			return self.init_freq_ch1
 		elif ch == 2:
 			return self.init_freq_ch2
-		else:
-			raise ValueOutOfRangeException("Invalid channel number.")
 
 	def _set_controlgain(self, v):
 		#TODO: Put limits on the range of 'v'
@@ -255,18 +266,20 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_SignalGene
 		:type bw: float; Hz
 		:param n: Desired bandwidth (will be rounded up to to the nearest multiple 10kHz * 2^N with N = [-6,0])
 
+		:raises ValueError: If the channel number is invalid.
 		:raises ValueOutOfRangeException: if the bandwidth is not positive-definite or the channel number is invalid
 		"""
-		if bw <= 0:
-			raise ValueOutOfRangeException("Invalid bandwidth (must be positive).")
+		_utils.check_parameter_valid('set', ch, [1,2], 'channel')
+		_utils.check_parameter_valid('range', bw, [150,10e3], 'bandwidth','Hz')
+
 		n = min(max(math.ceil(math.log(bw/10e3,2)),-6),0)
 
 		if ch == 1:
 			self.bandwidth_ch1 = n
 		elif ch == 2:
 			self.bandwidth_ch2 = n
-		else:
-			raise ValueOutOfRangeException("Invalid channel number")
+
+		log.info("Bandwidth (Ch %d) set to %.2f Hz", ch, 10e3*(2**n))
 
 	def get_bandwidth(self, ch):
 		""" Get the bandwidth of the analog input channel
@@ -276,7 +289,10 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_SignalGene
 
 		:rtype: float; Hz
 		:return: Bandwidth
+
+		:raises ValueError: If the channel number is invalid.
 		"""
+		_utils.check_parameter_valid('set', ch, [1,2], 'channel')
 		return 10e3 * (2**(self.bandwidth_ch1 if ch == 1 else self.bandwidth_ch2))
 
 	def _strobe_acquire(self, ch, auto):
@@ -298,7 +314,10 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_SignalGene
 
 		:type ch: int; *{1,2}*
 		:param ch: Channel number, or ``None`` for both
+
+		:raises ValueError: If the channel number is invalid.
 		"""
+		_utils.check_parameter_valid('set', ch, [1,2,None], 'channel')
 		self._strobe_acquire(ch=ch, auto=False)
 
 	@needs_commit
@@ -312,7 +331,10 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_SignalGene
 
 		:type ch: int; *{1,2}*
 		:param ch: Channel number, or ``None`` for both
+
+		:raises ValueError: If the channel number is invalid.
 		"""
+		_utils.check_parameter_valid('set', ch, [1,2,None], 'channel')
 		self._strobe_acquire(ch=ch, auto=True)
 
 	def _get_hdrstr(self, ch1, ch2):

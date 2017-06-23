@@ -1,11 +1,7 @@
-import threading, collections, time, struct, socket, logging
+import threading, collections, time, struct, socket, logging, decorator
 
-from pymoku import _get_autocommit, _set_autocommit
-
-import decorator
-from functools import partial
-from types import MethodType
-from pymoku import NotDeployedException, ValueOutOfRangeException, InvalidConfigurationException
+from . import *
+from . import _get_autocommit, _set_autocommit
 
 REG_CTL 	= 0
 REG_STAT	= 1
@@ -260,13 +256,17 @@ def needs_commit(func, self, *args, **kwargs):
 		if not _awaiting_commit:
 			_awaiting_commit = True # Lock the commit
 
-		res = func(self, *args, **kwargs)
-
-		# Commit if we weren't already waiting for one before
-		if not was_awaiting:
-			self.commit()
-			# Reset the intention to commit
-			_awaiting_commit = False
+		try:
+			# Attempt to call the wrapped function
+			res = func(self, *args, **kwargs)
+		finally:
+			# Do this even if the function raises an Exception
+			
+			# Commit if we weren't already waiting for one before
+			if not was_awaiting:
+				self.commit()
+				# Reset the intention to commit
+				_awaiting_commit = False
 
 		return res
 
@@ -276,7 +276,7 @@ class MokuInstrument(object):
 	"""Superclass for all Instruments that may be attached to a :any:`Moku` object.
 
 	Should never be instantiated directly; instead, instantiate the subclass of the instrument
-	you wish to run (e.g. :any:`Oscilloscope`, :any:`SignalGenerator`)
+	you wish to run (e.g. :any:`Oscilloscope`, :any:`WaveformGenerator`)
 	"""
 
 	def __init__(self):
@@ -349,8 +349,8 @@ class MokuInstrument(object):
 
 		# These may be called again in the instrument's implementation to overwrite this,
 		# however they must be called at least once to load the initial calibration values
-		self.set_frontend(1)
-		self.set_frontend(2)
+		self._set_frontend(1, fiftyr=True, atten=False, ac=False) 
+		self._set_frontend(2, fiftyr=True, atten=False, ac=False)
 
 
 	def attach_moku(self, moku):
@@ -458,21 +458,8 @@ class MokuInstrument(object):
 		self._commit(update_state=False)
 
 	@needs_commit
-	def set_frontend(self, channel, fiftyr=False, atten=True, ac=False):
-		""" Configures gain, coupling and termination for each channel.
-
-		:type channel: int; {1,2}
-		:param channel: Channel to which the settings should be applied
-
-		:type fiftyr: bool
-		:param fiftyr: 50Ohm termination; default is 1MOhm.
-
-		:type atten: bool
-		:param atten: Turn on 10x attenuation. Changes the dynamic range between 1Vpp and 10Vpp.
-
-		:type ac: bool
-		:param ac: AC-couple; default DC.
-		"""
+	def _set_frontend(self, channel, fiftyr, atten, ac):
+		# Set the analog frontend configuration
 		relays =  RELAY_LOWZ if fiftyr else 0
 		relays |= RELAY_LOWG if atten else 0
 		relays |= RELAY_DC if not ac else 0
@@ -488,16 +475,8 @@ class MokuInstrument(object):
 			self.adc2_offset = off2
 			self.adc2_offset_t = off2_t
 
-	def get_frontend(self, channel):
-		"""
-		:type channel: int; {1,2}
-		:param channel: Channel for which the relay settings are being retrieved
-
-		:return: Array of bool with the front end configuration of channels
-			- [0] 50 Ohm
-			- [1] 10xAttenuation
-			- [2] AC Coupling
-		"""
+	def _get_frontend(self, channel):
+		# Get the analog frontend
 		if channel == 1:
 			r = self.relays_ch1
 		elif channel == 2:
@@ -625,15 +604,10 @@ class MokuInstrument(object):
 		return o1, ot1, o2, ot2
 
 	@needs_commit
-	def set_pause(self, pause):
-		""" Pauses or unpauses the instrument's data output.
-
-		:type pause: bool
-		:param pause: Paused
-		"""
+	def _set_pause(self, pause):
 		self.pause = pause
 
-	def get_pause(self):
+	def _get_pause(self):
 		return self.pause
 
 	def _load_feature(self, index):

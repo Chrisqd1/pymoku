@@ -4,7 +4,6 @@ import logging
 
 from ._instrument import *
 from ._instrument import _usgn, _sgn
-from . import _frame_instrument
 from . import _utils
 
 log = logging.getLogger(__name__)
@@ -64,10 +63,13 @@ _SG_DEPTHSCALE		= 1.0 / 2**15
 _SG_MAX_RISE		= 1e9 - 1
 _SG_TIMESCALE 		= 1.0 / (2**32 - 1) # Doesn't wrap
 
-class BasicSignalGenerator(MokuInstrument):
+_SG_MOD_FREQ_MAX 	= 62.5e6 # Hz
+_SG_SQUARE_CLIPSINE_THRESH = 25e3 # Hz
+
+class BasicWaveformGenerator(MokuInstrument):
 	"""
 
-	.. automethod:: pymoku.instruments.SignalGenerator.__init__
+	.. automethod:: pymoku.instruments.WaveformGenerator.__init__
 
 	.. attribute:: type
 		:annotation: = "signal_generator"
@@ -76,8 +78,8 @@ class BasicSignalGenerator(MokuInstrument):
 
 	"""
 	def __init__(self):
-		""" Create a new SignalGenerator instance, ready to be attached to a Moku."""
-		super(BasicSignalGenerator, self).__init__()
+		""" Create a new WaveformGenerator instance, ready to be attached to a Moku."""
+		super(BasicWaveformGenerator, self).__init__()
 		self._register_accessors(_siggen_reg_handlers)
 
 		self.id = 4
@@ -88,7 +90,7 @@ class BasicSignalGenerator(MokuInstrument):
 		""" Set sane defaults.
 		Defaults are outputs off, amplitudes and frequencies zero.
 		"""
-		super(BasicSignalGenerator, self).set_defaults()
+		super(BasicWaveformGenerator, self).set_defaults()
 		self.out1_enable = False
 		self.out2_enable = False
 		self.out1_amplitude = 0
@@ -107,20 +109,32 @@ class BasicSignalGenerator(MokuInstrument):
 		:type ch: int; {1,2}
 		:param ch: Channel on which to generate the wave
 
-		:type amplitude: float, volts
+		:type amplitude: float, [0.0,2.0] Vpp
 		:param amplitude: Waveform peak-to-peak amplitude
 
-		:type frequency: float, hertz
+		:type frequency: float, [0,250e6] Hz
 		:param frequency: Frequency of the wave
 
-		:type offset: float, volts
+		:type offset: float, [-1.0,1.0] Volts
 		:param offset: DC offset applied to the waveform
 
-		:type phase: float, degrees 0-360
+		:type phase: float, [0-360] degrees
 		:param phase: Phase offset of the wave
 
-		:raises ValueOutOfRangeException: if the channel number is invalid
+		:raises ValueError: if the channel number is invalid
+		:raises ValueOutOfRangeException: if wave parameters are out of range
+
 		"""
+		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
+		_utils.check_parameter_valid('range', amplitude, [0.0, 2.0],'sinewave amplitude','Volts')
+		_utils.check_parameter_valid('range', frequency, [0,250e6],'sinewave frequency', 'Hz')
+		_utils.check_parameter_valid('range', phase, [0,360], 'sinewave phase', 'degrees')
+
+		# Ensure offset does not cause signal to exceed allowable 2.0Vpp range
+		upper_voltage = offset + (amplitude/2.0)
+		lower_voltage = offset - (amplitude/2.0)
+		if (upper_voltage > 1.0) or (lower_voltage < -1.0):
+			raise ValueOutOfRangeException("Sinewave offset limited by amplitude (max output range 2.0Vpp).")
 
 		if ch == 1:
 			self.out1_waveform = _SG_WAVE_SINE
@@ -136,8 +150,6 @@ class BasicSignalGenerator(MokuInstrument):
 			self.out2_frequency = frequency
 			self.out2_offset = offset
 			self.out2_phase = phase
-		else:
-			raise ValueOutOfRangeException("Invalid Channel")
 
 	@needs_commit
 	def gen_squarewave(self, ch, amplitude, frequency, offset=0, duty=0.5, risetime=0, falltime=0, phase=0.0):
@@ -167,13 +179,34 @@ class BasicSignalGenerator(MokuInstrument):
 		:type phase: float, degrees 0-360
 		:param phase: Phase offset of the wave
 
-		:raises ValueOutOfRangeException: if the channel number is invalid or the duty cycle and rise/fall times are incompatible
+		:raises ValueError: invalid channel number
+		:raises ValueOutOfRangeException: input parameters out of range or incompatible with one another
 		"""
+		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
+		_utils.check_parameter_valid('range', amplitude, [0.0, 2.0],'squarewave amplitude','Volts')
+		_utils.check_parameter_valid('range', frequency, [0,100e6],'squarewave frequency', 'Hz')
+		_utils.check_parameter_valid('range', offset, [-1.0,1.0], 'squarewave offset', 'cycles')
+		_utils.check_parameter_valid('range', duty, [0,1.0], 'squarewave duty', 'cycles')
+		_utils.check_parameter_valid('range', risetime, [0,1.0], 'squarewave risetime', 'cycles')
+		_utils.check_parameter_valid('range', falltime, [0,1.0], 'squarewave falltime', 'cycles')
+		_utils.check_parameter_valid('range', phase, [0,360], 'squarewave phase', 'degrees')
+
+		# Ensure offset does not cause signal to exceed allowable 2.0Vpp range
+		upper_voltage = offset + (amplitude/2.0)
+		lower_voltage = offset - (amplitude/2.0)
+		if (upper_voltage > 1.0) or (lower_voltage < -1.0):
+			raise ValueOutOfRangeException("Squarewave offset limited by amplitude (max output range 2.0Vpp).")
 
 		if duty < risetime:
-			raise ValueOutOfRangeException("Duty too small for given rise rate")
+			raise ValueOutOfRangeException("Squarewave duty too small for given rise time.")
 		elif duty + falltime > 1:
-			raise ValueOutOfRangeException("Duty and fall time too big")
+			raise ValueOutOfRangeException("Squarewave duty and fall time too big.")
+
+		# Check rise/fall times are within allowable DAC frequency
+
+		# TODO: Implement clipped sine squarewave above threshold
+		if frequency > _SG_SQUARE_CLIPSINE_THRESH: 
+			log.warning("Squarewave may experience edge jitter above %d kHz.", _SG_SQUARE_CLIPSINE_THRESH/1e3)
 
 		if ch == 1:
 			self.out1_waveform = _SG_WAVE_SQUARE
@@ -203,8 +236,6 @@ class BasicSignalGenerator(MokuInstrument):
 			self.out2_riserate = frequency / risetime if risetime else _SG_MAX_RISE
 			self.out2_fallrate = frequency / falltime if falltime else _SG_MAX_RISE
 			self.out2_phase = phase
-		else:
-			raise ValueOutOfRangeException("Invalid Channel")
 
 	@needs_commit
 	def gen_rampwave(self, ch, amplitude, frequency, offset=0, symmetry=0.5, phase= 0.0):
@@ -231,8 +262,22 @@ class BasicSignalGenerator(MokuInstrument):
 		:type phase: float, degrees 0-360
 		:param phase: Phase offset of the wave
 
-		:raises ValueOutOfRangeException: if the channel number is invalid
+		:raises ValueError: invalid channel number
+		:raises ValueOutOfRangeException: invalid waveform parameters
 		"""
+		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
+		_utils.check_parameter_valid('range', amplitude, [0.0, 2.0],'rampwave amplitude','Volts')
+		_utils.check_parameter_valid('range', frequency, [0,100e6],'rampwave frequency', 'Hz')
+		_utils.check_parameter_valid('range', offset, [-1.0,1.0], 'rampwave offset', 'cycles')
+		_utils.check_parameter_valid('range', symmetry, [0,1.0], 'rampwave symmetry', 'fraction')
+		_utils.check_parameter_valid('range', phase, [0,360], 'rampwave phase', 'degrees')
+
+		# Ensure offset does not cause signal to exceed allowable 2.0Vpp range
+		upper_voltage = offset + (amplitude/2.0)
+		lower_voltage = offset - (amplitude/2.0)
+		if (upper_voltage > 1.0) or (lower_voltage < -1.0):
+			raise ValueOutOfRangeException("Rampwave offset limited by amplitude (max output range 2.0Vpp).")
+
 		self.gen_squarewave(ch, amplitude, frequency,
 			offset = offset, duty = symmetry,
 			risetime = symmetry,
@@ -241,37 +286,37 @@ class BasicSignalGenerator(MokuInstrument):
 
 
 	@needs_commit
-	def gen_off(self, channel=None):
-		""" Turn Signal Generator output(s) off.
+	def gen_off(self, ch=None):
+		""" Turn Waveform Generator output(s) off.
 
 		The channel will be turned on when configuring the waveform type but can be turned off
 		using this function. If *ch* is None (the default), both channels will be turned off,
 		otherwise just the one specified by the argument.
 
-		:type channel: int; {1,2}
-		:param channel: Channel to turn off
+		:type ch: int; {1,2} or None
+		:param ch: Channel to turn off, or both.
 
+		:raises ValueError: invalid channel number
 		:raises ValueOutOfRangeException: if the channel number is invalid
 		"""
-		if channel is None or channel == 1:
+		_utils.check_parameter_valid('set', ch, [1,2],'output channel', allow_none=True)
+
+		if ch is None or ch == 1:
 			self.out1_enable = False
 
-		if channel is None or channel == 2:
+		if ch is None or ch == 2:
 			self.out2_enable = False
 
-		if channel is not None and channel > 2:
-			raise ValueOutOfRangeException("Invalid channel")
 
+class WaveformGenerator(BasicWaveformGenerator):
+	""" Waveform Generator instrument object.
 
-class SignalGenerator(BasicSignalGenerator):
-	""" Signal Generator instrument object.
-
-	To run a new Signal Generator instrument, this should be instantiated and deployed via a connected
+	To run a new Waveform Generator instrument, this should be instantiated and deployed via a connected
 	:any:`Moku` object using :any:`deploy_instrument`. Alternatively, a pre-configured instrument object
-	can be obtained by discovering an already running Signal Generator instrument on a Moku:Lab device via
+	can be obtained by discovering an already running Waveform Generator instrument on a Moku:Lab device via
 	:any:`discover_instrument`.
 
-	.. automethod:: pymoku.instruments.SignalGenerator.__init__
+	.. automethod:: pymoku.instruments.WaveformGenerator.__init__
 
 	.. attribute:: type
 		:annotation: = "signal_generator"
@@ -280,9 +325,28 @@ class SignalGenerator(BasicSignalGenerator):
 
 	"""
 	def __init__(self):
-		""" Create a new SignalGenerator instance, ready to be attached to a Moku."""
-		super(SignalGenerator, self).__init__()
+		""" Create a new WaveformGenerator instance, ready to be attached to a Moku."""
+		super(WaveformGenerator, self).__init__()
 		self._register_accessors(_siggen_mod_reg_handlers)
+
+	@needs_commit
+	def gen_modulate_off(self, ch=None):
+		"""
+		Turn off modulation for the specified output channel.
+
+		If *ch* is None (the default), both channels will be turned off,
+		otherwise just the one specified by the argument.
+
+		:type ch: int; {1,2} or None
+		:param ch: Output channel to turn modulation off.
+		"""
+		# Disable modulation by clearing modulation type bits
+		_utils.check_parameter_valid('set', ch, [1,2],'output channel', allow_none=True)
+
+		if ch==1:
+			self.out1_modulation = 0
+		if ch==2:
+			self.out2_modulation = 0
 
 	@needs_commit
 	def gen_modulate(self, ch, mtype, source, depth, frequency=0.0):
@@ -292,7 +356,7 @@ class SignalGenerator(BasicSignalGenerator):
 		:type ch: int; {1,2}
 		:param ch: Channel to modulate
 
-		:type mtype: string, {'none', 'amplitude', 'frequency', 'phase'}
+		:type mtype: string, {amplitude', 'frequency', 'phase'}
 		:param mtype:  Modulation type. Respectively Off, Amplitude, Frequency and Phase modulation.
 
 		:type source: string, {'internal', 'in', 'out'}
@@ -306,19 +370,33 @@ class SignalGenerator(BasicSignalGenerator):
 
 		:raises ValueOutOfRangeException: if the channel number is invalid or modulation parameters can't be achieved
 		"""
+		_utils.check_parameter_valid('set', ch, [1,2],'output modulation channel')
+		_utils.check_parameter_valid('range', frequency, [0,250e6],'internal modulation frequency')
+
 		_str_to_modsource = {
 			'internal' : _SG_MODSOURCE_INT,
 			'in'		: _SG_MODSOURCE_ADC,
 			'out'		: _SG_MODSOURCE_DAC
 		}
 		_str_to_modtype = {
-			'none'	: _SG_MOD_NONE,
 			'amplitude' : _SG_MOD_AMPL,
 			'frequency' : _SG_MOD_FREQ,
 			'phase'	: _SG_MOD_PHASE
 		}
 		source = _utils.str_to_val(_str_to_modsource, source, 'modulation source')
 		mtype = _utils.str_to_val(_str_to_modtype, mtype, 'modulation source')
+
+		# Calculate the depth value depending on modulation source and type
+		depth_parameter = 0.0
+		if mtype == _SG_MOD_AMPL:
+			_utils.check_parameter_valid('range', depth, [0.0,1.0], 'amplitude modulation depth', 'fraction')
+			depth_parameter = depth
+		elif mtype == _SG_MOD_FREQ:
+			_utils.check_parameter_valid('range', depth, [0.0,_SG_MOD_FREQ_MAX], 'frequency modulation depth', 'Hz/V')
+			depth_parameter = depth/(DAC_SMP_RATE/8.0)
+		elif mtype == _SG_MOD_PHASE:
+			_utils.check_parameter_valid('range', depth, [0.0, 360.0], 'phase modulation depth', 'degrees/V')
+			depth_parameter = depth/360.0
 
 		# Get the calibration coefficients of the front end and output
 		dac1, dac2 = self._dac_gains()
@@ -332,21 +410,6 @@ class SignalGenerator(BasicSignalGenerator):
 			self.out2_modulation = mtype
 			self.out2_modsource = source
 			self.mod2_frequency = frequency
-
-		# Calculate the depth value depending on modulation source and type
-		depth_parameter = 0.0
-		if mtype == _SG_MOD_AMPL:
-			depth_parameter = depth
-			if not 0 <= depth_parameter <= 1.0:
-				raise ValueOutOfRangeException("Invalid amplitude modulation depth [0.0-1.0]: %s" % depth)
-		elif mtype == _SG_MOD_FREQ:
-			depth_parameter = depth/(DAC_SMP_RATE/8.0)
-			if not 0 <= depth_parameter <= 1.0:
-				raise ValueOutOfRangeException("Invalid frequency modulation deviation [0-125MHz]: %s" % depth)
-		elif mtype == _SG_MOD_PHASE:
-			depth_parameter = depth/360.0
-			if not 0 <= depth_parameter <= 1.0:
-				raise ValueOutOfRangeException("Invalid phase modulation shift [0-360deg]: %s" % depth)
 
 		# Calibrate the depth value depending on the source
 		if(source == _SG_MODSOURCE_INT):
@@ -362,8 +425,6 @@ class SignalGenerator(BasicSignalGenerator):
 			self.mod1_amplitude = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
 		elif ch == 2:
 			self.mod2_amplitude = (pow(2.0, 32.0) - 1) * depth_parameter / 4.0
-		else:
-			raise ValueOutOfRangeException("Invalid channel")
 
 _siggen_mod_reg_handlers = {
 	'out1_modulation':	(REG_SG_WAVEFORMS,	to_reg_unsigned(16, 8, allow_range=[_SG_MOD_NONE, _SG_MOD_AMPL | _SG_MOD_FREQ | _SG_MOD_PHASE]),
@@ -426,11 +487,11 @@ _siggen_reg_handlers = {
 	'out2_phase':		(REG_SG_PHASE2,		to_reg_unsigned(0, 32, xform=lambda obj, p: (p / _SG_PHASESCALE) % (2**32)),
 											from_reg_unsigned(0, 32, xform=lambda obj, p:p * _SG_PHASESCALE)),
 
-	'out1_amplitude':	(REG_SG_AMP1,		to_reg_unsigned(0, 32, xform=lambda obj, p:p / obj._dac_gains()[0]),
-											from_reg_unsigned(0, 32, xform=lambda obj, p:p * obj._dac_gains()[0])),
+	'out1_amplitude':	(REG_SG_AMP1,		to_reg_unsigned(0, 16, xform=lambda obj, a:a / obj._dac_gains()[0]),
+											from_reg_unsigned(0, 16, xform=lambda obj, a:a * obj._dac_gains()[0])),
 
-	'out2_amplitude':	(REG_SG_AMP2,		to_reg_unsigned(0, 32, xform=lambda obj, p:p / obj._dac_gains()[1]),
-											from_reg_unsigned(0, 32, xform=lambda obj, p:p * obj._dac_gains()[1])),
+	'out2_amplitude':	(REG_SG_AMP2,		to_reg_unsigned(0, 16, xform=lambda obj, a:a / obj._dac_gains()[1]),
+											from_reg_unsigned(0, 16, xform=lambda obj, a:a * obj._dac_gains()[1])),
 
 	'out1_t0':			(REG_SG_T01,		to_reg_unsigned(0, 32, xform=lambda obj, o: o / _SG_TIMESCALE),
 											from_reg_unsigned(0, 32, xform=lambda obj, o: o * _SG_TIMESCALE)),

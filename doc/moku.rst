@@ -18,7 +18,7 @@ defines the functionality of the Moku:Lab. For examples on how to deploy an inst
 Example Usage
 -------------
 
-For more details on searching for and configuring your Moku:Lab device, see the `pymoku Getting Started Guide <http://confluence.liquidinstruments.com>`_. The following example code and a wide range of other pymoku demo scripts, can be found at the `pymoku example repository <https://anaconda.org/liquidinstruments/pymoku-examples>`_.
+For more details on searching for your Moku:Lab and retrieving device configuration information, see the `Bonjour Moku guide <https://liquidinstruments.atlassian.net/wiki/pages/viewpage.action?pageId=295806>`_. The following example code and a wide range of other pymoku demo scripts, can be found at the `pymoku example repository <https://anaconda.org/liquidinstruments/pymoku-examples/files>`_.
 
 .. literalinclude:: ../examples/basic_moku.py
 	:language: python
@@ -41,10 +41,10 @@ Instruments
 	:maxdepth: 1
 
 	oscilloscope
-	siggen
+	datalogger
+	wavegen
 	specan
 	phasemeter
-	lockin
 
 ----------
 Exceptions
@@ -52,7 +52,6 @@ Exceptions
 
 .. Can't get automodule to work properly for this..
 .. autoexception:: MokuException
-.. autoexception:: BufferTimeout
 .. autoexception:: DeployException
 .. autoexception:: FileNotFound
 .. autoexception:: FrameTimeout

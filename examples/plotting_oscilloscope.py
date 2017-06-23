@@ -6,8 +6,8 @@
 #
 # (c) 2017 Liquid Instruments Pty. Ltd.
 #
-from pymoku import Moku
-from pymoku.instruments import *
+from pymoku import *
+from pymoku.instruments import Oscilloscope
 import time, logging
 
 import matplotlib
@@ -37,16 +37,19 @@ try:
 	i.set_defaults()
 
 	# Trigger on input Channel 1, rising edge, 0V with 0.1V hysteresis
-	i.set_trigger('in1', 'rising', 0, hysteresis=0.1)
+	i.set_trigger('in1', 'rising', 0, hysteresis=True)
 
 	 # View +- 1 second, i.e. trigger in the centre
 	i.set_timebase(-1,1)
 
 	# Generate an output sinewave on Channel 2, 500mVpp, 10Hz, 0V offset
-	i.gen_sinewave(1, 0.5, 5, 0)
+	i.gen_sinewave(2, 0.5, 5, 0)
 
-	# View this generated waveform on Channel 2
-	i.set_source(1, 'out')
+	# Set the data source of Channel 1 to be Input 1
+	i.set_source(1, 'in')
+
+	# Set the data source of Channel 2 to the generated output sinewave 
+	i.set_source(2, 'out')
 
 	# Get initial data frame to set up plotting parameters. This can be done once
 	# if we know that the axes aren't going to change (otherwise we'd do

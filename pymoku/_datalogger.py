@@ -1,7 +1,7 @@
 from ._instrument import *
 
 from . import _stream_instrument
-from . import _siggen
+from . import _waveform_generator
 from . import _utils
 
 REG_DL_OUTSEL		= 65
@@ -23,7 +23,10 @@ _DL_BUFLEN			= CHN_BUFLEN
 _DL_SCREEN_WIDTH	= 1024
 _DL_ROLL			= ROLL
 
-class Datalogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGenerator):
+_DL_SAMPLERATE_MIN = 10				# Smp/s
+_DL_SAMPLERATE_MAX = _DL_ADC_SMPS 	# 500MSmp/s
+
+class Datalogger(_stream_instrument.StreamBasedInstrument, _waveform_generator.BasicWaveformGenerator):
 	""" Datalogger instrument object.
 
 	To run a new Datalogger instrument, this should be instantiated and deployed via a connected
@@ -64,14 +67,14 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 		self.x_mode = _DL_ROLL
 		self.set_samplerate(1e3)
 
-		# Disable the signal generator by default
+		# Disable the waveform generator by default
 		# TODO: Disable without using a gen_ function
 		self.gen_off()
 
 		self.set_source(1,'in')
 		self.set_source(2,'in')
 		self.set_precision_mode(False)
-		self.set_pause(False)
+		self._set_pause(False)
 
 		self.set_frontend(1, fiftyr=True, atten=False, ac=False)
 		self.set_frontend(2, fiftyr=True, atten=False, ac=False)
@@ -84,14 +87,16 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 
 		This interface allows you to specify the rate at which data is sampled.
 
+		.. note::
+			The samplerate must be set to within the allowed range for your datalogging session type.
+			See the Datalogger instrument tutorial for more details.
+
 		:type samplerate: float; *0 < samplerate < 500Msmp/s*
-		:param samplerate: Target samples per second. Will get rounded to the nearest allowable unit.
+		:param samplerate: Target samples per second. Will get rounded to the nearest unit.
 
-		:raises InvalidConfigurationException: if either parameter is out of range.
+		:raises ValueOutOfRangeException: if samplerate is out of range.
 		"""
-
-		if samplerate <= 0 or samplerate > 500e6:
-			raise InvalidConfigurationException("Invalid parameters")
+		_utils.check_parameter_valid('range', samplerate, [_DL_SAMPLERATE_MIN,_DL_SAMPLERATE_MAX], 'samplerate', 'Hz')
 
 		decimation = _DL_ADC_SMPS / float(samplerate)
 		self.decimation_rate = decimation
@@ -112,7 +117,10 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 
 		:param state: Select Precision Mode
 		:type state: bool
+
+		:raises ValueError: if input parameter is invalid
 		"""
+		_utils.check_parameter_valid('bool', state, desc='precision mode')
 		self.ain_mode = _DL_AIN_DECI if state else _DL_AIN_DDS
 
 	def is_precision_mode(self):
@@ -122,7 +130,7 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 	def set_source(self, ch, source, lmode='round'):
 		""" Sets the source of the channel data to either the analog input or internally looped-back digital output.
 
-		This feature allows the user to capture the Signal Generator outputs.
+		This feature allows the user to capture the Waveform Generator outputs.
 
 		:type ch:  int; {1,2}
 		:param ch: Channel Number
@@ -134,6 +142,7 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 		:param lmode: DAC Loopback mode (ignored 'in' sources)
 
 		:raises ValueOutOfRangeException: if the channel number is incorrect
+		:raises ValueError: if any of the string parameters are incorrect
 		"""
 		_str_to_lmode = {
 			'round' : _DL_LB_ROUND,
@@ -143,6 +152,7 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 			'in' : _DL_SOURCE_ADC,
 			'out' : _DL_SOURCE_DAC
 		}
+		_utils.check_parameter_valid('set', ch, [1,2], 'channel')
 		source = _utils.str_to_val(_str_to_channel_data_source, source, 'channel data source')
 		lmode = _utils.str_to_val(_str_to_lmode, lmode, 'DAC loopback mode')
 		if ch == 1:
@@ -153,8 +163,6 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _siggen.BasicSignalGe
 			self.source_ch2 = source
 			if source == _DL_SOURCE_DAC:
 				self.loopback_mode_ch2 = lmode
-		else:
-			raise ValueOutOfRangeException("Incorrect channel number %d", ch)
 
 	def _update_datalogger_params(self):
 		scales = self._calculate_scales()

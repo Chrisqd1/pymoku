@@ -4,21 +4,13 @@ import os, os.path
 import logging, time, threading, math
 import zmq
 
-from ._instrument import *
-from pymoku import Moku, UncommittedSettings, InvalidConfigurationException, FrameTimeout, BufferTimeout, NotDeployedException, InvalidOperationException, NoDataException, StreamException, InsufficientSpace, MPNotMounted, MPReadOnly, dataparser, _stream_handler, _instrument
-
-_STREAM_STATE_NONE		= 0
-_STREAM_STATE_RUNNING 	= 1
-_STREAM_STATE_WAITING 	= 2
-_STREAM_STATE_INVAL		= 3
-_STREAM_STATE_FSFULL	= 4
-_STREAM_STATE_OVERFLOW	= 5
-_STREAM_STATE_BUSY		= 6
-_STREAM_STATE_STOPPED	= 7
+from . import *
+from . import dataparser, _input_instrument, _instrument
+from . import _utils
 
 log = logging.getLogger(__name__)
 
-class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstrument):
+class StreamBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuInstrument):
 
 	def __init__(self):
 		super(StreamBasedInstrument, self).__init__()
@@ -50,7 +42,14 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 		:param ch1: Enable streaming on Channel 1
 		:type ch2: bool
 		:param ch2: Enable streaming on Channel 2
+
+		:raises ValueError: if invalid channel enable parameter
+		:raises ValueOutOfRangeException: if duration is invalid
 		"""
+		_utils.check_parameter_valid('bool', ch1, desc='stream channel 1')
+		_utils.check_parameter_valid('bool', ch2, desc='stream channel 2')
+		_utils.check_parameter_valid('float', duration, desc='stream duration', units='sec')
+
 		if self.check_uncommitted_state():
 			raise UncommittedSettings("Can't start a streaming session due to uncommitted device settings.")
 		self._stream_start(start=0, duration=duration, ch1=ch1, ch2=ch2, use_sd=False, filetype='net')
@@ -86,7 +85,13 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 		:raises NoDataException: if the logging session has stopped
 		:raises FrameTimeout: if the timeout expired
 		:raises InvalidOperationException: if there is no streaming session running
+		:raises ValueOutOfRangeException: invalid input parameters
 		"""
+		if timeout and timeout <= 0:
+			raise ValueOutOfRangeException("Timeout must be positive or 'None'")
+		if n <= -1:
+			raise ValueOutOfRangeException("Invalid number of samples. Expected (n >= -1).")
+
 		# If no network session exists, can't get samples
 		if not self._stream_net_is_running():
 			raise InvalidOperationException("No network streaming session is running.")
@@ -140,7 +145,7 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 
 		return (dout_ch1, dout_ch2)
 
-	def start_data_log(self, duration=10, ch1=True, ch2=True, use_sd=True, filetype='csv', upload=False):
+	def start_data_log(self, duration=10, ch1=True, ch2=True, use_sd=True, filetype='csv'):
 		"""	Start logging instrument data to a file.
 
 		Progress of the data log may be checked calling `progress_data_log`.
@@ -148,24 +153,32 @@ class StreamBasedInstrument(_stream_handler.StreamHandler, _instrument.MokuInstr
 		All outstanding settings must have been committed before starting the data log. This
 		will always be true if *pymoku.autocommit=True*, the default.
 
-		:type start: float
-		:param start: Start time in seconds from the time of function call
+		.. note:: The Moku's internal filesystem is volatile and will be wiped when the Moku is turned off.
+			If you want your data logs to persist either save to SD card or move them to a permanent
+			storage location prior to powering your Moku off. 
+
 		:type duration: float
 		:param duration: Log duration in seconds
-		:type use_sd: bool
 		:type ch1: bool
 		:param ch1: Enable streaming on Channel 1
 		:type ch2: bool
 		:param ch2: Enable streaming on Channel 2
+		:type use_sd: bool
+		:param use_sd: Whether to log to the SD card, else the internal Moku filesystem.
 		:type filetype: string
 		:param filetype: Log file type, one of {'csv','bin'} for CSV or Binary respectively.
-		:type upload: bool
-		:param upload: When true, the log will be uploaded to the local directory on completion.
+
+		:raises ValueError: if invalid channel enable parameter
+		:raises ValueOutOfRangeException: if duration is invalid
 		"""
+		_utils.check_parameter_valid('bool', ch1, desc='log channel 1')
+		_utils.check_parameter_valid('bool', ch2, desc='log channel 2')
+		_utils.check_parameter_valid('bool', use_sd, desc='log to SD card')
+		_utils.check_parameter_valid('float', duration, desc='log duration', units='sec')
+		_utils.check_parameter_valid('set', filetype, ['csv','bin'], 'log filetype')
+
 		if self.check_uncommitted_state():
 			raise UncommittedSettings("Can't start a logging session due to uncommitted device settings.")
-		if filetype not in ['csv','bin']:
-			raise ValueError('Invalid log file type: %s. Expected \'csv\' or \'bin\'.' % filetype)
 		self._stream_start(start=0, duration=duration, ch1=ch1, ch2=ch2, use_sd=use_sd, filetype=filetype)
 
 	def stop_data_log(self):

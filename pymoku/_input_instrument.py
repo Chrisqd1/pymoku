@@ -1,10 +1,10 @@
 import zmq
 import math
+import time
 
-from . import _instrument
-from . import dataparser
-from ._instrument import *
-from pymoku import Moku, UncommittedSettings, InvalidConfigurationException, FrameTimeout, BufferTimeout, NotDeployedException, InvalidOperationException, NoDataException, StreamException, InsufficientSpace, MPNotMounted, MPReadOnly, dataparser
+from . import *
+from . import _instrument, dataparser
+from . import _utils
 
 _STREAM_STATE_NONE		= 0
 _STREAM_STATE_RUNNING 	= 1
@@ -15,7 +15,7 @@ _STREAM_STATE_OVERFLOW	= 5
 _STREAM_STATE_BUSY		= 6
 _STREAM_STATE_STOPPED	= 7
 
-class StreamHandler(_instrument.MokuInstrument):
+class InputInstrument(_instrument.MokuInstrument):
 	"""
 		Helper class - should not be instantiated directly.
 		This class is intended to handle streams: checking status, receiving/parsing raw data,
@@ -23,7 +23,7 @@ class StreamHandler(_instrument.MokuInstrument):
 	"""
 
 	def __init__(self):
-		super(StreamHandler, self).__init__()
+		super(InputInstrument, self).__init__()
 		# Stream socket connection
 		self._dlskt = None
 		# Data parser for current session
@@ -43,6 +43,59 @@ class StreamHandler(_instrument.MokuInstrument):
 		self.hdrstr = ''
 		self.fmtstr = ''
 
+	"""
+		Expose all the get/set input instrument functions from the MokuInstrument class
+	"""
+	def set_frontend(self, channel, fiftyr=True, atten=False, ac=False):
+		""" Configures gain, coupling and termination for each channel.
+
+		:type channel: int; {1,2}
+		:param channel: Channel to which the settings should be applied
+
+		:type fiftyr: bool
+		:param fiftyr: 50Ohm termination; default is 1MOhm.
+
+		:type atten: bool
+		:param atten: Turn on 10x attenuation. Changes the dynamic range between 1Vpp and 10Vpp.
+
+		:type ac: bool
+		:param ac: AC-couple; default DC.
+		"""
+		_utils.check_parameter_valid('set', channel, [1,2], 'channel')
+		_utils.check_parameter_valid('bool', fiftyr, desc='50 Ohm termination')
+		_utils.check_parameter_valid('bool', atten, desc='attenuation')
+		_utils.check_parameter_valid('bool', ac, desc='AC coupling')
+		return super(InputInstrument, self)._set_frontend(channel, fiftyr, atten, ac)
+
+	def get_frontend(self, channel):
+		""" Get the analog frontend configuration.
+
+		:type channel: int; {1,2}
+		:param channel: Channel for which the relay settings are being retrieved
+
+		:return: Array of bool with the front end configuration of channels
+			- [0] 50 Ohm
+			- [1] 10xAttenuation
+			- [2] AC Coupling
+		"""
+		_utils.check_parameter_valid('set', channel, [1,2], 'channel')
+		return super(InputInstrument, self)._get_frontend(channel)
+
+	def _set_pause(self, pause):
+		""" Pauses or unpauses the instrument's data output.
+
+		:type pause: bool
+		:param pause: Paused
+		"""
+		return super(InputInstrument, self)._set_pause(pause)
+
+	def _get_pause(self):
+		""" Get whether the instrument's data output was paused.
+
+		:rtype: bool
+		:return: Paused
+		"""
+		return super(InputInstrument, self)._get_pause()
 
 	def _max_stream_rate(self, use_sd, filetype):
 		"""
@@ -148,7 +201,8 @@ class StreamHandler(_instrument.MokuInstrument):
 		if duration > 0:
 			maxrate = self._max_stream_rate(use_sd, filetype)
 			if math.floor(1.0 / self.timestep) > maxrate:
-				raise InvalidOperationException("Sample Rate %d too high for file type %s. Maximum rate: %d" % (1.0 / self.timestep, filetype, maxrates[filetype]))
+				session_type = "Filetype: %s, #Channels: %d, SDCard: %s" % (filetype, self.nch, use_sd)
+				raise InvalidOperationException("Sample rate (%d smp/s) too high for datalogging session type (%s). Maximum rate is %d smp/s. " % (1.0 / self.timestep, session_type, maxrate))
 
 			if self.x_mode != _instrument.ROLL:
 				raise InvalidOperationException("Instrument must be in roll mode to perform data logging")
@@ -266,11 +320,11 @@ class StreamHandler(_instrument.MokuInstrument):
 		"""
 		return self._stream_status()[1]
 
-	def _stream_completed(self, status):
+	def _stream_completed(self, status=None):
 		""" Returns whether or not the datalogger is expecting to log any more data.
 
 		If the log is completed then the results files are ready to be uploaded or simply
-		read off the SD card. At most one subsequent :any:`datalogger_get_samples` call
+		read off the SD card. At most one subsequent :any:`get_stream_data` call
 		will return without timeout.
 
 		If the datalogger has entered an error state, a StreamException is raised.
@@ -280,9 +334,16 @@ class StreamHandler(_instrument.MokuInstrument):
 
 		:raises StreamException: if the session has entered an error state
 		"""
-		if not status:
+		if status == None:
 			status = self._stream_status()[0]
+
+		# Check the status for error state
 		self._stream_error(status=status)
+
+		# No session in progress
+		if status == _STREAM_STATE_NONE:
+			raise StreamException("Attempted to check progress of non-existent streaming session.")
+
 		return status not in [_STREAM_STATE_RUNNING, _STREAM_STATE_WAITING]
 
 	def _stream_error(self, status=None):

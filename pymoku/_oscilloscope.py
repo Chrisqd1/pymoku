@@ -5,7 +5,7 @@ import re
 
 from ._instrument import *
 from . import _frame_instrument
-from . import _siggen
+from . import _waveform_generator
 from . import _utils
 
 log = logging.getLogger(__name__)
@@ -53,8 +53,16 @@ _OSC_BUFLEN			= CHN_BUFLEN
 _OSC_SCREEN_WIDTH	= 1024
 _OSC_FPS			= 10
 
-_OSC_MAX_PRETRIGGER = (2**12)-1
-_OSC_MAX_POSTTRIGGER = -2**28
+# Max/min values for instrument settings
+_OSC_TRIGLVL_MAX = 10.0 # V
+_OSC_TRIGLVL_MIN = -10.0 # V
+
+_OSC_SAMPLERATE_MIN = 10 # smp/s
+_OSC_SAMPLERATE_MAX = _OSC_ADC_SMPS
+
+_OSC_PRETRIGGER_MAX = (2**12)-1
+_OSC_POSTTRIGGER_MAX = -2**28
+
 
 class VoltsData(_frame_instrument.InstrumentData):
 	"""
@@ -197,7 +205,7 @@ class VoltsData(_frame_instrument.InstrumentData):
 		return self._get_yaxis_fmt(y,None)['ycoord']
 
 
-class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGenerator):
+class Oscilloscope(_frame_instrument.FrameBasedInstrument, _waveform_generator.BasicWaveformGenerator):
 	""" Oscilloscope instrument object.
 
 	To run a new Oscilloscope instrument, this should be instantiated and deployed via a connected
@@ -235,7 +243,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		# Define any (non-register-mapped) properties that are used when committing
 		# as a commit is called when the instrument is set running
 		self.trig_volts = 0
-		self.hysteresis_volts = 0
+		#self.hysteresis_volts = 0
 
 		# All instruments need a binstr, procstr and format string.
 		self.logname = "MokuOscilloscopeData"
@@ -283,7 +291,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		# Calculate the number of pretrigger samples and offset it by an additional (CubicRatio) samples
 		buffer_smp_rate = ADC_SMP_RATE/decimation
 		buffer_offset_secs = -1.0 * t1
-		buffer_offset = math.ceil(min(max(math.ceil(buffer_offset_secs * buffer_smp_rate / 4.0), _OSC_MAX_POSTTRIGGER), _OSC_MAX_PRETRIGGER))
+		buffer_offset = math.ceil(min(max(math.ceil(buffer_offset_secs * buffer_smp_rate / 4.0), _OSC_POSTTRIGGER_MAX), _OSC_PRETRIGGER_MAX))
 
 		# Apply a correction in pretrigger because of the way cubic interpolation occurs when rendering
 		return buffer_offset
@@ -369,17 +377,16 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		a trigger offset in number of samples. This interface is useful for datalogging and capturing
 		of data frames.
 
-		:type samplerate: float; *0 < samplerate <= 500MSPS*
+		:type samplerate: float; *0 < samplerate <= 500 Msmp/s*
 		:param samplerate: Target samples per second. Will get rounded to the nearest allowable unit.
 
-		:type trigger_offset: int; *-2^16 + 1 < trigger_offset < 2^32*
+		:type trigger_offset: int; *-2^16 < trigger_offset < 2^31 *
 		:param trigger_offset: Number of samples before (-) or after (+) the trigger point to start capturing.
 
-		:raises InvalidConfigurationException: if either parameter is out of range.
+		:raises ValueOutOfRangeException: if either parameter is out of range.
 		"""
-
-		if samplerate <= 0 or samplerate > 500e6 or	trigger_offset < -2**16 + 1 or trigger_offset > 2**32 - 1:
-			raise InvalidConfigurationException("Invalid parameters")
+		_utils.check_parameter_valid('range', samplerate, [_OSC_SAMPLERATE_MIN,_OSC_SAMPLERATE_MAX], 'samplerate', 'smp/s')
+		_utils.check_parameter_valid('range', trigger_offset, [-2**16 + 1, 2**31 - 1], 'trigger offset', 'samples')
 
 		decimation = _OSC_ADC_SMPS / samplerate
 
@@ -429,15 +436,16 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		:param state: Select Precision Mode
 		:type state: bool
 		"""
-		if state and self.hysteresis_volts not in ['auto', 'noise'] and self.hysteresis_volts > 0 :
-			raise InvalidConfigurationException("Precision mode can't be enabled while hysteresis is explicitly set to a voltage.")
+		_utils.check_parameter_valid('bool', state, desc='precision mode enable')
+		#if state and self.hysteresis > 0 :
+		#	raise InvalidConfigurationException("Precision mode and Hysteresis can't be set at the same time.")
 		self.ain_mode = _OSC_AIN_DECI if state else _OSC_AIN_DDS
 
 	def is_precision_mode(self):
 		return self.ain_mode is _OSC_AIN_DECI
 
 	@needs_commit
-	def set_trigger(self, source, edge, level, hysteresis='auto', hf_reject=False, mode='auto'):
+	def set_trigger(self, source, edge, level, hysteresis=False, hf_reject=False, mode='auto'):
 		""" Sets trigger source and parameters.
 
 		The hysteresis value changes behaviour based on aquisition mode, due to hardware limitations.  If the
@@ -454,12 +462,11 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		:type edge: string, {'rising','falling','both'}
 		:param edge: Which edge to trigger on.
 
-		:type level: float, volts
+		:type level: float, [-10.0, 10.0] volts
 		:param level: Trigger level
 
-		:type hysteresis: float, volts; or string {'auto', 'noise'}
-		:param hysteresis: Hysteresis to apply around trigger point. If *None*, automatically calculate based
-		on aquisition mode. Only *None* or 0V is supported in precision mode 
+		:type hysteresis: bool
+		:param hysteresis: Enable Hysteresis around trigger point.
 
 		:type hf_reject: bool
 		:param hf_reject: Enable high-frequency noise rejection
@@ -477,6 +484,18 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 		"""
 		# Convert the input parameter strings to bit-value mappings
+		_utils.check_parameter_valid('bool', hysteresis, desc="enable hysteresis")
+		_utils.check_parameter_valid('range', level, [_OSC_TRIGLVL_MIN, _OSC_TRIGLVL_MAX], 'trigger level', 'Volts')
+		_utils.check_parameter_valid('bool', hf_reject, 'High-frequency reject enable')
+
+		# Precision mode should be off if hysteresis is being used
+		#if self.ain_mode == _OSC_AIN_DECI and hysteresis > 0:
+		#	raise InvalidConfigurationException("Precision mode and Hysteresis can't be set at the same time.")
+		
+		# self.hysteresis_volts = hysteresis
+		# TODO: Enable setting hysteresis level. For now we use the iPad LSB values for ON/OFF.
+		self.hysteresis = 25 if hysteresis else 5
+
 		_str_to_trigger_source = {
 			'in1' : _OSC_TRIG_CH1,
 			'in2' : _OSC_TRIG_CH2,
@@ -500,10 +519,6 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		self.trig_ch = source
 		self.trig_edge = edge
 
-		if self.ain_mode == _OSC_AIN_DECI and hysteresis not in ['auto', 'noise'] and hysteresis > 0:
-			raise InvalidConfigurationException("Hysteresis can't be explicitly set while in precision mode.")
-		self.hysteresis_volts = hysteresis
-
 		self.hf_reject = hf_reject
 		self.trig_mode = mode
 		self.trig_volts = level # Save the desired trigger voltage
@@ -512,7 +527,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 	def set_source(self, ch, source, lmode='round'):
 		""" Sets the source of the channel data to either the analog input or internally looped-back digital output.
 
-		This feature allows the user to preview the Signal Generator outputs.
+		This feature allows the user to preview the Waveform Generator outputs.
 
 		:type ch: int; {1,2}
 		:param ch: Channel Number
@@ -523,6 +538,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		:type lmode: string, {'clip','round'}
 		:param lmode: DAC Loopback mode (ignored 'in' sources)
 		"""
+		_utils.check_parameter_valid('set', ch, [1,2], 'channel')
 		_str_to_lmode = {
 			'round' : _OSC_LB_ROUND,
 			'clip' : _OSC_LB_CLIP
@@ -554,7 +570,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 		self.set_trigger('in1','rising', 0)
 		self.set_precision_mode(False)
 		self.set_timebase(-1, 1)
-		self.set_pause(False)
+		self._set_pause(False)
 
 		self.framerate = _OSC_FPS
 		self.frame_length = _OSC_SCREEN_WIDTH
@@ -632,13 +648,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 	def _update_dependent_regs(self, scales):
 		# Trigger level must be scaled depending on the current relay settings and chosen trigger source
 		self.trigger_level = self.trig_volts / self._source_volts_per_bit(self.trig_ch, scales)
-
-		if self.hysteresis_volts == 'auto':
-			self.hysteresis = 5
-		elif self.hysteresis_volts == 'noise':
-			self.hysteresis = 25
-		else:
-			self.hysteresis = self.hysteresis_volts / self._source_volts_per_bit(self.trig_ch, scales)
+		#self.hysteresis = self.hysteresis_volts / self._source_volts_per_bit(self.trig_ch, scales)
 
 	def _update_datalogger_params(self):
 		scales = self._calculate_scales()
@@ -697,13 +707,7 @@ class Oscilloscope(_frame_instrument.FrameBasedInstrument, _siggen.BasicSignalGe
 
 		# Update internal state given new reg values. This is the inverse of update_dependent_regs
 		self.trig_volts = self.trigger_level * self._source_volts_per_bit(self.trig_ch, scales)
-
-		if self.hysteresis == 5:
-			self.hysteresis_volts = 'auto'
-		elif self.hysteresis == 25:
-			self.hysteresis_volts = 'noise'
-		else:
-			self.hysteresis_volts = self.hysteresis * self._source_volts_per_bit(self.trig_ch, scales)
+		# self.hysteresis_volts = self.hysteresis * self._source_volts_per_bit(self.trig_ch, scales)
 
 		self._update_datalogger_params()
 
