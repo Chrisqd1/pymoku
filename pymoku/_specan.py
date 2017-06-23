@@ -802,7 +802,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		On SpectrumAnalyser this is an alias for :any:`get_realtime_data <pymoku.instruments.SpectrumAnalyser.get_realtime_data>` as the
 		output data is never downsampled from the sweep results.
 		"""
-		_utils.check_parameter_valid('bool', timeout, desc='data timeout')
+		_utils.check_parameter_valid('float', timeout, desc='data timeout', allow_none=True)
 		_utils.check_parameter_valid('bool', wait, desc='data wait')
 		return self.get_realtime_data(timeout=timeout,wait=wait)
 

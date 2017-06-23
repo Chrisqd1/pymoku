@@ -48,7 +48,7 @@ class StreamBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuI
 		"""
 		_utils.check_parameter_valid('bool', ch1, desc='stream channel 1')
 		_utils.check_parameter_valid('bool', ch2, desc='stream channel 2')
-		_utils.check_parameter_valid('range', duration, [0,10*24*60*60], 'stream duration', 'sec')
+		_utils.check_parameter_valid('float', duration, desc='stream duration', units='sec')
 
 		if self.check_uncommitted_state():
 			raise UncommittedSettings("Can't start a streaming session due to uncommitted device settings.")
@@ -174,7 +174,7 @@ class StreamBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuI
 		_utils.check_parameter_valid('bool', ch1, desc='log channel 1')
 		_utils.check_parameter_valid('bool', ch2, desc='log channel 2')
 		_utils.check_parameter_valid('bool', use_sd, desc='log to SD card')
-		_utils.check_parameter_valid('range', duration, [0,10*24*60*60], 'log duration', 'sec')
+		_utils.check_parameter_valid('float', duration, desc='log duration', units='sec')
 		_utils.check_parameter_valid('set', filetype, ['csv','bin'], 'log filetype')
 
 		if self.check_uncommitted_state():

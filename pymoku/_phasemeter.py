@@ -119,7 +119,7 @@ class Phasemeter_WaveformGenerator(MokuInstrument):
 
 		:raises ValueOutOfRangeException: if the channel number is invalid
 		"""
-		_utils.check_parameter_valid('set', ch, [1,2,None],'output channel')
+		_utils.check_parameter_valid('set', ch, [1,2],'output channel', allow_none=True)
 
 		if (ch is None) or ch == 1:
 			self.pm_out1_amplitude = 0

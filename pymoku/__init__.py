@@ -16,6 +16,7 @@ class MokuNotFound(MokuException): """Can't find Moku. Raised from discovery fac
 class NetworkError(MokuException): """Network connection to Moku failed"""; pass
 class DeployException(MokuException): """Couldn't start instrument. Moku may not be licenced to use that instrument"""; pass
 class InvalidOperationException(MokuException): """Can't perform that operation at this time"""; pass
+class InvalidParameterException(MokuException): """Invalid parameter type or value for this operation"""; pass
 class ValueOutOfRangeException(MokuException): """Invalid value for this operation"""; pass
 class NotDeployedException(MokuException): """Tried to perform an action on an Instrument before it was deployed to a Moku"""; pass
 class FrameTimeout(MokuException): """No new :any:`InstrumentData` arrived within the given timeout"""; pass

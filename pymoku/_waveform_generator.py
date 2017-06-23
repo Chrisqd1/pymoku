@@ -299,7 +299,7 @@ class BasicWaveformGenerator(MokuInstrument):
 		:raises ValueError: invalid channel number
 		:raises ValueOutOfRangeException: if the channel number is invalid
 		"""
-		_utils.check_parameter_valid('set', ch, [1,2,None],'output channel')
+		_utils.check_parameter_valid('set', ch, [1,2],'output channel', allow_none=True)
 
 		if ch is None or ch == 1:
 			self.out1_enable = False
@@ -341,7 +341,7 @@ class WaveformGenerator(BasicWaveformGenerator):
 		:param ch: Output channel to turn modulation off.
 		"""
 		# Disable modulation by clearing modulation type bits
-		_utils.check_parameter_valid('set', ch, [1,2,None],'output channel')
+		_utils.check_parameter_valid('set', ch, [1,2],'output channel', allow_none=True)
 
 		if ch==1:
 			self.out1_modulation = 0
