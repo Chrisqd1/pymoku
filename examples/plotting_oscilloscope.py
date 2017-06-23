@@ -19,7 +19,7 @@ logging.getLogger('pymoku').setLevel(logging.INFO)
 
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
-m = Moku.get_by_name('Jet Fuel')
+m = Moku.get_by_name('Moku')
 
 # See whether there's already an Oscilloscope running. If there is, take
 # control of it; if not, attach a new Oscilloscope instrument
