@@ -96,14 +96,14 @@ class ArbWaveGen(_oscilloscope.Oscilloscope):
 			#Leave the previous data file so we just rewite the new part,
 			#as we have to upload both channels at once.
 			if ch == 1:
-				offset = _ARB_LUT_LENGTH * 8 * 4
+				offset = 0
 				self.lut_length1 = len(data) - 1
 			else:
 				offset = _ARB_LUT_LENGTH * 8 * 4
 				self.lut_length2 = len(data) - 1
 			for step in range(steps):
 				f.seek(offset + (step * stepsize * 4))
-				f.write(''.join([struct.pack('<i', round(2.0**15 * d)) for d in data]))
+				f.write(''.join([struct.pack('<hh', round((2.0**15-1) * d), 0) for d in data]))
 
 			f.flush()
 
