@@ -26,12 +26,12 @@ def check_parameter_valid(check_type, v, allowed=None, desc="", units="", allow_
 	elif check_type == 'int':
 		try:
 			int(v)
-		except ValueError, TypeError:
+		except (ValueError, TypeError):
 			raise InvalidParameterException("Invalid parameter \'%s\': %s. Expected integer." % (desc, v))
 	elif check_type == 'float':
 		try:
 			float(v)
-		except ValueError, TypeError:
+		except (ValueError, TypeError):
 			raise InvalidParameterException("Invalid parameter \'%s\': %s. Expected floating-point number." % (desc, v))
 	elif not isinstance(allowed, (list,tuple)):
 		raise InvalidParameterException("Invalid parameter 'allowed': %s. Expected array or tuple." % allowed)
