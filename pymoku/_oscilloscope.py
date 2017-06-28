@@ -7,7 +7,6 @@ from ._instrument import *
 from . import _frame_instrument
 from . import _waveform_generator
 from . import _utils
-from . import _siggen
 
 log = logging.getLogger(__name__)
 
@@ -708,7 +707,7 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 	commit.__doc__ = MokuInstrument.commit.__doc__
 
 
-class Oscilloscope(_CoreOscilloscope, _siggen.BasicSignalGenerator):
+class Oscilloscope(_CoreOscilloscope, _waveform_generator.BasicWaveformGenerator):
 	""" Oscilloscope instrument object.
 
 	To run a new Oscilloscope instrument, this should be instantiated and deployed via a connected
