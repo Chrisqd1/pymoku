@@ -46,7 +46,7 @@ _ARB_MODE_125 = 0x3
 _ARB_AMPSCALE = 2.0**16
 _ARB_VOLTSCALE = 2.0**15
 _ARB_LUT_LENGTH = 8192
-_ARB_LUT_LSB = 2.0**30
+_ARB_LUT_LSB = 2.0**32
 
 class ArbWaveGen(_oscilloscope.Oscilloscope):
 	def __init__(self):
