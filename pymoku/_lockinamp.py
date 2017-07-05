@@ -163,7 +163,7 @@ class LockInAmp(_CoreOscilloscope):
 		if order == 0:
 			self.pid1_bypass = True
 			self.pid2_bypass = True
-		if order == 1:
+		elif order == 1:
 			self.pid1_bypass = False
 			self.pid2_bypass = True
 			self.slope = 1
@@ -172,7 +172,7 @@ class LockInAmp(_CoreOscilloscope):
 			self.pid2_bypass = False
 			self.slope = 2
 		else:
-			raise ValueOutOfRangeException("Order must be 0 (bypass), 1 or 2; not %d", order)
+			raise ValueOutOfRangeException("Order must be 0 (bypass), 1 or 2; not %d" % order)
 
 		if mode == 'precision':
 			if order == 1:
@@ -189,7 +189,7 @@ class LockInAmp(_CoreOscilloscope):
 				self.pid1_pidgain = self.pid2_pidgain = math.sqrt(gain_factor)
 				self.input_gain = 1.0
 		else:
-			raise ValueOutOfRangeException('Signal Mode must be one of "precision" or "range", not %s', self.signal_mode)
+			raise ValueOutOfRangeException('Signal Mode must be one of "precision" or "range", not %s' % self.signal_mode)
 
 		self._recalc_offsets()
 
