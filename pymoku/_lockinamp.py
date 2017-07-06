@@ -11,45 +11,45 @@ log = logging.getLogger(__name__)
 REG_LIA_ENABLES			= 96
 
 REG_LIA_PIDGAIN1		= 97
-REG_LIA_PIDGAIN2		= 113
+REG_LIA_PIDGAIN2		= 98
 
-REG_LIA_INT_IGAIN1		= 98
-REG_LIA_INT_IGAIN2		= 99
-REG_LIA_INT_IFBGAIN1	= 100
-REG_LIA_INT_IFBGAIN2	= 101
-REG_LIA_INT_PGAIN1		= 102
-REG_LIA_INT_PGAIN2		= 103
+REG_LIA_INT_IGAIN1		= 99
+REG_LIA_INT_IGAIN2		= 100
+REG_LIA_INT_IFBGAIN1	= 101
+REG_LIA_INT_IFBGAIN2	= 102
+REG_LIA_INT_PGAIN1		= 103
+REG_LIA_INT_PGAIN2		= 104
 
-REG_LIA_DIFF_DGAIN1		= 104
-REG_LIA_DIFF_DGAIN2		= 119
-REG_LIA_DIFF_PGAIN1		= 120
-REG_LIA_DIFF_PGAIN2		= 121
-REG_LIA_DIFF_IGAIN1		= 122
-REG_LIA_DIFF_IGAIN2		= 123
-REG_LIA_DIFF_IFBGAIN1	= 124
-REG_LIA_DIFF_IFBGAIN2	= 125
+REG_LIA_DIFF_DGAIN1		= 105
+REG_LIA_DIFF_DGAIN2		= 106
+REG_LIA_DIFF_PGAIN1		= 107
+REG_LIA_DIFF_PGAIN2		= 108
+REG_LIA_DIFF_IGAIN1		= 109
+REG_LIA_DIFF_IGAIN2		= 110
+REG_LIA_DIFF_IFBGAIN1	= 111
+REG_LIA_DIFF_IFBGAIN2	= 112
 
-REG_LIA_FREQDEMOD_L		= 105
-REG_LIA_FREQDEMOD_H		= 106
-REG_LIA_PHASEDEMOD_L	= 107
-REG_LIA_PHASEDEMOD_H	= 108
+REG_LIA_IN_OFFSET1		= 113
+REG_LIA_OUT_OFFSET1		= 114
+REG_LIA_IN_OFFSET2		= 115
+REG_LIA_OUT_OFFSET2		= 116
 
-REG_LIA_DECBITSHIFT		= 109
-REG_LIA_DECOUTPUTSELECT	= 110
+REG_LIA_INPUT_GAIN		= 117
 
-REG_LIA_MONSELECT0		= 111
-REG_LIA_MONSELECT1		= 114
+REG_LIA_FREQDEMOD_L		= 118
+REG_LIA_FREQDEMOD_H		= 119
+REG_LIA_PHASEDEMOD_L	= 120
+REG_LIA_PHASEDEMOD_H	= 121
 
-REG_LIA_SINEOUTAMP		= 112
-REG_LIA_SINEOUTOFF		= 127
+REG_LIA_LO_FREQ_L		= 122
+REG_LIA_LO_FREQ_H		= 123
+REG_LIA_LO_PHASE_L		= 124
+REG_LIA_LO_PHASE_H		= 125
 
-REG_LIA_IN_OFFSET1		= 115
-REG_LIA_OUT_OFFSET1		= 116
-REG_LIA_IN_OFFSET2		= 117
-REG_LIA_OUT_OFFSET2		= 118
+REG_LIA_SINEOUTAMP		= 126
+REG_LIA_SINEOUTOFF		= 126
 
-REG_LIA_INPUT_GAIN		= 126
-
+REG_LIA_MONSELECT		= 127
 
 _LIA_MON_NONE	= 0
 _LIA_MON_IN		= 1
@@ -97,7 +97,8 @@ class LockInAmp(_CoreOscilloscope):
 
 		self.set_filter_parameters(1, 1000, 1)
 		self.set_output_offset(0)
-		self.set_lo_parameters(1e6, 0)
+		self.set_lo_parameters(1e6, 0,)
+		self.set_lo_output
 
 		self.pid1_int_p_gain = 0.0
 		self.pid2_int_p_gain = 0.0
@@ -210,7 +211,7 @@ class LockInAmp(_CoreOscilloscope):
 
 
 	@needs_commit
-	def set_lo_output(self, amplitude, offset):
+	def set_lo_output(self, amplitude, offset, freqeuncy, phase):
 		"""
 		Configure local oscillator output.
 
@@ -224,7 +225,8 @@ class LockInAmp(_CoreOscilloscope):
 		"""
 		self.sineout_amp = amplitude
 		self.sineout_offset = offset
-
+		self.lo_frequency = frequency
+		self.lo_phase = phase
 
 	@needs_commit
 	def set_lo_parameters(self, frequency, phase, use_q=False):
@@ -404,20 +406,25 @@ _lia_reg_hdl = {
 												to_reg_unsigned(0, 48, xform=lambda obj, x: x / _LIA_PHASESCALE),
 												from_reg_unsigned(0, 48, xform=lambda obj, x: x * _LIA_PHASESCALE)),
 
-	'decimation_bitshift':(REG_LIA_DECBITSHIFT,	to_reg_unsigned(0, 4),
-												from_reg_unsigned(0, 4)),
+	'lo_frequency':		((REG_LIA_LO_FREQ_H, REG_LIA_LO_FREQ_L),
+												to_reg_unsigned(0, 48, xform=lambda obj, x: x / _LIA_FREQSCALE),
+												from_reg_unsigned(0, 48, xform=lambda obj, x: x * _LIA_FREQSCALE)),
 
-	'monitor_select0':	(REG_LIA_MONSELECT0,	to_reg_unsigned(0, 3, allow_set=[_LIA_MON_NONE, _LIA_MON_IN, _LIA_MON_PID, _LIA_MON_I, _LIA_MON_Q, _LIA_MON_LO]),
+	'lo_phase':			((REG_LIA_LO_PHASE_H, REG_LIA_LO_PHASE_L),
+												to_reg_unsigned(0, 48, xform=lambda obj, x: x / _LIA_PHASESCALE),
+												to_reg_unsigned(0, 48, xform=lambda	obj, x: x * _LIA_PHASESCALE)),
+
+	'monitor_select0':	(REG_LIA_MONSELECT,	to_reg_unsigned(0, 3, allow_set=[_LIA_MON_NONE, _LIA_MON_IN, _LIA_MON_PID, _LIA_MON_I, _LIA_MON_Q, _LIA_MON_LO]),
 												from_reg_unsigned(0, 3)),
 
-	'monitor_select1':	(REG_LIA_MONSELECT1,	to_reg_unsigned(0, 3, allow_set=[_LIA_MON_NONE, _LIA_MON_IN, _LIA_MON_PID, _LIA_MON_I, _LIA_MON_Q, _LIA_MON_LO]),
+	'monitor_select1':	(REG_LIA_MONSELECT,	to_reg_unsigned(3, 3, allow_set=[_LIA_MON_NONE, _LIA_MON_IN, _LIA_MON_PID, _LIA_MON_I, _LIA_MON_Q, _LIA_MON_LO]),
 												from_reg_unsigned(0, 3)),
 
 	'sineout_amp':		(REG_LIA_SINEOUTAMP,	to_reg_signed(0, 16, xform=lambda obj, x: x / obj._dac_gains()[1]),
 												from_reg_signed(0, 16, xform=lambda obj, x: x * obj._dac_gains()[1])),
 
-	'sineout_offset':	(REG_LIA_SINEOUTOFF,	to_reg_signed(0, 16, xform=lambda obj, x: x / obj._dac_gains()[1]),
-												from_reg_signed(0, 16, xform=lambda obj, x: x * obj._dac_gains()[1])),
+	'sineout_offset':	(REG_LIA_SINEOUTOFF,	to_reg_signed(16, 16, xform=lambda obj, x: x / obj._dac_gains()[1]),
+												from_reg_signed(16, 16, xform=lambda obj, x: x * obj._dac_gains()[1])),
 
 	'input_gain':		(REG_LIA_INPUT_GAIN,	to_reg_signed(0,32, xform=lambda obj, x: x * _LIA_P_GAINSCALE),
 												from_reg_signed(0,32, xform=lambda obj, x: x / _LIA_P_GAINSCALE)),
