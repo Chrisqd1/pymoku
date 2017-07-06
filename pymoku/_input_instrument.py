@@ -218,6 +218,8 @@ class InputInstrument(_instrument.MokuInstrument):
 				logsize = self._estimate_logsize(ch1, ch2, duration, filetype)
 				if f < logsize:
 					raise InsufficientSpace("Insufficient disk space for requested log file (require %d kB, available %d kB)" % (logsize/(2**10), f/(2**10)))
+				elif logsize > 4 * 1024 * 1024 * 1024:
+					raise InsufficientSpace("SD Cards cannot hold files larger than 4GB, estimated log size %d MB", logsize / (2014 * 1024))
 			except MPReadOnly as e:
 				if use_sd:
 					raise MPReadOnly("SD Card is read only.")
