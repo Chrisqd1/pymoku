@@ -325,7 +325,7 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 
 		"""
 		_utils.check_parameter_valid('set', ch, [1,2], 'output channel')
-		_utils.check_parameter_valid('range', amplitude, [0,2.0], 'sweep amplitude','Vpp')
+		_utils.check_parameter_valid('range', amplitude, [0.001,2.0], 'sweep amplitude','Vpp')
 
 		# Set up the output scaling register but also save the voltage value away for use
 		# in the state dictionary to scale incoming data
@@ -338,6 +338,22 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 			self.sweep_amplitude_ch2 = amplitude
 			self.sweep_amp_volts_ch2 = amplitude
 			self.channel2_en = amplitude > 0
+
+	@needs_commit
+	def gen_off(self, ch=None):
+		""" Turn off the output sweep.
+
+		If *ch* is specified, turn off only a single channel, otherwise turn off both.
+
+		:type ch: int; {1,2}
+		:param ch: Channel number to turn off (None, or leave blank, for both)
+
+		"""
+		_utils.check_parameter_valid('set', ch, [1,2,None],'output sweep channel')
+		if ch is None or ch == 1:
+			self.channel1_en = False
+		if ch is None or ch == 2:
+			self.channel2_en = False
 
 	@needs_commit
 	def set_defaults(self):
