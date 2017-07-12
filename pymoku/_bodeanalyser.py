@@ -146,9 +146,9 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 
 	def _calculate_sweep_delta(self, start_frequency, end_frequency, sweep_length, log_scale):
 		if log_scale:
-			sweep_freq_delta = round(((end_frequency / start_frequency)**(1.0/(sweep_length - 1)) - 1) * _NA_FXP_SCALE)
+			sweep_freq_delta = round(((float(end_frequency)/float(start_frequency))**(1.0/(sweep_length - 1)) - 1) * _NA_FXP_SCALE)
 		else:
-			sweep_freq_delta = round(((end_frequency - start_frequency)/(sweep_length-1)) * _NA_FREQ_SCALE)
+			sweep_freq_delta = round((float(end_frequency - start_frequency)/(sweep_length-1)) * _NA_FREQ_SCALE)
 
 		return sweep_freq_delta
 
