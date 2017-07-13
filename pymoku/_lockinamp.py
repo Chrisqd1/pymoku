@@ -51,6 +51,20 @@ REG_LIA_SINEOUTOFF		= 126
 
 REG_LIA_MONSELECT		= 127
 
+
+# REG_LIA_PM_INITF_H 	= 65
+# REG_LIA_PM_INITF_L 	= 64
+REG_LIA_PM_CGAIN 		= 74
+REG_LIA_PM_INTSHIFT 	= 74
+REG_LIA_PM_CSHIFT 		= 74
+REG_LIA_PM_RESET		= 74
+REG_LIA_PM_OUTDEC 		= 75
+REG_LIA_PM_OUTSHIFT 	= 75
+REG_LIA_PM_BW1 			= 71
+REG_LIA_PM_AUTOA1 		= 72
+REG_LIA_PM_REACQ		= 73
+REG_LIA_PID_SELECT		= 76
+
 _LIA_MON_NONE	= 0
 _LIA_MON_IN		= 1
 _LIA_MON_I		= 2
@@ -89,34 +103,50 @@ class LockInAmp(_CoreOscilloscope):
 		self.pid2_diff_d_en = 0
 		self.pid1_diff_i_en = 0
 		self.pid2_diff_i_en = 0
-		self.pid1_bypass = 0
+		self.pid1_bypass = 1
 		self.pid2_bypass = 1
 		self.lo_reset = 0
 
 		self._pid_offset = 0
 
-		self.set_filter_parameters(1, 1000, 1)
+		self.set_filter_parameters(1, 3e6, 1)
 		self.set_output_offset(0)
-		self.set_lo_parameters(1e6, 0,)
-		self.set_lo_output
+		self.set_lo_parameters(5e6, 0)
+		self.set_output_offset(0)
 
-		self.pid1_int_p_gain = 0.0
-		self.pid2_int_p_gain = 0.0
-		self.pid1_diff_d_gain = 0.0
-		self.pid2_diff_d_gain = 0.0
-		self.pid1_diff_p_gain = 0.0
-		self.pid2_diff_p_gain = 0.0
-		self.pid1_diff_i_gain = 0.0
-		self.pid2_diff_i_gain = 0.0
-		self.pid1_diff_ifb_gain = 0.0
-		self.pid2_diff_ifb_gain = 0.0
-		self.decimation_bitshift = 0
+		# self.pid1_int_p_gain = 0.0
+		# self.pid2_int_p_gain = 0.0
+		# self.pid1_diff_d_gain = 0.0
+		# self.pid2_diff_d_gain = 0.0
+		# self.pid1_diff_p_gain = 0.0
+		# self.pid2_diff_p_gain = 0.0
+		# self.pid1_diff_i_gain = 0.0
+		# self.pid2_diff_i_gain = 0.0
+		# self.pid1_diff_ifb_gain = 0.0
+		# self.pid2_diff_ifb_gain = 0.0
+		# self.decimation_bitshift = 0
 
 		self.monitor_select0 = _LIA_MON_IN
 		self.monitor_select1 = _LIA_MON_I
 
-		self.input_gain = 1
-		self.set_lo_output(0.5, 0)
+		self.input_gain = .5
+		self.set_lo_output(0.5, 0.1, 100, 0)
+
+		self.autoacquire = 0
+		self.bandwidth = 0
+		self.lo_PLL = 1
+		self.PIDSelect = 0
+
+		self.autoacquire = 1
+		self.lo_PLL_reset = 0
+		self.lo_reacquire = 1
+
+		self.output_decimation = 1
+		self.output_bitshift = 0
+		# self.framerate = 10
+		# self.frame_length = 1024
+		
+
 
 
 	def _recalc_offsets(self):
@@ -211,7 +241,7 @@ class LockInAmp(_CoreOscilloscope):
 
 
 	@needs_commit
-	def set_lo_output(self, amplitude, offset, freqeuncy, phase):
+	def set_lo_output(self, amplitude, offset, frequency, phase):
 		"""
 		Configure local oscillator output.
 
@@ -428,4 +458,27 @@ _lia_reg_hdl = {
 
 	'input_gain':		(REG_LIA_INPUT_GAIN,	to_reg_signed(0,32, xform=lambda obj, x: x * _LIA_P_GAINSCALE),
 												from_reg_signed(0,32, xform=lambda obj, x: x / _LIA_P_GAINSCALE)),
+
+	'bandwidth':		(REG_LIA_PM_BW1, to_reg_signed(0,5, xform=lambda obj, b: b),
+										from_reg_signed(0,5, xform=lambda obj, b: b)),
+	
+	'lo_PLL':			(REG_LIA_ENABLES, to_reg_bool(19),
+										from_reg_bool(19)),
+
+	'lo_PLL_reset':		(REG_LIA_PM_RESET, to_reg_bool(31),
+										from_reg_bool(31)),
+
+	'lo_reacquire':		(REG_LIA_PM_REACQ, to_reg_bool(0),
+										from_reg_bool(0)),
+
+	'PIDSelect':		(REG_LIA_PID_SELECT, to_reg_unsigned(0,3),
+											from_reg_unsigned(0,3)),
+
+	'output_decimation':	(REG_LIA_PM_OUTDEC,	to_reg_unsigned(0,17),
+											from_reg_unsigned(0,17)),
+
+	'output_shift':			(REG_LIA_PM_OUTSHIFT, to_reg_unsigned(17,5),
+											from_reg_unsigned(17,5)),
+
+	'autoacquire':		(REG_LIA_PM_AUTOA1, to_reg_bool(0), from_reg_bool(0))
 }
