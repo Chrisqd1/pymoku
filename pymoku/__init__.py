@@ -228,8 +228,9 @@ class Moku(object):
 		return self._seq
 
 
-	def _ownership(self, t):
-		packet_data = bytearray([t, 0])
+	def _ownership(self, t, flags):
+		name = socket.gethostname()[:255]
+		packet_data = struct.pack("<BQB", t, len(name) + 1, flags) + name.encode('ascii')
 		self._conn.send(packet_data)
 
 		ack = self._conn.recv()
@@ -241,14 +242,22 @@ class Moku(object):
 
 		Having ownership enables you to send commands to and receive data from the corresponding Moku:Lab.
 		"""
-		return self._ownership(0x40)
+		return self._ownership(0x40, 1)
+
+	def relinquish_ownership(self):
+		"""
+		Drop your claim to the connected Moku:Lab device.
+
+		This will allow other clients to connect immedaitely rather than waiting for a timeout
+		"""
+		return self._ownership(0x40, 0)
 
 	def is_owner(self):
 		"""	Checks if you are the current owner of the Moku:Lab device.
 
 		:rtype: bool
 		:return: True if you are the owner of the device."""
-		return self._ownership(0x41)
+		return self._ownership(0x41, 0)
 
 
 	def _read_regs(self, commands):
@@ -279,35 +288,48 @@ class Moku(object):
 			raise NetworkError()
 
 
-	def _read_regs_extended(self, regs):
-		# TODO: replace the above implementation with this once firmware supporing
-		# the extended read is widely available
+	def _slotdata_read_regs(self, regs):
+		return b''.join([struct.pack("<H", r) for r in regs])
 
-		packet_data = struct.pack("<BBHB", 0x55, 0, len(regs), 0)
-		packet_data += b''.join([struct.pack("<H", r) for r in regs])
+	def _slotdata_write_regs(self, regdat):
+		return b''.join([struct.pack("<HI", r, d) for r, d in regdat])
 
-		self._conn.send(packet_data)
+	def _slotdata_read_lut(self, off, _len, mirrored=False):
+		addr = 257 if not mirrored else 258
+		return struct.pack("<HII", addr, off, _len)
+
+	def _slotdata_write_lut(self, off, data):
+		addr = 257 # Mirrored and unmirrored are the same for writing
+		return struct.pack("<HII", addr, off, len(data)) + data
+
+	def _slotdata_read_maxi(self, addr):
+		return struct.pack("<H", addr + 1024) # Addr is 0-based, not 1024
+
+	def _slotdata_write_maxi(self, addr, data):
+		return struct.pack("<HH", addr + 1024, len(data)) + data
+
+	def _slot_packet(self, data, read=True):
+		packet_data = struct.pack("<BQB", 0x55, len(data), 0 if read else 1)
+		self._conn.send(packet_data + data)
 		ack = self._conn.recv()
 
-		t, _, c = struct.unpack("<BBH", ack[:4])
+		t, _, c = struct.unpack("<BQQ", ack[:17])
 
-		if t != 0x55 or c != len(regs):
+		if t != 0x55:
 			raise NetworkError()
 
-		ack = ack[4:]
-		return [struct.unpack('<HI', ack[x:x + 6]) for x in range(0, c * 6, 6)]
+		return ack[17:]
 
-	def _write_regs_extended(self, regs):
-		# TODO: As above
-		packet_data = struct.pack("<BBHB", 0x55, 0, len(regs), 1)
-		packet_data += b''.join([ struct.pack("<HI", a, d) for a, d in regs])
-		self._conn.send(packet_data)
-		ack = self._conn.recv()
+	def _read_slots(self, data):
+		# Takes a data string which is the concatenation of one or more strings
+		# built using the _slotdata_read_* helpers
+		return self._slot_packet(data)
 
-		t, _, c = struct.unpack("<BBH", ack[:4])
+	def _write_slots(self, data):
+		# Takes a data string which is the concatenation of one of more strings
+		# built using the _slotdata_write_* helpers
+		return self._slot_packet(data, False)
 
-		if t != 0x55 or c > 0:
-			raise NetworkError()
 
 
 	def _deploy(self, partial_index=0, use_external=False):
@@ -986,6 +1008,7 @@ class Moku(object):
 		if self._instrument is not None:
 			self._instrument._set_running(False)
 
+		self.relinquish_ownership()
 		self._conn.close()
 		# Don't clobber the ZMQ context as it's global to the interpretter, if the user has multiple Moku
 		# objects then we don't want to mess with that.
