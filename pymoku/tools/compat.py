@@ -1,6 +1,11 @@
 import os, os.path
-import requests
 import json
+
+try:
+	import requests
+	use_requests = True
+except ImportError:
+	use_requests = False
 
 import pymoku.version
 
@@ -36,6 +41,9 @@ def compatable_configurations(server, username, password):
 def firmware_is_compatible(build_id, server=None, username=None, password=None):
 	if build_id == 65535:
 		return None # Development build, unable to determine
+
+	if not use_requests: # Could still look in the cache
+		return None
 
 	try:
 		configs = compatable_configurations(server, username, password)
