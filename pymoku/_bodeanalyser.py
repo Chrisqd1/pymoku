@@ -26,7 +26,6 @@ _NA_DAC_VRANGE 		= 1
 _NA_DAC_BITDEPTH 	= 2**16
 _NA_DAC_BITS2V		= _NA_DAC_BITDEPTH/_NA_DAC_VRANGE
 _NA_SCREEN_WIDTH	= 1024
-_NA_FPS				= 2
 _NA_FREQ_SCALE		= 2**48 / _NA_DAC_SMPS
 _NA_FXP_SCALE 		= 2.0**30
 
@@ -359,8 +358,6 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 	def set_defaults(self):
 		""" Reset the Bode Analyser to sane defaults """
 		super(BodeAnalyser, self).set_defaults()
-
-		self.framerate = _NA_FPS
 		self.frame_length = _NA_SCREEN_WIDTH
 
 		self.x_mode = SWEEP

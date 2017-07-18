@@ -55,7 +55,6 @@ _SA_ADC_SMPS		= ADC_SMP_RATE
 _SA_BUFLEN			= 2**14
 _SA_SCREEN_WIDTH	= 1024
 _SA_SCREEN_STEPS	= _SA_SCREEN_WIDTH - 1
-_SA_FPS				= 10
 _SA_FFT_LENGTH		= 8192/2
 _SA_FREQ_SCALE		= 2**32 / _SA_ADC_SMPS
 _SA_INT_VOLTS_SCALE = (1.437*pow(2.0,-8.0))
@@ -346,9 +345,9 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 	.. automethod:: pymoku.instruments.SpectrumAnalyser.__init__
 
 	.. attribute:: framerate
-		:annotation: = 2
+		:annotation: = 10
 
-		Frame Rate, range 1 - 30.
+		Frame Rate, range 10 - 30.
 
 	.. attribute:: type
 		:annotation: = "specan"
@@ -568,7 +567,6 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		""" Reset the Spectrum Analyser to sane defaults. """
 		super(SpectrumAnalyser, self).set_defaults()
 		#TODO this should reset ALL registers
-		self.framerate = _SA_FPS
 		self.frame_length = _SA_SCREEN_WIDTH
 
 		self.offset = 0

@@ -51,7 +51,6 @@ _OSC_AIN_DECI		= 1
 _OSC_ADC_SMPS		= ADC_SMP_RATE
 _OSC_BUFLEN			= CHN_BUFLEN
 _OSC_SCREEN_WIDTH	= 1024
-_OSC_FPS			= 10
 
 # Max/min values for instrument settings
 _OSC_TRIGLVL_MAX = 10.0 # V
@@ -551,7 +550,6 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		self.set_timebase(-1, 1)
 		self._set_pause(False)
 
-		self.framerate = _OSC_FPS
 		self.frame_length = _OSC_SCREEN_WIDTH
 		self._set_buffer_length(4)
 		self.set_xmode('fullframe')
@@ -720,7 +718,7 @@ class Oscilloscope(_CoreOscilloscope, _waveform_generator.BasicWaveformGenerator
 	.. attribute:: framerate
 		:annotation: = 10
 
-		Frame Rate, range 1 - 30.
+		Frame Rate, range 10 - 30.
 
 	.. attribute:: type
 		:annotation: = "oscilloscope"

@@ -43,7 +43,7 @@ try:
 	i.set_rbw() # Auto-mode
 
 	# Set up the embedded signal generator
-	i.gen_sinewave(1, 1.0, None, sweep=True)
+	i.gen_sinewave(1, 1.0, 0, sweep=True)
 	i.gen_sinewave(2, 0.5, 20e6)
 
 	# Configure ADC inputs

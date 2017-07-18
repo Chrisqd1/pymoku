@@ -635,7 +635,8 @@ _instr_reg_handlers = {
 	'waveform_avg1':	(REG_FILT,		to_reg_unsigned(2, 4, allow_range=(0,13)),		from_reg_unsigned(2, 4)),
 	'waveform_avg2':	(REG_FILT,		to_reg_unsigned(6, 4, allow_range=(0,13)),		from_reg_unsigned(6, 4)),
 
-	'framerate':		(REG_FRATE,		to_reg_unsigned(0, 8, xform=lambda obj, f: f * 256.0 / 477.0),
+	# Allow range is set to allow ~10-30Hz
+	'framerate':		(REG_FRATE,		to_reg_unsigned(0, 8, allow_range=(5,15), xform=lambda obj, f: f * 256.0 / 477.0),
 										from_reg_unsigned(0, 8, xform=lambda obj, f: f / 256.0 * 477.0)),
 
 	# Cubic Downsampling accessors

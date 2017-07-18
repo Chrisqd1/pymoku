@@ -379,7 +379,6 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_WaveformGe
 
 		# Because we have to deal with a "frame" type instrument
 		self.x_mode = _instrument.ROLL
-		self.framerate = 0
 
 		# Set basic configurations
 		self.set_samplerate('fast')

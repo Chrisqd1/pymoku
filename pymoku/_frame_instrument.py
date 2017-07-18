@@ -166,6 +166,13 @@ class FrameBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuIn
 		"""
 		return self._buflen
 
+	def set_defaults(self):
+		""" Set instrument default parameters"""
+		super(FrameBasedInstrument, self).set_defaults()
+
+		# TODO: All instruments currently run at 10Hz due to kernel timing
+		self.framerate = 10
+
 
 	def get_data(self, timeout=None, wait=True):
 		""" Get full-resolution data from the instrument.
