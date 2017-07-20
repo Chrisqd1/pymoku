@@ -88,8 +88,8 @@ class InstrumentData(object):
 		#: Incremented once per trigger event. Wraps at 32-bits.
 		self.waveformid = 0
 
-		#: Determines if the frame contains valid synchronised data (ie. waveformid > 0 or wrapped)
-		self._synchronised = False
+		#: True if at least one trigger event has occured, synchronising the data across all channels.
+		self.synchronised = False
 
 		self._flags = None
 
@@ -133,18 +133,18 @@ class InstrumentData(object):
 				self._complete = False
 				self._chs_valid = [False, False]
 
-	def process_complete(self, wid_wrapped=False):
+	def process_complete(self):
 		# Update the waveform ID latch of the parent instrument as soon as waveform ID increments
-		self._instrument._wid_wrapped = self._instrument._wid_wrapped or (self.waveformid > 0)
+		self._instrument._data_syncd |= self.waveformid > 0
 
 		# We can't be sure the channels have synchronised in the channel buffers until the first
 		# triggered waveform is received.
-		if not(self._instrument._wid_wrapped) and self.waveformid == 0:
+		if not self._instrument._data_syncd:
 			log.debug("Waveform ID 0 detected. Waiting for channel data to synchronise.")
 			self._raw1 = struct.pack('<i',-0x80000000)*int(len(self._raw1)/4)
 			self._raw2 = struct.pack('<i',-0x80000000)*int(len(self._raw2)/4)
 		else:
-			self._synchronised = True
+			self.synchronised = True
 
 		return True
 
@@ -162,7 +162,7 @@ class FrameBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuIn
 		self._hb_forced = False
 
 		# Tracks whether the waveformid of frames received so far has wrapped
-		self._wid_wrapped = False
+		self._data_syncd = False
 
 	def _set_frame_class(self, frame_class, **frame_kwargs):
 		self._frame_class = frame_class
@@ -239,7 +239,7 @@ class FrameBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuIn
 
 		# Wait on a synchronised frame or timeout, whichever comes first
 		timeout_time = time.time() + (timeout if timeout else 0)
-		while not(frame._synchronised):
+		while not(frame.synchronised):
 			if (time.time() > timeout_time):
 				raise FrameTimeout("Timed out waiting on instrument data.") 
 			frame = self.get_realtime_data(timeout=timeout, wait=wait)
