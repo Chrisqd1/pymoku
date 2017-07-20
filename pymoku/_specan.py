@@ -55,7 +55,6 @@ _SA_ADC_SMPS		= ADC_SMP_RATE
 _SA_BUFLEN			= 2**14
 _SA_SCREEN_WIDTH	= 1024
 _SA_SCREEN_STEPS	= _SA_SCREEN_WIDTH - 1
-_SA_FPS				= 10
 _SA_FFT_LENGTH		= 8192/2
 _SA_FREQ_SCALE		= 2**32 / _SA_ADC_SMPS
 _SA_INT_VOLTS_SCALE = (1.437*pow(2.0,-8.0))
@@ -161,8 +160,8 @@ class SpectrumData(_frame_instrument.InstrumentData):
 	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumData.waveformid
 		:annotation: = n
 	"""
-	def __init__(self, scales):
-		super(SpectrumData, self).__init__()
+	def __init__(self, instrument, scales):
+		super(SpectrumData, self).__init__(instrument)
 
 		#: Channel 1 data array in units of power. Present whether or not the channel is enabled, but the
 		#: contents are undefined in the latter case.
@@ -188,6 +187,7 @@ class SpectrumData(_frame_instrument.InstrumentData):
 		return 10.0*math.log(v*v/50.0,10) + 30.0
 
 	def process_complete(self):
+		super(SpectrumData, self).process_complete()
 
 		if self._stateid not in self._scales:
 			log.error("Can't render SpectrumAnalyser frame, haven't saved calibration data for state %d", self._stateid)
@@ -346,9 +346,9 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 	.. automethod:: pymoku.instruments.SpectrumAnalyser.__init__
 
 	.. attribute:: framerate
-		:annotation: = 2
+		:annotation: = 10
 
-		Frame Rate, range 1 - 30.
+		Frame Rate, range 10 - 30.
 
 	.. attribute:: type
 		:annotation: = "specan"
@@ -362,7 +362,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		self._register_accessors(_sa_reg_handlers)
 
 		self.scales = {}
-		self._set_frame_class(SpectrumData, scales=self.scales)
+		self._set_frame_class(SpectrumData, instrument=self, scales=self.scales)
 
 		self.id = 2
 		self.type = "specan"
@@ -568,7 +568,6 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		""" Reset the Spectrum Analyser to sane defaults. """
 		super(SpectrumAnalyser, self).set_defaults()
 		#TODO this should reset ALL registers
-		self.framerate = _SA_FPS
 		self.frame_length = _SA_SCREEN_WIDTH
 
 		self.offset = 0

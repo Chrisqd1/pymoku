@@ -26,7 +26,6 @@ _NA_DAC_VRANGE 		= 1
 _NA_DAC_BITDEPTH 	= 2**16
 _NA_DAC_BITS2V		= _NA_DAC_BITDEPTH/_NA_DAC_VRANGE
 _NA_SCREEN_WIDTH	= 1024
-_NA_FPS				= 2
 _NA_FREQ_SCALE		= 2**48 / _NA_DAC_SMPS
 _NA_FXP_SCALE 		= 2.0**30
 
@@ -80,9 +79,8 @@ class BodeData(_frame_instrument.InstrumentData):
 	- ``waveformid`` = ``n`` 
 
 	"""
-
-	def __init__(self, scales):
-		super(BodeData, self).__init__()
+	def __init__(self, instrument, scales):
+		super(BodeData, self).__init__(instrument)
 
 		#: The frequency range associated with both channels
 		self.frequency = []
@@ -94,6 +92,8 @@ class BodeData(_frame_instrument.InstrumentData):
 		return { 'ch1' : self.ch1, 'ch2' : self.ch2, 'frequency' : self.frequency, 'waveform_id' : self.waveformid }
 
 	def process_complete(self):
+		super(BodeData, self).process_complete()
+
 		if self._stateid not in self.scales:
 			log.debug("Can't render BodeData frame, haven't saved calibration data for state %d", self._stateid)
 			self.complete = False
@@ -136,7 +136,7 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 		self._register_accessors(_na_reg_handlers)
 
 		self.scales = {}
-		self._set_frame_class(BodeData, scales=self.scales)
+		self._set_frame_class(BodeData, instrument=self, scales=self.scales)
 
 		self.id = 9
 		self.type = "BodeAnalyser"
@@ -146,9 +146,9 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 
 	def _calculate_sweep_delta(self, start_frequency, end_frequency, sweep_length, log_scale):
 		if log_scale:
-			sweep_freq_delta = round(((end_frequency / start_frequency)**(1.0/(sweep_length - 1)) - 1) * _NA_FXP_SCALE)
+			sweep_freq_delta = round(((float(end_frequency)/float(start_frequency))**(1.0/(sweep_length - 1)) - 1) * _NA_FXP_SCALE)
 		else:
-			sweep_freq_delta = round(((end_frequency - start_frequency)/(sweep_length-1)) * _NA_FREQ_SCALE)
+			sweep_freq_delta = round((float(end_frequency - start_frequency)/(sweep_length-1)) * _NA_FREQ_SCALE)
 
 		return sweep_freq_delta
 
@@ -325,7 +325,7 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 
 		"""
 		_utils.check_parameter_valid('set', ch, [1,2], 'output channel')
-		_utils.check_parameter_valid('range', amplitude, [0,2.0], 'sweep amplitude','Vpp')
+		_utils.check_parameter_valid('range', amplitude, [0.001,2.0], 'sweep amplitude','Vpp')
 
 		# Set up the output scaling register but also save the voltage value away for use
 		# in the state dictionary to scale incoming data
@@ -340,11 +340,25 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 			self.channel2_en = amplitude > 0
 
 	@needs_commit
+	def gen_off(self, ch=None):
+		""" Turn off the output sweep.
+
+		If *ch* is specified, turn off only a single channel, otherwise turn off both.
+
+		:type ch: int; {1,2}
+		:param ch: Channel number to turn off (None, or leave blank, for both)
+
+		"""
+		_utils.check_parameter_valid('set', ch, [1,2,None],'output sweep channel')
+		if ch is None or ch == 1:
+			self.channel1_en = False
+		if ch is None or ch == 2:
+			self.channel2_en = False
+
+	@needs_commit
 	def set_defaults(self):
 		""" Reset the Bode Analyser to sane defaults """
 		super(BodeAnalyser, self).set_defaults()
-
-		self.framerate = _NA_FPS
 		self.frame_length = _NA_SCREEN_WIDTH
 
 		self.x_mode = SWEEP

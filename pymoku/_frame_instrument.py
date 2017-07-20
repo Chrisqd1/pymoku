@@ -65,7 +65,10 @@ class InstrumentData(object):
 	which it originated. For example, the :any:`Oscilloscope` instrument will generate :any:`VoltsData`
 	objects, where :any:`VoltsData` is a subclass of :any:`InstrumentData`.
 	"""
-	def __init__(self):
+	def __init__(self, instrument):
+		#: A reference to the parent instrument that generates this data object
+		self._instrument = instrument
+
 		self._complete = False
 		self._chs_valid = [False, False]
 
@@ -84,6 +87,9 @@ class InstrumentData(object):
 
 		#: Incremented once per trigger event. Wraps at 32-bits.
 		self.waveformid = 0
+
+		#: True if at least one trigger event has occured, synchronising the data across all channels.
+		self.synchronised = False
 
 		self._flags = None
 
@@ -128,7 +134,18 @@ class InstrumentData(object):
 				self._chs_valid = [False, False]
 
 	def process_complete(self):
-		# Designed to be overridden by subclasses needing to transform the raw data in to Volts etc.
+		# Update the waveform ID latch of the parent instrument as soon as waveform ID increments
+		self._instrument._data_syncd |= self.waveformid > 0
+
+		# We can't be sure the channels have synchronised in the channel buffers until the first
+		# triggered waveform is received.
+		if not self._instrument._data_syncd:
+			log.debug("Waveform ID 0 detected. Waiting for channel data to synchronise.")
+			self._raw1 = struct.pack('<i',-0x80000000)*int(len(self._raw1)/4)
+			self._raw2 = struct.pack('<i',-0x80000000)*int(len(self._raw2)/4)
+		else:
+			self.synchronised = True
+
 		return True
 
 	def process_buffer(self):
@@ -143,6 +160,9 @@ class FrameBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuIn
 		self._buflen = 1
 		self._queue = FrameQueue(maxsize=self._buflen)
 		self._hb_forced = False
+
+		# Tracks whether the waveformid of frames received so far has wrapped
+		self._data_syncd = False
 
 	def _set_frame_class(self, frame_class, **frame_kwargs):
 		self._frame_class = frame_class
@@ -165,6 +185,13 @@ class FrameBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuIn
 		""" Return the current length of the internal frame buffer
 		"""
 		return self._buflen
+
+	def set_defaults(self):
+		""" Set instrument default parameters"""
+		super(FrameBasedInstrument, self).set_defaults()
+
+		# TODO: All instruments currently run at 10Hz due to kernel timing
+		self.framerate = 10
 
 
 	def get_data(self, timeout=None, wait=True):
@@ -209,6 +236,13 @@ class FrameBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuIn
 		# Block waiting on state to propagate (if wait=True) or a trigger to occur (wait=False)
 		# This also gives us acquisition parameters for the buffer we will subsequently stream
 		frame = self.get_realtime_data(timeout=timeout, wait=wait)
+
+		# Wait on a synchronised frame or timeout, whichever comes first
+		timeout_time = time.time() + (timeout if timeout else 0)
+		while not(frame.synchronised):
+			if (time.time() > timeout_time):
+				raise FrameTimeout("Timed out waiting on instrument data.") 
+			frame = self.get_realtime_data(timeout=timeout, wait=wait)
 
 		# Check if it is already paused
 		was_paused = self._get_pause()
