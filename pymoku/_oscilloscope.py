@@ -87,8 +87,8 @@ class VoltsData(_frame_instrument.InstrumentData):
 	.. autoinstanceattribute:: pymoku._frame_instrument.VoltsData.waveformid
 		:annotation: = n
 	"""
-	def __init__(self, scales):
-		super(VoltsData, self).__init__()
+	def __init__(self, instrument, scales):
+		super(VoltsData, self).__init__(instrument)
 
 		#: Channel 1 data array in units of Volts. Present whether or not the channel is enabled, but the
 		#: contents are undefined in the latter case.
@@ -106,6 +106,8 @@ class VoltsData(_frame_instrument.InstrumentData):
 		return { 'ch1': self.ch1, 'ch2' : self.ch2, 'time' : self.time, 'waveform_id' : self.waveformid }
 
 	def process_complete(self):
+		super(VoltsData, self).process_complete()
+
 		if self._stateid not in self._scales:
 			log.info("Can't render voltage frame, haven't saved calibration data for state %d", self._stateid)
 			return
@@ -217,7 +219,7 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		# NOTE: Register mapped properties will be overwritten in sync registers call
 		# on deploy_instrument(). No point setting them here.
 		self.scales = {}
-		self._set_frame_class(VoltsData, scales=self.scales)
+		self._set_frame_class(VoltsData, instrument=self, scales=self.scales)
 
 		# Define any (non-register-mapped) properties that are used when committing
 		# as a commit is called when the instrument is set running

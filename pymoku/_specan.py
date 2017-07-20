@@ -160,8 +160,8 @@ class SpectrumData(_frame_instrument.InstrumentData):
 	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumData.waveformid
 		:annotation: = n
 	"""
-	def __init__(self, scales):
-		super(SpectrumData, self).__init__()
+	def __init__(self, instrument, scales):
+		super(SpectrumData, self).__init__(instrument)
 
 		#: Channel 1 data array in units of power. Present whether or not the channel is enabled, but the
 		#: contents are undefined in the latter case.
@@ -187,6 +187,7 @@ class SpectrumData(_frame_instrument.InstrumentData):
 		return 10.0*math.log(v*v/50.0,10) + 30.0
 
 	def process_complete(self):
+		super(SpectrumData, self).process_complete()
 
 		if self._stateid not in self._scales:
 			log.error("Can't render SpectrumAnalyser frame, haven't saved calibration data for state %d", self._stateid)
@@ -361,7 +362,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		self._register_accessors(_sa_reg_handlers)
 
 		self.scales = {}
-		self._set_frame_class(SpectrumData, scales=self.scales)
+		self._set_frame_class(SpectrumData, instrument=self, scales=self.scales)
 
 		self.id = 2
 		self.type = "specan"

@@ -79,9 +79,8 @@ class BodeData(_frame_instrument.InstrumentData):
 	- ``waveformid`` = ``n`` 
 
 	"""
-
-	def __init__(self, scales):
-		super(BodeData, self).__init__()
+	def __init__(self, instrument, scales):
+		super(BodeData, self).__init__(instrument)
 
 		#: The frequency range associated with both channels
 		self.frequency = []
@@ -93,6 +92,8 @@ class BodeData(_frame_instrument.InstrumentData):
 		return { 'ch1' : self.ch1, 'ch2' : self.ch2, 'frequency' : self.frequency, 'waveform_id' : self.waveformid }
 
 	def process_complete(self):
+		super(BodeData, self).process_complete()
+
 		if self._stateid not in self.scales:
 			log.debug("Can't render BodeData frame, haven't saved calibration data for state %d", self._stateid)
 			self.complete = False
@@ -135,7 +136,7 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 		self._register_accessors(_na_reg_handlers)
 
 		self.scales = {}
-		self._set_frame_class(BodeData, scales=self.scales)
+		self._set_frame_class(BodeData, instrument=self, scales=self.scales)
 
 		self.id = 9
 		self.type = "BodeAnalyser"
