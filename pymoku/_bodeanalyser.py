@@ -235,13 +235,13 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 				}
 
 	@needs_commit
-	def set_sweep(self, f_start=100, f_end=125e6, sweep_points=512, sweep_log=False, averaging_time=1e-3, settling_time=1e-3, averaging_cycles=1, settling_cycles=1):
+	def set_sweep(self, f_start=100, f_end=120e6, sweep_points=512, sweep_log=False, averaging_time=1e-3, settling_time=1e-3, averaging_cycles=1, settling_cycles=1):
 		""" Set the output sweep parameters
 
-		:type f_start: int; 1 <= f_start <= 125e6 Hz
+		:type f_start: int; 1 <= f_start <= 120e6 Hz
 		:param f_start: Sweep start frequency
 
-		:type f_end: int; 1 <= f_end <= 125e6 Hz
+		:type f_end: int; 1 <= f_end <= 120e6 Hz
 		:param f_end: Sweep end frequency
 
 		:type sweep_points: int; 32 <= sweep_points <= 512
@@ -262,8 +262,8 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 		:type settling_cycles: int; cycles
 		:param settling_cycles: Minimum settling cycles per sweep point.
 		"""
-		_utils.check_parameter_valid('range', f_start, [1,125e6],'sweep start frequency', 'Hz')
-		_utils.check_parameter_valid('range', f_end, [1,125e6],'sweep end frequency', 'Hz')
+		_utils.check_parameter_valid('range', f_start, [1,120e6],'sweep start frequency', 'Hz')
+		_utils.check_parameter_valid('range', f_end, [1,120e6],'sweep end frequency', 'Hz')
 		_utils.check_parameter_valid('range', sweep_points, [32,512],'sweep points')
 		_utils.check_parameter_valid('bool', sweep_log, desc='sweep log scale enable')
 		_utils.check_parameter_valid('range', averaging_time, [1e-6,10], 'sweep averaging time', 'sec')
