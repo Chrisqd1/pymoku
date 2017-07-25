@@ -287,6 +287,8 @@ class Moku(object):
 		if t != 0x47 or err or l:
 			raise NetworkError()
 
+	def _slotdata_write_commit(self):
+		return struct.pack("<H", 0)
 
 	def _slotdata_read_regs(self, regs):
 		return b''.join([struct.pack("<H", r) for r in regs])
