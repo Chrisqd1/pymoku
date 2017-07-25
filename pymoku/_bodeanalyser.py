@@ -356,12 +356,29 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 			self.channel2_en = False
 
 	@needs_commit
+	def set_xmode(self, xmode):
+		"""
+		Set rendering mode for the horizontal axis.
+
+		:type xmode: string, {'sweep','fullframe'}
+		:param xmode:
+			Respectively; Sweep Mode (bode function sweeping across the screen)
+			or Full Frame (like sweep, but waits for the frame to be completed).
+		"""
+		_str_to_xmode = {
+			'sweep' : SWEEP,
+			'fullframe' : FULL_FRAME
+		}
+		xmode = _utils.str_to_val(_str_to_xmode, xmode, 'X-mode')
+		self.x_mode = xmode
+
+	@needs_commit
 	def set_defaults(self):
 		""" Reset the Bode Analyser to sane defaults """
 		super(BodeAnalyser, self).set_defaults()
 		self.frame_length = _NA_SCREEN_WIDTH
 
-		self.x_mode = SWEEP
+		self.x_mode = FULL_FRAME
 		self.render_mode = RDR_DDS
 
 		self.en_in_ch1 = True
