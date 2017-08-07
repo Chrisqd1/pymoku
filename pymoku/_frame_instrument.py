@@ -13,6 +13,8 @@ from queue import Queue, Empty
 from . import *
 from . import _instrument, _get_autocommit, _input_instrument
 
+from ._instrument import needs_commit
+
 log = logging.getLogger(__name__)
 
 class FrameQueue(Queue):
@@ -287,6 +289,12 @@ class FrameBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuIn
 			return buff
 		else:
 			raise Exception("Unable to process instrument data.")
+
+	@needs_commit
+	def set_framerate(self, fr):
+		""" Set framerate """
+		self.framerate = fr
+
 
 	def get_realtime_data(self, timeout=None, wait=True):
 		""" Get downsampled data from the instrument with low latency.
