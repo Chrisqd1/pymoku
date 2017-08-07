@@ -1,0 +1,3 @@
+[submodule "liquidreader"]
+	path = liquidreader
+	url = git@git.liquidinstruments.com:mercury-open/liquidreader.git
