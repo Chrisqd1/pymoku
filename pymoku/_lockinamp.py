@@ -63,7 +63,7 @@ REG_LIA_PM_OUTSHIFT 	= 75
 REG_LIA_PM_BW1 			= 71
 REG_LIA_PM_AUTOA1 		= 72
 REG_LIA_PM_REACQ		= 73
-REG_LIA_PID_SELECT		= 76
+REG_LIA_SIG_SELECT		= 76
 
 _LIA_MON_NONE	= 0
 _LIA_MON_IN		= 1
@@ -97,8 +97,8 @@ class LockInAmp(_CoreOscilloscope):
 		self.pid2_int_i_en = 1
 		self.pid1_int_dc_pole = 0
 		self.pid2_int_dc_pole = 0
-		self.pid1_int_p_en = 0
-		self.pid2_int_p_en = 0
+		self.pid1_int_p_en = 1
+		self.pid2_int_p_en = 1
 		self.pid1_diff_d_en = 0
 		self.pid2_diff_d_en = 0
 		self.pid1_diff_i_en = 0
@@ -109,42 +109,44 @@ class LockInAmp(_CoreOscilloscope):
 
 		self._pid_offset = 0
 
-		self.set_filter_parameters(1, 3e6, 1)
+		self.set_filter_parameters(1, 1e6, 2)
 		self.set_output_offset(0)
-		self.set_lo_parameters(5e6, 0)
+		self.set_lo_parameters(11e6, 0)
 		self.set_output_offset(0)
 
-		# self.pid1_int_p_gain = 0.0
-		# self.pid2_int_p_gain = 0.0
-		# self.pid1_diff_d_gain = 0.0
-		# self.pid2_diff_d_gain = 0.0
-		# self.pid1_diff_p_gain = 0.0
-		# self.pid2_diff_p_gain = 0.0
-		# self.pid1_diff_i_gain = 0.0
-		# self.pid2_diff_i_gain = 0.0
-		# self.pid1_diff_ifb_gain = 0.0
-		# self.pid2_diff_ifb_gain = 0.0
+
+		self.pid2_int_p_gain = 2**12 / 2**24
+		self.pid2_diff_d_gain = 0.0
+		self.pid2_diff_p_gain = 0.0
+		self.pid2_diff_i_gain = 0.0
+		self.pid2_diff_ifb_gain = 0.0
 		# self.decimation_bitshift = 0
 
 		self.monitor_select0 = _LIA_MON_IN
 		self.monitor_select1 = _LIA_MON_I
 
 		self.input_gain = .5
-		self.set_lo_output(0.5, 0.1, 100, 0)
-
-		self.autoacquire = 0
-		self.bandwidth = 0
-		self.lo_PLL = 1
-		self.PIDSelect = 0
+		self.set_lo_output(0.5, 0.1, 11e6, 0)
 
 		self.autoacquire = 1
+		self.bandwidth = 0
+		self.lo_PLL = 0
+		self.pid_select = 1
+		self.gain_select = 0
+		self.ch_select = 0
+
+		self.AuxSel = 1
+		self.autoacquire = 1
 		self.lo_PLL_reset = 0
-		self.lo_reacquire = 1
+		self.lo_reacquire = 0
+		self.ext_demod = 0
 
 		self.output_decimation = 1
 		self.output_bitshift = 0
-		# self.framerate = 10
-		# self.frame_length = 1024
+
+		self.filt_bypass1 = 0
+		self.filt_bypass2 = 0
+		# self.filt_bypass = 0
 		
 
 
@@ -180,27 +182,24 @@ class LockInAmp(_CoreOscilloscope):
 		atten_gain = 1 if (self.relays_ch1 & RELAY_LOWG) else 10
 		gain_factor = impedence_gain * atten_gain * (10**(gain / 20.0)) * self._dac_gains()[0] / self._adc_gains()[0]
 
-		coeff = 1 - (math.pi * f_corner) /_LIA_CONTROL_FS
+		coeff = 1 - 2*(math.pi * f_corner) /_LIA_CONTROL_FS
 
 		self.pid1_int_ifb_gain = coeff
-		self.pid2_int_ifb_gain = coeff
-
+	
 		self.pid1_int_i_gain = 1.0 - coeff
-		self.pid2_int_i_gain = 1.0 - coeff
-
+	
 		self.pid1_int_dc_pole = integrator
-		self.pid2_int_dc_pole = integrator
 
 		if order == 0:
-			self.pid1_bypass = True
-			self.pid2_bypass = True
-		elif order == 1:
-			self.pid1_bypass = False
-			self.pid2_bypass = True
+			self.filt_bypass1 = True
+			self.filt_bypass2 = True
+		if order == 1:
+			self.filt_bypass1 = False
+			self.filt_bypass2 = True
 			self.slope = 1
 		elif order == 2:
-			self.pid1_bypass = False
-			self.pid2_bypass = False
+			self.filt_bypass1 = False
+			self.filt_bypass2 = False
 			self.slope = 2
 		else:
 			raise ValueOutOfRangeException("Order must be 0 (bypass), 1 or 2; not %d" % order)
@@ -211,13 +210,13 @@ class LockInAmp(_CoreOscilloscope):
 				self.pid1_pidgain = self.pid2_pidgain = 1.0
 			else :
 				self.input_gain = self.pid1_pidgain =  math.sqrt(gain_factor)
-				self.pid2_pidgain = 1.0
+				self.pid1_pidgain = 1.0
 		elif mode == 'range':
 			if order == 1:
 				self.pid1_pidgain =  gain_factor
-				self.input_gain = self.pid2_pidgain = 1.0
+				self.input_gain = 1.0
 			else:
-				self.pid1_pidgain = self.pid2_pidgain = math.sqrt(gain_factor)
+				self.pid1_pidgain = math.sqrt(gain_factor)
 				self.input_gain = 1.0
 		else:
 			raise ValueOutOfRangeException('Signal Mode must be one of "precision" or "range", not %s' % self.signal_mode)
@@ -350,11 +349,11 @@ _lia_reg_hdl = {
 	'pid2_diff_i_en':	(REG_LIA_ENABLES,		to_reg_bool(11),
 												from_reg_bool(11)),
 
-	'pid1_bypass':		(REG_LIA_ENABLES,		to_reg_bool(12),
-												from_reg_bool(12)),
+	'pid1_bypass':		(REG_LIA_ENABLES,		to_reg_bool(24),
+												from_reg_bool(24)),
 
-	'pid2_bypass':		(REG_LIA_ENABLES,		to_reg_bool(13),
-												from_reg_bool(13)),
+	'pid2_bypass':		(REG_LIA_ENABLES,		to_reg_bool(25),
+												from_reg_bool(25)),
 
 	'lo_reset':			(REG_LIA_ENABLES,		to_reg_bool(14),
 												from_reg_bool(14)),
@@ -380,11 +379,11 @@ _lia_reg_hdl = {
 	'pid2_out_offset':	(REG_LIA_OUT_OFFSET2,	to_reg_signed(0, 16, xform=lambda obj, x: x * obj._dac_gains()[0]),
 												from_reg_signed(0, 16, xform=lambda obj, x: x / obj._dac_gains()[0])),
 
-	'pid1_pidgain':		(REG_LIA_PIDGAIN1,		to_reg_signed(0, 32, xform=lambda obj, x : x * _LIA_P_GAINSCALE),
-												from_reg_signed(0, 32, xform=lambda obj, x: x / _LIA_P_GAINSCALE)),
+	'pid1_pidgain':		(REG_LIA_PIDGAIN1,		to_reg_signed(0, 32, xform=lambda obj, x : x * 2**15),
+												from_reg_signed(0, 32, xform=lambda obj, x: x / 2**15)),
 
-	'pid2_pidgain':		(REG_LIA_PIDGAIN2,		to_reg_signed(0, 32, xform=lambda obj, x : x * _LIA_P_GAINSCALE),
-												from_reg_signed(0, 32, xform=lambda obj, x: x / _LIA_P_GAINSCALE)),
+	'pid2_pidgain':		(REG_LIA_PIDGAIN2,		to_reg_signed(0, 32, xform=lambda obj, x : x * 2**15),
+												from_reg_signed(0, 32, xform=lambda obj, x: x / 2**15)),
 
 	'pid1_int_i_gain':	(REG_LIA_INT_IGAIN1,	to_reg_signed(0, 25, xform=lambda obj, x: x * _LIA_ID_GAINSCALE),
 												from_reg_signed(0, 25, xform=lambda obj, x: x / _LIA_ID_GAINSCALE)),
@@ -462,8 +461,23 @@ _lia_reg_hdl = {
 	'bandwidth':		(REG_LIA_PM_BW1, to_reg_signed(0,5, xform=lambda obj, b: b),
 										from_reg_signed(0,5, xform=lambda obj, b: b)),
 	
+	'ext_demod':		(REG_LIA_ENABLES, to_reg_bool(18),
+										from_reg_bool(18)),
+
 	'lo_PLL':			(REG_LIA_ENABLES, to_reg_bool(19),
 										from_reg_bool(19)),
+
+	'AuxSel':			(REG_LIA_ENABLES, to_reg_unsigned(26, 2),
+										from_reg_unsigned(26, 2)),
+
+	'filt_bypass1':		(REG_LIA_ENABLES, to_reg_bool(21),
+										from_reg_bool(21)),
+
+	'filt_bypass2':		(REG_LIA_ENABLES, to_reg_bool(22),
+										from_reg_bool(22)),
+
+	'ch_select':		(REG_LIA_ENABLES, to_reg_bool(23),
+										from_reg_bool(23)),
 
 	'lo_PLL_reset':		(REG_LIA_PM_RESET, to_reg_bool(31),
 										from_reg_bool(31)),
@@ -471,8 +485,11 @@ _lia_reg_hdl = {
 	'lo_reacquire':		(REG_LIA_PM_REACQ, to_reg_bool(0),
 										from_reg_bool(0)),
 
-	'PIDSelect':		(REG_LIA_PID_SELECT, to_reg_unsigned(0,3),
-											from_reg_unsigned(0,3)),
+	'pid_select':	(REG_LIA_SIG_SELECT, to_reg_unsigned(0,2),
+											from_reg_unsigned(0,2)),
+
+	'gain_select':	(REG_LIA_SIG_SELECT, to_reg_unsigned(2,2),
+											from_reg_unsigned(2,2)),
 
 	'output_decimation':	(REG_LIA_PM_OUTDEC,	to_reg_unsigned(0,17),
 											from_reg_unsigned(0,17)),
