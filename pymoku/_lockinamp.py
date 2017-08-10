@@ -27,7 +27,7 @@ REG_LIA_DIFF_PGAIN2		= 108
 REG_LIA_DIFF_IGAIN1		= 109
 REG_LIA_DIFF_IGAIN2		= 110
 REG_LIA_DIFF_IFBGAIN1	= 111
-REG_LIA_DIFF_IFBGAIN2	= 112
+REG_LIA_DIFF_IFBGAIN2	= 112  
 
 REG_LIA_IN_OFFSET1		= 113
 REG_LIA_OUT_OFFSET1		= 114
@@ -72,6 +72,7 @@ _LIA_MON_Q		= 3
 _LIA_MON_PID	= 4 # 5 is also PID for some reason..
 _LIA_MON_LO		= 6
 
+
 _LIA_CONTROL_FS 	= 25.0e6
 _LIA_FREQSCALE		= 1.0e9 / 2**48
 _LIA_PHASESCALE		= 1.0 / 2**48
@@ -109,11 +110,6 @@ class LockInAmp(_CoreOscilloscope):
 
 		self._pid_offset = 0
 
-		self.set_filter_parameters(1, 1e6, 2)
-		self.set_output_offset(0)
-		self.set_lo_parameters(11e6, 0)
-		self.set_output_offset(0)
-
 
 		self.pid2_int_p_gain = 2**12 / 2**24
 		self.pid2_diff_d_gain = 0.0
@@ -126,7 +122,7 @@ class LockInAmp(_CoreOscilloscope):
 		self.monitor_select1 = _LIA_MON_I
 
 		self.input_gain = .5
-		self.set_lo_output(0.5, 0.1, 11e6, 0)
+
 
 		self.autoacquire = 1
 		self.bandwidth = 0
@@ -134,7 +130,6 @@ class LockInAmp(_CoreOscilloscope):
 		self.pid_select = 1
 		self.gain_select = 0
 		self.ch_select = 0
-
 		self.AuxSel = 1
 		self.autoacquire = 1
 		self.lo_PLL_reset = 0
@@ -146,9 +141,152 @@ class LockInAmp(_CoreOscilloscope):
 
 		self.filt_bypass1 = 0
 		self.filt_bypass2 = 0
-		# self.filt_bypass = 0
-		
 
+		self.set_filter_parameters(1, 1e6, 2)
+		self.set_output_offset(0)
+		self.set_lo_parameters(12e6+100, 0)
+		self.set_output_offset(0)
+
+		self.set_lo_output(0.5, 0.1, 11e6, 0)
+		self.set_lo_mode('internal')
+		self.set_pid_channel(1)
+		self.set_signal_mode('iq')
+		self.set_aux_out('sine')
+
+
+		# self.filt_bypass = 0
+	@needs_commit
+	def set_pid_parameters(self, IDontKnow):
+		"""
+		
+		Currently not implemented.
+
+		"""
+
+
+	@needs_commit
+	def set_aux_out(self, auxsel='sine'):
+		"""
+		
+		Selects the signal that is routed to the Auxillary channel
+
+		auxsel is one of:
+			- **sine** - route a sine wave that has independant paramters to the internal local oscillator
+			- **ch2** - route a signal from the lock-in amplifier signal to the aux channel
+			- **demod** - route the signal used for demodulation to the aux channel
+
+		"""
+
+		if auxsel == 'sine':
+			self.AuxSel = 0
+		elif auxsel == 'ch2':
+			self.AuxSel = 1
+		elif auxsel == 'demod':
+			self.AuxSel = 3
+		else
+			raise InvalidConfigurationException('auxsel must be one of "sine", "ch2", or "demod", not %s. Value left unchanged', auxsel)
+
+
+
+	@needs_commit
+	def set_single_channel_sel(self, signal='i'):
+		"""
+
+		Selects the signal sent to ch 1 when only one lockin signal is active
+		
+		signal is one of:
+			- **i** : the i channel coming from the mixer
+			- **q** : the q channel coming from the mixer
+			- **R** : the magnitude of the input signal 
+			- **theta** : the phase of the signal with resepct to the local oscillator
+
+		:type string:
+		:param signal: signal routed to output channel 1
+
+		"""
+		if self.AuxSel == 1 :
+			raise InvalidConfigurationException('Channel 2 active. Cannot change channel 1 output.')
+		elif signal = 'i' :
+			self.pid_select = 0
+			self.pid_mode_select = 0
+		elif signal = 'q' :
+			self.pid_select = 1
+			self.pid_mode_select = 0
+		elif signal = 'r' :
+			self.pid_select = 0
+			self.pid_mode_select = 1
+		elif signal = 'theta' :
+			self.pid_select = 1
+			self.pid_mode_select = 1
+		else :
+			raise ValueOutOfRangeException('Signal Mode must be one of "i", "q", "r" or "theta", not %s. Value unchanged', signal)
+
+
+
+	@needs_commit
+	def set_signal_mode(self, mode='iq'):
+		"""
+		Sets "I/Q" mode or "R/Theta" mode
+
+		:type string:
+		:param mode: set the signal mode either  IQ or R/Theta 
+
+		"""
+		if mode == 'r_theta':
+			self.pid_mode_select = 1
+			self.gain_mode_select = 1
+		elif mode == 'iq':
+			self.pid_mode_select = 0
+			self.gain_mode_select = 0
+		else :
+			self.pid_mode_select = 0
+			self.gain_mode_select = 0
+			raise ValueOutOfRangeException('Signal Mode must be one of "r_theta" or "iq", not %s. Defaulted to iq mode.', mode)
+
+	@needs_commit
+	def set_pid_channel(self, channel=1):
+		"""
+		Sets which channel is used by the PID.
+
+		Only selectable when both channels are active.
+
+		:type int:
+		:param channel: Determines the output channel of the PID controller. 
+	
+		"""
+		if (self.AuxSel != 1)  and (channel == 1):
+			self.ch_select = 0
+			raise InvalidConfigurationException('Cannot place pid on second channel. Only one channel selected. Output routed to channel 1') 
+		elif (channel < 1) or (channel > 2):
+			raise ValueOutOfRangeException('Channel must be 1 or 2, not %s. ', mode)
+		else:
+			self.ch_select = self.pid_select = channel - 1
+
+
+	@needs_commit
+	def set_lo_mode(self,mode='internal'):
+		"""
+		Configure the local oscillator (LO) for the lock-in amplifier
+		
+		The mode is one of:
+			- **internal** : for an internally set LO
+			- **external** : to directly use an external signal for demodulation (Note: Q is not selectable in this mode)
+			- **external_pll** : to use an external signal for demodulation after running it through an internal pll
+
+		"""
+
+
+		if mode == 'internal':
+			self.ext_demod = 0
+			self.lo_PLL = 0
+		elif mode == 'external':
+			self.ext_demod = 1
+			self.lo_PLL = 0
+		elif mode == 'external_pll':
+			self.ext_demod = 0
+			self.lo_PLL = 1
+		else :
+			raise ValueOutOfRangeException('LO Mode must be one of "internal", "external" or "external_pll", not %s', mode)
 
 
 	def _recalc_offsets(self):
@@ -177,6 +315,7 @@ class LockInAmp(_CoreOscilloscope):
 
 		:type mode: string {'range', 'precision'}
 		:param mode: Selects signal mode, either optimising for high dynamic range or high precision.
+
 		"""
 		impedence_gain = 1 if (self.relays_ch1 & RELAY_LOWZ) else 2
 		atten_gain = 1 if (self.relays_ch1 & RELAY_LOWG) else 10
@@ -485,11 +624,17 @@ _lia_reg_hdl = {
 	'lo_reacquire':		(REG_LIA_PM_REACQ, to_reg_bool(0),
 										from_reg_bool(0)),
 
-	'pid_select':	(REG_LIA_SIG_SELECT, to_reg_unsigned(0,2),
-											from_reg_unsigned(0,2)),
+	'pid_select':	(REG_LIA_SIG_SELECT, to_reg_bool(0),
+											from_reg_bool(0)),
 
-	'gain_select':	(REG_LIA_SIG_SELECT, to_reg_unsigned(2,2),
-											from_reg_unsigned(2,2)),
+	'pid_mode_select':	(REG_LIA_SIG_SELECT, to_reg_bool(1),
+										from_reg_bool(1)),
+
+	'gain_select':	(REG_LIA_SIG_SELECT, to_reg_bool(2),
+											from_reg_bool(2)),
+
+	'gain_mode_select':	(REG_LIA_SIG_SELECT, to_reg_bool(3),
+										from_reg_bool(3)),
 
 	'output_decimation':	(REG_LIA_PM_OUTDEC,	to_reg_unsigned(0,17),
 											from_reg_unsigned(0,17)),
