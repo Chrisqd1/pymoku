@@ -4,6 +4,7 @@ import zmq
 import pymoku.version
 
 import pkg_resources
+import threading
 
 from pymoku.tools import compat as cp
 
@@ -99,6 +100,7 @@ class Moku(object):
 		self._known_mokus = []
 
 		self._ctx = zmq.Context.instance()
+		self._conn_lock = threading.RLock()
 		self._conn = self._ctx.socket(zmq.REQ)
 		self._conn.setsockopt(zmq.LINGER, 5000)
 		self._conn.connect("tcp://%s:%d" % (self._ip, Moku.PORT))
@@ -249,9 +251,10 @@ class Moku(object):
 		name = socket.gethostname()[:255]
 		#packet_data = struct.pack("<BBB", t, len(name) + 1, flags) + name.encode('ascii')
 		packet_data = struct.pack("<BB", t, flags)
-		self._conn.send(packet_data)
+		with self._conn_lock:
+			self._conn.send(packet_data)
+			ack = self._conn.recv()
 
-		ack = self._conn.recv()
 		return ack[1] == 1
 
 	def take_ownership(self):
@@ -282,8 +285,9 @@ class Moku(object):
 		packet_data = bytearray([0x47, 0x00, len(commands)])
 		packet_data += b''.join([struct.pack('<B', x) for x in commands])
 
-		self._conn.send(packet_data)
-		ack = self._conn.recv()
+		with self._conn_lock:
+			self._conn.send(packet_data)
+			ack = self._conn.recv()
 
 		t, err, l = struct.unpack('<BBB', ack[:3])
 
@@ -297,8 +301,9 @@ class Moku(object):
 		packet_data = bytearray([0x47, 0x00, len(commands)])
 		packet_data += b''.join([struct.pack('<BI', x[0] + 0x80, x[1]) for x in commands])
 
-		self._conn.send(packet_data)
-		ack = self._conn.recv()
+		with self._conn_lock:
+			self._conn.send(packet_data)
+			ack = self._conn.recv()
 
 		t, err, l = struct.unpack('<BBB', ack[:3])
 
@@ -364,8 +369,9 @@ class Moku(object):
 
 		flags = (sub_index << 2) | (int(is_partial) << 1) | int(use_external)
 
-		self._conn.send(bytearray([0x43, self._instrument.id, flags]))
-		ack = self._conn.recv()
+		with self._conn_lock:
+			self._conn.send(bytearray([0x43, self._instrument.id, flags]))
+			ack = self._conn.recv()
 
 		self._set_timeout(short=True)
 
@@ -381,17 +387,19 @@ class Moku(object):
 
 
 	def _reset_instrument(self):
-		self._conn.send(bytearray([0x48, self._get_seq()]))
-		self._conn.recv()
-
+		with self._conn_lock:
+			self._conn.send(bytearray([0x48, self._get_seq()]))
+			self._conn.recv()
 
 	def _set_clock_source(self, use_external=False):
-		self._conn.send(struct.pack("<BBB", 0x54, 0x01, use_external))
-		self._conn.recv()
+		with self._conn_lock:
+			self._conn.send(struct.pack("<BBB", 0x54, 0x01, use_external))
+			self._conn.recv()
 
 	def _get_clock_source(self):
-		self._conn.send(bytearray([0x54, 0x02]))
-		ack = self._conn.recv()
+		with self._conn_lock:
+			self._conn.send(bytearray([0x54, 0x02]))
+			ack = self._conn.recv()
 		status = struct.unpack("<BBB", ack)[2]
 
 		return bool(status & 0x02), bool(status & 0x01)
@@ -415,8 +423,9 @@ class Moku(object):
 			pkt += p.encode('ascii')
 			pkt += bytearray([0]) # No data for reads
 
-		self._conn.send(pkt)
-		reply = self._conn.recv()
+		with self._conn_lock:
+			self._conn.send(pkt)
+			reply = self._conn.recv()
 
 		hdr, seq, stat, nr = struct.unpack("<BBBB", reply[:4])
 		reply = reply[4:]
@@ -452,8 +461,9 @@ class Moku(object):
 		pkt += section.encode('ascii')
 		pkt += bytearray([0]) # No data for reads
 
-		self._conn.send(pkt)
-		reply = self._conn.recv()
+		with self._conn_lock:
+			self._conn.send(pkt)
+			reply = self._conn.recv()
 		hdr, seq, stat, nr = struct.unpack("<BBBB", reply[:4])
 		reply = reply[4:]
 
@@ -495,8 +505,9 @@ class Moku(object):
 			pkt += bytearray([len(d)])
 			pkt += d.encode('ascii')
 
-		self._conn.send(pkt)
-		reply = self._conn.recv()
+		with self._conn_lock:
+			self._conn.send(pkt)
+			reply = self._conn.recv()
 		hdr, seq, stat, nr = struct.unpack("<BBBB", reply[:4])
 		reply = reply[4:]
 
@@ -569,8 +580,9 @@ class Moku(object):
 		pkt += struct.pack("<H", len(hdrstr))
 		pkt += hdrstr.encode('ascii')
 
-		self._conn.send(pkt)
-		reply = self._conn.recv()
+		with self._conn_lock:
+			self._conn.send(pkt)
+			reply = self._conn.recv()
 
 		hdr, seq, ae, stat = struct.unpack("<BBBB", reply[:4])
 
@@ -579,8 +591,9 @@ class Moku(object):
 
 	def _stream_start(self):
 		pkt = struct.pack("<BBB", 0x53, 0, 4)
-		self._conn.send(pkt)
-		reply = self._conn.recv()
+		with self._conn_lock:
+			self._conn.send(pkt)
+			reply = self._conn.recv()
 
 		hdr, seq, ae, stat = struct.unpack("<BBBB", reply[:4])
 
@@ -588,8 +601,9 @@ class Moku(object):
 
 	def _stream_stop(self):
 		pkt = struct.pack("<BBB", 0x53, 0, 2)
-		self._conn.send(pkt)
-		reply = self._conn.recv()
+		with self._conn_lock:
+			self._conn.send(pkt)
+			reply = self._conn.recv()
 
 		hdr, seq, ae, stat, bt = struct.unpack("<BBBBQ", reply[:12])
 
@@ -597,8 +611,9 @@ class Moku(object):
 
 	def _stream_status(self):
 		pkt = struct.pack("<BBB", 0x53, 0, 3)
-		self._conn.send(pkt)
-		reply = self._conn.recv()
+		with self._conn_lock:
+			self._conn.send(pkt)
+			reply = self._conn.recv()
 
 		hdr, seq, ae, stat, bt, trems, treme, flags, fname_len = struct.unpack("<BBBBQiiBH", reply[:23])
 		fname = reply[23:23 + fname_len].decode('ascii')
@@ -871,8 +886,9 @@ class Moku(object):
 
 	def _trigger_fwload(self):
 		self._set_timeout(seconds=20)
-		self._conn.send(bytearray([0x52, 0x01]))
-		hdr, reply = struct.unpack("<BB", self._conn.recv())
+		with self._conn_lock:
+			self._conn.send(bytearray([0x52, 0x01]))
+			hdr, reply = struct.unpack("<BB", self._conn.recv())
 		self._set_timeout()
 		if reply:
 			raise InvalidOperationException("Firmware update failure %d" % reply)
@@ -1084,6 +1100,7 @@ class Moku(object):
 			self._instrument._set_running(False)
 
 		self.relinquish_ownership()
-		self._conn.close()
+		with self._conn_lock:
+			self._conn.close()
 		# Don't clobber the ZMQ context as it's global to the interpretter, if the user has multiple Moku
 		# objects then we don't want to mess with that.
