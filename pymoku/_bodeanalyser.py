@@ -235,13 +235,13 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 				}
 
 	@needs_commit
-	def set_sweep(self, f_start=100, f_end=125e6, sweep_points=512, sweep_log=False, averaging_time=1e-3, settling_time=1e-3, averaging_cycles=1, settling_cycles=1):
+	def set_sweep(self, f_start=100, f_end=120e6, sweep_points=512, sweep_log=False, averaging_time=1e-3, settling_time=1e-3, averaging_cycles=1, settling_cycles=1):
 		""" Set the output sweep parameters
 
-		:type f_start: int; 1 <= f_start <= 125e6 Hz
+		:type f_start: int; 1 <= f_start <= 120e6 Hz
 		:param f_start: Sweep start frequency
 
-		:type f_end: int; 1 <= f_end <= 125e6 Hz
+		:type f_end: int; 1 <= f_end <= 120e6 Hz
 		:param f_end: Sweep end frequency
 
 		:type sweep_points: int; 32 <= sweep_points <= 512
@@ -262,8 +262,8 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 		:type settling_cycles: int; cycles
 		:param settling_cycles: Minimum settling cycles per sweep point.
 		"""
-		_utils.check_parameter_valid('range', f_start, [1,125e6],'sweep start frequency', 'Hz')
-		_utils.check_parameter_valid('range', f_end, [1,125e6],'sweep end frequency', 'Hz')
+		_utils.check_parameter_valid('range', f_start, [1,120e6],'sweep start frequency', 'Hz')
+		_utils.check_parameter_valid('range', f_end, [1,120e6],'sweep end frequency', 'Hz')
 		_utils.check_parameter_valid('range', sweep_points, [32,512],'sweep points')
 		_utils.check_parameter_valid('bool', sweep_log, desc='sweep log scale enable')
 		_utils.check_parameter_valid('range', averaging_time, [1e-6,10], 'sweep averaging time', 'sec')
@@ -356,12 +356,29 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 			self.channel2_en = False
 
 	@needs_commit
+	def set_xmode(self, xmode):
+		"""
+		Set rendering mode for the horizontal axis.
+
+		:type xmode: string, {'sweep','fullframe'}
+		:param xmode:
+			Respectively; Sweep Mode (bode function sweeping across the screen)
+			or Full Frame (like sweep, but waits for the frame to be completed).
+		"""
+		_str_to_xmode = {
+			'sweep' : SWEEP,
+			'fullframe' : FULL_FRAME
+		}
+		xmode = _utils.str_to_val(_str_to_xmode, xmode, 'X-mode')
+		self.x_mode = xmode
+
+	@needs_commit
 	def set_defaults(self):
 		""" Reset the Bode Analyser to sane defaults """
 		super(BodeAnalyser, self).set_defaults()
 		self.frame_length = _NA_SCREEN_WIDTH
 
-		self.x_mode = SWEEP
+		self.x_mode = FULL_FRAME
 		self.render_mode = RDR_DDS
 
 		self.en_in_ch1 = True
