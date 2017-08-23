@@ -66,11 +66,13 @@ REG_LIA_PM_REACQ		= 73
 REG_LIA_SIG_SELECT		= 76
 
 _LIA_MON_NONE	= 0
-_LIA_MON_IN		= 1
+_LIA_MON_IN1	= 1
 _LIA_MON_I		= 2
 _LIA_MON_Q		= 3
-_LIA_MON_PID	= 4 # 5 is also PID for some reason..
-_LIA_MON_LO		= 6
+_LIA_MON_OUT	= 4 
+_LIA_MON_AUX	= 5
+_LIA_MON_IN2	= 6
+_LIA_MON_DEMOD	= 7
 
 
 _LIA_CONTROL_FS 	= 25.0e6
@@ -118,8 +120,8 @@ class LockInAmp(_CoreOscilloscope):
 		self.pid2_diff_ifb_gain = 0.0
 		# self.decimation_bitshift = 0
 
-		self.monitor_select0 = _LIA_MON_IN
-		self.monitor_select1 = _LIA_MON_I
+		self.monitor_select0 = _LIA_MON_IN1
+		self.monitor_select1 = _LIA_MON_IN2
 
 		self.input_gain = .5
 
@@ -144,7 +146,7 @@ class LockInAmp(_CoreOscilloscope):
 
 		self.set_filter_parameters(1, 1e6, 2)
 		self.set_output_offset(0)
-		self.set_lo_parameters(12e6+100, 0)
+		self.set_lo_parameters(10e6, 0)
 		self.set_output_offset(0)
 
 		self.set_lo_output(0.5, 0.1, 11e6, 0)
@@ -181,15 +183,17 @@ class LockInAmp(_CoreOscilloscope):
 			self.AuxSel = 0
 		elif auxsel == 'ch2':
 			self.AuxSel = 1
+			self.pid_select = 0
+			self.gain_select = 1
 		elif auxsel == 'demod':
 			self.AuxSel = 3
-		else
+		else:
 			raise InvalidConfigurationException('auxsel must be one of "sine", "ch2", or "demod", not %s. Value left unchanged', auxsel)
 
 
 
 	@needs_commit
-	def set_single_channel_sel(self, signal='i'):
+	def set_single_channel_sig(self, signal='i'):
 		"""
 
 		Selects the signal sent to ch 1 when only one lockin signal is active
@@ -206,16 +210,16 @@ class LockInAmp(_CoreOscilloscope):
 		"""
 		if self.AuxSel == 1 :
 			raise InvalidConfigurationException('Channel 2 active. Cannot change channel 1 output.')
-		elif signal = 'i' :
+		elif signal == 'i' :
 			self.pid_select = 0
 			self.pid_mode_select = 0
-		elif signal = 'q' :
+		elif signal == 'q' :
 			self.pid_select = 1
 			self.pid_mode_select = 0
-		elif signal = 'r' :
+		elif signal == 'r' :
 			self.pid_select = 0
 			self.pid_mode_select = 1
-		elif signal = 'theta' :
+		elif signal == 'theta' :
 			self.pid_select = 1
 			self.pid_mode_select = 1
 		else :
@@ -274,8 +278,6 @@ class LockInAmp(_CoreOscilloscope):
 			- **external_pll** : to use an external signal for demodulation after running it through an internal pll
 
 		"""
-
-
 		if mode == 'internal':
 			self.ext_demod = 0
 			self.lo_PLL = 0
@@ -285,6 +287,7 @@ class LockInAmp(_CoreOscilloscope):
 		elif mode == 'external_pll':
 			self.ext_demod = 0
 			self.lo_PLL = 1
+			self.lo_reacquire = 1
 		else :
 			raise ValueOutOfRangeException('LO Mode must be one of "internal", "external" or "external_pll", not %s', mode)
 
@@ -431,13 +434,17 @@ class LockInAmp(_CoreOscilloscope):
 			- **lo**: Local Oscillator output
 			- **i**, **q**: Mixer I and Q channels respectively.
 		"""
+
 		sources = {
 			'none'	: _LIA_MON_NONE,
-			'input' : _LIA_MON_IN,
-			'out'	: _LIA_MON_PID,
-			'lo'	: _LIA_MON_LO,
+			'input1': _LIA_MON_IN1,
+			'input2': _LIA_MON_IN2,
+			'out'	: _LIA_MON_OUT,
+			'aux'	: _LIA_MON_AUX,
+			'demod'	: _LIA_MON_DEMOD,
 			'i'		: _LIA_MON_I,
 			'q'		: _LIA_MON_Q,
+
 		}
 
 		# Many people naturally use 'I' and 'Q' and I don't care enough to argue
@@ -582,10 +589,10 @@ _lia_reg_hdl = {
 												to_reg_unsigned(0, 48, xform=lambda obj, x: x / _LIA_PHASESCALE),
 												to_reg_unsigned(0, 48, xform=lambda	obj, x: x * _LIA_PHASESCALE)),
 
-	'monitor_select0':	(REG_LIA_MONSELECT,	to_reg_unsigned(0, 3, allow_set=[_LIA_MON_NONE, _LIA_MON_IN, _LIA_MON_PID, _LIA_MON_I, _LIA_MON_Q, _LIA_MON_LO]),
+	'monitor_select0':	(REG_LIA_MONSELECT,	to_reg_unsigned(0, 3, allow_set=[_LIA_MON_NONE, _LIA_MON_IN1, _LIA_MON_I, _LIA_MON_Q, _LIA_MON_OUT, _LIA_MON_AUX, _LIA_MON_IN2, _LIA_MON_DEMOD]),
 												from_reg_unsigned(0, 3)),
 
-	'monitor_select1':	(REG_LIA_MONSELECT,	to_reg_unsigned(3, 3, allow_set=[_LIA_MON_NONE, _LIA_MON_IN, _LIA_MON_PID, _LIA_MON_I, _LIA_MON_Q, _LIA_MON_LO]),
+	'monitor_select1':	(REG_LIA_MONSELECT,	to_reg_unsigned(3, 3, allow_set=[_LIA_MON_NONE, _LIA_MON_IN1, _LIA_MON_I, _LIA_MON_Q, _LIA_MON_OUT, _LIA_MON_AUX, _LIA_MON_IN2, _LIA_MON_DEMOD]),
 												from_reg_unsigned(0, 3)),
 
 	'sineout_amp':		(REG_LIA_SINEOUTAMP,	to_reg_signed(0, 16, xform=lambda obj, x: x / obj._dac_gains()[1]),
