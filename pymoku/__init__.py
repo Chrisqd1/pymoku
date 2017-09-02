@@ -430,8 +430,8 @@ class Moku(object):
 		hdr, seq, stat, nr = struct.unpack("<BBBB", reply[:4])
 		reply = reply[4:]
 
-		if hdr != 0x46 or seq != self._seq:
-			raise NetworkError("Bad header %d or sequence %d/%d" %(hdr, seq, self._seq))
+		if hdr != 0x46:
+			raise NetworkError("Bad header %d" % hdr)
 
 		p, d = '', ''
 		for n in range(nr):
@@ -467,8 +467,8 @@ class Moku(object):
 		hdr, seq, stat, nr = struct.unpack("<BBBB", reply[:4])
 		reply = reply[4:]
 
-		if hdr != 0x46 or seq != self._seq:
-			raise NetworkError("Bad header %d or sequence %d/%d" %(hdr, seq, self._seq))
+		if hdr != 0x46:
+			raise NetworkError("Bad header %d" % hdr)
 
 		p, d = '',''
 		for n in range(nr):
@@ -511,8 +511,8 @@ class Moku(object):
 		hdr, seq, stat, nr = struct.unpack("<BBBB", reply[:4])
 		reply = reply[4:]
 
-		if hdr != 0x46 or seq != self._seq:
-			raise NetworkError("Bad header %d or sequence %d/%d" %(hdr, seq, self._seq))
+		if hdr != 0x46:
+			raise NetworkError("Bad header %d" % hdr)
 
 		for n in range(nr):
 			plen = ord(reply[:1]); reply = reply[1:]
