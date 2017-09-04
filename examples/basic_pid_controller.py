@@ -11,13 +11,16 @@ logging.basicConfig(format='%(asctime)s:%(name)s:%(levelname)s::%(message)s')
 logging.getLogger('pymoku').setLevel(logging.DEBUG)
 
 # Use Moku.get_by_serial() or get_by_name() if you don't know the IP m = Moku('192.168.69.245')
-m = Moku('192.168.69.234')
+m = Moku('192.168.69.224')
 
 
 i = PIDController()
 m.deploy_instrument(i)
 
-i.set_by_frequency(1, kp=3*dB)
-i.set_by_frequency(2, kp=0*dB)
+# i.set_by_frequency(1, kp=0*dB)
+i.set_by_frequency(1, kp=0*dB, i_xover = 10000, si = 10*dB)
+
+# i.set_by_frequency(2, kp=0*dB)
 
 m.close()
+ 
