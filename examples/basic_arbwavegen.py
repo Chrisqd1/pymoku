@@ -1,5 +1,5 @@
 from pymoku import Moku
-from pymoku.instruments import *
+from pymoku.instruments import ArbWaveGen
 import struct, logging, math
 import matplotlib
 import matplotlib.pyplot as plt
@@ -40,31 +40,26 @@ xdata, ydata = pickle.loads(zlib.decompress(base64.b64decode(
    fv4HtdVAJw=='''
 )))
 
-m = Moku('192.168.1.99')
+m = Moku('192.168.69.216')
 i = ArbWaveGen()
 m.deploy_instrument(i)
 
 try:
 	i.set_defaults()
-	i.interpolation1 = True
-	i.interpolation2 = True
-	i.phase_modulo1 = 2**30 * len(xdata)
-	i.phase_modulo2 = 2**30 * len(ydata)
-	i.dead_value1 = 0x0000
-	i.dead_value2 = 0x0000
-	i.phase_step1 = 2**27
-	i.phase_step2 = 2**27
+	#i.phase_modulo1 = 2**30 * len(xdata)
+	#i.phase_modulo2 = 2**30 * len(ydata)
+	#i.dead_value1 = 0x0000
+	#i.dead_value2 = 0x0000
+	#i.phase_step1 = 2**27
+	#i.phase_step2 = 2**27
 
 	i.write_lut(1, xdata, 3)
 	i.write_lut(2, ydata, 3)
 
-	i.enable1 = True
-	i.enable2 = True
-	i.phase_rst1 = True
-	i.phase_rst2 = True
-	i.offset2 = 0.1
-	i.amplitude1 = 1.0
-	i.amplitude2 = 1.0
+	# ch, period, phase, amplitude, offset, interpolation, dead_time, fiftyr
+	i.genWaveform(1, 1e-6, 0, 1.0, 0.1, True, 0.0, True)
+	i.genWaveform(2, 1e-6, 0, 1.0, 0.1, True, 0.0, True)
+
 	i.commit()
 
 	i.set_source(1, 'out', lmode='round')

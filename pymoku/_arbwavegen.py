@@ -48,7 +48,7 @@ _ARB_VOLTSCALE = 2.0**15
 _ARB_LUT_LENGTH = 8192
 _ARB_LUT_LSB = 2.0**32
 
-class ArbWaveGen(_oscilloscope.Oscilloscope):
+class ArbWaveGen(_CoreOscilloscope):
 	def __init__(self):
 		super(ArbWaveGen, self).__init__()
 		self._register_accessors(_arb_reg_handlers)
@@ -74,6 +74,7 @@ class ArbWaveGen(_oscilloscope.Oscilloscope):
 	def _set_mmap_access(self, access):
 		self.mmap_access = access
 
+	@needs_commit
 	def write_lut(self, ch, data, srate=None):
 		if srate is not None:
 			if ch == 1: self.mode1 = srate
@@ -110,6 +111,87 @@ class ArbWaveGen(_oscilloscope.Oscilloscope):
 		self._set_mmap_access(True)
 		self._moku._send_file('j', '.lutdata.dat')
 		self._set_mmap_access(False)
+	
+	@needs_commit
+	def gen_waveform(self, ch=None, period, phase, amplitude, offset=0, interpolation=True, dead_time=0, fiftyr=True):
+		""" Generate a Wave with the given parameters on the given channel.
+
+		:type ch: int; {1,2}
+		:param ch: Channel on which to generate the wave
+
+		:type amplitude: float, [0.0,2.0] Vpp
+		:param amplitude: Waveform peak-to-peak amplitude
+
+		:type offset: float, [-1.0,1.0] Volts
+		:param offset: DC offset applied to the waveform
+
+		:type phase: float, [0-360] degrees
+		:param phase: Phase offset of the wave
+
+		:type interpolation: bool [True, False]
+		:param interpolation: Uses linear interploation if true
+
+		:type dead_time: float [0, 2e18] cyc
+		:param dead_time: number of cycles which do not show a signal
+
+		:type fifyr: bool [True, False]
+		:param fifyr: use of 50 Ohm impedance
+
+		:raises ValueError: if the channel number is invalid
+		:raises ValueOutOfRangeException: if wave parameters are out of range
+
+		"""
+		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
+		_utils.check_parameter_valid('range', amplitude, [0.0, 2.0],'peak to peak amplitude','Volts')
+		_utils.check_parameter_valid('bool', interpolation, desc='linear interpolation')
+		_utils.check_parameter_vaild('range', dead_time, [0, 2e18], 'signal dead time', 'cycles')
+		_utils.check_parameter_valid('bool', fiftyr, desc='50 Ohm termination')
+
+		if(ch == 1):
+			self.interpolation1 = interpolation
+			self.phase_modulo1 = self.lut_length1 * 2**32 if interpolation1 == True
+			self.dead_value1 = dead_time
+			self.amplitude1 = amplitude
+			self.offset1 = offset
+			self.phase_step1 = 1 / periode * mode1 * self.phase_modulo1
+			self.phase_offset1 = 0 if dead_time == 0 phase / 360.0 * self.phase_modulo1
+
+		if(ch == 2):
+			self.interpolation2 = interpolation
+			self.phase_modulo2 = self.lut_length2 * 2**32 if interpolation2 == True
+			self.dead_value2 = dead_time
+			self.amplitude2 = amplitude
+			self.offset2 = offset
+			self.phase_step2 = 1 / periode * mode2 * self.phase_modulo2
+			self.phase_offset2 = 0 if dead_time == 0 else phase / 360.0 * self.phase_modulo1
+
+
+	def get_frequency(self):
+		""" :return: The current instrument frequency (Hz) """
+		return self.phase_step1 / mode1 / self.phase_modulo1
+
+
+	@needs_commit
+	def gen_off(self, ch=None):
+		""" Turn ArbWaveGen output(s) off.
+
+		The channel will be turned on when configuring the waveform type but can be turned off
+		using this function. If *ch* is None (the default), both channels will be turned off,
+		otherwise just the one specified by the argument.
+
+		:type ch: int; {1,2} or None
+		:param ch: Channel to turn off, or both.
+
+		:raises ValueError: invalid channel number
+		:raises ValueOutOfRangeException: if the channel number is invalid
+		"""
+		_utils.check_parameter_valid('set', ch, [1,2],'output channel', allow_none=True)
+
+		if ch is None or ch == 1:
+			self.enable1 = False
+
+		if ch is None or ch == 2:
+			self.enable2 = False
 
 _arb_reg_handlers = {
 	'mmap_access':		(REG_MMAP_ACCESS,		to_reg_bool(0),			from_reg_bool(0)),
