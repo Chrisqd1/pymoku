@@ -48,6 +48,6 @@ id_table = {
 	11: None,
 	12: None,
 	13: None,
-	14: None
+	14: None,
 	15: ArbWaveGen
 }

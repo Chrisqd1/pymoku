@@ -7,9 +7,9 @@ import os
 from ._instrument import *
 CHN_BUFLEN = 2**13
 from . import _frame_instrument
-from . import _siggen
-from . import _oscilloscope
-import _utils
+from . import _waveform_generator
+from pymoku._oscilloscope import _CoreOscilloscope
+from . import _utils
 
 log = logging.getLogger(__name__)
 
@@ -113,7 +113,7 @@ class ArbWaveGen(_CoreOscilloscope):
 		self._set_mmap_access(False)
 	
 	@needs_commit
-	def gen_waveform(self, ch=None, period, phase, amplitude, offset=0, interpolation=True, dead_time=0, fiftyr=True):
+	def gen_waveform(self, ch, period, phase, amplitude, offset=0, interpolation=True, dead_time=0, fiftyr=True):
 		""" Generate a Wave with the given parameters on the given channel.
 
 		:type ch: int; {1,2}
@@ -149,16 +149,16 @@ class ArbWaveGen(_CoreOscilloscope):
 
 		if(ch == 1):
 			self.interpolation1 = interpolation
-			self.phase_modulo1 = self.lut_length1 * 2**32 if interpolation1 == True
+			self.phase_modulo1 = self.lut_length1 * 2**32 if interpolation1 == True else 0
 			self.dead_value1 = dead_time
 			self.amplitude1 = amplitude
 			self.offset1 = offset
 			self.phase_step1 = 1 / periode * mode1 * self.phase_modulo1
-			self.phase_offset1 = 0 if dead_time == 0 phase / 360.0 * self.phase_modulo1
+			self.phase_offset1 = 0 if dead_time == 0 else phase / 360.0 * self.phase_modulo1
 
 		if(ch == 2):
 			self.interpolation2 = interpolation
-			self.phase_modulo2 = self.lut_length2 * 2**32 if interpolation2 == True
+			self.phase_modulo2 = self.lut_length2 * 2**32 if interpolation2 == True else 0
 			self.dead_value2 = dead_time
 			self.amplitude2 = amplitude
 			self.offset2 = offset
