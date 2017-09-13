@@ -8,6 +8,30 @@ from . import _utils
 
 log = logging.getLogger(__name__)
 
+REG_SG_TrigPeriodInternalCH0_L		= 73
+REG_SG_TrigPeriodInternalCH0_H		= 74
+REG_SG_TrigPeriodInternalCH1_L		= 75
+REG_SG_TrigPeriodInternalCH1_H		= 76
+REG_SG_ADCThreshold		= 77
+REG_SG_DACThreshold		= 78
+REG_SG_NCycles_TrigDutyCH0_L		= 79
+REG_SG_NCycles_TrigDutyCH0_H		= 80
+REG_SG_NCycles_TrigDutyCH1_L		= 81
+REG_SG_NCycles_TrigDutyCH1_H		= 82
+REG_SG_TrigSweepMode 	= 83
+REG_SG_SweepLengthCh0_L = 84
+REG_SG_SweepLengthCh0_H = 85
+REG_SG_SweepLengthCh1_L = 86
+REG_SG_SweepLengthCh1_H = 87
+REG_SG_SweepInitFreqCh0_L = 88
+REG_SG_SweepInitFreqCh0_H = 89
+REG_SG_SweepInitFreqCh1_L = 90
+REG_SG_SweepInitFreqCh1_H = 91
+REG_SG_SweepIncrementCh0_L = 92
+REG_SG_SweepIncrementCh0_H = 93
+REG_SG_SweepIncrementCh1_L = 94
+REG_SG_SweepIncrementCh1_H = 95
+
 REG_SG_WAVEFORMS	= 96
 REG_SG_MODSOURCE	= 123
 REG_SG_PRECLIP		= 124
@@ -91,16 +115,16 @@ class BasicWaveformGenerator(MokuInstrument):
 		Defaults are outputs off, amplitudes and frequencies zero.
 		"""
 		super(BasicWaveformGenerator, self).set_defaults()
-		self.out1_enable = False
-		self.out2_enable = False
+		self.out1_enable = True
+		self.out2_enable = True
 		self.out1_amplitude = 0
 		self.out2_amplitude = 0
 		self.out1_frequency = 0
 		self.out2_frequency = 0
 
 		# Disable inputs on hardware that supports it
-		self.en_in_ch1 = False
-		self.en_in_ch2 = False
+		self.en_in_ch1 = True
+		self.en_in_ch2 = True
 
 	@needs_commit
 	def gen_sinewave(self, ch, amplitude, frequency, offset=0, phase=0.0):
@@ -328,6 +352,136 @@ class WaveformGenerator(BasicWaveformGenerator):
 		""" Create a new WaveformGenerator instance, ready to be attached to a Moku."""
 		super(WaveformGenerator, self).__init__()
 		self._register_accessors(_siggen_mod_reg_handlers)
+	def set_trigger_threshold(self, dac1 = 2**13, dac2 = 2**13, adc1 = 2**8, adc2 = 2**8):
+		""" Configure the ADC and DAC trigger thresholds.
+
+		:type dac1, dac2 : int
+		:param dac1, dac2: dac source to configure threshold. -2**15 <= thresh <= 2**15-1
+
+		:type adc1, adc2 : int
+		:param adc1, adc2: adc source to configure threshold. -2**11 <= thresh <= 2**11-1
+
+		"""
+		self.TrigADCThreshold_Ch0 = adc1
+		self.TrigADCThreshold_Ch1 = adc2
+		self.TrigDACThreshold_Ch0 = dac1
+		self.TrigDACThreshold_Ch1 = dac2
+
+	def set_trigger_source(self, ch, TriggerSource = 0, InternalTrigPeriod = 1.0, InternalTrigDuty = 0.4):
+		""" Configure trigger source for target channel.
+
+		:type ch : int
+		:param ch: target channel
+
+		:type TriggerSource : int
+		:param TriggerSource : value corresponding to one of four available trigger sources. 0 = ext, 1 = adc, 2 = dac, 3 = internal
+
+		:type InternalTrigPeriod : float, seconds
+		:param InternalTrigPeriod : period in seconds of the internal trigger
+
+		:type InternalTrigDuty : float, seconds
+		:param InternalTrigDuty : value in seconds of the trigger duty period. Duty cycle is defined as InternalTrigDuty/InternalTrigPeriod	
+
+		"""
+		PeriodFPGACycles = math.ceil(125e6 * InternalTrigPeriod)
+		DutyFPGACycles = math.ceil(125e6 * InternalTrigDuty)
+		if ch == 1:
+			self.TriggerSelect_Ch0 = TriggerSource
+			if TriggerSource == 3:
+				self.InternalTrigPeriod_Ch0 = PeriodFPGACycles	
+				self.NCycles_TrigDuty_Ch0 = DutyFPGACycles
+		elif ch == 2:
+			self.TriggerSelect_Ch1 = TriggerSource
+			if TriggerSource == 3:
+				self.InternalTrigPeriod_Ch1 = PeriodFPGACycles	
+				self.NCycles_TrigDuty_Ch1 = DutyFPGACycles
+		else:
+			raise ValueOutOfRangeException("Invalid Channel") 
+
+	def set_trigger_gatemode(self, ch):
+		""" Configure gated trigger mode on target channel
+
+		:type ch : int
+		:param ch: target channel
+
+		"""
+		if ch == 1:
+			self.TrigSweepMode_Ch0 = 1
+		elif ch == 2:
+			self.TrigSweepMode_Ch1 = 1
+		else:
+			raise ValueOutOfRangeException("Invalid Channel")
+
+	def set_trigger_startmode(self, ch):
+		""" Configure start trigger mode on target channel
+
+		:type ch : int
+		:param ch: target channel
+
+		"""
+		if ch == 1:
+			self.TrigSweepMode_Ch0 = 2
+		elif ch == 2:
+			self.TrigSweepMode_Ch1 = 2
+		else:
+			raise ValueOutOfRangeException("Invalid Channel")
+
+	def set_trigger_ncyclemode(self, ch, SignalFreq=0.0, NCycles = 0, ):
+		""" Configure Ncycle trigger mode on target channel
+
+		:type ch : int
+		:param ch: target channel
+
+		:type SignalFreq : float, hertz
+		:param SignalFreq : signal frequency, used to find signal period and to determine requisite number of FPGA cycles
+
+		:type NCycles : int
+		:param NCycles : integer number of signal periods 
+
+		"""
+		SignalPeriod = 0 if SignalFreq==0.0 else SignalFreq**-1  
+		FPGACycles = math.ceil(125e6 * SignalPeriod * NCycles)
+		if ch == 1:
+			self.TrigSweepMode_Ch0 = 3
+			self.NCycles_TrigDuty_Ch0 = FPGACycles
+		elif ch == 2:
+			self.TrigSweepMode_Ch1 = 3
+			self.NCycles_TrigDuty_Ch1 = FPGACycles
+		else:
+			raise ValueOutOfRangeException("Invalid Channel")
+
+	def set_sweepmode(self, ch, SweepInitFreq = 1.0, SweepFinalFreq = 5.0, SweepDuration = 1.0):
+		""" Configure sweep mode on target channel
+
+		:type ch : int
+		:param ch: target channel
+
+		:type SweepInitFreq : float, hertz
+		:param SweepInitFreq : starting sweep frequency
+
+		:type SweepFinalFreq : float, hertz
+		:param SweepFinalFreq : finishing sweep frequency
+
+		:type SweepDuration : float, seconds
+		:param SweepDuration : sweep duration in seconds
+
+		"""
+		PhaseIncrement = round((2**31 * 2**48 / (125*10**15)) * (SweepFinalFreq - SweepInitFreq)/SweepDuration)
+		SweepLength_FPGACycles = math.ceil(125e6 * SweepDuration)
+		InitFreq = SweepInitFreq * (2**48/10**9)
+		if ch == 1:
+			self.TrigSweepMode_Ch0 = 4
+			self.SweepLength_Ch0 = SweepLength_FPGACycles
+			self.SweepInitFreq_Ch0 = InitFreq
+			self.SweepIncrement_Ch0 = PhaseIncrement
+		elif ch == 2:
+			self.TrigSweepMode_Ch1 = 4
+			self.SweepLength_Ch1 = SweepLength_FPGACycles
+			self.SweepInitFreq_Ch1 = InitFreq
+			self.SweepIncrement_Ch1 = PhaseIncrement
+		else:
+			raise ValueOutOfRangeException("Invalid Channel")
+
 
 	@needs_commit
 	def gen_modulate_off(self, ch=None):
@@ -532,4 +686,51 @@ _siggen_reg_handlers = {
 
 	'out2_amp_pc':		(REG_SG_PRECLIP,	to_reg_unsigned(16, 16, xform=lambda obj, a: a / obj._dac_gains()[1]),
 											from_reg_unsigned(16, 16, xform=lambda obj, a: a * obj._dac_gains()[1])),
+	'InternalTrigPeriod_Ch0':	((REG_SG_TrigPeriodInternalCH0_H, REG_SG_TrigPeriodInternalCH0_L),
+											to_reg_unsigned(0,64), from_reg_unsigned(0,64)),
+
+	'InternalTrigPeriod_Ch1':	((REG_SG_TrigPeriodInternalCH1_H, REG_SG_TrigPeriodInternalCH1_L),
+											to_reg_unsigned(0,64), from_reg_unsigned(0,64)),
+
+	'TrigADCThreshold_Ch0':		(REG_SG_ADCThreshold, 	to_reg_signed(0,12), from_reg_signed(0,12)),
+
+	'TrigADCThreshold_Ch1':		(REG_SG_ADCThreshold, 	to_reg_signed(12,12), from_reg_signed(12,12)),
+
+	'TrigDACThreshold_Ch0':		(REG_SG_DACThreshold, 	to_reg_signed(0,16), from_reg_signed(0,16)),
+
+	'TrigDACThreshold_Ch1':		(REG_SG_DACThreshold, 	to_reg_signed(16,16), from_reg_signed(16,16)),
+
+	'TrigSweepMode_Ch0':	(REG_SG_TrigSweepMode, 	to_reg_unsigned(0,3), from_reg_unsigned(0,3)),
+
+	'TrigSweepMode_Ch1':	(REG_SG_TrigSweepMode, 	to_reg_unsigned(3,3), from_reg_unsigned(3,3)),
+
+	'TriggerSelect_Ch0':	(REG_SG_TrigSweepMode, 	to_reg_unsigned(6,2), from_reg_unsigned(6,2)),
+
+	'TriggerSelect_Ch1':	(REG_SG_TrigSweepMode, 	to_reg_unsigned(8,2), from_reg_unsigned(8,2)),
+
+	'PhaseContinuous':  (REG_SG_TrigSweepMode, 	to_reg_unsigned(10,1), from_reg_unsigned(10,1)),
+
+	'SweepLength_Ch0':	((REG_SG_SweepLengthCh0_H, REG_SG_SweepLengthCh0_L),
+											to_reg_unsigned(0,64), from_reg_unsigned(0,64)),
+
+	'SweepLength_Ch1':	((REG_SG_SweepLengthCh1_H, REG_SG_SweepLengthCh1_L),
+											to_reg_unsigned(0,64), from_reg_unsigned(0,64)),
+
+	'SweepInitFreq_Ch0':	((REG_SG_SweepInitFreqCh0_H, REG_SG_SweepInitFreqCh0_L),
+											to_reg_unsigned(0,48), from_reg_unsigned(0,48)),
+
+	'SweepInitFreq_Ch1':	((REG_SG_SweepInitFreqCh1_H, REG_SG_SweepInitFreqCh1_L),
+											to_reg_unsigned(0,48), from_reg_unsigned(0,48)),
+
+	'SweepIncrement_Ch0':	((REG_SG_SweepIncrementCh0_H, REG_SG_SweepIncrementCh0_L),
+											to_reg_signed(0,64), from_reg_signed(0,64)),
+
+	'SweepIncrement_Ch1':	((REG_SG_SweepIncrementCh1_H, REG_SG_SweepIncrementCh1_L),
+											to_reg_signed(0,64), from_reg_signed(0,64)),
+
+	'NCycles_TrigDuty_Ch0':	((REG_SG_NCycles_TrigDutyCH0_H, REG_SG_NCycles_TrigDutyCH0_L),
+											to_reg_unsigned(0,64), from_reg_unsigned(0,64)),
+
+	'NCycles_TrigDuty_Ch1':	((REG_SG_NCycles_TrigDutyCH1_H, REG_SG_NCycles_TrigDutyCH1_L),
+											to_reg_unsigned(0,64), from_reg_unsigned(0,64))
 }
