@@ -362,6 +362,11 @@ class WaveformGenerator(BasicWaveformGenerator):
 		:param adc1, adc2: adc source to configure threshold. -2**11 <= thresh <= 2**11-1
 
 		"""
+		_utils.check_parameter_valid('range', dac1, [-2**15,2**15-1],'dac1 trigger threshold')
+		_utils.check_parameter_valid('range', dac2, [-2**15,2**15-1],'dac2 trigger threshold')
+		_utils.check_parameter_valid('range', adc1, [-2**11,2**11-1],'adc1 trigger threshold') ##### CHANGE TO VOLTS AND FIND MAX/MIN FOR ADC AND DAC
+		_utils.check_parameter_valid('range', adc2, [-2**11,2**11-1],'adc2 trigger threshold')
+
 		self.TrigADCThreshold_Ch0 = adc1
 		self.TrigADCThreshold_Ch1 = adc2
 		self.TrigDACThreshold_Ch0 = dac1
@@ -383,6 +388,11 @@ class WaveformGenerator(BasicWaveformGenerator):
 		:param InternalTrigDuty : value in seconds of the trigger duty period. Duty cycle is defined as InternalTrigDuty/InternalTrigPeriod	
 
 		"""
+		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
+		_utils.check_parameter_valid('set', TriggerSource, [0,1,2,3],'trigger source')
+		_utils.check_parameter_valid('range', InternalTrigPeriod, [0,1e11],'internal trigger period','seconds')
+		_utils.check_parameter_valid('range', InternalTrigDuty, [0.0,1.0],'output channel','fraction')
+
 		PeriodFPGACycles = math.ceil(125e6 * InternalTrigPeriod)
 		DutyFPGACycles = math.ceil(125e6 * InternalTrigDuty)
 		if ch == 1:
@@ -395,8 +405,6 @@ class WaveformGenerator(BasicWaveformGenerator):
 			if TriggerSource == 3:
 				self.InternalTrigPeriod_Ch1 = PeriodFPGACycles	
 				self.NCycles_TrigDuty_Ch1 = DutyFPGACycles
-		else:
-			raise ValueOutOfRangeException("Invalid Channel") 
 
 	def set_trigger_gatemode(self, ch):
 		""" Configure gated trigger mode on target channel
@@ -405,12 +413,12 @@ class WaveformGenerator(BasicWaveformGenerator):
 		:param ch: target channel
 
 		"""
+		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
+
 		if ch == 1:
 			self.TrigSweepMode_Ch0 = 1
 		elif ch == 2:
 			self.TrigSweepMode_Ch1 = 1
-		else:
-			raise ValueOutOfRangeException("Invalid Channel")
 
 	def set_trigger_startmode(self, ch):
 		""" Configure start trigger mode on target channel
@@ -419,14 +427,14 @@ class WaveformGenerator(BasicWaveformGenerator):
 		:param ch: target channel
 
 		"""
+		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
+
 		if ch == 1:
 			self.TrigSweepMode_Ch0 = 2
 		elif ch == 2:
 			self.TrigSweepMode_Ch1 = 2
-		else:
-			raise ValueOutOfRangeException("Invalid Channel")
 
-	def set_trigger_ncyclemode(self, ch, SignalFreq=0.0, NCycles = 0, ):
+	def set_trigger_ncyclemode(self, ch, SignalFreq=0.0, NCycles = 1):
 		""" Configure Ncycle trigger mode on target channel
 
 		:type ch : int
@@ -439,18 +447,25 @@ class WaveformGenerator(BasicWaveformGenerator):
 		:param NCycles : integer number of signal periods 
 
 		"""
-		SignalPeriod = 0 if SignalFreq==0.0 else SignalFreq**-1  
+		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
+		_utils.check_parameter_valid('range', SignalFreq, [0,10e6],'signal frequency','frequency')
+		_utils.check_parameter_valid('range', NCycles, [0,1e18],'output channel','frequency')
+
+		# ensure combination of signal frequency and Ncycles doesn't cause 64 bit register overflow:
 		FPGACycles = math.ceil(125e6 * SignalPeriod * NCycles)
+		if FPGACycles > 2**63-1:
+			raise ValueOutOfRangeException("NCycle Register Overflow")
+
+		SignalPeriod = 0 if SignalFreq==0.0 else SignalFreq**-1  
+		#FPGACycles = math.ceil(125e6 * SignalPeriod * NCycles)
 		if ch == 1:
 			self.TrigSweepMode_Ch0 = 3
 			self.NCycles_TrigDuty_Ch0 = FPGACycles
 		elif ch == 2:
 			self.TrigSweepMode_Ch1 = 3
 			self.NCycles_TrigDuty_Ch1 = FPGACycles
-		else:
-			raise ValueOutOfRangeException("Invalid Channel")
 
-	def set_sweepmode(self, ch, SweepInitFreq = 1.0, SweepFinalFreq = 5.0, SweepDuration = 1.0):
+	def set_sweepmode(self, ch, SweepInitFreq = 1.0, SweepFinalFreq = 5.0, SweepDuration = 1.0, Waveform = 'sine'):
 		""" Configure sweep mode on target channel
 
 		:type ch : int
@@ -466,6 +481,17 @@ class WaveformGenerator(BasicWaveformGenerator):
 		:param SweepDuration : sweep duration in seconds
 
 		"""
+		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
+		_utils.check_parameter_valid('set', Waveform, ['sine', 'square', 'pulse', 'ramp'],'waveform type')
+		_utils.check_parameter_valid('range', SweepDuration, [0.0,1000.0],'sweep duration','seconds')
+
+		if Waveform == 'sine':
+			_utils.check_parameter_valid('range', SweepInitFreq, [0.0,250.0e6],'sweep starting frequency','frequency')
+			_utils.check_parameter_valid('range', SweepFinalFreq, [0.0,250.0e6],'sweep finishing frequency','frequency')
+		else:
+			_utils.check_parameter_valid('range', SweepInitFreq, [0.0,250.0e6],'sweep starting frequency','frequency')
+			_utils.check_parameter_valid('range', SweepFinalFreq, [0.0,250.0e6],'sweep finishing frequency','frequency')
+
 		PhaseIncrement = round((2**31 * 2**48 / (125*10**15)) * (SweepFinalFreq - SweepInitFreq)/SweepDuration)
 		SweepLength_FPGACycles = math.ceil(125e6 * SweepDuration)
 		InitFreq = SweepInitFreq * (2**48/10**9)
@@ -479,9 +505,6 @@ class WaveformGenerator(BasicWaveformGenerator):
 			self.SweepLength_Ch1 = SweepLength_FPGACycles
 			self.SweepInitFreq_Ch1 = InitFreq
 			self.SweepIncrement_Ch1 = PhaseIncrement
-		else:
-			raise ValueOutOfRangeException("Invalid Channel")
-
 
 	@needs_commit
 	def gen_modulate_off(self, ch=None):
