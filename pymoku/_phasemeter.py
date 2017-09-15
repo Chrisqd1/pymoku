@@ -21,9 +21,6 @@ REG_PM_INITF1_H = 65
 REG_PM_INITF1_L = 64
 REG_PM_INITF2_L = 68
 REG_PM_INITF2_H = 69
-REG_PM_CGAIN = 66
-REG_PM_INTSHIFT = 66
-REG_PM_CSHIFT = 66
 REG_PM_OUTDEC = 67
 REG_PM_OUTSHIFT = 67
 REG_PM_BW1 = 124
@@ -31,6 +28,7 @@ REG_PM_BW2 = 125
 REG_PM_AUTOA1 = 126
 REG_PM_AUTOA2 = 127
 
+REG_PM_LOCKED_OUTS = 95
 REG_PM_SG_EN = 96
 REG_PM_SG_FREQ1_L = 97
 REG_PM_SG_FREQ1_H = 98
@@ -47,7 +45,7 @@ _PM_ADC_SMPS = _instrument.ADC_SMP_RATE
 _PM_DAC_SMPS = _instrument.DAC_SMP_RATE
 _PM_BUFLEN = _instrument.CHN_BUFLEN
 _PM_FREQSCALE = 2.0**48 / _PM_DAC_SMPS
-_PM_FREQ_MIN = 2e6
+_PM_FREQ_MIN = 1e3
 _PM_FREQ_MAX = 200e6
 _PM_UPDATE_RATE = 1e6
 
@@ -61,9 +59,12 @@ _PM_SG_FREQSCALE = _PM_FREQSCALE
 _PM_SG_PHASESCALE = 360.0 / (2**48) # Wraps
 
 # Pre-defined log rates which ensure samplerate will set to ~120Hz or ~30Hz
-_PM_LOGRATE_FAST = 9
-_PM_LOGRATE_MEDIUM = 13
-_PM_LOGRATE_SLOW = 15
+_PM_LOGRATE_ULTRA_FAST = 3 # 125 kHz 
+_PM_LOGRATE_VERY_FAST = 6 # 15.625 kHz
+_PM_LOGRATE_FAST = 9 # 1.95 kHz
+_PM_LOGRATE_MEDIUM = 11 # 490 Hz
+_PM_LOGRATE_SLOW = 13 # 120 Hz
+_PM_LOGRATE_VERY_SLOW = 15 # 30 Hz
 
 class Phasemeter_WaveformGenerator(MokuInstrument):
 	def __init__(self):
@@ -76,7 +77,7 @@ class Phasemeter_WaveformGenerator(MokuInstrument):
 		self.gen_off()
 
 	@needs_commit
-	def gen_sinewave(self, ch, amplitude, frequency, phase=0.0):
+	def gen_sinewave(self, ch, amplitude, frequency, phase=0.0, phase_locked=False):
 		""" Generate a sinewave signal on the specified output channel
 		
 		:type ch: int; {1,2}
@@ -87,6 +88,8 @@ class Phasemeter_WaveformGenerator(MokuInstrument):
 		:param frequency: Frequency
 		:type phase: float; degrees
 		:param phase: Phase
+		:type phase_locked: boolean
+		:param phase_locked: Locks the phase of the generated sinewave to the measured phase of the input signal
 
 		:raises ValueError: if the channel number is invalid
 		:raises ValueOutOfRangeException: if wave parameters are out of range
@@ -96,15 +99,18 @@ class Phasemeter_WaveformGenerator(MokuInstrument):
 		_utils.check_parameter_valid('range', amplitude, [0.0, 2.0],'sinewave amplitude','Volts')
 		_utils.check_parameter_valid('range', frequency, [0,250e6],'sinewave frequency', 'Hz')
 		_utils.check_parameter_valid('range', phase, [0,360], 'sinewave phase', 'degrees')
+		_utils.check_parameter_valid('set', phase_locked, [True,False], 'phase locked output', 'boolean')
 
 		if ch == 1:
 			self.pm_out1_frequency = frequency
 			self.pm_out1_amplitude = amplitude
 			self.pm_out1_phase = phase
+			self.pm_out1_locked_out = phase_locked
 		elif ch == 2:
 			self.pm_out2_frequency = frequency
 			self.pm_out2_amplitude = amplitude
 			self.pm_out2_phase = phase
+			self.pm_out2_locked_out = phase_locked
 
 	@needs_commit
 	def gen_off(self, ch=None):
@@ -143,7 +149,11 @@ _pm_siggen_reg_hdl = {
 											from_reg_unsigned(0, 48, xform=lambda obj, p: p * _PM_SG_PHASESCALE )),
 	'pm_out2_phase':		((REG_PM_SG_PHASE2_H, REG_PM_SG_PHASE2_L),
 											to_reg_unsigned(0, 48, xform=lambda obj, p: (p / _PM_SG_PHASESCALE)),
-											from_reg_unsigned(0, 48, xform=lambda obj, p : p * _PM_SG_PHASESCALE ))
+											from_reg_unsigned(0, 48, xform=lambda obj, p : p * _PM_SG_PHASESCALE )),
+	'pm_out1_locked_out':	(REG_PM_LOCKED_OUTS, to_reg_bool(0),
+											from_reg_bool(0)),
+	'pm_out2_locked_out':	(REG_PM_LOCKED_OUTS, to_reg_bool(1),
+											from_reg_bool(1))
 }
 
 class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_WaveformGenerator): #TODO Frame instrument may not be appropriate when we get streaming going.
@@ -171,9 +181,9 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_WaveformGe
 		self.type = "phasemeter"
 		self.logname = "MokuPhasemeterData"
 
-		self.binstr = "<p32,0xAAAAAAAA:u48:u48:s15:p1,0:s48:s32:s32"
-		self.procstr = ["*{:.16e} : *{:.16e} : : *{:.16e} : *C*{:.16e} : *C*{:.16e} ".format(_PM_HERTZ_SCALE, _PM_HERTZ_SCALE,  _PM_CYCLE_SCALE, _PM_VOLTS_SCALE, _PM_VOLTS_SCALE),
-						"*{:.16e} : *{:.16e} : : *{:.16e} : *C*{:.16e} : *C*{:.16e} ".format(_PM_HERTZ_SCALE, _PM_HERTZ_SCALE,  _PM_CYCLE_SCALE, _PM_VOLTS_SCALE, _PM_VOLTS_SCALE)]
+		self.binstr = "<p32,0xAAAAAAAA:u48:u48:s15:p1,0:s48:s32:u1:s31"
+		self.procstr = ["*{:.16e} : *{:.16e} : : *{:.16e} : *C*{:.16e} : : *C*{:.16e} ".format(_PM_HERTZ_SCALE, _PM_HERTZ_SCALE,  _PM_CYCLE_SCALE, _PM_VOLTS_SCALE, _PM_VOLTS_SCALE),
+						"*{:.16e} : *{:.16e} : : *{:.16e} : *C*{:.16e} : : *C*{:.16e} ".format(_PM_HERTZ_SCALE, _PM_HERTZ_SCALE,  _PM_CYCLE_SCALE, _PM_VOLTS_SCALE, _PM_VOLTS_SCALE)]
 
 	def _update_datalogger_params(self):
 		# Call this function when any instrument configuration parameters are set
@@ -184,17 +194,21 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_WaveformGe
 	def set_samplerate(self, samplerate):
 		""" Set the sample rate of the Phasemeter.
 
-		Options are {'slow','medium','fast'} corresponding to ~30smp/s, ~120smp/s and ~1.9kSmp/s.
+		Options are {'veryslow','slow','medium','fast','veryfast','ultrafast'} corresponding to 30.5176 smp/s, 
+		122.0703 smp/s, 1.9531 ksmp/s, 15.625 ksmp/s, 125 ksps/s.
 
-		:type samplerate: string, {'slow','medium','fast'}
+		:type samplerate: string, {'veryslow','slow','medium','fast','veryfast','ultrafast'}
 		:param samplerate: Desired sample rate
 
 		:raises ValueError: If samplerate parameter is invalid.
 		"""
 		_str_to_samplerate_index = {
-			'slow' : _PM_LOGRATE_SLOW,
-			'medium': _PM_LOGRATE_MEDIUM,
-			'fast' : _PM_LOGRATE_FAST
+			'ultrafast' : _PM_LOGRATE_ULTRA_FAST,
+			'veryfast': _PM_LOGRATE_VERY_FAST,
+			'fast' : _PM_LOGRATE_FAST,
+			'medium' : _PM_LOGRATE_MEDIUM,
+			'slow': _PM_LOGRATE_SLOW,
+			'veryslow' : _PM_LOGRATE_VERY_SLOW
 		}
 		N = _utils.str_to_val(_str_to_samplerate_index, samplerate, 'samplerate')
 
@@ -249,40 +263,35 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_WaveformGe
 		elif ch == 2:
 			return self.init_freq_ch2
 
-	def _set_controlgain(self, v):
-		#TODO: Put limits on the range of 'v'
-		self.control_gain = v
-
-	def _get_controlgain(self):
-		return self.control_gain
-
 	@needs_commit
 	def set_bandwidth(self, ch, bw):
-		""" Set the bandwidth of the analog input channel
+		""" Set the bandwidth of the phasemeter. 
+
+		The phasemeter can measure deviations in phase and frequency up to the set bandwidth. 
 
 		:type ch: int; *{1,2}*
 		:param ch: Analog channel number to set bandwidth of.
 
 		:type bw: float; Hz
-		:param n: Desired bandwidth (will be rounded up to to the nearest multiple 10kHz * 2^N with N = [-6,0])
+		:param n: Desired bandwidth (will be rounded up to to the nearest multiple 10kHz / 2^N with N = [0,10])
 
 		:raises ValueError: If the channel number is invalid.
 		:raises ValueOutOfRangeException: if the bandwidth is not positive-definite or the channel number is invalid
 		"""
 		_utils.check_parameter_valid('set', ch, [1,2], 'channel')
-		_utils.check_parameter_valid('range', bw, [150,10e3], 'bandwidth','Hz')
+		_utils.check_parameter_valid('range', bw, [10,10e3], 'bandwidth','Hz')
 
-		n = min(max(math.ceil(math.log(bw/10e3,2)),-6),0)
+		n = max(min(math.ceil(math.log(10e3/bw, 2)), 10), 0)
 
 		if ch == 1:
 			self.bandwidth_ch1 = n
 		elif ch == 2:
 			self.bandwidth_ch2 = n
 
-		log.info("Bandwidth (Ch %d) set to %.2f Hz", ch, 10e3*(2**n))
+		log.info("Bandwidth (Ch %d) set to %.2f Hz", ch, 10e3/(2**n))
 
 	def get_bandwidth(self, ch):
-		""" Get the bandwidth of the analog input channel
+		""" Get the bandwidth of the phasemeter. 
 
 		:type ch: int; *{1,2}*
 		:param ch: Analog channel number to get bandwidth of.
@@ -293,7 +302,7 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_WaveformGe
 		:raises ValueError: If the channel number is invalid.
 		"""
 		_utils.check_parameter_valid('set', ch, [1,2], 'channel')
-		return 10e3 * (2**(self.bandwidth_ch1 if ch == 1 else self.bandwidth_ch2))
+		return 10e3 / (2**(self.bandwidth_ch1 if ch == 1 else self.bandwidth_ch2))
 
 	def _strobe_acquire(self, ch, auto):
 		""" Helper function which strobes the reacquire or auto-acquire for single or both channels
@@ -324,10 +333,10 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_WaveformGe
 	def auto_acquire(self, ch=None):
 		"""
 		Restarts the frequency tracking loop and phase counter for the specified channel,
-		or both if no channel is specified. The starting frequency of the channel's tracking loop is
-		automatically acquired, ignoring the currently set seed frequency by :any:`set_initfreq`.
+		or both if no channel is specified. The initial frequency of the channel's tracking loop is
+		automatically acquired, ignoring the manually set seed frequency by :any:`set_initfreq`.
 
-		To acquire using the set seed frequency, see :any:`reacquire`.
+		To acquire using the manually set seed frequency, see :any:`reacquire`.
 
 		:type ch: int; *{1,2}*
 		:param ch: Channel number, or ``None`` for both
@@ -358,7 +367,7 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_WaveformGe
 		hdr += "% Time,"
 		for i,c in enumerate(chs):
 			if c:
-				hdr += "{} Set frequency {i} (Hz), Frequency {i} (Hz), Phase {i} (cyc), I {i} (V), Q {i} (V)".format("," if ((ch1 and ch2) and i == 1) else "", i=i+1)
+				hdr += "{} Set frequency {i} (Hz), Frequency {i} (Hz), Phase {i} (cyc), I {i} (V), Q {i} (V), Freewheeling {i}".format("," if ((ch1 and ch2) and i == 1) else "", i=i+1)
 
 		hdr += "\r\n"
 
@@ -367,9 +376,9 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_WaveformGe
 	def _get_fmtstr(self, ch1, ch2):
 		fmtstr = "{t:.10e}"
 		if ch1:
-			fmtstr += ", {ch1[0]:.16e}, {ch1[1]:.16e}, {ch1[3]:.16e}, {ch1[4]:.10e}, {ch1[5]:.10e}"
+			fmtstr += ", {ch1[0]:.16e}, {ch1[1]:.16e}, {ch1[3]:.16e}, {ch1[4]:.10e}, {ch1[6]:.10e}, {ch1[5]:d}"
 		if ch2:
-			fmtstr += ", {ch2[0]:.16e}, {ch2[1]:.16e}, {ch2[3]:.16e}, {ch2[4]:.10e}, {ch2[5]:.10e}"
+			fmtstr += ", {ch2[0]:.16e}, {ch2[1]:.16e}, {ch2[3]:.16e}, {ch2[4]:.10e}, {ch2[6]:.10e}, {ch1[5]:d}"
 		fmtstr += "\r\n"
 		return fmtstr
 
@@ -381,17 +390,14 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_WaveformGe
 		self.x_mode = _instrument.ROLL
 
 		# Set basic configurations
-		self.set_samplerate('fast')
+		self.set_samplerate('medium')
 		self.set_initfreq(1, 30e6)
 		self.set_initfreq(2, 30e6)
 
-		# Set PI controller gains
-		self._set_controlgain(100)
-		self.control_shift = 0
-		self.integrator_shift = 0
+		# Set output decimation gain compensation
 		self.output_shift = math.log(self.output_decimation,2)
 
-		# Configuring the relays for impedance, voltage range etc.
+		# Configure the analog front-end relays for impedance, voltage range and input coupling.
 		self.set_frontend(1, fiftyr=True, atten=True, ac=True)
 		self.set_frontend(2, fiftyr=True, atten=True, ac=True)
 
@@ -410,12 +416,6 @@ _pm_reg_handlers = {
 	'init_freq_ch2':		((REG_PM_INITF2_H, REG_PM_INITF2_L),
 											to_reg_unsigned(0,48, xform=lambda obj, f: f * _PM_FREQSCALE),
 											from_reg_unsigned(0,48,xform=lambda obj, f: f / _PM_FREQSCALE)),
-	'control_gain':			(REG_PM_CGAIN,	to_reg_signed(0,16),
-											from_reg_signed(0,16)),
-	'control_shift':		(REG_PM_CGAIN,	to_reg_unsigned(20,4),
-											from_reg_unsigned(20,4)),
-	'integrator_shift':		(REG_PM_INTSHIFT, to_reg_unsigned(16,4),
-											from_reg_unsigned(16,4)),
 	'output_decimation':	(REG_PM_OUTDEC,	to_reg_unsigned(0,17),
 											from_reg_unsigned(0,17)),
 	'output_shift':			(REG_PM_OUTSHIFT, to_reg_unsigned(17,5),
