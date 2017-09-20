@@ -352,25 +352,28 @@ class WaveformGenerator(BasicWaveformGenerator):
 		""" Create a new WaveformGenerator instance, ready to be attached to a Moku."""
 		super(WaveformGenerator, self).__init__()
 		self._register_accessors(_siggen_mod_reg_handlers)
-	def set_trigger_threshold(self, dac1 = 2**13, dac2 = 2**13, adc1 = 2**8, adc2 = 2**8):
+	def set_trigger_threshold(self, dac1 = 0.24, dac2 = 0.24, adc1 = 0.5, adc2 = 0.5):
 		""" Configure the ADC and DAC trigger thresholds.
 
 		:type dac1, dac2 : int
-		:param dac1, dac2: dac source to configure threshold. -2**15 <= thresh <= 2**15-1
+		:param dac1, dac2: dac source to configure threshold. -2**15 <= thresh <= 2**15-1 ..... -1V <= thresh <= 1V
 
 		:type adc1, adc2 : int
-		:param adc1, adc2: adc source to configure threshold. -2**11 <= thresh <= 2**11-1
+		:param adc1, adc2: adc source to configure threshold. -2**11 <= thresh <= 2**11-1 ..... -10V <= thresh <= 10V
 
 		"""
-		_utils.check_parameter_valid('range', dac1, [-2**15,2**15-1],'dac1 trigger threshold')
-		_utils.check_parameter_valid('range', dac2, [-2**15,2**15-1],'dac2 trigger threshold')
-		_utils.check_parameter_valid('range', adc1, [-2**11,2**11-1],'adc1 trigger threshold') ##### CHANGE TO VOLTS AND FIND MAX/MIN FOR ADC AND DAC
-		_utils.check_parameter_valid('range', adc2, [-2**11,2**11-1],'adc2 trigger threshold')
+		_utils.check_parameter_valid('range', dac1, [-1.0,1.0],'dac1 trigger threshold','volts')
+		_utils.check_parameter_valid('range', dac2, [-1.0,1.0],'dac2 trigger threshold','volts')
+		_utils.check_parameter_valid('range', adc1, [-10.0,10.0],'adc1 trigger threshold','volts') ##### CHANGE TO VOLTS AND FIND MAX/MIN FOR ADC AND DAC
+		_utils.check_parameter_valid('range', adc2, [-10.0,10.0],'adc2 trigger threshold','volts')
 
-		self.TrigADCThreshold_Ch0 = adc1
-		self.TrigADCThreshold_Ch1 = adc2
-		self.TrigDACThreshold_Ch0 = dac1
-		self.TrigDACThreshold_Ch1 = dac2
+		#get ADC calibration coefficients:
+		a1, a2 = self._adc_gains()
+
+		self.TrigADCThreshold_Ch0 = adc1 / a1
+		self.TrigADCThreshold_Ch1 = adc2 / a2
+		self.TrigDACThreshold_Ch0 = dac1 * 2**15-1
+		self.TrigDACThreshold_Ch1 = dac2 * 2**15-1
 
 	def set_trigger_source(self, ch, TriggerSource = 0, InternalTrigPeriod = 1.0, InternalTrigDuty = 0.4):
 		""" Configure trigger source for target channel.
@@ -452,12 +455,11 @@ class WaveformGenerator(BasicWaveformGenerator):
 		_utils.check_parameter_valid('range', NCycles, [0,1e18],'output channel','frequency')
 
 		# ensure combination of signal frequency and Ncycles doesn't cause 64 bit register overflow:
+		SignalPeriod = 0 if SignalFreq==0.0 else SignalFreq**-1 
 		FPGACycles = math.ceil(125e6 * SignalPeriod * NCycles)
 		if FPGACycles > 2**63-1:
 			raise ValueOutOfRangeException("NCycle Register Overflow")
 
-		SignalPeriod = 0 if SignalFreq==0.0 else SignalFreq**-1  
-		#FPGACycles = math.ceil(125e6 * SignalPeriod * NCycles)
 		if ch == 1:
 			self.TrigSweepMode_Ch0 = 3
 			self.NCycles_TrigDuty_Ch0 = FPGACycles
@@ -489,8 +491,8 @@ class WaveformGenerator(BasicWaveformGenerator):
 			_utils.check_parameter_valid('range', SweepInitFreq, [0.0,250.0e6],'sweep starting frequency','frequency')
 			_utils.check_parameter_valid('range', SweepFinalFreq, [0.0,250.0e6],'sweep finishing frequency','frequency')
 		else:
-			_utils.check_parameter_valid('range', SweepInitFreq, [0.0,250.0e6],'sweep starting frequency','frequency')
-			_utils.check_parameter_valid('range', SweepFinalFreq, [0.0,250.0e6],'sweep finishing frequency','frequency')
+			_utils.check_parameter_valid('range', SweepInitFreq, [0.0,100.0e6],'sweep starting frequency','frequency')
+			_utils.check_parameter_valid('range', SweepFinalFreq, [0.0,100.0e6],'sweep finishing frequency','frequency')
 
 		PhaseIncrement = round((2**31 * 2**48 / (125*10**15)) * (SweepFinalFreq - SweepInitFreq)/SweepDuration)
 		SweepLength_FPGACycles = math.ceil(125e6 * SweepDuration)
