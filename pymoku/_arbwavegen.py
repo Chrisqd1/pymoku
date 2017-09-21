@@ -58,13 +58,26 @@ class ArbWaveGen(_CoreOscilloscope):
 	@needs_commit
 	def set_defaults(self):
 		super(ArbWaveGen, self).set_defaults()
+		#Arb Waveforms supports 8K at 1000Msps
 		self.mode1 = _ARB_MODE_1000
-		self.lut_length1 = 8192
-		self.phase_modulo1 = 2**29
-		self.dead_value1 = 0
-		self.interpolation1 = False
+		self.lut_length1 = _ARB_LUT_LENGTH
+		self.mode2 = _ARB_MODE_1000
+		self.lut_length2 = _ARB_LUT_LENGTH
+
+		# Timing of the output is controlled by  PhaseModulo and Phaseset
+		self.phase_modulo1 = 2**30
+		self.phase_modulo2 = 2**30
 		self.phase_step1 = _ARB_LUT_LSB
 		self.phase_step2 = _ARB_LUT_LSB
+
+		#Valuse for dead time part of signal 
+		#If signal wraps this gets added in the middle
+		self.dead_value1 = 0x0000
+		self.dead_value2 = 0x0000
+
+		#Add some obivios setups like Ipad values
+		self.interpolation1 = False
+		self.interpolation2 = False
 		self.enable1 = False
 		self.enable2 = False
 		self.amplitude1 = 1.0
@@ -76,41 +89,55 @@ class ArbWaveGen(_CoreOscilloscope):
 
 	@needs_commit
 	def write_lut(self, ch, data, srate=None):
+		# Determine which sample rate is used and set according to channels
 		if srate is not None:
 			if ch == 1: self.mode1 = srate
 			else:       self.mode2 = srate
 
+		# based in the channel used select the correct mode
 		mode = [self.mode1, self.mode2][ch-1]
+		log.info("selected mode is:  %d", mode)
+		
 		assert len(data) <= 2**13 or mode in [_ARB_MODE_125, _ARB_MODE_250, _ARB_MODE_500]
 		assert len(data) <= 2**14 or mode in [_ARB_MODE_125, _ARB_MODE_250]
 		assert len(data) <= 2**15 or mode in [_ARB_MODE_125]
 		assert len(data) <= 2**16
 
+		# picks the stepsize and the steps based in the mode
 		steps, stepsize = [(8, 8192), (4, 8192 * 2), (2, 8192 * 4), (1, 8192 * 8)][mode]
 
 		with open('.lutdata.dat', 'r+b') as f:
 			#first check and make the file the right size
 			f.seek(0, os.SEEK_END)
 			size = f.tell()
-			f.write('\0' * (_ARB_LUT_LENGTH * 8 * 4 * 2 - size))
+			f.write('\0'.encode(encoding='UTF-8') * (_ARB_LUT_LENGTH * 8 * 4 * 2 - size))
 			f.flush()
+
+			log.info("lut Table for values %s ", '\0'.encode(encoding='UTF-8'))
+			
 			#Leave the previous data file so we just rewite the new part,
 			#as we have to upload both channels at once.
 			if ch == 1:
 				offset = 0
-				self.lut_length1 = len(data) - 1
+				log.info("lutlength1, phase_modulo1, phase_step1:  %f %f %f", self.lut_length1, self.phase_modulo1, self.phase_step1)
 			else:
 				offset = _ARB_LUT_LENGTH * 8 * 4
-				self.lut_length2 = len(data) - 1
+				log.info("lutlength1, phase_modulo1, phase_step1:  %f %f %f", self.lut_length1, self.phase_modulo1, self.phase_step1)
+
 			for step in range(steps):
-				f.seek(offset + (step * stepsize * 4))
-				f.write(''.join([struct.pack('<hh', round((2.0**15-1) * d), 0) for d in data]))
+				f.seek(offset + (step * stepsize * 4)) 
+				log.info("lut Table for values %s ", [struct.pack('<hh', int(round((2.0**15-1) * d)), 0) for d in data])
+				f.write(b''.join([struct.pack('<hh', int(round((2.0**15-1) * d)), 0) for d in data]))
 
 			f.flush()
 
+		self.enable1 = False
+		self.enable2 = False
 		self._set_mmap_access(True)
 		self._moku._send_file('j', '.lutdata.dat')
 		self._set_mmap_access(False)
+		self.enable1 = True
+		self.enable2 = True
 	
 	@needs_commit
 	def gen_waveform(self, ch, period, phase, amplitude, offset=0, interpolation=True, dead_time=0, fiftyr=True):
@@ -144,32 +171,49 @@ class ArbWaveGen(_CoreOscilloscope):
 		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
 		_utils.check_parameter_valid('range', amplitude, [0.0, 2.0],'peak to peak amplitude','Volts')
 		_utils.check_parameter_valid('bool', interpolation, desc='linear interpolation')
-		_utils.check_parameter_vaild('range', dead_time, [0, 2e18], 'signal dead time', 'cycles')
+		_utils.check_parameter_vaild('range', dead_time, [0.0, 2e18], 'signal dead time', 'cycles')
 		_utils.check_parameter_valid('bool', fiftyr, desc='50 Ohm termination')
 
+		upper_voltage = offset + (amplitude/2.0)
+		lower_voltage = offset - (amplitude/2.0)
+		if (upper_voltage > 1.0) or (lower_voltage < -1.0):
+			raise ValueOutOfRangeException("Waveform offset limited by amplitude (max output range 2.0Vpp).")
+
 		if(ch == 1):
+			print("Enable output 1 with settings")
 			self.interpolation1 = interpolation
-			self.phase_modulo1 = self.lut_length1 * 2**32 if interpolation1 == True else 0
+			#self.phase_modulo1 = self.lut_length1 * 2**32 if self.interpolation1 == True else self.phase_modulo1
 			self.dead_value1 = dead_time
 			self.amplitude1 = amplitude
 			self.offset1 = offset
-			self.phase_step1 = 1 / periode * mode1 * self.phase_modulo1
+			#self.phase_step1 = 1 / period * self.mode1 * self.phase_modulo1
 			self.phase_offset1 = 0 if dead_time == 0 else phase / 360.0 * self.phase_modulo1
+			self.enable1 = True
 
 		if(ch == 2):
+			print("Enable output 2 with settings")
 			self.interpolation2 = interpolation
-			self.phase_modulo2 = self.lut_length2 * 2**32 if interpolation2 == True else 0
+			#self.phase_modulo2 = self.lut_length2 * 2**32 if self.interpolation2 == True else self.phase_modulo2
 			self.dead_value2 = dead_time
 			self.amplitude2 = amplitude
 			self.offset2 = offset
-			self.phase_step2 = 1 / periode * mode2 * self.phase_modulo2
+			#self.phase_step2 = 1 / period * self.mode2 * self.phase_modulo2
 			self.phase_offset2 = 0 if dead_time == 0 else phase / 360.0 * self.phase_modulo1
+			self.enable2 = True
 
 
-	def get_frequency(self):
-		""" :return: The current instrument frequency (Hz) """
-		return self.phase_step1 / mode1 / self.phase_modulo1
+	def get_frequency(self, ch):
+		""" returns the frequency for a given channel
+		
+		:type ch: int; {1,2}
+		:param ch: Channel on which to generate the wave
+		"""
+		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
 
+		if ch == 1:
+			return (self.phase_step1 * self.mode1) / self.phase_modulo1
+		if ch == 2:
+			return (self.phase_step2 * self.mode2) / self.phase_modulo2
 
 	@needs_commit
 	def gen_off(self, ch=None):
