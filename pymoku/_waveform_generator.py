@@ -90,6 +90,17 @@ _SG_TIMESCALE 		= 1.0 / (2**32 - 1) # Doesn't wrap
 _SG_MOD_FREQ_MAX 	= 62.5e6 # Hz
 _SG_SQUARE_CLIPSINE_THRESH = 25e3 # Hz
 
+_SG_TRIG_EXT 		= 0
+_SG_TRIG_ADC		= 1
+_SG_TRIG_DAC		= 2
+_SG_TRIG_INTER		= 3
+
+_SG_TRIG_MODE_OFF 	= 0
+_SG_TRIG_MODE_GATE	= 1
+_SG_TRIG_MODE_START = 2
+_SG_TRIG_MODE_NCYCLE= 3
+_SG_TRIG_MODE_SWEEP = 4
+
 class BasicWaveformGenerator(MokuInstrument):
 	"""
 
@@ -125,6 +136,8 @@ class BasicWaveformGenerator(MokuInstrument):
 		# Disable inputs on hardware that supports it
 		self.en_in_ch1 = True
 		self.en_in_ch2 = True
+		self.TrigSweepMode_Ch0 = _SG_TRIG_MODE_OFF
+		self.TrigSweepMode_Ch1 = _SG_TRIG_MODE_OFF
 
 	@needs_commit
 	def gen_sinewave(self, ch, amplitude, frequency, offset=0, phase=0.0):
@@ -352,28 +365,34 @@ class WaveformGenerator(BasicWaveformGenerator):
 		""" Create a new WaveformGenerator instance, ready to be attached to a Moku."""
 		super(WaveformGenerator, self).__init__()
 		self._register_accessors(_siggen_mod_reg_handlers)
-	def set_trigger_threshold(self, dac1 = 0.24, dac2 = 0.24, adc1 = 0.5, adc2 = 0.5):
+
+	@needs_commit	
+	def set_trigger_threshold(self, ch, dac=0.0, adc=0.0):
 		""" Configure the ADC and DAC trigger thresholds.
 
-		:type dac1, dac2 : int
-		:param dac1, dac2: dac source to configure threshold. -2**15 <= thresh <= 2**15-1 ..... -1V <= thresh <= 1V
+		:type ch: int; {1,2}
+		:param ch: Channel to set.
+		
+		:type dac : int
+		:param dac: dac source to configure threshold. -2**15 <= thresh <= 2**15-1 ..... -1V <= thresh <= 1V
 
-		:type adc1, adc2 : int
-		:param adc1, adc2: adc source to configure threshold. -2**11 <= thresh <= 2**11-1 ..... -10V <= thresh <= 10V
-
+		:type adc : int
+		:param adc: adc source to configure threshold. -2**11 <= thresh <= 2**11-1 ..... -10V <= thresh <= 10V
 		"""
-		_utils.check_parameter_valid('range', dac1, [-1.0,1.0],'dac1 trigger threshold','volts')
-		_utils.check_parameter_valid('range', dac2, [-1.0,1.0],'dac2 trigger threshold','volts')
-		_utils.check_parameter_valid('range', adc1, [-10.0,10.0],'adc1 trigger threshold','volts') ##### CHANGE TO VOLTS AND FIND MAX/MIN FOR ADC AND DAC
-		_utils.check_parameter_valid('range', adc2, [-10.0,10.0],'adc2 trigger threshold','volts')
+		_utils.check_parameter_valid('set', ch, [1,2],'output channel', allow_none=True)
+		_utils.check_parameter_valid('range', dac, [-1.0,1.0],'dac trigger threshold','volts')
+		_utils.check_parameter_valid('range', adc, [-10.0,10.0],'adc trigger threshold','volts') ##### CHANGE TO VOLTS AND FIND MAX/MIN FOR ADC AND DAC
 
 		#get ADC calibration coefficients:
 		a1, a2 = self._adc_gains()
 
-		self.TrigADCThreshold_Ch0 = adc1 / a1
-		self.TrigADCThreshold_Ch1 = adc2 / a2
-		self.TrigDACThreshold_Ch0 = dac1 * 2**15-1
-		self.TrigDACThreshold_Ch1 = dac2 * 2**15-1
+		if ch == 1:
+			self.TrigADCThreshold_Ch0 = adc / a1
+			self.TrigDACThreshold_Ch0 = dac * 2**15-1
+		if ch == 2:
+			self.TrigADCThreshold_Ch1 = adc / a2
+			self.TrigDACThreshold_Ch1 = dac * 2**15-1
+
 
 	def set_trigger_source(self, ch, TriggerSource = 0, InternalTrigPeriod = 1.0, InternalTrigDuty = 0.4):
 		""" Configure trigger source for target channel.
@@ -381,8 +400,8 @@ class WaveformGenerator(BasicWaveformGenerator):
 		:type ch : int
 		:param ch: target channel
 
-		:type TriggerSource : int
-		:param TriggerSource : value corresponding to one of four available trigger sources. 0 = ext, 1 = adc, 2 = dac, 3 = internal
+		:type TiggerSource: string, {'external','adc','dac','internal'}
+		:param source: Trigger Source. Value corresponds to one of four available trigger sources.
 
 		:type InternalTrigPeriod : float, seconds
 		:param InternalTrigPeriod : period in seconds of the internal trigger
@@ -392,86 +411,46 @@ class WaveformGenerator(BasicWaveformGenerator):
 
 		"""
 		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
-		_utils.check_parameter_valid('set', TriggerSource, [0,1,2,3],'trigger source')
 		_utils.check_parameter_valid('range', InternalTrigPeriod, [0,1e11],'internal trigger period','seconds')
 		_utils.check_parameter_valid('range', InternalTrigDuty, [0.0,1.0],'output channel','fraction')
 
+		_str_to_trigger_source = {
+			'external' : _SG_TRIG_EXT,
+			'adc' : _SG_TRIG_ADC,
+			'dac' : _SG_TRIG_DAC,
+			'internal' : _SG_TRIG_INTER
+		}
+
+		source = _utils.str_to_val(_str_to_trigger_source, TriggerSource, 'trigger source')
+
 		PeriodFPGACycles = math.ceil(125e6 * InternalTrigPeriod)
 		DutyFPGACycles = math.ceil(125e6 * InternalTrigDuty)
+		
 		if ch == 1:
-			self.TriggerSelect_Ch0 = TriggerSource
-			if TriggerSource == 3:
+			self.TriggerSelect_Ch0 = source
+			if source == _SG_TRIG_INTER:
 				self.InternalTrigPeriod_Ch0 = PeriodFPGACycles	
 				self.NCycles_TrigDuty_Ch0 = DutyFPGACycles
 		elif ch == 2:
-			self.TriggerSelect_Ch1 = TriggerSource
-			if TriggerSource == 3:
+			self.TriggerSelect_Ch1 = source
+			if source == _SG_TRIG_INTER:
 				self.InternalTrigPeriod_Ch1 = PeriodFPGACycles	
 				self.NCycles_TrigDuty_Ch1 = DutyFPGACycles
 
-	def set_trigger_gatemode(self, ch):
+	def set_trigger_mode(self, ch, mode, SignalFreq=0.0, NCycles = 1, SweepInitFreq = 1.0, SweepFinalFreq = 5.0, SweepDuration = 1.0, Waveform = 'sine'):
 		""" Configure gated trigger mode on target channel
 
 		:type ch : int
 		:param ch: target channel
 
-		"""
-		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
-
-		if ch == 1:
-			self.TrigSweepMode_Ch0 = 1
-		elif ch == 2:
-			self.TrigSweepMode_Ch1 = 1
-
-	def set_trigger_startmode(self, ch):
-		""" Configure start trigger mode on target channel
-
-		:type ch : int
-		:param ch: target channel
-
-		"""
-		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
-
-		if ch == 1:
-			self.TrigSweepMode_Ch0 = 2
-		elif ch == 2:
-			self.TrigSweepMode_Ch1 = 2
-
-	def set_trigger_ncyclemode(self, ch, SignalFreq=0.0, NCycles = 1):
-		""" Configure Ncycle trigger mode on target channel
-
-		:type ch : int
-		:param ch: target channel
+		:type mode: string , {'gateway', 'startmode', 'ncycle', 'sweep'}
+		:param mode: Select the mode in which the trigger is operated
 
 		:type SignalFreq : float, hertz
 		:param SignalFreq : signal frequency, used to find signal period and to determine requisite number of FPGA cycles
 
 		:type NCycles : int
 		:param NCycles : integer number of signal periods 
-
-		"""
-		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
-		_utils.check_parameter_valid('range', SignalFreq, [0,10e6],'signal frequency','frequency')
-		_utils.check_parameter_valid('range', NCycles, [0,1e18],'output channel','frequency')
-
-		# ensure combination of signal frequency and Ncycles doesn't cause 64 bit register overflow:
-		SignalPeriod = 0 if SignalFreq==0.0 else SignalFreq**-1 
-		FPGACycles = math.ceil(125e6 * SignalPeriod * NCycles)
-		if FPGACycles > 2**63-1:
-			raise ValueOutOfRangeException("NCycle Register Overflow")
-
-		if ch == 1:
-			self.TrigSweepMode_Ch0 = 3
-			self.NCycles_TrigDuty_Ch0 = FPGACycles
-		elif ch == 2:
-			self.TrigSweepMode_Ch1 = 3
-			self.NCycles_TrigDuty_Ch1 = FPGACycles
-
-	def set_sweepmode(self, ch, SweepInitFreq = 1.0, SweepFinalFreq = 5.0, SweepDuration = 1.0, Waveform = 'sine'):
-		""" Configure sweep mode on target channel
-
-		:type ch : int
-		:param ch: target channel
 
 		:type SweepInitFreq : float, hertz
 		:param SweepInitFreq : starting sweep frequency
@@ -484,6 +463,9 @@ class WaveformGenerator(BasicWaveformGenerator):
 
 		"""
 		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
+		_utils.check_parameter_valid('range', SignalFreq, [0,10e6],'signal frequency','frequency')
+		_utils.check_parameter_valid('range', NCycles, [0,1e18],'output channel','frequency')
+		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
 		_utils.check_parameter_valid('set', Waveform, ['sine', 'square', 'pulse', 'ramp'],'waveform type')
 		_utils.check_parameter_valid('range', SweepDuration, [0.0,1000.0],'sweep duration','seconds')
 
@@ -494,19 +476,44 @@ class WaveformGenerator(BasicWaveformGenerator):
 			_utils.check_parameter_valid('range', SweepInitFreq, [0.0,100.0e6],'sweep starting frequency','frequency')
 			_utils.check_parameter_valid('range', SweepFinalFreq, [0.0,100.0e6],'sweep finishing frequency','frequency')
 
-		PhaseIncrement = round((2**31 * 2**48 / (125*10**15)) * (SweepFinalFreq - SweepInitFreq)/SweepDuration)
-		SweepLength_FPGACycles = math.ceil(125e6 * SweepDuration)
-		InitFreq = SweepInitFreq * (2**48/10**9)
+		_str_to_trigger_mode = {
+			'gateway' : _SG_TRIG_MODE_GATE,
+			'startmode' : _SG_TRIG_MODE_START,
+			'ncycle' : _SG_TRIG_MODE_NCYCLE,
+			'sweep'	: _SG_TRIG_MODE_SWEEP,
+			'off':	_SG_TRIG_MODE_OFF
+		}
+
+		mode = _utils.str_to_val(_str_to_trigger_mode, mode, 'trigger mode')
+
+		# ensure combination of signal frequency and Ncycles doesn't cause 64 bit register overflow:
+		if mode is _SG_TRIG_MODE_NCYCLE:
+			SignalPeriod = 0 if SignalFreq == 0.0 else SignalFreq**-1 
+			FPGACycles = math.ceil(125e6 * SignalPeriod * NCycles)
+			if FPGACycles > 2**63-1:
+				raise ValueOutOfRangeException("NCycle Register Overflow")
+
+		if mode is _SG_TRIG_MODE_SWEEP:
+			PhaseIncrement = round((2**31 * 2**48 / (125*10**15)) * (SweepFinalFreq - SweepInitFreq)/SweepDuration)
+			SweepLength_FPGACycles = math.ceil(125e6 * SweepDuration)
+			InitFreq = SweepInitFreq * (2**48/10**9)
+		
 		if ch == 1:
-			self.TrigSweepMode_Ch0 = 4
-			self.SweepLength_Ch0 = SweepLength_FPGACycles
-			self.SweepInitFreq_Ch0 = InitFreq
-			self.SweepIncrement_Ch0 = PhaseIncrement
+			self.TrigSweepMode_Ch0 = mode
+			if mode is _SG_TRIG_MODE_NCYCLE:
+				self.NCycles_TrigDuty_Ch0 = FPGACycles
+			if mode is _SG_TRIG_MODE_SWEEP:
+				self.SweepLength_Ch0 = SweepLength_FPGACycles
+				self.SweepInitFreq_Ch0 = InitFreq
+				self.SweepIncrement_Ch0 = PhaseIncrement
 		elif ch == 2:
-			self.TrigSweepMode_Ch1 = 4
-			self.SweepLength_Ch1 = SweepLength_FPGACycles
-			self.SweepInitFreq_Ch1 = InitFreq
-			self.SweepIncrement_Ch1 = PhaseIncrement
+			self.TrigSweepMode_Ch1 = mode
+			if mode is _SG_TRIG_MODE_NCYCLE:
+				self.NCycles_TrigDuty_Ch1 = FPGACycles
+			if mode is _SG_TRIG_MODE_SWEEP:
+				self.SweepLength_Ch1 = SweepLength_FPGACycles
+				self.SweepInitFreq_Ch1 = InitFreq
+				self.SweepIncrement_Ch1 = PhaseIncrement
 
 	@needs_commit
 	def gen_modulate_off(self, ch=None):
