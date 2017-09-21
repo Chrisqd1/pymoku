@@ -181,7 +181,7 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_WaveformGe
 		self.type = "phasemeter"
 		self.logname = "MokuPhasemeterData"
 
-		self.binstr = "<p32,0xAAAAAAAA:u48:u48:s15:p1,0:s48:s32:u1:s31"
+		self.binstr = "<p32,0xAAAAAAAA:u48:u48:s15:p1,0:s48:s32:s31:u1>"
 		self.procstr = ["*{:.16e} : *{:.16e} : : *{:.16e} : *C*{:.16e} : : *C*{:.16e} ".format(_PM_HERTZ_SCALE, _PM_HERTZ_SCALE,  _PM_CYCLE_SCALE, _PM_VOLTS_SCALE, _PM_VOLTS_SCALE),
 						"*{:.16e} : *{:.16e} : : *{:.16e} : *C*{:.16e} : : *C*{:.16e} ".format(_PM_HERTZ_SCALE, _PM_HERTZ_SCALE,  _PM_CYCLE_SCALE, _PM_VOLTS_SCALE, _PM_VOLTS_SCALE)]
 
