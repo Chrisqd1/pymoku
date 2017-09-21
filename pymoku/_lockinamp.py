@@ -20,7 +20,7 @@ REG_LIA_INT_IFBGAIN2	= 102
 REG_LIA_INT_PGAIN1		= 103
 REG_LIA_INT_PGAIN2		= 104
 
-REG_LIA_DIFF_DGAIN1		= 105
+REG_LIA_GAIN_STAGE		= 105
 REG_LIA_DIFF_DGAIN2		= 106
 REG_LIA_DIFF_PGAIN1		= 107
 REG_LIA_DIFF_PGAIN2		= 108
@@ -96,8 +96,8 @@ class LockInAmp(_CoreOscilloscope):
 
 		self.pid1_en = 1
 		self.pid2_en = 1
-		self.pid1_int_i_en = 1
-		self.pid2_int_i_en = 1
+		self.pid1_int_i_en = 0
+		self.pid2_int_i_en = 0
 		self.pid1_int_dc_pole = 0
 		self.pid2_int_dc_pole = 0
 		self.pid1_int_p_en = 1
@@ -106,13 +106,19 @@ class LockInAmp(_CoreOscilloscope):
 		self.pid2_diff_d_en = 0
 		self.pid1_diff_i_en = 0
 		self.pid2_diff_i_en = 0
-		self.pid1_bypass = 1
-		self.pid2_bypass = 1
 		self.lo_reset = 0
 
 		self._pid_offset = 0
 
 
+		self.pid1_int_p_gain = 2**12 / 2**24
+		self.pid1_diff_d_gain = 0.0
+		self.pid1_diff_p_gain = 0.0
+		self.pid1_diff_i_gain = 0.0
+		self.pid1_diff_ifb_gain = 0.0
+
+		self.pid2_pidgain = 1.0
+		self.GainStage_Gain = 1.0
 		self.pid2_int_p_gain = 2**12 / 2**24
 		self.pid2_diff_d_gain = 0.0
 		self.pid2_diff_p_gain = 0.0
@@ -123,7 +129,8 @@ class LockInAmp(_CoreOscilloscope):
 		self.monitor_select0 = _LIA_MON_IN1
 		self.monitor_select1 = _LIA_MON_IN2
 
-		self.input_gain = .5
+	
+		self.input_gain_sel = 0
 
 
 		self.autoacquire = 1
@@ -143,19 +150,21 @@ class LockInAmp(_CoreOscilloscope):
 
 		self.filt_bypass1 = 0
 		self.filt_bypass2 = 0
+		self.pid1_bypass = 1
+		self.pid2_bypass = 1
 
-		self.set_filter_parameters(1, 1e6, 2)
+		self.set_filter_parameters(70.0, 1e3, 2)
 		self.set_output_offset(0)
 		self.set_lo_parameters(10e6, 0)
 		self.set_output_offset(0)
 
-		self.set_lo_output(0.5, 0.1, 11e6, 0)
+		self.set_lo_output(0.5, 0.5, 10e6, 0)
 		self.set_lo_mode('internal')
 		self.set_pid_channel(1)
 		self.set_signal_mode('iq')
 		self.set_aux_out('sine')
 
-
+		self.input_gain = 1.0
 		# self.filt_bypass = 0
 	@needs_commit
 	def set_pid_parameters(self, IDontKnow):
@@ -349,7 +358,7 @@ class LockInAmp(_CoreOscilloscope):
 		if mode == 'precision':
 			if order == 1:
 				self.input_gain = gain_factor
-				self.pid1_pidgain = self.pid2_pidgain = 1.0
+				self.pid1_pidgain  = 1.0
 			else :
 				self.input_gain = self.pid1_pidgain =  math.sqrt(gain_factor)
 				self.pid1_pidgain = 1.0
@@ -513,6 +522,9 @@ _lia_reg_hdl = {
 	'q_select':			(REG_LIA_ENABLES,		to_reg_bool(17),
 												from_reg_bool(17)),
 
+	'input_gain_sel':	(REG_LIA_ENABLES,		to_reg_bool(28),
+												from_reg_bool(28)),
+
 	'pid1_in_offset':	(REG_LIA_IN_OFFSET1,	to_reg_signed(0, 16),
 												from_reg_signed(0, 16)),
 
@@ -549,8 +561,8 @@ _lia_reg_hdl = {
 	'pid2_int_p_gain':	(REG_LIA_INT_PGAIN2,	to_reg_signed(0, 25, xform=lambda obj, x: x*_LIA_ID_GAINSCALE),
 												from_reg_signed(0, 25, xform=lambda obj, x: x / _LIA_ID_GAINSCALE)),
 
-	'pid1_diff_d_gain':	(REG_LIA_DIFF_DGAIN1,	to_reg_signed(0, 25, xform=lambda obj, x: x*_LIA_ID_GAINSCALE),
-												from_reg_signed(0, 25, xform=lambda obj, x: x / _LIA_ID_GAINSCALE)),
+	'GainStage_Gain':	(REG_LIA_GAIN_STAGE,	to_reg_signed(0, 25, xform=lambda obj, x: x* 2**15),
+												from_reg_signed(0, 25, xform=lambda obj, x: x / 2**15)),
 
 	'pid2_diff_d_gain':	(REG_LIA_DIFF_DGAIN2,	to_reg_signed(0, 25, xform=lambda obj, x: x*_LIA_ID_GAINSCALE),
 												from_reg_signed(0, 25, xform=lambda obj, x: x / _LIA_ID_GAINSCALE)),
@@ -601,8 +613,8 @@ _lia_reg_hdl = {
 	'sineout_offset':	(REG_LIA_SINEOUTOFF,	to_reg_signed(16, 16, xform=lambda obj, x: x / obj._dac_gains()[1]),
 												from_reg_signed(16, 16, xform=lambda obj, x: x * obj._dac_gains()[1])),
 
-	'input_gain':		(REG_LIA_INPUT_GAIN,	to_reg_signed(0,32, xform=lambda obj, x: x * _LIA_P_GAINSCALE),
-												from_reg_signed(0,32, xform=lambda obj, x: x / _LIA_P_GAINSCALE)),
+	'input_gain':		(REG_LIA_INPUT_GAIN,	to_reg_signed(0,32, xform=lambda obj, x: x * 2**15),
+												from_reg_signed(0,32, xform=lambda obj, x: x / 2**15)),
 
 	'bandwidth':		(REG_LIA_PM_BW1, to_reg_signed(0,5, xform=lambda obj, b: b),
 										from_reg_signed(0,5, xform=lambda obj, b: b)),
