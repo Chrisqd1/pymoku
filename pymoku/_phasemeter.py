@@ -240,6 +240,7 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_WaveformGe
 		"""
 		_utils.check_parameter_valid('range', f, [_PM_FREQ_MIN,_PM_FREQ_MAX], 'initial frequency')
 		_utils.check_parameter_valid('set', ch, [1,2], 'channel')
+
 		if ch == 1:
 			self.init_freq_ch1 = int(f);
 		elif ch == 2:
@@ -258,6 +259,7 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_WaveformGe
 		:raises ValueError: If the channel number is invalid.
 		"""
 		_utils.check_parameter_valid('set', ch, [1,2], 'channel')
+
 		if ch == 1:
 			return self.init_freq_ch1
 		elif ch == 2:
@@ -306,6 +308,12 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_WaveformGe
 
 	def _strobe_acquire(self, ch, auto):
 		""" Helper function which strobes the reacquire or auto-acquire for single or both channels
+
+		:type ch: int; *{1,2}*
+		:param ch: Analog channel number to get bandwidth of.
+			
+		:type: auto; bool
+		:param auto: True will turn the auto aquire on. False will require using the using the init frequency.
 		"""
 		if not ch or (ch == 1):
 			self.autoacquire_ch1 = auto
