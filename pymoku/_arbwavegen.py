@@ -64,7 +64,7 @@ class ArbWaveGen(_CoreOscilloscope):
 		self.mode2 = _ARB_MODE_1000
 		self.lut_length2 = _ARB_LUT_LENGTH
 
-		# Timing of the output is controlled by  PhaseModulo and Phaseset
+		# Timing of the output is controlled by PhaseModulo and Phasestep
 		self.phase_modulo1 = 2**30
 		self.phase_modulo2 = 2**30
 		self.phase_step1 = _ARB_LUT_LSB
@@ -117,29 +117,30 @@ class ArbWaveGen(_CoreOscilloscope):
 			f.write('\0'.encode(encoding='UTF-8') * (_ARB_LUT_LENGTH * 8 * 4 * 2 - size))
 			f.flush()
 
-			log.info("lut Table for values %s ", '\0'.encode(encoding='UTF-8'))
-			
 			#Leave the previous data file so we just rewite the new part,
 			#as we have to upload both channels at once.
 			if ch == 1:
 				offset = 0
-				log.info("lutlength1, phase_modulo1, phase_step1:  %f %f %f", self.lut_length1, self.phase_modulo1, self.phase_step1)
 			else:
 				offset = _ARB_LUT_LENGTH * 8 * 4
-				log.info("lutlength1, phase_modulo1, phase_step1:  %f %f %f", self.lut_length1, self.phase_modulo1, self.phase_step1)
 
 			for step in range(steps):
 				f.seek(offset + (step * stepsize * 4)) 
-				log.info("lut Table for values %s ", [struct.pack('<hh', int(round((2.0**15-1) * d)), 0) for d in data])
-				f.write(b''.join([struct.pack('<hh', int(round((2.0**15-1) * d)), 0) for d in data]))
+				f.write(b''.join([struct.pack('<hh', math.ceil((2.0**15-1) * d),0) for d in data]))
 
+#			num_bytes = f.tell()  # Get the file size
+#			count = 0
+#			for i in range(num_bytes):
+#				bytes_read = f.read(4)
+#				log.info(int.from_bytes(bytes_read, byteorder='little', signed=True)/(2.0**15-1))
+			
 			f.flush()
 
 		self.enable1 = False
 		self.enable2 = False
 		self._set_mmap_access(True)
 		self._moku._send_file('j', '.lutdata.dat')
-		self._set_mmap_access(False)
+		self._set_mmap_access(False)		
 		self.enable1 = True
 		self.enable2 = True
 	

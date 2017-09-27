@@ -42,7 +42,7 @@ xdata, ydata = pickle.loads(zlib.decompress(base64.b64decode(
 )))
 
 
-m = Moku('192.168.69.218')
+m = Moku('192.168.69.222')
 i = ArbWaveGen()
 m.deploy_instrument(i)
 
@@ -57,17 +57,25 @@ try:
 	i.phase_step1 = 2**27
 	i.phase_step2 = 2**27
 
-	i.write_lut(1, xdata, 3)
-	i.write_lut(2, ydata, 3)
+	amplitudex = max(xdata)
+	amplitudey = max(ydata)
+
+	xdatanew = [float(x)/amplitudex for x in xdata]
+	ydatanew = [float(y)/amplitudey for y in ydata]
+	
+	i.write_lut(1, xdatanew, 3)
+	i.write_lut(2, ydatanew, 3)
 
 	i.enable1 = True
 	i.enable2 = True
 	i.phase_rst1 = True
 	i.phase_rst2 = True
-	i.offset1 = 0.0 #DC-Offset
-	i.offset2 = 0.0 #DC-Offset
-	i.amplitude1 = 0.1
-	i.amplitude2 = 0.1
+	i.offset1 = 0.4 #DC-Offset
+	i.offset2 = 0.4 #DC-Offset
+
+
+	i.amplitude1 = 0.9
+	i.amplitude2 = 0.9
 	i.commit()
 
 	i.set_source(1, 'out', lmode='round')
@@ -77,8 +85,8 @@ try:
 	data = i.get_realtime_data(wait=True, timeout=10)
 	print(data.ch1)
 	print(data.ch2)
-	plt.plot(data.ch1, data.ch2)
-	plt.show()
+	#plt.plot(data.ch1, data.ch2)
+	#plt.show()
 
 finally:
 	m.close()
