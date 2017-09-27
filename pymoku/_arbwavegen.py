@@ -87,9 +87,11 @@ class ArbWaveGen(_CoreOscilloscope):
 	def _set_mmap_access(self, access):
 		self.mmap_access = access
 
+
 	@needs_commit
 	def write_lut(self, ch, data, srate=None):
 		# Determine which sample rate is used and set according to channels
+
 		if srate is not None:
 			if ch == 1: self.mode1 = srate
 			else:       self.mode2 = srate
@@ -103,7 +105,9 @@ class ArbWaveGen(_CoreOscilloscope):
 		assert len(data) <= 2**15 or mode in [_ARB_MODE_125]
 		assert len(data) <= 2**16
 
+
 		# picks the stepsize and the steps based in the mode
+
 		steps, stepsize = [(8, 8192), (4, 8192 * 2), (2, 8192 * 4), (1, 8192 * 8)][mode]
 
 		with open('.lutdata.dat', 'r+b') as f:
@@ -236,6 +240,7 @@ class ArbWaveGen(_CoreOscilloscope):
 
 		if ch is None or ch == 2:
 			self.enable2 = False
+
 
 _arb_reg_handlers = {
 	'mmap_access':		(REG_MMAP_ACCESS,		to_reg_bool(0),			from_reg_bool(0)),

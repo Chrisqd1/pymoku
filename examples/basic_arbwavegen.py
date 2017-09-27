@@ -41,6 +41,7 @@ xdata, ydata = pickle.loads(zlib.decompress(base64.b64decode(
    fv4HtdVAJw=='''
 )))
 
+
 m = Moku('192.168.69.218')
 i = ArbWaveGen()
 m.deploy_instrument(i)
@@ -56,17 +57,8 @@ try:
 	i.phase_step1 = 2**27
 	i.phase_step2 = 2**27
 
-	maxx = max(xdata)
-	maxy = max(ydata)
-
-	x = np.arange(2**12)
-	xdatanew = np.sin(2 * np.pi * x/ 128)
-
-	ydatanew = [y/maxy for y in ydata]
-
-
-	i.write_lut(1, ydatanew, 3)
-	i.write_lut(2, ydatanew, 3)
+	i.write_lut(1, xdata, 3)
+	i.write_lut(2, ydata, 3)
 
 	i.enable1 = True
 	i.enable2 = True

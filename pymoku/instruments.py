@@ -44,10 +44,10 @@ id_table = {
 	7: Datalogger,
 	8: LockInAmp,
 	9: BodeAnalyser,
-	10: None,
-	11: None,
-	12: None,
-	13: None,
-	14: None,
+	10: None, # FIR Filter Box
+	11: None, # PDH Locking
+	12: None, # Software Defined Radio
+	13: None, # Frequency Counter
+	14: None, # BoxCar Averager
 	15: ArbWaveGen
 }
