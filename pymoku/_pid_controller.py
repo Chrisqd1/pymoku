@@ -111,6 +111,17 @@ class PIDController(_CoreOscilloscope):
 		self.set_control_matrix(2, 1, 0)
 		self.set_by_gain(1, 1, 1)
 		self.set_by_gain(2, 1, 1)
+		self.ch1_pid1_en = 1
+		self.ch1_pid1_ien = 1
+		self.ch1_pid1_bypass = 0
+		self.ch1_pid2_bypass = 1
+		self.ch1_pid1_int_i_gain = 2*pi*10e3 / 25e6
+		self.ch1_pid1_int_ifb_gain = 1 - 2*pi*1e3/25e6
+		self.ch1_pid1_pen = 1
+		self.ch1_pid1_int_p_gain = 0
+		self.ch1_pid1_int_dc_pole = 0
+		self.ch1_pid2_int_dc_pole = 0
+
 
 	@needs_commit
 	def set_by_frequency(self, ch, kp, i_xover=None, d_xover=None, ii_xover=None, si=None, sd=None, in_offset=0, out_offset=0):
@@ -157,7 +168,15 @@ class PIDController(_CoreOscilloscope):
 		#  - 1/16 to convert from ADC bits to DAC bits
 		#  - DAC gain to convert from bits to output volts
 		#  - user-supplied factor so they can optimise the rounding strategy too
-		gain_factor = g / 16.0 / 1000.0 / self._dac_gains()[ch - 1]
+
+		double_integrator = kii != 0
+
+		if double_integrator:
+			gain_factor = sqrt(g / 16.0 / 1000.0 / self._dac_gains()[ch - 1])
+			prop_gain = sqrt(kp)
+		else :
+			gain_factor = g / 16.0 / 1000.0 / self._dac_gains()[ch - 1]
+			prop_gain = kp
 
 		fs = _PID_CONTROL_FS / (2 * pi)
 
@@ -168,8 +187,7 @@ class PIDController(_CoreOscilloscope):
 		if si is None:
 			i_c = i_fb = 0
 		else:
-			# Factor of 4 / pi not understood (and different from iPad)
-			i_c = sqrt(ki * kii / si * 4 / pi) if kii else ki * kp / si * 4 / pi
+			i_c = sqrt(ki * kii / si ) if kii else ki / si
 			i_fb = 1.0 - i_c / fs
 
 		# D gain and corner, magic factors different from iPad?? Note there's kind of a
@@ -181,7 +199,7 @@ class PIDController(_CoreOscilloscope):
 
 		if ch == 1:
 			self.ch1_pid1_en = self.ch1_pid2_en = True
-			self.ch1_pid1_pen = kp > 0
+			self.ch1_pid1_pen = prop_gain > 0
 			self.ch1_pid2_pen = double_integrator
 			self.ch1_pid1_ien = ki > 0
 			self.ch1_pid2_ien = ki > 0 and double_integrator
@@ -190,17 +208,17 @@ class PIDController(_CoreOscilloscope):
 			self.ch1_input_en = True
 			self.ch1_output_en = True
 			self.ch1_pid1_pidgain = gain_factor
-			self.ch1_pid2_pidgain = kp
+			self.ch1_pid2_pidgain = gain_factor
 
 			self.ch1_pid1_bypass = False
 			self.ch1_pid1_int_i_gain = i_gain
-			self.ch1_pid1_int_p_gain = kp
+			self.ch1_pid1_int_p_gain = prop_gain
 			self.ch1_pid1_int_ifb_gain = i_fb
 			self.ch1_pid1_int_dc_pole = si is None
 
 			self.ch1_pid2_bypass = not double_integrator
 			self.ch1_pid2_int_i_gain = ii_gain
-			self.ch1_pid2_int_p_gain = kp
+			self.ch1_pid2_int_p_gain = prop_gain
 			self.ch1_pid2_int_ifb_gain = i_fb
 			self.ch1_pid2_int_dc_pole = si is None
 
@@ -217,7 +235,7 @@ class PIDController(_CoreOscilloscope):
 
 		elif ch == 2:
 			self.ch2_pid1_en = self.ch2_pid2_en = True
-			self.ch2_pid1_pen = kp > 0
+			self.ch2_pid1_pen = prop_gain > 0
 			self.ch2_pid2_pen = double_integrator
 			self.ch2_pid1_ien = ki > 0
 			self.ch2_pid2_ien = ki > 0 and double_integrator
@@ -226,17 +244,17 @@ class PIDController(_CoreOscilloscope):
 			self.ch2_input_en = True
 			self.ch2_output_en = True
 			self.ch2_pid1_pidgain = gain_factor
-			self.ch2_pid2_pidgain = kp
+			self.ch2_pid2_pidgain = prop_gain
 
 			self.ch2_pid1_bypass = False
 			self.ch2_pid1_int_i_gain = i_gain
-			self.ch2_pid1_int_p_gain = kp
+			self.ch2_pid1_int_p_gain = prop_gain
 			self.ch2_pid1_int_ifb_gain = i_fb
 			self.ch2_pid1_int_dc_pole = si is None
 
 			self.ch2_pid2_bypass = not double_integrator
 			self.ch2_pid2_int_i_gain = ii_gain
-			self.ch2_pid2_int_p_gain = kp
+			self.ch2_pid2_int_p_gain = prop_gain
 			self.ch2_pid2_int_ifb_gain = i_fb
 			self.ch2_pid2_int_dc_pole = si is None
 

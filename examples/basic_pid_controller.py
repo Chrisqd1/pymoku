@@ -18,8 +18,8 @@ i = PIDController()
 m.deploy_instrument(i)
 
 # i.set_by_frequency(1, kp=0*dB)
-i.set_by_frequency(1, kp=0*dB, i_xover = 10000, si = 10*dB)
-
+#i.set_by_frequency(1, kp=-10*dB, i_xover = 10000, si = 20*dB)
+i.set_by_gain(1, 1,kp=0.3, ki = 1e3, kii = 1e3, si = 10)
 # i.set_by_frequency(2, kp=0*dB)
 
 m.close()
