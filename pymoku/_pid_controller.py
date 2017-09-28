@@ -128,6 +128,8 @@ class PIDController(_CoreOscilloscope):
 
 		# Particularly high or low I or D crossover frequencies (<1Hz, >1MHz) require that some of their gain is
 		# pushed to the overall gain on the end due to dynamic range limitations
+		fs = _PID_CONTROL_FS/ (2*pi)
+
 		i_gmin = d_gmin = 1
 		i_gmax = d_gmax = 1
 		if i_xover:
@@ -136,7 +138,7 @@ class PIDController(_CoreOscilloscope):
 			i_gmax = max(i_unity / 1e6, 1)
 
 		if d_xover:
-			d_unity = d_xover / kp
+			d_unity = d_xover * fs / d_xover
 			d_gmin = sd if sd is not None and sd < 1 else max(1.0e6 / d_unity, 1.0)
 			d_gmax = max(1 / d_unity, 1)
 
@@ -152,11 +154,23 @@ class PIDController(_CoreOscilloscope):
 		else:
 			best_gain = 1
 
-		kp = sqrt(kp) # Not completely understood
+		kp = kp # Not completely understood
 
 		kp /= best_gain
-		ki = kp * i_xover if i_xover else 0
-		kii = kp * ii_xover if ii_xover else 0
+
+		if ii_xover :
+			if i_xover :
+				ki = sqrt(kp) * i_xover
+				kii = sqrt(kp) * ii_xover
+			else:
+				ki = kii = 0
+		else:
+			if i_xover :
+				ki = kp * i_xover
+			else:
+				ki = 0
+			kii = 0
+
 		kd = kp / d_xover if d_xover else 0
 
 		self.set_by_gain(ch, best_gain, kp, ki, kd, kii, si, sd, in_offset, out_offset)
@@ -187,13 +201,13 @@ class PIDController(_CoreOscilloscope):
 		if si is None:
 			i_c = i_fb = 0
 		else:
-			i_c = sqrt(ki * kii / si ) if kii else ki / si
+			i_c = sqrt(ki * kii / si) if kii else ki / si
 			i_fb = 1.0 - i_c / fs
 
 		# D gain and corner, magic factors different from iPad?? Note there's kind of a
 		# magic factor of 1/2 in the d saturation case as I would expect it to be 2*pi
-		d_gain = sd / g * pi if sd else kd / g * fs
-		d_fb = 1.0 - sd / kd / fs if sd else 0
+		d_gain = sd / g * sqrt(2)*pi if sd else kd / g * fs
+		d_fb = 1.0 - sd / kd if sd else 0
 
 		double_integrator = kii != 0
 
