@@ -1,6 +1,7 @@
 import socket, select, struct, logging
 import os.path
 import zmq
+import pymoku.version
 
 from pymoku.tools import compat as cp
 
@@ -67,11 +68,15 @@ class Moku(object):
 	"""
 	PORT = 27184
 
-	def __init__(self, ip_addr):
+	def __init__(self, ip_addr, force=False):
 		"""Create a connection to the Moku:Lab unit at the given IP address
 
 		:type ip_addr: string
-		:param ip_addr: The address to connect to. This should be in IPv4 dotted notation."""
+		:param ip_addr: The address to connect to. This should be in IPv4 dotted notation.
+
+		:type force: bool
+		:param force: Ignore firmware compatibility checks and force the instrument to deploy. 
+		"""
 		self._ip = ip_addr
 		self._seq = 0
 		self._instrument = None
@@ -89,9 +94,11 @@ class Moku(object):
 		self.led = None
 		self.led_colours = None
 
-		build = self.get_version()
-		if cp.firmware_is_compatible(build) == False: # Might be None = unknown, don't print that.
-			print("Warning: The connected Moku appears to be incompatible with this version of pymoku. Please run 'moku --ip={} firmware check_compat' for more information.".format(self._ip))
+		# Check that pymoku is compatible with the Moku:Lab's firmware version
+		if not force:
+			build = self.get_firmware_build()
+			if cp.firmware_is_compatible(build) == False: # Might be None = unknown, don't print that.
+				raise MokuException("The connected Moku appears to be incompatible with this version of pymoku. Please run 'moku --ip={} firmware check_compat' for more information.".format(self._ip))
 
 	@staticmethod
 	def list_mokus(timeout=5):
@@ -895,9 +902,13 @@ class Moku(object):
 		self.name = self._get_property_single('system.name')
 		return self.name
 
+	def get_firmware_build(self):
+		""" :return: Build number of the current Moku:Lab firmware."""
+		return int(self._get_property_single('system.micro'))
+
 	def get_version(self):
 		""" :return: Version of connected Moku:Lab """
-		return int(self._get_property_single('system.micro'))
+		return version.release
 
 	def set_name(self, name):
 		""" :param name: Set new name for the Moku:Lab. This can make it easier to discover the device if multiple Moku:Labs are on a network"""
@@ -934,7 +945,7 @@ class Moku(object):
 		""":return: True if the Moku currently is connected and has an instrument deployed and operating"""
 		return self._instrument is not None and self._instrument.is_active()
 
-	def deploy_instrument(self, instrument, set_default=True, use_external=False):
+	def deploy_instrument(self, instrument, set_default=True, use_external=False, force=False):
 		"""
 		Attaches a :any:`MokuInstrument` subclass to the Moku, deploying and activating an instrument.
 
@@ -945,8 +956,8 @@ class Moku(object):
 		:type set_default: bool
 		:param set_default: Set the instrument to its default config upon connection, overwriting user changes before this point.
 		:type use_external: bool
-		:param use_external: Attempt to lock to an external reference clock. """
-
+		:param use_external: Attempt to lock to an external reference clock. 
+		"""
 		self.external_reference = use_external
 
 		if self._instrument:
