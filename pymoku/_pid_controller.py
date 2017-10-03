@@ -128,7 +128,7 @@ class PIDController(_CoreOscilloscope):
 
 		# Particularly high or low I or D crossover frequencies (<1Hz, >1MHz) require that some of their gain is
 		# pushed to the overall gain on the end due to dynamic range limitations
-		fs = _PID_CONTROL_FS/ (2*pi)
+		fs = _PID_CONTROL_FS
 
 		i_gmin = d_gmin = 1
 		i_gmax = d_gmax = 1
@@ -199,15 +199,30 @@ class PIDController(_CoreOscilloscope):
 		ii_gain = kii / g / fs
 
 		if si is None:
-			i_c = i_fb = 0
+			i_c  = 0
 		else:
 			i_c = sqrt(ki * kii / si) if kii else ki / si
-			i_fb = 1.0 - i_c / fs
+		i_fb = 1.0 - i_c / fs
 
 		# D gain and corner, magic factors different from iPad?? Note there's kind of a
 		# magic factor of 1/2 in the d saturation case as I would expect it to be 2*pi
-		d_gain = sd / g * sqrt(2)*pi if sd else kd / g * fs
-		d_fb = 1.0 - sd / kd if sd else 0
+		d_gain = 4 * sd / g  if sd else 4 * 1000 / g
+		
+		if sd :
+			if kd >0 :
+				fc_coeff = sd / (kd * (fs))
+			else :
+				fc_coeff = 1
+		else:
+			if kd >0 :
+				fc_coeff = 1000 / (kd * (fs))
+			else :
+				fc_coeff = 1
+
+		if fc_coeff > 1 :
+			fc_coeff = 1
+
+		d_fb = 1.0 - (fc_coeff)
 
 		double_integrator = kii != 0
 
