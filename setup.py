@@ -8,8 +8,6 @@ from pkg_resources import resource_filename, resource_isdir
 from tempfile import mkstemp
 from zipfile import ZipFile
 
-import requests
-
 version = open('pymoku/version.txt').read().strip()
 data_url = 'http://www.liquidinstruments.com/s/data-latest.zip'
 
@@ -21,6 +19,7 @@ except:
 
 
 def download_bitstreams():
+	import requests
 	assert resource_isdir('pymoku', 'instr')
 	base_path = resource_filename('pymoku', 'instr')
 
