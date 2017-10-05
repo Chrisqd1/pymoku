@@ -46,7 +46,7 @@ def _set_autocommit(enable):
 	autocommit = enable
 
 # Allow environment variable override of bitstream path
-data_folder = os.path.expanduser(os.environ.get('PYMOKU_INSTR_PATH', None)) or pkg_resources.resource_filename('pymoku', 'data')
+data_folder = os.path.expanduser(os.environ.get('PYMOKU_INSTR_PATH', None) or pkg_resources.resource_filename('pymoku', 'data'))
 
 # Network status codes
 _ERR_OK = 0
