@@ -101,7 +101,7 @@ class Moku(object):
 				raise MokuException("The connected Moku appears to be incompatible with this version of pymoku. Please run 'moku --ip={} firmware check_compat' for more information.".format(self._ip))
 
 	@staticmethod
-	def list_mokus(timeout=5):
+	def list_mokus(timeout=5, all_versions=True):
 		""" Discovers all compatible Moku instances on the network.
 
 		For most applications, the user should use the *get_by_* functions. These
@@ -110,6 +110,8 @@ class Moku(object):
 
 		:type timeout: float
 		:param timeout: time for which to search for Moku devices
+		:type all_versions: bool
+		:param all_versions: list all Moku:Labs on the network, ignoring compatibility
 
 		:rtype: [(ip, serial, name),...]
 		:return: List of tuples, one per Moku
@@ -119,18 +121,19 @@ class Moku(object):
 
 		for ip in ips:
 			try:
-				m = Moku(ip)
+				m = Moku(ip, force=all_versions)
 				name = m.get_name()
 				ser = m.get_serial()
 				known_mokus.append((ip, ser, name))
 				m.close()
-			except:
+			except Exception as e:
+				print e
 				continue
 
 		return known_mokus
 
 	@staticmethod
-	def get_by_ip(ip_addr, timeout=10):
+	def get_by_ip(ip_addr, timeout=10, force=False):
 		"""
 		Factory function, returns a :any:`Moku` instance with the given IP address.
 
@@ -147,15 +150,15 @@ class Moku(object):
 		def _filter(ip):
 			return ip == ip_addr
 
-		mokus = BonjourFinder().find_all(max_results=1, filter_callback=_filter, timeout=timeout)
+		mokus = BonjourFinder().find_all(max_results=1, filter_type='ip', filter_callback=_filter, timeout=timeout)
 
 		if len(mokus):
-			return Moku(mokus[0])
+			return Moku(mokus[0], force=force)
 
 		raise MokuNotFound("Couldn't find Moku: %s" % ip_addr)
 
 	@staticmethod
-	def get_by_serial(serial, timeout=10):
+	def get_by_serial(serial, timeout=10, force=False):
 		"""
 		Factory function, returns a :any:`Moku` instance with the given Serial number.
 
@@ -166,28 +169,21 @@ class Moku(object):
 		:rtype: :any:`Moku`
 		:return: Moku with given serial number
 		:raises *MokuNotFound*: if no such Moku is found within the timeout"""
-		def _filter(ip):
-			m = None
+		def _filter(txtrecord):
 			try:
-				m = Moku(ip)
-				ser = m.get_serial()
-			except zmq.error.Again:
+				return txtrecord['device.serial']==serial
+			except KeyError:
 				return False
-			finally:
-				if m is not None:
-					m.close()
 
-			return ser == serial
-
-		mokus = BonjourFinder().find_all(max_results=1, filter_callback=_filter, timeout=timeout)
+		mokus = BonjourFinder().find_all(max_results=1, filter_type='serial', filter_callback=_filter, timeout=timeout)
 
 		if len(mokus):
-			return Moku(mokus[0])
+			return Moku(mokus[0], force=force)
 
 		raise MokuNotFound("Couldn't find Moku: %s" % serial)
 
 	@staticmethod
-	def get_by_name(name, timeout=10):
+	def get_by_name(name, timeout=10, force=False):
 		"""
 		Factory function, returns a :any:`Moku` instance with the given name.
 
@@ -198,23 +194,13 @@ class Moku(object):
 		:rtype: :any:`Moku`
 		:return: Moku with given device name
 		:raises *MokuNotFound*: if no such Moku is found within the timeout"""
-		def _filter(ip):
-			m = None
-			try:
-				m = Moku(ip)
-				n = m.get_name()
-			except zmq.error.Again:
-				return False
-			finally:
-				if m is not None:
-					m.close()
+		def _filter(devname):
+			return devname==name
 
-			return n == name
-
-		mokus = BonjourFinder().find_all(max_results=1, filter_callback=_filter, timeout=timeout)
+		mokus = BonjourFinder().find_all(max_results=1, filter_type='name', filter_callback=_filter, timeout=timeout)
 
 		if len(mokus):
-			return Moku(mokus[0])
+			return Moku(mokus[0], force=force)
 
 		raise MokuNotFound("Couldn't find Moku: %s" % name)
 
@@ -945,7 +931,7 @@ class Moku(object):
 		""":return: True if the Moku currently is connected and has an instrument deployed and operating"""
 		return self._instrument is not None and self._instrument.is_active()
 
-	def deploy_instrument(self, instrument, set_default=True, use_external=False, force=False):
+	def deploy_instrument(self, instrument, set_default=True, use_external=False):
 		"""
 		Attaches a :any:`MokuInstrument` subclass to the Moku, deploying and activating an instrument.
 

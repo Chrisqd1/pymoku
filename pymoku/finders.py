@@ -1,6 +1,7 @@
 
 import select, socket, time
 from . import pybonjour
+from . import version
 
 class BonjourFinder(object):
 	def __init__(self):
@@ -9,6 +10,7 @@ class BonjourFinder(object):
 		self.queried = []
 		self.finished = False
 		self.filter_callback = None
+		self.filter_type = None # 'serial', 'name', 'ip'
 		self.max_results = 0
 		self.pversion = ''
 		self.timeout = 5
@@ -17,7 +19,10 @@ class BonjourFinder(object):
 							  rrtype, rrclass, rdata, ttl):
 		if errorCode == pybonjour.kDNSServiceErr_NoError:
 			ip = socket.inet_ntoa(rdata)
-			if self.filter_callback is None or self.filter_callback(ip):
+
+			# If the service got this far through then it hasn't already been filtered out by serial or name,
+			# so we add it to the list, unless it's filtered by IP first.
+			if (not self.filter_type=='ip') or (self.filter_type=='ip' and self.filter_callback(ip)==True):
 				self.moku_list.append(ip)
 
 			if self.max_results and len(self.moku_list) >= self.max_results:
@@ -33,6 +38,13 @@ class BonjourFinder(object):
 
 		hw, pver, dummy = hosttarget.split('_')
 		if not hw.startswith('moku') or pver != self.pversion:
+			return
+
+		# Parse the txtRecord string for the service
+		txtRecord_dict = pybonjour.TXTRecord.parse(txtRecord)
+
+		# If specified, filter service by serial number (extracted from service metadata)
+		if self.filter_type=='serial' and self.filter_callback(txtRecord_dict)==False:
 			return
 
 		query_sdRef = \
@@ -63,6 +75,10 @@ class BonjourFinder(object):
 		if not (flags & pybonjour.kDNSServiceFlagsAdd):
 			return
 
+		# If specified, filter service by device name
+		if self.filter_type=='name' and self.filter_callback(serviceName)==False:
+			return
+
 		resolve_sdRef = pybonjour.DNSServiceResolve(0,
 													interfaceIndex,
 													serviceName,
@@ -82,11 +98,17 @@ class BonjourFinder(object):
 			resolve_sdRef.close()
 
 
-	def find_all(self, protocol_version='7', timeout=5, max_results=0, filter_callback=None):
-		self.pversion = protocol_version
+	def find_all(self, protocol_version=None, timeout=5, max_results=0, filter_type=None, filter_callback=None):
+		# Use pymoku network protocol version by default
+		if protocol_version is None:
+			self.pversion = version.protocol_version
+		else:
+			self.pversion = protocol_version
+
 		self.timeout = timeout
 		self.max_results = max_results
 		self.filter_callback = filter_callback
+		self.filter_type = filter_type
 		self.moku_list = []
 
 		browse_sdRef = pybonjour.DNSServiceBrowse(regtype = '_moku._tcp',
