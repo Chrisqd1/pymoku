@@ -133,7 +133,8 @@ class PIDController(_CoreOscilloscope):
 		i_gmin = d_gmin = 1
 		i_gmax = d_gmax = 1
 		if i_xover:
-			i_unity = i_xover / kp
+			i_unity = i_xover * kp
+			print("i_unity",  i_unity)
 			i_gmin = min(i_unity, 1)
 			i_gmax = max(i_unity / 1e6, 1)
 
@@ -154,9 +155,9 @@ class PIDController(_CoreOscilloscope):
 		else:
 			best_gain = 1
 
-		kp = kp # Not completely understood
-
 		kp /= best_gain
+		print( "best gain", best_gain )
+		print("kp", kp)
 
 		if ii_xover :
 			if i_xover :
@@ -172,7 +173,8 @@ class PIDController(_CoreOscilloscope):
 			kii = 0
 
 		kd = kp / d_xover if d_xover else 0
-
+		si = si / best_gain if si else None
+		sd = sd / best_gain if sd else None
 		self.set_by_gain(ch, best_gain, kp, ki, kd, kii, si, sd, in_offset, out_offset)
 
 	@needs_commit
@@ -195,18 +197,21 @@ class PIDController(_CoreOscilloscope):
 		fs = _PID_CONTROL_FS / (2 * pi)
 
 		# I gain and corner. Factors of FS convert essentially from S- to Z-plane
-		i_gain = ki / g / fs
-		ii_gain = kii / g / fs
+		i_gain = ki  / fs
+		ii_gain = kii  / fs
 
 		if si is None:
 			i_c  = 0
 		else:
 			i_c = sqrt(ki * kii / si) if kii else ki / si
+			if i_c  < fs / (2**24-1) :
+				log.info("Integrator corner too low. Integrator saturation set to %.3f", g * ki / ( 2 * fs / (2**24 -1 )))	
 		i_fb = 1.0 - i_c / fs
+
 
 		# D gain and corner, magic factors different from iPad?? Note there's kind of a
 		# magic factor of 1/2 in the d saturation case as I would expect it to be 2*pi
-		d_gain = 4 * sd / g  if sd else 4 * 1000 / g
+		d_gain = 4 * sd   if sd else 4 * 1000
 		
 		if sd :
 			if kd >0 :
@@ -219,8 +224,10 @@ class PIDController(_CoreOscilloscope):
 			else :
 				fc_coeff = 1
 
-		if fc_coeff > 1 :
-			fc_coeff = 1
+		if fc_coeff > 1 - 1 / (2**24 -1) :
+			fc_coeff = 1e6/12.5e6 * pi
+			d_gain = 4 * fc_coeff * kd * fs
+			log.info("Differentiar saturation corner at maximum. Corner set to %.3f", d_gain / 4)
 
 		d_fb = 1.0 - (fc_coeff)
 

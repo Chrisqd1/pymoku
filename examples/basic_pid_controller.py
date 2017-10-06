@@ -1,4 +1,4 @@
-from pymoku import Moku
+from pymoku import Moku  
 from pymoku.instruments import *
 import time, logging
 
