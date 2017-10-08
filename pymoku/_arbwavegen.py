@@ -59,14 +59,14 @@ class ArbWaveGen(_CoreOscilloscope):
 	def set_defaults(self):
 		super(ArbWaveGen, self).set_defaults()
 		#Arb Waveforms supports 8K at 1000Msps
-		self.mode1 = _ARB_MODE_1000
+		self.mode1 = _ARB_MODE_125
 		self.lut_length1 = _ARB_LUT_LENGTH
-		self.mode2 = _ARB_MODE_1000
+		self.mode2 = _ARB_MODE_125
 		self.lut_length2 = _ARB_LUT_LENGTH
 
 		# Timing of the output is controlled by PhaseModulo and Phasestep
-		self.phase_modulo1 = 2**30
-		self.phase_modulo2 = 2**30
+		self.phase_modulo1 = 2**42
+		self.phase_modulo2 = 2**42
 		self.phase_step1 = _ARB_LUT_LSB
 		self.phase_step2 = _ARB_LUT_LSB
 
@@ -82,6 +82,9 @@ class ArbWaveGen(_CoreOscilloscope):
 		self.enable2 = False
 		self.amplitude1 = 1.0
 		self.amplitude2 = 1.0
+		self.offset1 = 0.0
+		self.offset2 = 0.0
+
 
 	@needs_commit
 	def _set_mmap_access(self, access):
@@ -121,9 +124,10 @@ class ArbWaveGen(_CoreOscilloscope):
 			#as we have to upload both channels at once.
 			if ch == 1:
 				offset = 0
+				self.lut_length1 = len(data)
 			else:
 				offset = _ARB_LUT_LENGTH * 8 * 4
-
+				self.lut_length2 = len(data)
 			for step in range(steps):
 				f.seek(offset + (step * stepsize * 4)) 
 				f.write(b''.join([struct.pack('<hh', math.ceil((2.0**15-1) * d),0) for d in data]))
@@ -135,14 +139,11 @@ class ArbWaveGen(_CoreOscilloscope):
 #				log.info(int.from_bytes(bytes_read, byteorder='little', signed=True)/(2.0**15-1))
 			
 			f.flush()
-
-		self.enable1 = False
-		self.enable2 = False
 		self._set_mmap_access(True)
 		self._moku._send_file('j', '.lutdata.dat')
+		test = self._moku._receive_file('j', '.lutdata.dat', 1024, '.lutdata.datreadback')
+		log.info("error number: %s", test )
 		self._set_mmap_access(False)		
-		self.enable1 = True
-		self.enable2 = True
 	
 	@needs_commit
 	def gen_waveform(self, ch, period, phase, amplitude, offset=0, interpolation=True, dead_time=0, fiftyr=True):
@@ -176,11 +177,12 @@ class ArbWaveGen(_CoreOscilloscope):
 		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
 		_utils.check_parameter_valid('range', amplitude, [0.0, 2.0],'peak to peak amplitude','Volts')
 		_utils.check_parameter_valid('bool', interpolation, desc='linear interpolation')
-		_utils.check_parameter_vaild('range', dead_time, [0.0, 2e18], 'signal dead time', 'cycles')
+		#_utils.check_parameter_vaild('range', dead_time, [0.0, 2e18], 'signal dead time', 'cycles')
 		_utils.check_parameter_valid('bool', fiftyr, desc='50 Ohm termination')
 
 		upper_voltage = offset + (amplitude/2.0)
 		lower_voltage = offset - (amplitude/2.0)
+
 		if (upper_voltage > 1.0) or (lower_voltage < -1.0):
 			raise ValueOutOfRangeException("Waveform offset limited by amplitude (max output range 2.0Vpp).")
 
@@ -188,7 +190,7 @@ class ArbWaveGen(_CoreOscilloscope):
 			print("Enable output 1 with settings")
 			self.interpolation1 = interpolation
 			#self.phase_modulo1 = self.lut_length1 * 2**32 if self.interpolation1 == True else self.phase_modulo1
-			self.dead_value1 = dead_time
+			self.dead_value1 = dead_time #this is wrong
 			self.amplitude1 = amplitude
 			self.offset1 = offset
 			#self.phase_step1 = 1 / period * self.mode1 * self.phase_modulo1
