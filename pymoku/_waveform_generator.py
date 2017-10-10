@@ -479,10 +479,12 @@ class WaveformGenerator(BasicWaveformGenerator):
 			self.trigger_select_ch1 = source
 			if source == _SG_TRIG_INTER:
 				self.internal_trig_increment_ch1 = internal_trig_increment
+			self.out1_modsource = source
 		elif ch == 2:
 			self.trigger_select_ch2 = source
 			if source == _SG_TRIG_INTER:
 				self.internal_trig_increment_ch2 = internal_trig_increment
+			self.out2_modsource = source
 
 
 		## Configure trigger mode settings and evaluate exception conditions:	
@@ -558,7 +560,7 @@ class WaveformGenerator(BasicWaveformGenerator):
 			if mode is _SG_TRIG_MODE_SWEEP:
 				self.sweep_length_ch1 = sweep_length_FPGA_cycles
 				self.sweep_init_freq_ch1 = init_freq
-				self.sweep_increment_ch1 = phase_increment
+				self.sweep_increment_ch1 = phase_increment			
 		
 		elif ch == 2:
 			self.trig_sweep_mode_ch2 = mode
