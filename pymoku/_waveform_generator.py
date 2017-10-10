@@ -132,6 +132,8 @@ class BasicWaveformGenerator(MokuInstrument):
 		self.out2_amplitude = 0
 		self.out1_frequency = 0
 		self.out2_frequency = 0
+		self.adc1_statuslight = 0
+		self.adc2_statuslight = 0
 
 		# Burst/sweep mode exception variables:
 		self.ch1_is_ramp = 0
@@ -474,18 +476,17 @@ class WaveformGenerator(BasicWaveformGenerator):
 		source = _utils.str_to_val(_str_to_trigger_source, trigger_source, 'trigger source')
 
 		internal_trig_increment = math.ceil(2**64/(internal_trig_period*125*10**6))
-		
+
 		if ch == 1:
 			self.trigger_select_ch1 = source
 			if source == _SG_TRIG_INTER:
 				self.internal_trig_increment_ch1 = internal_trig_increment
-			self.out1_modsource = source
+			self.adc1_statuslight = 1 if source == _SG_TRIG_ADC else 0
 		elif ch == 2:
 			self.trigger_select_ch2 = source
 			if source == _SG_TRIG_INTER:
 				self.internal_trig_increment_ch2 = internal_trig_increment
-			self.out2_modsource = source
-
+			self.adc2_statuslight = 1 if source == _SG_TRIG_ADC else 0
 
 		## Configure trigger mode settings and evaluate exception conditions:	
 
@@ -648,10 +649,12 @@ class WaveformGenerator(BasicWaveformGenerator):
 			self.out1_modulation = mtype
 			self.out1_modsource = source
 			self.mod1_frequency = frequency
+			self.adc1_statuslight = 1 if source == _SG_MODSOURCE_ADC else 0
 		elif ch == 2:
 			self.out2_modulation = mtype
 			self.out2_modsource = source
 			self.mod2_frequency = frequency
+			self.adc2_statuslight = 1 if source == _SG_MODSOURCE_ADC else 0
 
 		# Calibrate the depth value depending on the source
 		if(source == _SG_MODSOURCE_INT):
@@ -818,5 +821,11 @@ _siggen_reg_handlers = {
 											to_reg_unsigned(0,64), from_reg_unsigned(0,64)),
 
 	'ncycles_period_ch2':	((REG_SG_NCycles_TrigDutyCH1_H, REG_SG_NCycles_TrigDutyCH1_L),
-											to_reg_unsigned(0,64), from_reg_unsigned(0,64))
+											to_reg_unsigned(0,64), from_reg_unsigned(0,64)),
+
+	'adc1_statuslight':	(REG_SG_MODSOURCE,	to_reg_unsigned(5, 1),
+											from_reg_unsigned(5, 1)),
+
+	'adc2_statuslight':	(REG_SG_MODSOURCE,	to_reg_unsigned(6, 1),
+											from_reg_unsigned(6, 1))
 }
