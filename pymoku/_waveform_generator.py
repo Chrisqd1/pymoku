@@ -133,11 +133,21 @@ class BasicWaveformGenerator(MokuInstrument):
 		self.out1_frequency = 0
 		self.out2_frequency = 0
 
+		# Burst/sweep mode exception variables:
+		self.ch1_is_ramp = 0
+		self.ch2_is_ramp = 0
+		self.ch1_edgetime_nonzero = 0
+		self.ch2_edgetime_nonzero = 0
+
 		# Disable inputs on hardware that supports it
 		self.en_in_ch1 = True
 		self.en_in_ch2 = True
 		self.trig_sweep_mode_ch1 = _SG_TRIG_MODE_OFF
 		self.trig_sweep_mode_ch2 = _SG_TRIG_MODE_OFF
+
+		# Configure front end:
+		self._set_frontend(channel = 1, fiftyr=True, atten=True, ac=False)
+		self._set_frontend(channel = 2, fiftyr=True, atten=True, ac=False)
 
 	@needs_commit
 	def gen_sinewave(self, ch, amplitude, frequency, offset=0, phase=0.0):
@@ -172,6 +182,11 @@ class BasicWaveformGenerator(MokuInstrument):
 		lower_voltage = offset - (amplitude/2.0)
 		if (upper_voltage > 1.0) or (lower_voltage < -1.0):
 			raise ValueOutOfRangeException("Sinewave offset limited by amplitude (max output range 2.0Vpp).")
+
+		if ch == 1:
+			self.ch1_is_ramp = 0
+		else:
+			self.ch2_is_ramp = 0 
 
 		if ch == 1:
 			self.out1_waveform = _SG_WAVE_SINE
@@ -245,6 +260,17 @@ class BasicWaveformGenerator(MokuInstrument):
 		if frequency > _SG_SQUARE_CLIPSINE_THRESH: 
 			log.warning("Squarewave may experience edge jitter above %d kHz.", _SG_SQUARE_CLIPSINE_THRESH/1e3)
 
+		riserate = frequency / risetime if risetime else _SG_MAX_RISE
+		fallrate = frequency / falltime if falltime else _SG_MAX_RISE
+		# Raise warning if calculated rise/fall rate is > max rise/fall rate. Set values to max if this occurs.
+		if riserate > _SG_MAX_RISE:
+			riserate = _SG_MAX_RISE
+			log.warning("Riserate restricted to maximum value of %d s.",_SG_MAX_RISE)
+		if fallrate > _SG_MAX_RISE:
+			fallrate = _SG_MAX_RISE
+			log.warning("Fallrate restricted to maximum value of %d s.",_SG_MAX_RISE)
+
+
 		if ch == 1:
 			self.out1_waveform = _SG_WAVE_SQUARE
 			self.out1_enable = True
@@ -257,9 +283,13 @@ class BasicWaveformGenerator(MokuInstrument):
 			self.out1_t0 = risetime
 			self.out1_t1 = duty
 			self.out1_t2 = duty + falltime
-			self.out1_riserate = frequency / risetime if risetime else _SG_MAX_RISE
-			self.out1_fallrate = frequency / falltime if falltime else _SG_MAX_RISE
+			self.out1_riserate = riserate
+			self.out1_fallrate = fallrate
 			self.out1_phase =  phase
+
+			# Parameters used to determine burst/sweep mode exception cases:
+			self.ch1_edgetime_nonzero = 1 if (risetime != 0 or falltime != 0) else 0
+			self.ch1_is_ramp = 0
 		elif ch == 2:
 			self.out2_waveform = _SG_WAVE_SQUARE
 			self.out2_enable = True
@@ -273,6 +303,8 @@ class BasicWaveformGenerator(MokuInstrument):
 			self.out2_riserate = frequency / risetime if risetime else _SG_MAX_RISE
 			self.out2_fallrate = frequency / falltime if falltime else _SG_MAX_RISE
 			self.out2_phase = phase
+			self.ch2_edgetime_nonzero = 1 if (risetime != 0 or falltime != 0) else 0
+			self.ch2_is_ramp = 0 
 
 	@needs_commit
 	def gen_rampwave(self, ch, amplitude, frequency, offset=0, symmetry=0.5, phase= 0.0):
@@ -320,6 +352,12 @@ class BasicWaveformGenerator(MokuInstrument):
 			risetime = symmetry,
 			falltime = 1 - symmetry,
 			phase = phase)
+
+		# Ramp waveforms not allowed for burst/sweep modes
+		if ch == 1:
+			self.ch1_is_ramp = 1
+		else:
+			self.ch2_is_ramp = 1 
 
 
 	@needs_commit
@@ -374,71 +412,28 @@ class WaveformGenerator(BasicWaveformGenerator):
 		:param ch: Channel to set.
 		
 		:type dac : int
-		:param dac: dac source to configure threshold. -2**15 <= thresh <= 2**15-1 ..... -1V <= thresh <= 1V
+		:param dac: dac source to configure threshold. -2**14 <= thresh <= 2**14-1 ..... -2V <= thresh <= 2V
 
 		:type adc : int
-		:param adc: adc source to configure threshold. -2**11 <= thresh <= 2**11-1 ..... -10V <= thresh <= 10V
+		:param adc: adc source to configure threshold. -2**10 <= thresh <= 2**10-1 ..... -10V <= thresh <= 10V
 		"""
 		_utils.check_parameter_valid('set', ch, [1,2],'output channel', allow_none=True)
 		_utils.check_parameter_valid('range', dac, [-1.0,1.0],'dac trigger threshold','volts')
-		_utils.check_parameter_valid('range', adc, [-10.0,10.0],'adc trigger threshold','volts') ##### CHANGE TO VOLTS AND FIND MAX/MIN FOR ADC AND DAC
+		_utils.check_parameter_valid('range', adc, [-5.0,5.0],'adc trigger threshold','volts') ##### CHANGE TO VOLTS AND FIND MAX/MIN FOR ADC AND DAC
 
-		#get ADC calibration coefficients:
+		#get ADC/DAC calibration coefficients:
 		a1, a2 = self._adc_gains()
+		d1, d2 = self._dac_gains()
 
 		if ch == 1:
 			self.trig_ADC_threshold_ch1 = math.ceil(float(adc) / float(a1))
-			self.trig_DAC_threshold_ch1 = dac * 2**15-1
+			self.trig_DAC_threshold_ch2 = math.ceil(float(dac) / float(d1))/2
 		if ch == 2:
 			self.trig_ADC_threshold_ch2 = math.ceil(float(adc) / float(a2))
-			self.trig_DAC_threshold_ch2 = dac * 2**15-1
+			self.trig_DAC_threshold_ch2 = math.ceil(float(dac) / float(d2))/2
 
 	@needs_commit
-	def set_trigger_source(self, ch, trigger_source = 0, internal_trig_period = 1.0, internal_trig_duty = 0.4):
-		""" Configure trigger source for target channel.
-
-		:type ch : int
-		:param ch: target channel
-
-		:type tigger_source: string, {'external','adc','dac','internal'}
-		:param trigger_source: Source from which the trigger signal is used. Value corresponds to one of four available trigger sources.
-
-		:type internal_trig_period : float, seconds
-		:param internal_trig_period : period in seconds of the internal trigger
-
-		:type internal_trig_duty : float, seconds
-		:param internal_trig_duty : value in seconds of the trigger duty period. Duty cycle is defined as InternalTrigDuty/InternalTrigPeriod	
-
-		"""
-		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
-		_utils.check_parameter_valid('range', internal_trig_period, [0,1e11],'internal trigger period','seconds')
-		_utils.check_parameter_valid('range', internal_trig_duty, [0.0,1.0],'output channel','fraction')
-
-		_str_to_trigger_source = {
-			'external' : _SG_TRIG_EXT,
-			'adc' : _SG_TRIG_ADC,
-			'dac' : _SG_TRIG_DAC,
-			'internal' : _SG_TRIG_INTER
-		}
-
-		source = _utils.str_to_val(_str_to_trigger_source, trigger_source, 'trigger source')
-
-		period_FPGA_cycles = math.ceil(125e6 * internal_trig_period)
-		duty_FPGA_cycles = math.ceil(125e6 * internal_trig_duty)
-		
-		if ch == 1:
-			self.trigger_select_ch1 = source
-			if source == _SG_TRIG_INTER:
-				self.internal_trig_period_ch1 = period_FPGA_cycles	
-				self.ncycles_trig_duty_ch1 = duty_FPGA_cycles
-		elif ch == 2:
-			self.trigger_select_ch2 = source
-			if source == _SG_TRIG_INTER:
-				self.internal_trig_period_ch2 = period_FPGA_cycles	
-				self.ncycles_trig_duty_ch2 = duty_FPGA_cycles
-
-	@needs_commit
-	def set_trigger_mode(self, ch, mode, ncycles = 1, sweep_final_freq = 5.0, sweep_duration = 1.0):
+	def set_trigger(self, ch, mode, ncycles = 1, sweep_init_freq = None, sweep_final_freq = 5.0, sweep_duration = 1.0, trigger_source = 'external', internal_trig_period = 1.0, internal_trig_duty = 0.4):
 		""" Configure gated trigger mode on target channel
 
 		:type ch : int
@@ -450,6 +445,9 @@ class WaveformGenerator(BasicWaveformGenerator):
 		:type ncycles : int
 		:param ncycles : integer number of signal periods 
 
+		:type sweep_init_freq : float, hertz
+		:param sweep_init_freq : starting sweep frequency, set to waveform frequency if not specified
+
 		:type sweep_final_freq : float, hertz
 		:param sweep_final_freq : finishing sweep frequency
 
@@ -460,12 +458,53 @@ class WaveformGenerator(BasicWaveformGenerator):
 		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
 		_utils.check_parameter_valid('range', ncycles, [0,1e18],'output channel','frequency')
 		_utils.check_parameter_valid('range', sweep_duration, [0.0,1000.0],'sweep duration','seconds')
+		_utils.check_parameter_valid('range', internal_trig_period, [0,1e11],'internal trigger period','seconds')
+		_utils.check_parameter_valid('range', internal_trig_duty, [0.0,1.0],'output channel','fraction')
+
+
+		## Configure trigger source settings:
+
+		_str_to_trigger_source = {
+			'external' : _SG_TRIG_EXT,
+			'adc' : _SG_TRIG_ADC,
+			'dac' : _SG_TRIG_DAC,
+			'internal' : _SG_TRIG_INTER
+		}
+
+		source = _utils.str_to_val(_str_to_trigger_source, trigger_source, 'trigger source')
+
+		internal_trig_increment = math.ceil(2**64/(internal_trig_period*125*10**6))
+		
+		if ch == 1:
+			self.trigger_select_ch1 = source
+			if source == _SG_TRIG_INTER:
+				self.internal_trig_increment_ch1 = internal_trig_increment
+		elif ch == 2:
+			self.trigger_select_ch2 = source
+			if source == _SG_TRIG_INTER:
+				self.internal_trig_increment_ch2 = internal_trig_increment
+
+
+		## Configure trigger mode settings and evaluate exception conditions:	
+
+		if sweep_init_freq is None:
+			channel_frequency = self.out1_frequency if ch == 1 else self.out2_frequency
+		else:
+			channel_frequency = sweep_init_freq
 
 		waveform = self.out1_waveform if ch == 1 else self.out2_waveform 
-		if waveform == 'sine':
+		#if waveform == 'sine':
+		if waveform == 0:
 			_utils.check_parameter_valid('range', sweep_final_freq, [0.0,250.0e6],'sweep finishing frequency','frequency')
+			_utils.check_parameter_valid('range', channel_frequency, [0.0,250.0e6],'sweep starting frequency','frequency')
 		else:
 			_utils.check_parameter_valid('range', sweep_final_freq, [0.0,100.0e6],'sweep finishing frequency','frequency')
+			_utils.check_parameter_valid('range', channel_frequency, [0.0,100.0e6],'sweep starting frequency','frequency')
+
+		# Ramp waveform cannot be used for any burst/sweep mode:
+		is_ramp = self.ch1_is_ramp if ch == 1 else self.ch2_is_ramp
+		if is_ramp == 1:
+			raise ValueOutOfRangeException("Ramp waveforms cannot be used in burst/sweep modes.")
 
 		_str_to_trigger_mode = {
 			'gateway' : _SG_TRIG_MODE_GATE,
@@ -476,8 +515,29 @@ class WaveformGenerator(BasicWaveformGenerator):
 		}
 		mode = _utils.str_to_val(_str_to_trigger_mode, mode, 'trigger mode')
 
-		# read the signal frequency from a register
-		channel_frequency = self.out1_frequency if ch == 1 else self.out2_frequency
+		# Exit early if mode = off
+		if mode == 'off':
+			if ch == 1:
+				self.trig_sweep_mode_ch1 = mode
+			else:
+				self.trig_sweep_mode_ch2 = mode
+			return None
+
+		# Pulse waveform edge must be minimum for gated burst mode and sweep mode:
+		if (mode is _SG_TRIG_MODE_GATE or mode is _SG_TRIG_MODE_SWEEP) and waveform != 0: #'sine':
+			if ch == 1 and self.ch1_edgetime_nonzero == 1:
+				raise ValueOutOfRangeException("Pulse waveform rise and fall times must be set to zero for gated burst mode and sweep mode.")
+			if ch == 2 and self.ch2_edgetime_nonzero == 1:
+				raise ValueOutOfRangeException("Pulse waveform rise and fall times must be set to zero for gated burst mode and sweep mode.")
+
+		# Waveform frequencies are restricted to <= 10 MHz in Ncycle burst mode: 
+		if mode is _SG_TRIG_MODE_NCYCLE and channel_frequency > 10.0e6:
+			raise ValueOutOfRangeException("Waveform frequencies are restricted to 10 MHz or less in Ncycle burst mode.")
+
+		# Internal trigger source cannot be used for burst start mode:
+		trigger_source = self.trigger_select_ch1 if ch == 1 else self.trigger_select_ch2
+		if mode is _SG_TRIG_MODE_START and trigger_source == 3:
+			raise ValueOutOfRangeException("The internal trigger source cannot be used in start burst mode.")
 		
 		# ensure combination of signal frequency and Ncycles doesn't cause 64 bit register overflow:
 		if mode is _SG_TRIG_MODE_NCYCLE:
@@ -494,7 +554,7 @@ class WaveformGenerator(BasicWaveformGenerator):
 		if ch == 1:
 			self.trig_sweep_mode_ch1 = mode
 			if mode is _SG_TRIG_MODE_NCYCLE:
-				self.ncycles_trig_duty_ch1 = FPGA_cycles
+				self.ncycles_period_ch1 = FPGA_cycles
 			if mode is _SG_TRIG_MODE_SWEEP:
 				self.sweep_length_ch1 = sweep_length_FPGA_cycles
 				self.sweep_init_freq_ch1 = init_freq
@@ -503,7 +563,7 @@ class WaveformGenerator(BasicWaveformGenerator):
 		elif ch == 2:
 			self.trig_sweep_mode_ch2 = mode
 			if mode is _SG_TRIG_MODE_NCYCLE:
-				self.ncycles_trig_duty_ch2 = FPGA_cycles
+				self.ncycles_period_ch2 = FPGA_cycles
 			if mode is _SG_TRIG_MODE_SWEEP:
 				self.sweep_length_ch2 = sweep_length_FPGA_cycles
 				self.sweep_init_freq_ch2 = init_freq
@@ -712,10 +772,10 @@ _siggen_reg_handlers = {
 
 	'out2_amp_pc':		(REG_SG_PRECLIP,	to_reg_unsigned(16, 16, xform=lambda obj, a: a / obj._dac_gains()[1]),
 											from_reg_unsigned(16, 16, xform=lambda obj, a: a * obj._dac_gains()[1])),
-	'internal_trig_period_ch1':	((REG_SG_TrigPeriodInternalCH0_H, REG_SG_TrigPeriodInternalCH0_L),
+	'internal_trig_increment_ch1':	((REG_SG_TrigPeriodInternalCH0_H, REG_SG_TrigPeriodInternalCH0_L),
 											to_reg_unsigned(0,64), from_reg_unsigned(0,64)),
 
-	'internal_trig_period_ch2':	((REG_SG_TrigPeriodInternalCH1_H, REG_SG_TrigPeriodInternalCH1_L),
+	'internal_trig_increment_ch2':	((REG_SG_TrigPeriodInternalCH1_H, REG_SG_TrigPeriodInternalCH1_L),
 											to_reg_unsigned(0,64), from_reg_unsigned(0,64)),
 
 	'trig_ADC_threshold_ch1':		(REG_SG_ADCThreshold, 	to_reg_signed(0,12), from_reg_signed(0,12)),
@@ -752,9 +812,9 @@ _siggen_reg_handlers = {
 	'sweep_increment_ch2':	((REG_SG_SweepIncrementCh1_H, REG_SG_SweepIncrementCh1_L),
 											to_reg_signed(0,64), from_reg_signed(0,64)),
 
-	'ncycles_trig_duty_ch1':	((REG_SG_NCycles_TrigDutyCH0_H, REG_SG_NCycles_TrigDutyCH0_L),
+	'ncycles_period_ch1':	((REG_SG_NCycles_TrigDutyCH0_H, REG_SG_NCycles_TrigDutyCH0_L),
 											to_reg_unsigned(0,64), from_reg_unsigned(0,64)),
 
-	'ncycles_trig_duty_ch2':	((REG_SG_NCycles_TrigDutyCH1_H, REG_SG_NCycles_TrigDutyCH1_L),
+	'ncycles_period_ch2':	((REG_SG_NCycles_TrigDutyCH1_H, REG_SG_NCycles_TrigDutyCH1_L),
 											to_reg_unsigned(0,64), from_reg_unsigned(0,64))
 }
