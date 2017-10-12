@@ -163,7 +163,32 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		self.set_aux_out('sine')
 
 		self.input_gain = 1.0
+		self.set_channel_enables(1,1)
+		self.set_channel_enables(2,1)
 		# self.filt_bypass = 0
+
+	@needs_commit
+	def set_channel_enables(self, ch, en):
+		"""
+		Enables the channel outputs. Active high.
+
+		:type int:
+		:param ch: Selects the channel. Choose from 1 or 2
+
+		:type bool:
+		:param en: enables the output of the channel. Active High 
+	
+		"""
+		if ch not in (1, 2):
+			raise InvalidConfigurationException('Channel number must be equal to 1 or 2 not %s', ch)
+
+		if en not in (0, 1):
+			raise InvalidConfigurationException('enable must be 0 or 1 not %s.', en)
+
+		if ch == 1:
+			self.ch0_en = self.ch0_signal_en = 1
+		elif ch == 2:
+			self.ch1_en = self. ch1_signal_en = 1
 
 	@needs_commit
 	def set_pid_by_gain(self, ch, g, kp=0, ki=0, kd=0, si=None, sd=None, in_offset=0, out_offset=0):
@@ -504,7 +529,7 @@ _lia_reg_hdl = {
 	'ch1_pid1_bypass':	(REG_LIA_ENABLES,		to_reg_bool(13),
 												from_reg_bool(13)),
 
-	'lo_reset':			(REG_LIA_ENABLES,		to_reg_bool(14),
+	'ch0_signal_en':		(REG_LIA_ENABLES,		to_reg_bool(14),
 												from_reg_bool(14)),
 
 	'lpf_int_dc_pole':	(REG_LIA_ENABLES,		to_reg_bool(15),
@@ -513,7 +538,7 @@ _lia_reg_hdl = {
 	'ch1_pid1_int_dc_pole':	(REG_LIA_ENABLES,	to_reg_bool(16),
 												from_reg_bool(16)),
 
-	'q_select':			(REG_LIA_ENABLES,		to_reg_bool(17),
+	'ch1_signal_en':			(REG_LIA_ENABLES,		to_reg_bool(17),
 												from_reg_bool(17)),
 
 	'ext_demod':		(REG_LIA_ENABLES, 		to_reg_bool(18),
