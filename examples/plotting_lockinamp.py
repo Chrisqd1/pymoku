@@ -26,7 +26,7 @@ m.deploy_instrument(i)
 
 try:
 	# Trigger on input Channel 1, rising edge, 0V with 0.1V hysteresis
-	i.set_trigger('in1', 'rising', 0, hysteresis=0.1)
+	i.set_trigger('in1', 'rising', 0)
 
 	 # View +- 0.1 second, i.e. trigger in the centre
 	i.set_timebase(-0.001, 0.001)

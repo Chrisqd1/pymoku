@@ -107,25 +107,18 @@ class PIDController(_CoreOscilloscope):
 		""" Reset the lockinamp to sane defaults. """
 		super(PIDController, self).set_defaults()
 
+		# Enable inputs/outputs
+		self.ch1_input_en = True
+		self.ch1_output_en = True
+		self.ch2_input_en = True
+		self.ch2_output_en = True
+
 		self.set_control_matrix(1, 1, 0)
 		self.set_control_matrix(2, 1, 0)
 		self.set_by_gain(1, 1, 1)
 		self.set_by_gain(2, 1, 1)
-		self.ch1_pid1_en = 1
-		self.ch1_pid1_ien = 1
-		self.ch1_pid1_bypass = 0
-		self.ch1_pid2_bypass = 1
-		self.ch1_pid1_int_i_gain = 2*pi*10e3 / 25e6
-		self.ch1_pid1_int_ifb_gain = 1 - 2*pi*1e3/25e6
-		self.ch1_pid1_pen = 1
-		self.ch1_pid1_int_p_gain = 0
-		self.ch1_pid1_int_dc_pole = 0
-		self.ch1_pid2_int_dc_pole = 0
 
-
-	@needs_commit
-	def set_by_frequency(self, ch, kp, i_xover=None, d_xover=None, ii_xover=None, si=None, sd=None, in_offset=0, out_offset=0):
-
+	def _calculate_gains_by_frequency(self, kp, i_xover, d_xover, ii_xover, si, sd):
 		# Particularly high or low I or D crossover frequencies (<1Hz, >1MHz) require that some of their gain is
 		# pushed to the overall gain on the end due to dynamic range limitations
 		fs = _PID_CONTROL_FS
@@ -134,7 +127,6 @@ class PIDController(_CoreOscilloscope):
 		i_gmax = d_gmax = 1
 		if i_xover:
 			i_unity = i_xover * kp
-			print("i_unity",  i_unity)
 			i_gmin = min(i_unity, 1)
 			i_gmax = max(i_unity / 1e6, 1)
 
@@ -156,8 +148,6 @@ class PIDController(_CoreOscilloscope):
 			best_gain = 1
 
 		kp /= best_gain
-		print( "best gain", best_gain )
-		print("kp", kp)
 
 		if ii_xover :
 			if i_xover :
@@ -175,24 +165,28 @@ class PIDController(_CoreOscilloscope):
 		kd = kp / d_xover if d_xover else 0
 		si = si / best_gain if si else None
 		sd = sd / best_gain if sd else None
-		self.set_by_gain(ch, best_gain, kp, ki, kd, kii, si, sd, in_offset, out_offset)
 
-	@needs_commit
-	def set_by_gain(self, ch, g, kp, ki=0, kd=0, kii=0, si=None, sd=None, in_offset=0, out_offset=0):
+		return best_gain, kp, ki, kd, kii, si, sd
+
+	def _calculate_regs_by_gain(self, ch, g, kp, ki, kd, kii, si, sd):
+		# Calculate register gain values for PID controller blocks
+
 		# overall gain is:
 		#  - 1/1000 to undo gain from control matrix to optimise rounding strategy
 		#  - 1/16 to convert from ADC bits to DAC bits
 		#  - DAC gain to convert from bits to output volts
 		#  - user-supplied factor so they can optimise the rounding strategy too
 
+
+		# Check if double integrator stage is enabled
 		double_integrator = kii != 0
 
 		if double_integrator:
 			gain_factor = sqrt(g / 16.0 / 1000.0 / self._dac_gains()[ch - 1])
-			prop_gain = sqrt(kp)
+			p_gain = sqrt(kp)
 		else :
 			gain_factor = g / 16.0 / 1000.0 / self._dac_gains()[ch - 1]
-			prop_gain = kp
+			p_gain = kp
 
 		fs = _PID_CONTROL_FS / (2 * pi)
 
@@ -200,13 +194,14 @@ class PIDController(_CoreOscilloscope):
 		i_gain = ki  / fs
 		ii_gain = kii  / fs
 
+
 		if si is None:
 			i_c  = 0
 		else:
 			i_c = sqrt(ki * kii / si) if kii else ki / si
 			if i_c  < fs / (2**24-1) :
-				log.info("Integrator corner too low. Integrator saturation set to %.3f", g * ki / ( 2 * fs / (2**24 -1 )))	
-		i_fb = 1.0 - i_c / fs
+				log.info("Integrator corner below minimum. Increase integrator saturation above %.3f.", g * ki / ( 2 * fs / (2**24 -1 )))	
+		i_fb = 1.0 - (i_c / fs)
 
 
 		# D gain and corner, magic factors different from iPad?? Note there's kind of a
@@ -224,86 +219,188 @@ class PIDController(_CoreOscilloscope):
 			else :
 				fc_coeff = 1
 
-		if fc_coeff > 1 - 1 / (2**24 -1) :
+		if fc_coeff > 1 - 1 / (2**24 -1):
 			fc_coeff = 1e6/12.5e6 * pi
 			d_gain = 4 * fc_coeff * kd * fs
-			log.info("Differentiar saturation corner at maximum. Corner set to %.3f", d_gain / 4)
+			raise InvalidConfigurationException("Differentiator saturation corner above maximum. Reduce differentiator saturation below %.3f.", d_gain / 4)
 
 		d_fb = 1.0 - (fc_coeff)
+
+		return p_gain, i_gain, d_gain, gain_factor, ii_gain, i_fb, d_fb
+
+	@needs_commit
+	def set_by_frequency(self, ch, kp=1, i_xover=None, d_xover=None, ii_xover=None, si=None, sd=None, in_offset=0, out_offset=0):
+		"""
+		
+		Configure the selected PID controller using crossover frequencies.
+
+		:type ch: int; [1,2]
+		:param ch: Channel of PID controller to  configure
+
+		:type kp: 
+		:param kp:
+
+		:type i_xover:
+		:param i_xover:
+
+		:type d_xover:
+		:param d_xover:
+
+		:type ii_xover:
+		:param ii_xover:
+
+		:type si:
+		:param si:
+
+		:type sd:
+		:param sd:
+
+		:type in_offset:
+		:param in_offset:
+
+		:type out_offset:
+		:type out_offset:
+
+		:raises InvalidConfigurationException: if the configuration of PID gains is not possible.
+		"""
+
+		g, kp, ki, kd, kii, si, sd = self._calculate_gains_by_frequency(kp, i_xover, d_xover, ii_xover, si, sd)
+		self.set_by_gain(ch, g, kp, ki, kd, kii, si, sd, in_offset, out_offset, touch_ii=True)
+
+	@needs_commit
+	def set_by_gain(self, ch, g, kp=0, ki=0, kd=0, kii=0, si=None, sd=None, in_offset=0, out_offset=0):
+		"""
+		
+		Configure the selected PID controller using gain coefficients.
+
+		:type ch: int; [1,2]
+		:param ch: Channel of the PID controller to be configured.
+
+		:type g: float;
+		:param g: 
+
+		:type kp: float; [-60dB, 60dB]
+		:param kp: Proportional gain factor
+
+		:type ki: float;
+		:param ki: Integrator gain factor
+
+		:type kd: float;
+		:param kd: Differentiator gain factor
+
+		:type kii:
+		:param kii:
+
+		:type si:
+		:param si:
+
+		:type sd:
+		:param sd:
+
+		:type in_offset:
+		:param in_offset:
+
+		:type out_offset:
+		:param out_offset:
+
+		:raises InvalidConfigurationException: if the configuration of PID gains is not possible.
+		"""
+		self._set_by_gain(ch, g, kp, ki, kd, kii, si, sd, in_offset, out_offset, touch_ii=True)
+
+	def _set_by_gain(self, ch, g, kp, ki, kd, kii, si, sd, in_offset, out_offset, touch_ii):
+	
+		p_gain, i_gain, d_gain, gain_factor, ii_gain, i_fb, d_fb = self._calculate_regs_by_gain(
+			ch, g, kp, ki, kd, kii, si, sd)
 
 		double_integrator = kii != 0
 
 		if ch == 1:
-			self.ch1_pid1_en = self.ch1_pid2_en = True
-			self.ch1_pid1_pen = prop_gain > 0
-			self.ch1_pid2_pen = double_integrator
-			self.ch1_pid1_ien = ki > 0
-			self.ch1_pid2_ien = ki > 0 and double_integrator
-			self.ch1_pid1_den = kd > 0
-			self.ch1_pid2_den = False
-			self.ch1_input_en = True
-			self.ch1_output_en = True
-			self.ch1_pid1_pidgain = gain_factor
-			self.ch1_pid2_pidgain = gain_factor
 
+			# PID1 Enable components (PID/IS/DS stage)
 			self.ch1_pid1_bypass = False
+			self.ch1_pid1_en = True
+			self.ch1_pid1_pen = p_gain > 0
+			self.ch1_pid1_ien = ki > 0
+			self.ch1_pid1_den = kd > 0
+			self.ch1_pid1_pidgain = gain_factor
+
+			# Set gain factors
 			self.ch1_pid1_int_i_gain = i_gain
-			self.ch1_pid1_int_p_gain = prop_gain
+			self.ch1_pid1_int_p_gain = p_gain
 			self.ch1_pid1_int_ifb_gain = i_fb
 			self.ch1_pid1_int_dc_pole = si is None
-
-			self.ch1_pid2_bypass = not double_integrator
-			self.ch1_pid2_int_i_gain = ii_gain
-			self.ch1_pid2_int_p_gain = prop_gain
-			self.ch1_pid2_int_ifb_gain = i_fb
-			self.ch1_pid2_int_dc_pole = si is None
 
 			self.ch1_pid1_diff_p_gain = 0
 			self.ch1_pid1_diff_i_gain = d_gain
 			self.ch1_pid1_diff_ifb_gain = d_fb
 
-			# Input offset should be applied on the first PID, output offset should
-			# be on the last /enabled/ pid.
 			self.ch1_pid1_in_offset = in_offset
-			self.ch1_pid2_in_offset = 0
 			self.ch1_pid1_out_offset = out_offset if not double_integrator else 0
-			self.ch1_pid2_out_offset = out_offset if double_integrator else 0
 
-		elif ch == 2:
-			self.ch2_pid1_en = self.ch2_pid2_en = True
-			self.ch2_pid1_pen = prop_gain > 0
-			self.ch2_pid2_pen = double_integrator
-			self.ch2_pid1_ien = ki > 0
-			self.ch2_pid2_ien = ki > 0 and double_integrator
-			self.ch2_pid1_den = kd > 0
-			self.ch2_pid2_den = False
-			self.ch2_input_en = True
-			self.ch2_output_en = True
-			self.ch2_pid1_pidgain = gain_factor
-			self.ch2_pid2_pidgain = prop_gain
 
+			if touch_ii:
+				# PID2 Enable components (Additional I stage)
+				self.ch1_pid2_bypass = not double_integrator
+				self.ch1_pid2_en = True
+				self.ch1_pid2_pen = double_integrator
+				self.ch1_pid2_ien = ki > 0 and double_integrator
+				self.ch1_pid2_den = False
+				self.ch1_pid2_pidgain = gain_factor
+
+				self.ch1_pid2_int_i_gain = ii_gain
+				self.ch1_pid2_int_p_gain = p_gain
+				self.ch1_pid2_int_ifb_gain = i_fb
+				self.ch1_pid2_int_dc_pole = si is None
+
+				# Input offset should be applied on the first PID, output offset should
+				# be on the last /enabled/ pid.
+				self.ch1_pid2_in_offset = 0
+				self.ch1_pid2_out_offset = out_offset if double_integrator else 0
+
+
+		if ch == 2:
+
+			# PID1 Enable components (PID/IS/DS stage)
 			self.ch2_pid1_bypass = False
+			self.ch2_pid1_en = True
+			self.ch2_pid1_pen = p_gain > 0
+			self.ch2_pid1_ien = ki > 0
+			self.ch2_pid1_den = kd > 0
+			self.ch2_pid1_pidgain = gain_factor
+
+			# Set gain factors
 			self.ch2_pid1_int_i_gain = i_gain
-			self.ch2_pid1_int_p_gain = prop_gain
+			self.ch2_pid1_int_p_gain = p_gain
 			self.ch2_pid1_int_ifb_gain = i_fb
 			self.ch2_pid1_int_dc_pole = si is None
-
-			self.ch2_pid2_bypass = not double_integrator
-			self.ch2_pid2_int_i_gain = ii_gain
-			self.ch2_pid2_int_p_gain = prop_gain
-			self.ch2_pid2_int_ifb_gain = i_fb
-			self.ch2_pid2_int_dc_pole = si is None
 
 			self.ch2_pid1_diff_p_gain = 0
 			self.ch2_pid1_diff_i_gain = d_gain
 			self.ch2_pid1_diff_ifb_gain = d_fb
 
-			# Input offset should be applied on the first PID, output offset should
-			# be on the last /enabled/ pid.
 			self.ch2_pid1_in_offset = in_offset
-			self.ch2_pid2_in_offset = 0
 			self.ch2_pid1_out_offset = out_offset if not double_integrator else 0
-			self.ch2_pid2_out_offset = out_offset if double_integrator else 0
+
+
+			if touch_ii:
+				# PID2 Enable components (Additional I stage)
+				self.ch2_pid2_bypass = not double_integrator
+				self.ch2_pid2_en = True
+				self.ch2_pid2_pen = double_integrator
+				self.ch2_pid2_ien = ki > 0 and double_integrator
+				self.ch2_pid2_den = False
+				self.ch2_pid2_pidgain = gain_factor
+
+				self.ch2_pid2_int_i_gain = ii_gain
+				self.ch2_pid2_int_p_gain = p_gain
+				self.ch2_pid2_int_ifb_gain = i_fb
+				self.ch2_pid2_int_dc_pole = si is None
+
+				# Input offset should be applied on the first PID, output offset should
+				# be on the last /enabled/ pid.
+				self.ch2_pid2_in_offset = 0
+				self.ch2_pid2_out_offset = out_offset if double_integrator else 0
+
 
 	@needs_commit
 	def set_control_matrix(self, ch, self_gain, cross_gain):
@@ -385,6 +482,7 @@ _PID_reg_hdl = {
 	'ch1_pid1_int_i_gain':	(REG_PID_CH0_INT_IGAIN1, to_reg_unsigned(0, 24, xform=lambda obj, x: x*(2**24 -1)),
 												from_reg_unsigned(0, 24, xform=lambda obj, x: x / (2**24-1))),
 
+	# TODO: This concerns me, not sure if its writing to the registers as expected
 	'ch1_pid2_int_i_gain':	((REG_PID_CH0_INT_IGAIN2_MSB, REG_PID_CH0_INT_IGAIN2_LSB),
 												to_reg_unsigned(24, 24, xform=lambda obj, x: x * (2**24 -1)),
 												from_reg_unsigned(24, 24, xform=lambda obj, x: x / (2**24-1))),
