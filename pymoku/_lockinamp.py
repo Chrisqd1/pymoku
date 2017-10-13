@@ -205,7 +205,6 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 	@needs_commit
 	def set_aux_out(self, auxsel='sine'):
 		"""
-		
 		Selects the signal that is routed to the Auxillary channel
 
 		auxsel is one of:
@@ -214,19 +213,14 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 			- **demod** - route the signal used for demodulation to the aux channel
 
 		"""
-
 		if auxsel == 'sine':
 			self.aux_select = 0
 		elif auxsel == 'ch2':
 			self.aux_select = 1
-			self.pid_select = 0
-			self.gain_select = 1
 		elif auxsel == 'demod':
 			self.aux_select = 3
 		else:
 			raise InvalidConfigurationException('auxsel must be one of "sine", "ch2", or "demod", not %s. Value left unchanged', auxsel)
-
-
 
 	@needs_commit
 	def set_single_channel_sig(self, signal='i'):
@@ -282,29 +276,38 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 			raise ValueOutOfRangeException('Signal Mode must be one of "r_theta" or "iq", not %s. Defaulted to iq mode.', mode)
 
 	@needs_commit
-	def set_pid_channel(self, channel=1):
+	def set_pid_channel(self, ch=1):
 		"""
 		Sets which channel is used by the PID.
 
 		Only selectable when both channels are active.
 
-		:type int:
+		:type int: ch; [1,2]
 		:param channel: Determines the output channel of the PID controller. 
 	
 		"""
-		if (self.aux_select != 1)  and (channel == 1):
+		if (self.aux_select != 1)  and (channel == 2):
 			self.pid_ch_select = 0
 			raise InvalidConfigurationException('Cannot place pid on second channel. Only one channel selected. Output routed to channel 1') 
 		elif (channel < 1) or (channel > 2):
-			raise ValueOutOfRangeException('Channel must be 1 or 2, not %s. ', mode)
+			raise ValueOutOfRangeException('Channel must be 1 or 2, not %s. ', channel)
 		else:
 			self.pid_ch_select = self.pid_select = channel - 1
 
+	@needs_commit
+	def set_gain(self, gain):
+		"""
+		Set the gain of the gain stage.
+
+		:type gain: float; [0,10e3]
+		:param gain: Gain
+		"""
+		self.gainstage_gain = gain
 
 	@needs_commit
-	def set_lo_mode(self,mode='internal'):
+	def set_demod_mode(self,mode='internal'):
 		"""
-		Configure the local oscillator (LO) for the lock-in amplifier
+		Configure the local oscillator (LO) for the demodulation stage of the lock-in amplifier
 		
 		The mode is one of:
 			- **internal** : for an internally set LO
@@ -336,7 +339,7 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 
 
 	@needs_commit
-	def set_filter_parameters(self, gain, f_corner, order, integrator=False, mode='range'):
+	def set_filter_parameters(self, gain, f_corner, order, mode='range'):
 		"""
 		:type float:
 		:param gain: Overall gain of the low-pass filter (dB)
@@ -363,8 +366,6 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		self.lpf_int_ifb_gain = coeff
 	
 		self.lpf_int_i_gain = 1.0 - coeff
-	
-		self.lpf_int_dc_pole = integrator
 
 		if order == 0:
 			self.filt_bypass1 = True
@@ -434,24 +435,18 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		self.lo_phase = phase
 
 	@needs_commit
-	def set_lo_parameters(self, frequency, phase, use_q=False):
+	def set_demod_parameters(self, frequency, phase):
 		"""
-		Configure local oscillator parameters
+		Configure local oscillator parameters for the demodulation stage.
 
 		:type frequency: float
 		:param frequency: Hz
 
 		:type phase: float
 		:param phase: Degrees, 0-360
-
-		:type use_q: bool
-		:param use_q: Use the quadrature output from the mixer (default in-phase)
 		"""
-
 		self.frequency_demod = frequency
-		self.phase_demod = phase / 360
-		self.q_select = use_q
-
+		self.phase_demod = phase / 360.0
 
 	@needs_commit
 	def set_monitor(self, ch, source):
@@ -463,10 +458,16 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 
 		The source is one of:
 			- **none**: Disable monitor channel
-			- **input**: ADC Input
+			- **input1**, **input1**: Input Channel 1/2
 			- **out**: Lock-in output
-			- **lo**: Local Oscillator output
+			- **aux**: Auxillary output
+			- **demod**: Demodulation signal input to mixer
 			- **i**, **q**: Mixer I and Q channels respectively.
+
+		:type ch: int; [1,2]
+		:param ch: Monitor channel number
+		:type source: string; {'none','input1','input2','out','aux','demod','i','q'}
+		:param source: Signal to monitor
 		"""
 
 		sources = {
@@ -478,7 +479,6 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 			'demod'	: _LIA_MON_DEMOD,
 			'i'		: _LIA_MON_I,
 			'q'		: _LIA_MON_Q,
-
 		}
 
 		# Many people naturally use 'I' and 'Q' and I don't care enough to argue
@@ -532,14 +532,8 @@ _lia_reg_hdl = {
 	'ch0_signal_en':		(REG_LIA_ENABLES,		to_reg_bool(14),
 												from_reg_bool(14)),
 
-	'lpf_int_dc_pole':	(REG_LIA_ENABLES,		to_reg_bool(15),
-												from_reg_bool(15)),
-
 	'ch1_pid1_int_dc_pole':	(REG_LIA_ENABLES,	to_reg_bool(16),
 												from_reg_bool(16)),
-
-	'ch1_signal_en':			(REG_LIA_ENABLES,		to_reg_bool(17),
-												from_reg_bool(17)),
 
 	'ext_demod':		(REG_LIA_ENABLES, 		to_reg_bool(18),
 												from_reg_bool(18)),
@@ -592,8 +586,8 @@ _lia_reg_hdl = {
 	'ch1_pid1_int_p_gain':	(REG_LIA_INT_PGAIN2,	to_reg_signed(0, 25, xform=lambda obj, x: x*_LIA_ID_GAINSCALE),
 													from_reg_signed(0, 25, xform=lambda obj, x: x / _LIA_ID_GAINSCALE)),
 
-	'gainstage_gain':	(REG_LIA_GAIN_STAGE,		to_reg_signed(0, 25, xform=lambda obj, x: x* 2**15),
-													from_reg_signed(0, 25, xform=lambda obj, x: x / 2**15)),
+	'gainstage_gain':	(REG_LIA_GAIN_STAGE,		to_reg_signed(0, 32, xform=lambda obj, x: x* 2**15),
+													from_reg_signed(0, 32, xform=lambda obj, x: x / 2**15)),
 
 	'lpf_diff_p_gain':	(REG_LIA_DIFF_PGAIN1,		to_reg_signed(0, 25, xform=lambda obj, x: x*_LIA_ID_GAINSCALE),
 													from_reg_signed(0, 25, xform=lambda obj, x: x / _LIA_ID_GAINSCALE)),
