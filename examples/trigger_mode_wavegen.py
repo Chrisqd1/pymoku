@@ -24,20 +24,18 @@ try:
 	i.gen_sinewave(1, 1.0, 5)
 	# Channel 2 generates a Squarewave 2 vpp 1Hz
 	i.gen_squarewave(2, 2.0, 1, duty=0.3, risetime = 0.1, falltime=0.1)
-
-	i.set_trigger_threshold(ch = 1, adc = 0.5, dac = 0.5)
 	
-	# set the trigger mode on channel 1 to gateway	
-	i.set_trigger(ch = 1, mode = 'gateway', trigger_source = 'adc')
+	# set the trigger mode on channel 1 to gateway	(self, ch, mode, ncycles, sweep_init_freq, sweep_final_freq, sweep_duration, trigger_source, trigger_threshold, internal_trig_period, internal_trig_duty)
+	i.set_trigger(ch = 1, mode = 'gated', trigger_source = 'adc')
 	input("Tigger is in gateway mode now. Load next trigger?")
 
-	i.set_trigger(ch = 1, mode = 'startmode', trigger_source = 'adc')
+	i.set_trigger(ch = 1, mode = 'start', trigger_source = 'adc', trigger_threshold = 0.5)
 	input("Tigger is in start mode. Load next trigger?")
 
-	i.set_trigger(ch = 1, mode = 'ncycle', trigger_source = 'adc', ncycles = 4)
+	i.set_trigger(ch = 1, mode = 'ncycle', trigger_source = 'adc', trigger_threshold = 0.5, ncycles = 4)
 	input("Tigger is in ncycle mode. Load next trigger?")
 
-	i.set_trigger(ch = 1, mode = 'sweep', trigger_source = 'adc', sweep_init_freq = 1.0, sweep_final_freq = 5.0, sweep_duration = 10.0)
+	i.set_trigger(ch = 1, mode = 'sweep', trigger_source = 'adc', trigger_threshold = 0.5, sweep_init_freq = 1.0, sweep_final_freq = 5.0, sweep_duration = 10.0)
 	input("Tigger is in sweep mode. Close the waveform?")
 finally:
 	m.close()
