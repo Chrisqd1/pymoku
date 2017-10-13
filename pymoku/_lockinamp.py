@@ -6,6 +6,7 @@ from pymoku._instrument import *
 from pymoku._oscilloscope import _CoreOscilloscope, VoltsData
 from pymoku._pid_controller import PIDController
 from . import _instrument
+from . import _utils
 
 log = logging.getLogger(__name__)
 
@@ -278,7 +279,7 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 	@needs_commit
 	def set_pid_channel(self, ch=1):
 		"""
-		Sets which channel is used by the PID.
+		Sets which output channel is used by the PID.
 
 		Only selectable when both channels are active.
 
@@ -286,11 +287,11 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		:param channel: Determines the output channel of the PID controller. 
 	
 		"""
+		_utils.check_parameter_valid('set', ch, allowed=[1,2], desc="PID output channel")
+
 		if (self.aux_select != 1)  and (channel == 2):
 			self.pid_ch_select = 0
 			raise InvalidConfigurationException('Cannot place pid on second channel. Only one channel selected. Output routed to channel 1') 
-		elif (channel < 1) or (channel > 2):
-			raise ValueOutOfRangeException('Channel must be 1 or 2, not %s. ', channel)
 		else:
 			self.pid_ch_select = self.pid_select = channel - 1
 
@@ -302,6 +303,8 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		:type gain: float; [0,10e3]
 		:param gain: Gain
 		"""
+		utils.check_parameter_valid('range', gain, allowed=[0,10e3], desc="gain")
+
 		self.gainstage_gain = gain
 
 	@needs_commit

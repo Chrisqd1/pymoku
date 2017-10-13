@@ -265,7 +265,7 @@ class PIDController(_CoreOscilloscope):
 		"""
 
 		g, kp, ki, kd, kii, si, sd = self._calculate_gains_by_frequency(kp, i_xover, d_xover, ii_xover, si, sd)
-		self.set_by_gain(ch, g, kp, ki, kd, kii, si, sd, in_offset, out_offset, touch_ii=True)
+		self._set_by_gain(ch, g, kp, ki, kd, kii, si, sd, in_offset, out_offset, touch_ii=True)
 
 	@needs_commit
 	def set_by_gain(self, ch, g, kp=0, ki=0, kd=0, kii=0, si=None, sd=None, in_offset=0, out_offset=0):
