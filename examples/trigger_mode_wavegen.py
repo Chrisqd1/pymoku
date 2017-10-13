@@ -25,18 +25,19 @@ try:
 	# Channel 2 generates a Squarewave 2 vpp 1Hz
 	i.gen_squarewave(2, 2.0, 1, duty=0.3, risetime = 0.1, falltime=0.1)
 
-	# configure the trigger threshold on channel 1 to default (0.0 V)
-	i.set_trigger_threshold(ch = 1, adc = 0.5 )
-
-	# set the trigger source  for channel 1 to ADC
-	i.set_trigger_source(ch = 1, trigger_source = 'adc')
+	i.set_trigger_threshold(ch = 1, adc = 0.5, dac = 0.5)
 	
 	# set the trigger mode on channel 1 to gateway	
-	#i.set_trigger_mode(ch = 1, mode = 'gateway')
-	#i.set_trigger_mode(ch = 1, mode = 'startmode')
-	#i.set_trigger_mode(ch = 1, mode = 'ncycle', ncycles = 3)
-	i.set_trigger_mode(ch = 1, mode= 'sweep', sweep_final_freq = 10.0, sweep_duration = 1.0)
+	i.set_trigger(ch = 1, mode = 'gateway', trigger_source = 'adc')
+	input("Tigger is in gateway mode now. Load next trigger?")
 
+	i.set_trigger(ch = 1, mode = 'startmode', trigger_source = 'adc')
+	input("Tigger is in start mode. Load next trigger?")
+
+	i.set_trigger(ch = 1, mode = 'ncycle', trigger_source = 'adc', ncycles = 4)
+	input("Tigger is in ncycle mode. Load next trigger?")
+
+	i.set_trigger(ch = 1, mode = 'sweep', trigger_source = 'adc', sweep_init_freq = 1.0, sweep_final_freq = 5.0, sweep_duration = 10.0)
+	input("Tigger is in sweep mode. Close the waveform?")
 finally:
-	#m.close()
-	print("trigger set up")
+	m.close()
