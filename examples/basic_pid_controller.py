@@ -1,24 +1,44 @@
 from pymoku import Moku  
 from pymoku.instruments import PIDController
 import time, logging
+#
+# pymoku example: Basic PID Controller
+#
+# This script demonstrates how to configure one of the two PID Controllers
+# in the PID Controller instrument. Configuration is done by specifying
+# frequency response characteristics of the controller.
+#
+# (c) 2017 Liquid Instruments Pty. Ltd.
+#
+from pymoku import *
+from pymoku.instruments import PIDController
 
-from natu.units import dB
+def from_dB(dB):
+	# Helper function that converts from dB to linear scale
+	return 10**(dB/20.0)
 
-import matplotlib
-import matplotlib.pyplot as plt
+# Connect to your Moku by its device name
+# Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
+m = Moku.get_by_serial("41221")
 
-logging.basicConfig(format='%(asctime)s:%(name)s:%(levelname)s::%(message)s')
-logging.getLogger('pymoku').setLevel(logging.DEBUG)
+# Prepare the PID Controller instrument
+i = PIDController()
 
-# Use Moku.get_by_serial() or get_by_name() if you don't know the IP m = Moku('192.168.69.245')
-m = Moku('192.168.69.224')
+# Deploy the PID Controller to the Moku:Lab
+m.deploy_instrument(i)
 
 try:
-	i = PIDController()
-	m.deploy_instrument(i)
 
-	i.set_by_frequency(1, kp=-10*dB, i_xover=1e2, ii_xover=None, d_xover =1e4, si=10*dB, sd=10*dB)
-	#i.set_by_gain(1, g, kp=0, ki=0, kd=0, kii=0, si=None, sd=None, in_offset=0, out_offset=0)
+	# Configure the PID Controller using frequency response characteristics
+	# 	P = -10dB
+	#	I Crossover = 100Hz
+	# 	D Crossover = 10kHz
+	# 	I Saturation = 10dB
+	# 	D Saturation = 10dB
+	# 	Double-I = OFF
+	# Note that gains must be converted from dB first
+	i.set_by_frequency(1, kp=from_dB(-10), i_xover=1e2, ii_xover=None, d_xover =1e4, si=from_dB(10), sd=from_dB(10))
 
 finally:
+	# Close the connection to the Moku:Lab
 	m.close()
