@@ -67,13 +67,9 @@ def instrument(moku, args):
 			return
 
 		for file in args.files:
-			if not file.endswith('bit'):
-				print('Package load requires a BIT file to be specified')
-				return
-
 			fname = os.path.basename(file)
 			chk = moku._load_bitstream(file)
-			print("Successfully loaded new instrument {} version {:X}".format(fname, chk))
+			print("Successfully loaded new instrument {} version {}".format(fname, chk))
 	elif args.action == 'check_compat':
 		instrs = moku._list_bitstreams(include_version=True)
 		compat_configs = compatible_configurations(args.server, args.username, args.password)

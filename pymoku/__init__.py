@@ -841,12 +841,18 @@ class Moku(object):
 		import zlib
 		mp = 'b'
 
+		localname = os.path.basename(path)
+
 		if instr_id is not None:
 			remotename = "{:03d}.{:03d}".format(instr_id, sub_id)
+		elif localname.count('.') == 2:
+			remotename = localname[localname.index('.') + 1:]
 		else:
 			remotename = None
 
-		return self._send_file(mp, path, remotename)
+		remotename = self._send_file(mp, path, remotename)
+
+		return self._fs_sha('b', remotename)
 
 	def _list_bitstreams(self, include_version=True):
 		fs = self._fs_list('b', calculate_sha=include_version)
