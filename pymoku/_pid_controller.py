@@ -1,7 +1,6 @@
 
 import logging
-
-from math import pi, sqrt
+import math
 
 from ._instrument import *
 from ._oscilloscope import _CoreOscilloscope
@@ -143,7 +142,7 @@ class PIDController(_CoreOscilloscope):
 		elif g_max > 1 and g_min == 1:
 			best_gain = g_max
 		elif g_min < 1 and g_max > 1:
-			best_gain = sqrt(g_min * g_max)
+			best_gain = math.sqrt(g_min * g_max)
 		else:
 			best_gain = 1
 
@@ -151,8 +150,8 @@ class PIDController(_CoreOscilloscope):
 
 		if ii_xover :
 			if i_xover :
-				ki = sqrt(kp) * i_xover
-				kii = sqrt(kp) * ii_xover
+				ki = math.sqrt(kp) * i_xover
+				kii = math.sqrt(kp) * ii_xover
 			else:
 				ki = kii = 0
 		else:
@@ -182,47 +181,44 @@ class PIDController(_CoreOscilloscope):
 		double_integrator = kii != 0
 
 		if double_integrator:
-			gain_factor = sqrt(g / 16.0 / 1000.0 / self._dac_gains()[ch - 1])
-			p_gain = sqrt(kp)
+			gain_factor = math.sqrt(g / 16.0 / 1000.0 / self._dac_gains()[ch - 1])
+			p_gain = math.sqrt(kp)
 		else :
 			gain_factor = g / 16.0 / 1000.0 / self._dac_gains()[ch - 1]
 			p_gain = kp
 
-		fs = _PID_CONTROL_FS / (2 * pi)
+		fs = _PID_CONTROL_FS / (2 * math.pi)
 
 		# I gain and corner. Factors of FS convert essentially from S- to Z-plane
 		i_gain = ki  / fs
 		ii_gain = kii  / fs
 
-
 		if si is None:
 			i_c  = 0
 		else:
-			i_c = sqrt(ki * kii / si) if kii else ki / si
+			i_c = math.sqrt(ki * kii / si) if kii else ki / si
 			if i_c  < fs / (2**24-1) :
-				log.info("Integrator corner below minimum. Increase integrator saturation above %.3f.", g * ki / ( 2 * fs / (2**24 -1 )))	
+				si_max = (g * ki / ( 2 * fs / (2**24 -1 )))
+				raise InvalidConfigurationException("Integrator corner below minimum. Decrease integrator saturation below %.3f dB." % (20*math.log(si_max,10)))
 		i_fb = 1.0 - (i_c / fs)
 
 
 		# D gain and corner, magic factors different from iPad?? Note there's kind of a
 		# magic factor of 1/2 in the d saturation case as I would expect it to be 2*pi
-		d_gain = 4 * sd   if sd else 4 * 1000
+		d_gain = 4 * sd if sd else 4 * 1000
 		
+		# Calculate the differentiator feedback gain and ensure saturation corner doesn't exceed 1MHz.
 		if sd :
 			if kd >0 :
 				fc_coeff = sd / (kd * (fs))
 			else :
 				fc_coeff = 1
 		else:
-			if kd >0 :
-				fc_coeff = 1000 / (kd * (fs))
-			else :
-				fc_coeff = 1
+			# Set the differentiator corner to 1MHz
+			fc_coeff = 1e6/12.5e6 * math.pi
 
-		if fc_coeff > 1 - 1 / (2**24 -1):
-			fc_coeff = 1e6/12.5e6 * pi
-			d_gain = 4 * fc_coeff * kd * fs
-			raise InvalidConfigurationException("Differentiator saturation corner above maximum. Reduce differentiator saturation below %.3f.", d_gain / 4)
+		if fc_coeff > (1e6/12.5e6 * math.pi):
+			raise InvalidConfigurationException("Differentiator saturation corner above maximum. Reduce differentiator saturation below %.3f." % (fc_coeff * kd * fs))
 
 		d_fb = 1.0 - (fc_coeff)
 
