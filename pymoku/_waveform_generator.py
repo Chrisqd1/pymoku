@@ -404,7 +404,7 @@ class WaveformGenerator(BasicWaveformGenerator):
 		self._register_accessors(_siggen_mod_reg_handlers)
 
 	@needs_commit
-	def set_trigger(self, ch, mode, ncycles = 1, sweep_init_freq = None, sweep_final_freq = 5.0, sweep_duration = 1.0, trigger_source = 'external', trigger_threshold = 0.0, internal_trig_period = 1.0, internal_trig_duty = 0.4):
+	def set_trigger(self, ch, mode, ncycles = 1, sweep_init_freq = None, sweep_final_freq = 5.0, sweep_duration = 1.0, trigger_source = 'external', trigger_threshold = 0.0, internal_trig_period = 1.0):
 		""" Configure gated, start, ncycle or sweep trigger mode on target channel
 
 		:type ch : int
@@ -425,21 +425,17 @@ class WaveformGenerator(BasicWaveformGenerator):
 		:type sweep_duration : float, seconds
 		:param sweep_duration : sweep duration in seconds
 
-		:type trigger_threshold: float
+		:type trigger_threshold: float, volts
 		:param trigger_threshold: the threshold for the ADC or DAC is set based on the trigger source
 
-		:type internal_trig_period :
-		:param internal_trig_period : 
-
-		:type internal_trig_duty :
-		:param internal_trig_duty :
+		:type internal_trig_period: float, seconds
+		:param internal_trig_period: period of the internal trigger source
 
 		"""
 		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
 		_utils.check_parameter_valid('range', ncycles, [0,1e6],'output channel','frequency')
 		_utils.check_parameter_valid('range', sweep_duration, [0.0,1000.0],'sweep duration','seconds')
 		_utils.check_parameter_valid('range', internal_trig_period, [0,1e11],'internal trigger period','seconds')
-		_utils.check_parameter_valid('range', internal_trig_duty, [0.0,1.0],'output channel','fraction')
 
 		## Configure trigger source settings:
 
