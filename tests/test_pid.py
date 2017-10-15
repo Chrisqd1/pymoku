@@ -1,4 +1,4 @@
-import pytest, math, itertools
+import pytest, math, itertools, numpy, time
 import conftest
 
 import matplotlib
@@ -11,6 +11,20 @@ BODE_SWEEP_AMPLITUDE = 0.1 # Vpp
 BODE_SWEEP_MIN = 10 # Hz
 BODE_SWEEP_MAX = 1e6 # Hz
 
+"""
+	Helper functions for assertion checking
+
+"""
+def to_dB(v):
+	return 20*math.log(10,v)
+
+def from_dB(db):
+	return 10**(db/20.0)
+
+def in_rms_bounds(data, v, tol):
+	rms_error = numpy.sqrt(numpy.sum((numpy.array(data)-v)**2)/len(data))
+	print rms_error
+	return rms_error
 
 @pytest.fixture(scope="module")
 def base_instrs(conn_mokus):
@@ -41,21 +55,20 @@ def calibration_trace(base_instrs):
 
 	master.set_output(1, BODE_SWEEP_AMPLITUDE)
 	master.set_output(2, BODE_SWEEP_AMPLITUDE)
-	master.set_sweep(BODE_SWEEP_MIN,BODE_SWEEP_MAX,sweep_points=512,averaging_time=0.002, settling_time=0.002, averaging_cycles=4, settling_cycles=4)
+	master.set_sweep(BODE_SWEEP_MIN,BODE_SWEEP_MAX,sweep_points=512,averaging_time=0.002, settling_time=0.002, averaging_cycles=2, settling_cycles=6)
 	master.start_sweep(single=True)
 
 	calibration_data = master.get_data()
 	print("Waveform ID of calibration trace: %d" % calibration_data.waveformid)
-	
+
 	return calibration_data
 
-def to_dB(v):
-	return 20*math.log(10,v)
-
-def from_dB(db):
-	return 10**(db/20.0)
-
 class Test_PID:
+
+	def _difference_waveforms(self, data, calibration):
+		return numpy.array(data) - numpy.array(calibration)
+
+	
 
 	"""
 	@pytest.mark.parametrize("p_dB, in_offset, out_offset",
@@ -68,7 +81,7 @@ class Test_PID:
 	@pytest.mark.parametrize("p_dB, in_offset, out_offset", [
 		(0,0,0),
 		(3,0,0)])
-	def test_proportional(self, base_instrs, calibration_trace, p_dB, in_offset, out_offset):
+	def test_proportional(self, base_instrs, p_dB, in_offset, out_offset):
 		"""
 			Tests the Proportional (gain only) setting of both PID channels with various offsets.
 
@@ -93,18 +106,25 @@ class Test_PID:
 		slave.set_by_frequency(1, kp=from_dB(p_dB), in_offset=in_offset, out_offset=out_offset)
 		slave.set_by_frequency(2, kp=from_dB(p_dB), in_offset=in_offset, out_offset=out_offset)
 
-		# Wait a moment before initialising the sweep
-
-		# Check what data is returned by this
-		data = master.get_data()
-
 		# Take a single sweep of the system under test
 		master.start_sweep(single=True)
-
-		while(data.waveformid)
 		# Get the sweep data
 		data = master.get_data()
 
+		# Perform calculations on the data
+		# Check that the min/max never exceed a particular tolerance
+		print("Channel 1")
+		in_rms_bounds(data.ch1.magnitude_dB, p_dB, 1)
+		print("Channel 2")
+		in_rms_bounds(data.ch2.magnitude_dB, p_dB, 1)
+
+		plt.ion()
+		plt.show()
+		plt.semilogx(data.frequency, data.ch1.magnitude_dB)
+		plt.semilogx(data.frequency, data.ch2.magnitude_dB)
+		plt.pause(5)
+
+		"""
 		# Check the data
 		plt.ion()
 		plt.show()
@@ -113,5 +133,7 @@ class Test_PID:
 		plt.plot(calibration_trace.frequency, calibration_trace.ch1.magnitude_dB)
 		#plt.plot(calibration_trace.ch2.magnitude)
 		plt.pause(10)
+
+		"""
 
 		assert False
