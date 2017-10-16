@@ -154,11 +154,11 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 
 		self.set_filter_parameters(70.0, 1e3, 2)
 		self.set_output_offset(0)
-		self.set_lo_parameters(10e6, 0)
+		self.set_demod_parameters(10e6, 0)
 		self.set_output_offset(0)
 
 		self.set_lo_output(0.5, 0.5, 10e6, 0)
-		self.set_lo_mode('internal')
+		self.set_demod_mode('internal')
 		self.set_pid_channel(1)
 		self.set_signal_mode('iq')
 		self.set_aux_out('sine')
@@ -289,11 +289,11 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		"""
 		_utils.check_parameter_valid('set', ch, allowed=[1,2], desc="PID output channel")
 
-		if (self.aux_select != 1)  and (channel == 2):
+		if (self.aux_select != 1)  and (ch == 2):
 			self.pid_ch_select = 0
 			raise InvalidConfigurationException('Cannot place pid on second channel. Only one channel selected. Output routed to channel 1') 
 		else:
-			self.pid_ch_select = self.pid_select = channel - 1
+			self.pid_ch_select = self.pid_select = ch - 1
 
 	@needs_commit
 	def set_gain(self, gain):
