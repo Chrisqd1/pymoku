@@ -135,8 +135,8 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		self.autoacquire = 1
 		self.bandwidth = 0
 		self.lo_PLL = 0
-		self.pid_select = 1
-		self.gain_select = 0
+		self.pid_select = 0
+		self.gain_select = 1
 		self.pid_ch_select = 0
 		self.aux_select = 1
 		self.autoacquire = 1
@@ -220,7 +220,7 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		elif auxsel == 'ch2':
 			self.aux_select = 1
 		elif auxsel == 'demod':
-			self.aux_select = 3
+			self.aux_select = 2
 		else:
 			raise InvalidConfigurationException('auxsel must be one of "sine", "ch2", or "demod", not %s. Value left unchanged', auxsel)
 
