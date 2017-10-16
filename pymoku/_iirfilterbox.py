@@ -27,7 +27,6 @@ REG_OUTPUTSCALE_CH0		= 122
 REG_OUTPUTSCALE_CH1		= 123
 REG_SAMPLINGFREQ		= 124
 
-#REG_FILT_RESET 		= 127
 REG_FILT_RESET 		= 62
 
 _IIR_MON_IN_CH1 		= 0
@@ -36,10 +35,7 @@ _IIR_MON_OUT_CH1		= 2
 _IIR_MON_IN_CH2 		= 3
 _IIR_MON_IN_CH2OFF 		= 4
 _IIR_MON_OUT_CH2 		= 5
-
 _IIR_COEFFWIDTH = 48
-
-NumStages = 8
 
 class IIRFilterBox(_CoreOscilloscope):
 	""" Oscilloscope instrument object. This should be instantiated and attached to a :any:`Moku` instance.
@@ -74,7 +70,7 @@ class IIRFilterBox(_CoreOscilloscope):
 
 		self.id = 6
 		self.type = "iirfilterbox"
-		self.calibration = Non
+		self.calibration = None
 
 		self.scales = {}
 
@@ -116,11 +112,12 @@ class IIRFilterBox(_CoreOscilloscope):
 		self.atten_ch2 = False
 		self.ac_ch2 = False
 
-		# initiliase filter coefficient arrays as all pass filters
+		# initialize filter coefficient arrays as all pass filters
 		b = [1.0,1.0,0.0,0.0,0.0,0.0]
 		self.filter_ch1 = [b,b,b,b]
 		self.filter_ch2 = [b,b,b,b]
 
+		# do we want to set here? 
 		self.set_frontend(1,fiftyr=True, atten=False, ac=False)
 		self.set_frontend(2,fiftyr=True, atten=False, ac=False)
 
@@ -155,40 +152,69 @@ class IIRFilterBox(_CoreOscilloscope):
 	@needs_commit
 	def set_filter_settings(self, ch = 1, sample_rate = 'high', filter_array = None):
 		"""
-		Set SOS filter sample rate and send filter coefficients to the device via the memory map
+		Set SOS filter sample rate and send filter coefficients to the device via the memory map.
+
+		Moku:DigitalFilterBox implements infinite impulse resposne (IIR) filters using 4 cascaded Direct Form 1 second-order stages
+		with a final output gain stage. The total transfer function can be written:
+
+		H(Z) = G * prod(1 <= k <= 4) : sk * [b0,k + b1,k * z^-1 + b2,k * z^-2] / [1 + a1,k * z^-1 + a2,k * z^-2]
+
+		To specify a filter, you must supply an array containing the filter coefficients. The array should contain five rows and six columns. 
+		The first row has one column entry, corresponding to the overall gain factor G. The following four rows have six entries each, corresponding
+		to the s, b0, b1, b2, a1 and a2 coefficients of the four cascaded SOS filters. 
+
+		Each coefficient must be in the range [-4.0, +4.0). Internally, these are represented as signed 48-bit fixed-point numbers, with 45 fractional bits.
+
+		Example array dimensions:
+
+	 	[[G],
+		[s1, b0.1, b1.1, b2.1, a1.1, a2.1],
+		[s2, b0.2, b1.2, b2.2, a1.2, a2.2],
+		[s3, b0.3, b1.3, b2.3, a1.3, a2.3],
+		[s4, b0.4, b1.4, b2.4, a1.4, a2.4]]
 
 		:type ch : int; {1,2}
 		:param ch : target channel
 
-		:type sample_rate : string; {'off','on'}
+		:type sample_rate : string; {'high','low'}
 		:param sample_rate : set sos sample rate
 
 		:type filter_array : array; 
 		:param filter_array : array containing SOS filter coefficients
 		"""
 
+		print(filter_array)
+
 		_utils.check_parameter_valid('set', ch, [1,2],'filter channel')
 		_utils.check_parameter_valid('set', sample_rate, ['high','low'],'sample rate')
 
 		# check filter array dimensions
 		if len(filter_array) != 5:
-			raise ValueOutOfRangeException("Filter array dimensions are incorrect")
+			#raise ValueOutOfRangeException("Filter array dimensions are incorrect")
+			_utils.check_parameter_valid('set', len(filter_array), [5],'number of coefficient array rows')
 		for m in range(4):
 			if m == 0:
 				if len(filter_array[0]) != 1:
-					raise ValueOutOfRangeException("Filter array dimensions are incorrect")
+					#raise ValueOutOfRangeException("Filter array dimensions are incorrect")
+					_utils.check_parameter_valid('set', len(filter_array[0]), [1],'number of columns in coefficient array row 0')
 			else:
 				if len(filter_array[m]) != 6:
-					raise ValueOutOfRangeException("Filter array dimensions are incorrect")
+					#raise ValueOutOfRangeException("Filter array dimensions are incorrect")
+					#exception_string = "number of columns in coefficient array row "
+					_utils.check_parameter_valid('set', len(filter_array[m]), [6],("number of columns in coefficient array row %s"%(m)))
 
 		#check if filter array values are within required bounds:
-		if filter_array[0][0] >= 8e6 or filter_array[0][0] < -8e6:
-			raise ValueOutOfRangeException("Filter array gain factor is out of bounds")
+		#if filter_array[0][0] >= 8e6 or filter_array[0][0] < -8e6:
+			#raise ValueOutOfRangeException("Filter array gain factor is out of bounds")
+			#raise ValueOutOfRangeException("Invalid parameter Filter array gain factor is out of bounds")
+
+		_utils.check_parameter_valid('range', filter_array[0][0], [-8e6,8e6 - 2**(-24)],("coefficient array entry m = %s, n = %s"%(0,0)))
 
 		for m in range(1, 5):
 			for n in range(6):
-				if filter_array[m][n] >= 4.0 or filter_array[m][n] < -4.0:
-					raise ValueOutOfRangeException("Filter array entry m = %d, n = %d is out of bounds"%(m,n))
+				_utils.check_parameter_valid('range', filter_array[m][n], [-4.0,4.0 - 2**(-45)],("coefficient array entry m = %s, n = %s"%(0,0)))
+				#if filter_array[m][n] >= 4.0 or filter_array[m][n] < -4.0:
+				#	raise ValueOutOfRangeException("Filter array entry m = %d, n = %d is out of bounds"%(m,n))
 
 
 		if ch == 1:
@@ -196,7 +222,7 @@ class IIRFilterBox(_CoreOscilloscope):
 		else:
 			self.ch2_sampling_freq = 0 if sample_rate == 'high' else 1
 
-		intermediate_filter = filter_array #self.filter_ch1 if ch == 1 else self.filter_ch2
+		intermediate_filter = filter_array 
 
 		# multiply S coefficients into B coefficients and replace all S coefficients with 1.0
 		for n in range(1,5):
@@ -244,19 +270,19 @@ class IIRFilterBox(_CoreOscilloscope):
 		"""
 		Configure non-SOS filterbox settings for specified channel
 
-		:type ch : int
+		:type ch : int, {1,2}
 		:param ch : target channel
 
-		:type input_scale, output_scale : int, dB
+		:type input_scale, output_scale : int, dB, [-40,40]
 		:param input_scale, output_scale : channel scalars before and after the IIR filter
 
-		:type input_offset, output_offset : int, mW
+		:type input_offset, output_offset : int, mW, [-500,500]
 		:param input_offset, output_offset : channel offsets before and after the IIR filter
 
-		:type matrix_scalar_ch1 : int, linear scalar
+		:type matrix_scalar_ch1 : int, linear scalar, [0,20]
 		:param matrix_scalar_ch1 : scalar controlling proportion of signal coming from channel 1 that is added to the current filter channel
 
-		:type matrix_scalar_ch2 : int, linear scalar
+		:type matrix_scalar_ch2 : int, linear scalar, [0,20]
 		:param matrix_scalar_ch2 : scalar controlling proportion of signal coming from channel 2 that is added to the current filter channel
 		"""
 		_utils.check_parameter_valid('set', ch, [1,2],'filter channel')
@@ -271,18 +297,14 @@ class IIRFilterBox(_CoreOscilloscope):
 		a1, a2 = self._adc_gains()
 		d1, d2 = self._dac_gains()		
 
+		front_end = self._get_frontend(channel = 1) if ch == 1 else self._get_frontend(channel = 2)
+		atten = 10.0 if front_end[1] else 1.0
+
 		adc_calibration = a1 if ch == 1 else a2
 		dac_calibration = d1 if ch == 1 else d2
 
-		## Calculate control matrix scale values
-		atten1 = 10 if self.atten_ch1 else 1.0
-		atten2 = 10 if self.atten_ch2 else 1.0
-
-		c1 = 375.0 * adc_calibration / atten1
-		c2 = 375.0 * adc_calibration / atten2
-
-		control_matrix_ch1 = int(round(matrix_scalar_ch1 * c1 * 2**10)) 
-		control_matrix_ch2 = int(round(matrix_scalar_ch2 * c2 * 2**10)) 
+		control_matrix_ch1 = int(round(matrix_scalar_ch1 * 375.0 * adc_calibration * 2**10 / atten)) 
+		control_matrix_ch2 = int(round(matrix_scalar_ch2 * 375.0 * adc_calibration * 2**10 / atten)) 
 
 		## Calculate input/output scale values
 		output_gain_factor = 1 / 375.0 / 8 / dac_calibration
