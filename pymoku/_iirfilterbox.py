@@ -37,111 +37,9 @@ _IIR_MON_IN_CH2 		= 3
 _IIR_MON_IN_CH2OFF 		= 4
 _IIR_MON_OUT_CH2 		= 5
 
-# REG_OSC_OUTSEL constants
-OSC_SOURCE_ADC		= 0
-OSC_SOURCE_DAC		= 1
-
-# REG_OSC_TRIGMODE constants
-OSC_TRIG_AUTO		= 0
-OSC_TRIG_NORMAL		= 1
-OSC_TRIG_SINGLE		= 2
-
-# REG_OSC_TRIGLVL constants
-OSC_TRIG_CH1		= 0
-OSC_TRIG_CH2		= 1
-OSC_TRIG_DA1		= 2
-OSC_TRIG_DA2		= 3
-
-OSC_EDGE_RISING		= 0
-OSC_EDGE_FALLING	= 1
-OSC_EDGE_BOTH		= 2
-
-# Re-export the top level attributes so they'll be picked up by pymoku.instruments, we
-# do actually want to give people access to these constants directly for Oscilloscope
-OSC_ROLL			= ROLL
-OSC_SWEEP			= SWEEP
-OSC_FULL_FRAME		= FULL_FRAME
-
-_OSC_LB_ROUND		= 0
-_OSC_LB_CLIP		= 1
-
-_OSC_AIN_DDS		= 0
-_OSC_AIN_DECI		= 1
-
-_OSC_ADC_SMPS		= ADC_SMP_RATE
-_OSC_BUFLEN			= CHN_BUFLEN
-_OSC_SCREEN_WIDTH	= 1024
-_OSC_FPS			= 10
-
-
 _IIR_COEFFWIDTH = 48
 
 NumStages = 8
-
-
-class IIRFilterFrame(_frame_instrument.FrameBasedInstrument):
-	"""
-	Object representing a frame of data in units of Volts. This is the native output format of
-	the :any:`Oscilloscope` instrument and similar.
-
-	This object should not be instantiated directly, but will be returned by a supporting *get_frame*
-	implementation.
-
-	.. autoinstanceattribute:: pymoku._frame_instrument.VoltsFrame.ch1
-		:annotation: = [CH1_DATA]
-
-	.. autoinstanceattribute:: pymoku._frame_instrument.VoltsFrame.ch2
-		:annotation: = [CH2_DATA]
-
-	.. autoinstanceattribute:: pymoku._frame_instrument.VoltsFrame.frameid
-		:annotation: = n
-
-	.. autoinstanceattribute:: pymoku._frame_instrument.VoltsFrame.waveformid
-		:annotation: = n
-	"""
-	def __init__(self, scales):
-		super(IIRFilterFrame, self).__init__()
-
-		#: Channel 1 data array in units of Volts. Present whether or not the channel is enabled, but the
-		#: contents are undefined in the latter case.
-		self.ch1 = []
-
-		#: Channel 2 data array in units of Volts.
-		self.ch2 = []
-
-		self.scales = scales
-
-	def __json__(self):
-		return { 'ch1': self.ch1, 'ch2' : self.ch2 }
-
-	def process_complete(self):
-		if self.stateid not in self.scales:
-			log.error("Can't render voltage frame, haven't saved calibration data for state %d", self.stateid)
-			return
-
-		scale1, scale2 = self.scales[self.stateid]
-
-		try:
-			smpls = int(len(self.raw1) / 4)
-			dat = struct.unpack('<' + 'i' * smpls, self.raw1)
-			dat = [ x if x != -0x80000000 else None for x in dat ]
-
-			self.ch1_bits = [ float(x) if x is not None else None for x in dat[:1024] ]
-			self.ch1 = [ x * scale1 if x is not None else None for x in self.ch1_bits]
-
-			smpls = int(len(self.raw2) / 4)
-			dat = struct.unpack('<' + 'i' * smpls, self.raw2)
-			dat = [ x if x != -0x80000000 else None for x in dat ]
-
-			self.ch2_bits = [ float(x) if x is not None else None for x in dat[:1024] ]
-			self.ch2 = [ x * scale2 if x is not None else None for x in self.ch2_bits]
-		except (IndexError, TypeError, struct.error):
-			# If the data is bollocksed, force a reinitialisation on next packet
-			log.exception("Oscilloscope packet")
-			self.frameid = None
-			self.complete = False
-
-		return True
 
 class IIRFilterBox(_CoreOscilloscope):
 	""" Oscilloscope instrument object. This should be instantiated and attached to a :any:`Moku` instance.
@@ -176,18 +74,9 @@ class IIRFilterBox(_CoreOscilloscope):
 
 		self.id = 6
 		self.type = "iirfilterbox"
-		self.calibration = None
-
-		#self.logname = "MokuDataloggerData"
-		#self.binstr = "<s32"
-		#self.procstr = ["*C","*C"]
-		#self.timestep = 1
-
-		#self.decimation_rate = 1
+		self.calibration = Non
 
 		self.scales = {}
-
-		#self.set_frame_class(IIRFilterFrame, scales=self.scales)
 
 	def set_defaults(self):
 		""" Reset the Oscilloscope to sane defaults. """
@@ -237,53 +126,31 @@ class IIRFilterBox(_CoreOscilloscope):
 
 
 	@needs_commit
-	def set_filter_io(self, ch = 1, input_switch = 'off', output_switch = 'off', impedance = 'low', attenuation = 'off', coupling = 'dc'):
+	def set_filter_io(self, ch = 1, input_switch = False, output_switch = False):
 		"""
 		Configure filter channel I/O and front-end settings
 
 		:type ch : int; {1,2}
 		:param ch : target channel
 
-		:type input_switch : string; {'off', 'on'}
-		:param input_switch : toggle input on/off
+		:type input_switch : bool;
+		:param input_switch : toggle input on(true)/off(false)
 
-		:type output_switch : string; {'off', 'on'}
-		:param output_switch : toggle output on/off	
-
-		:type impedance : string; {'low', 'high'}
-		:param impedance : toggle front-end input impedance, low = 50 Z, high = 1M Z
-
-		:type attenuation : string; {'off', 'on'}
-		:param attenuation : toggle front-end input attenuation, off = no attenuation, on = 20 dB attenuation
-
-		:type coupling : string; {'ac', 'dc'}
-		:param coupling : toggle front-end coupling, ac = AC coupling, dc = DC coupling					
+		:type output_switch : bool; 
+		:param output_switch : toggle output on(true)/off(false)			
 		"""
 		_utils.check_parameter_valid('set', ch, [1,2],'filter channel')
-		_utils.check_parameter_valid('set', input_switch, ['off','on'],'input switch')
-		_utils.check_parameter_valid('set', output_switch, ['off','on'],'output switch')
-		_utils.check_parameter_valid('set', impedance, ['low','high'],'input impedance')
-		_utils.check_parameter_valid('set', attenuation, ['off','on'],'input attenuation')
-		_utils.check_parameter_valid('set', coupling, ['ac','dc'],'input coupling')
-
-		fiftyr = True if impedance == 'low' else False
-		atten = True if attenuation == 'on' else False
-		ac = True if coupling == 'ac' else False
+		_utils.check_parameter_valid('bool', input_switch, desc = 'input switch')
+		_utils.check_parameter_valid('bool', output_switch, desc = 'output switch')
 
 		if ch == 1:
-			self.ch1_input = 1 if input_switch == 'on' else 0
-			self.ch1_output = 1 if output_switch == 'on' else 0
-			self.fiftyr_ch1 = fiftyr
-			self.atten_ch1 = atten
-			self.ac_ch1 = ac
-			self._set_frontend(channel = 1, fiftyr = fiftyr, atten = atten, ac = ac)
+			self.ch1_input = input_switch
+			self.ch1_output = output_switch
+
 		else:
-			self.ch2_input = 1 if input_switch == 'on' else 0
-			self.ch2_output = 1 if output_switch == 'on' else 0
-			self.fiftyr_ch2 = fiftyr
-			self.atten_ch2 = atten
-			self.ac_ch2 = ac
-			self._set_frontend(channel = 2, fiftyr = fiftyr, atten = atten, ac = ac)			
+			self.ch2_input = input_switch
+			self.ch2_output = output_switch
+			
 
 	@needs_commit
 	def set_filter_settings(self, ch = 1, sample_rate = 'high', filter_array = None):
@@ -301,7 +168,7 @@ class IIRFilterBox(_CoreOscilloscope):
 		"""
 
 		_utils.check_parameter_valid('set', ch, [1,2],'filter channel')
-		_utils.check_parameter_valid('set', sample_rate, ['high','low'],'input switch')
+		_utils.check_parameter_valid('set', sample_rate, ['high','low'],'sample rate')
 
 		# check filter array dimensions
 		if len(filter_array) != 5:
@@ -318,10 +185,11 @@ class IIRFilterBox(_CoreOscilloscope):
 		if filter_array[0][0] >= 8e6 or filter_array[0][0] < -8e6:
 			raise ValueOutOfRangeException("Filter array gain factor is out of bounds")
 
-		for m in range(4):
+		for m in range(1, 5):
 			for n in range(6):
-				if filter_array[m+1][n] >= 4.0 or filter_array[m+1][n] < -4.0:
-					raise ValueOutOfRangeException("Filter array entry m = %d, n = %d is out of bounds"%(m+1,n))
+				if filter_array[m][n] >= 4.0 or filter_array[m][n] < -4.0:
+					raise ValueOutOfRangeException("Filter array entry m = %d, n = %d is out of bounds"%(m,n))
+
 
 		if ch == 1:
 			self.ch1_sampling_freq = 0 if sample_rate == 'high' else 1
@@ -331,11 +199,11 @@ class IIRFilterBox(_CoreOscilloscope):
 		intermediate_filter = filter_array #self.filter_ch1 if ch == 1 else self.filter_ch2
 
 		# multiply S coefficients into B coefficients and replace all S coefficients with 1.0
-		for n in range(4):
-			intermediate_filter[n+1][1] *= intermediate_filter[n+1][0]
-			intermediate_filter[n+1][2] *= intermediate_filter[n+1][0]
-			intermediate_filter[n+1][3] *= intermediate_filter[n+1][0]
-			intermediate_filter[n+1][0] = 1.0
+		for n in range(1,5):
+			intermediate_filter[n][1] *= intermediate_filter[n][0]
+			intermediate_filter[n][2] *= intermediate_filter[n][0]
+			intermediate_filter[n][3] *= intermediate_filter[n][0]
+			intermediate_filter[n][0] = 1.0
 
 		# place gain factor G into S coefficient position 4 to comply with HDL requirements:
 		intermediate_filter[4][0] = intermediate_filter[0][0]
@@ -407,8 +275,8 @@ class IIRFilterBox(_CoreOscilloscope):
 		dac_calibration = d1 if ch == 1 else d2
 
 		## Calculate control matrix scale values
-		atten1 = 10 if self.atten_ch1 == True else 1.0
-		atten2 = 10 if self.atten_ch2 == True else 1.0
+		atten1 = 10 if self.atten_ch1 else 1.0
+		atten2 = 10 if self.atten_ch2 else 1.0
 
 		c1 = 375.0 * adc_calibration / atten1
 		c2 = 375.0 * adc_calibration / atten2
@@ -418,25 +286,25 @@ class IIRFilterBox(_CoreOscilloscope):
 
 		## Calculate input/output scale values
 		output_gain_factor = 1 / 375.0 / 8 / dac_calibration
-		self.input_scale = int(round(10**(round(input_scale)/20)*2**9))
-		self.output_scale = int(round(10**(round(output_scale)/20)*2**6 * output_gain_factor))
+		input_scale_bits = int(round(10**(round(input_scale)/20)*2**9))
+		output_scale_bits = int(round(10**(round(output_scale)/20)*2**6 * output_gain_factor))
 
 		## Calculate input/output offset values
-		self.input_offset = int(round(375.0 * round(input_offset) / 500.0))
-		self.output_offset = int(round(1 / dac_calibration / 2 * output_offset / 500.0))
+		input_offset_bits = int(round(375.0 * round(input_offset) / 500.0))
+		output_offset_bits = int(round(1 / dac_calibration / 2 * output_offset / 500.0))
 
 		if ch == 1:
-			self.inputscale_ch1 = self.input_scale
-			self.outputscale_ch1 = self.output_scale
-			self.inputoffset_ch1 = self.input_offset
-			self.outputoffset_ch1 = self.output_offset
+			self.inputscale_ch1 = input_scale_bits
+			self.outputscale_ch1 = output_scale_bits
+			self.inputoffset_ch1 = input_offset_bits
+			self.outputoffset_ch1 = output_offset_bits
 			self.ch0_ch0gain = control_matrix_ch1
 			self.ch0_ch1gain = control_matrix_ch2
 		else:
-			self.inputscale_ch2 = self.input_scale
-			self.outputscale_ch2 = self.output_scale
-			self.inputoffset_ch2 = self.input_offset
-			self.outputoffset_ch2 = self.output_offset
+			self.inputscale_ch2 = input_scale_bits
+			self.outputscale_ch2 = output_scale_bits
+			self.inputoffset_ch2 = input_offset_bits
+			self.outputoffset_ch2 = output_offset_bits
 			self.ch1_ch0gain = control_matrix_ch1
 			self.ch1_ch1gain = control_matrix_ch2
 
