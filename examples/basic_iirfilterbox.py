@@ -36,49 +36,29 @@ Chebyshev type 2 filter with a normalized stopband frequency of 0.2 pi rad/sampl
 
 """
 
-filt_coeff = 	[[2.0],
+filt_coeff = 	[[1.0],
 				[1.0000000000,0.6413900006,-1.0290561741,0.6413900006,-1.6378425857,0.8915664128],
 				[1.0000000000,0.5106751138,-0.7507394931,0.5106751138,-1.4000444473,0.6706551819],
 				[1.0000000000,0.3173108134,-0.3111365531,0.3173108134,-1.0873085012,0.4107935750],
 				[1.0000000000,0.1301131088,0.1223154629,0.1301131088,-0.7955572476,0.1780989281]]
 
-#filt_coeff = []
-
-# with open('2ChannelChebPass.csv', 'r') as csv:
-# 	for l in csv:
-# 		filt_coeff.append(map(float,  [x.strip() for x in l.split(',')] ))
-
-# logging.basicConfig(format='%(asctime)s:%(name)s:%(levelname)s::%(message)s')
-# logging.getLogger('pymoku').setLevel(logging.DEBUG)
 
 m = Moku('192.168.69.245')
 i = IIRFilterBox()
 m.deploy_instrument(i)
 
-i.set_frontend(1,fiftyr=True, atten=False, ac=False)
-i.set_frontend(2,fiftyr=True, atten=False, ac=False)
-i.commit()
-
-i.set_filter_io(ch = 1, input_switch = True, output_switch = True)
-i.set_filter_io(ch = 2, input_switch = True, output_switch = True)
-i.set_filter_settings(ch = 1, sample_rate = 'high', filter_array = filt_coeff)
-i.set_filter_settings(ch = 2, sample_rate = 'high', filter_array = filt_coeff)
-i.set_instrument_gains(ch = 1, input_scale = 0, output_scale = 0, input_offset = 0, output_offset = 0, matrix_scalar_ch1 = 1, matrix_scalar_ch2 = 0)
-i.set_instrument_gains(ch = 2, input_scale = 0, output_scale = 0, input_offset = 0, output_offset = 0, matrix_scalar_ch1 = 0, matrix_scalar_ch2 = 1)
-i.set_monitor(ch = 1)
-i.commit()
-
-m._receive_file('j', 'otherdata_temp.dat', length=96*4*2)
-
 try:
-	# Span from -1s to 1s i.e. trigger point centred
-	#i.set_timebase(-1, 1)
-	#i.commit()
-	# Get and print a single frame's worth of data (time series
-	# of voltage per channel)
-	#print(i.get_frame())
-	print("5")
+
+	i.set_frontend(1,fiftyr=True, atten=False, ac=False)
+	i.set_frontend(2,fiftyr=True, atten=False, ac=False)
+
+	i.set_filter_io(ch = 1, input_switch = True, output_switch = True)
+	i.set_filter_io(ch = 2, input_switch = True, output_switch = True)
+	i.set_filter_settings(ch = 1, sample_rate = 'high', filter_coefficients = filt_coeff)
+	i.set_filter_settings(ch = 2, sample_rate = 'high', filter_coefficients = filt_coeff)
+	i.set_instrument_gains(ch = 1, input_scale = 0, output_scale = 0, input_offset = 0, output_offset = 0, matrix_scalar_ch1 = 1, matrix_scalar_ch2 = 0)
+	i.set_instrument_gains(ch = 2, input_scale = 0, output_scale = 0, input_offset = 0, output_offset = 0, matrix_scalar_ch1 = 0, matrix_scalar_ch2 = 1)
+	i.set_monitor(ch = 1)
 
 finally:
-	print("6")
 	m.close()

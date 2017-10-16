@@ -1,6 +1,7 @@
 
 import math
 import logging
+from copy import deepcopy
 
 from pymoku._oscilloscope import _CoreOscilloscope, VoltsData
 
@@ -84,33 +85,25 @@ class IIRFilterBox(_CoreOscilloscope):
 		self.ch2_input = 0
 		self.ch2_output = 0
 
-		self.ch0_ch0gain = 1.0
+		self.ch0_ch0gain = 0.0
 		self.ch0_ch1gain = 0.0
 		self.ch1_ch0gain = 0.0
-		self.ch1_ch1gain = 1.0
+		self.ch1_ch1gain = 0.0
 
 		self.ch1_sampling_freq = 0
 		self.ch2_sampling_freq = 0
 
 		self.filter_reset = 0
 
-		self.inputscale_ch1 = 2**9
-		self.inputscale_ch2 = 2**9
-		self.outputscale_ch1 = 2**6
-		self.outputscale_ch2 = 2**6
+		self.inputscale_ch1 = 0
+		self.inputscale_ch2 = 0
+		self.outputscale_ch1 = 0
+		self.outputscale_ch2 = 0
 
 		self.inputoffset_ch1 = 0
 		self.inputoffset_ch2 = 0
 		self.outputoffset_ch1 = 0
 		self.outputoffset_ch2 = 0
-
-		self.fiftyr_ch1 = True
-		self.atten_ch1 = False
-		self.ac_ch1 = False
-
-		self.fiftyr_ch2 = True
-		self.atten_ch2 = False
-		self.ac_ch2 = False
 
 		# initialize filter coefficient arrays as all pass filters
 		b = [1.0,1.0,0.0,0.0,0.0,0.0]
@@ -150,7 +143,7 @@ class IIRFilterBox(_CoreOscilloscope):
 			
 
 	@needs_commit
-	def set_filter_settings(self, ch = 1, sample_rate = 'high', filter_array = None):
+	def set_filter_settings(self, ch = 1, sample_rate = 'high', filter_coefficients = None):
 		"""
 		Set SOS filter sample rate and send filter coefficients to the device via the memory map.
 
@@ -179,42 +172,29 @@ class IIRFilterBox(_CoreOscilloscope):
 		:type sample_rate : string; {'high','low'}
 		:param sample_rate : set sos sample rate
 
-		:type filter_array : array; 
-		:param filter_array : array containing SOS filter coefficients
+		:type filter_coefficients : array; 
+		:param filter_coefficients : array containing SOS filter coefficients
 		"""
-
-		print(filter_array)
 
 		_utils.check_parameter_valid('set', ch, [1,2],'filter channel')
 		_utils.check_parameter_valid('set', sample_rate, ['high','low'],'sample rate')
 
 		# check filter array dimensions
-		if len(filter_array) != 5:
-			#raise ValueOutOfRangeException("Filter array dimensions are incorrect")
-			_utils.check_parameter_valid('set', len(filter_array), [5],'number of coefficient array rows')
+		if len(filter_coefficients) != 5:
+			_utils.check_parameter_valid('set', len(filter_coefficients), [5],'number of coefficient array rows')
 		for m in range(4):
 			if m == 0:
-				if len(filter_array[0]) != 1:
-					#raise ValueOutOfRangeException("Filter array dimensions are incorrect")
-					_utils.check_parameter_valid('set', len(filter_array[0]), [1],'number of columns in coefficient array row 0')
+				if len(filter_coefficients[0]) != 1:
+					_utils.check_parameter_valid('set', len(filter_coefficients[0]), [1],'number of columns in coefficient array row 0')
 			else:
-				if len(filter_array[m]) != 6:
-					#raise ValueOutOfRangeException("Filter array dimensions are incorrect")
-					#exception_string = "number of columns in coefficient array row "
-					_utils.check_parameter_valid('set', len(filter_array[m]), [6],("number of columns in coefficient array row %s"%(m)))
+				if len(filter_coefficients[m]) != 6:
+					_utils.check_parameter_valid('set', len(filter_coefficients[m]), [6],("number of columns in coefficient array row %s"%(m)))
 
-		#check if filter array values are within required bounds:
-		#if filter_array[0][0] >= 8e6 or filter_array[0][0] < -8e6:
-			#raise ValueOutOfRangeException("Filter array gain factor is out of bounds")
-			#raise ValueOutOfRangeException("Invalid parameter Filter array gain factor is out of bounds")
-
-		_utils.check_parameter_valid('range', filter_array[0][0], [-8e6,8e6 - 2**(-24)],("coefficient array entry m = %s, n = %s"%(0,0)))
-
+		# check if filter array values are within required bounds:
+		_utils.check_parameter_valid('range', filter_coefficients[0][0], [-8e6,8e6 - 2**(-24)],("coefficient array entry m = %s, n = %s"%(0,0)))
 		for m in range(1, 5):
 			for n in range(6):
-				_utils.check_parameter_valid('range', filter_array[m][n], [-4.0,4.0 - 2**(-45)],("coefficient array entry m = %s, n = %s"%(0,0)))
-				#if filter_array[m][n] >= 4.0 or filter_array[m][n] < -4.0:
-				#	raise ValueOutOfRangeException("Filter array entry m = %d, n = %d is out of bounds"%(m,n))
+				_utils.check_parameter_valid('range', filter_coefficients[m][n], [-4.0,4.0 - 2**(-45)],("coefficient array entry m = %s, n = %s"%(0,0)))
 
 
 		if ch == 1:
@@ -222,7 +202,7 @@ class IIRFilterBox(_CoreOscilloscope):
 		else:
 			self.ch2_sampling_freq = 0 if sample_rate == 'high' else 1
 
-		intermediate_filter = filter_array 
+		intermediate_filter = deepcopy(filter_coefficients)
 
 		# multiply S coefficients into B coefficients and replace all S coefficients with 1.0
 		for n in range(1,5):
