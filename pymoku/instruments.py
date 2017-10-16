@@ -11,6 +11,7 @@ from . import _bodeanalyser
 from . import _stream_instrument
 from . import _frame_instrument
 from . import _input_instrument
+from . import _iirfilterbox
 
 ''' Preferred import point. Aggregates the separate instruments and helper classes
     to flatten the import heirarchy (e.g. pymoku.instruments.Oscilloscope rather
@@ -31,6 +32,7 @@ SpectrumAnalyser = _specan.SpectrumAnalyser
 LockInAmp = _lockinamp.LockInAmp
 Datalogger = _datalogger.Datalogger
 BodeAnalyser = _bodeanalyser.BodeAnalyser
+IIRFilterBox = _iirfilterbox.IIRFilterBox
 
 id_table = {
 	1: Oscilloscope,
@@ -38,7 +40,7 @@ id_table = {
 	3: Phasemeter,
 	4: WaveformGenerator,
 	5: None,
-	6: None,
+	6: IIRFilterBox,
 	7: Datalogger,
 	8: LockInAmp,
 	9: BodeAnalyser,
