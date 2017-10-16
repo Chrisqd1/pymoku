@@ -1,16 +1,9 @@
 from pymoku import Moku
 from pymoku.instruments import ArbWaveGen
-import struct, logging, math
-import numpy as np
 
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
-
-import pickle, base64, zlib
-
-logging.basicConfig(format='%(asctime)s:%(name)s:%(levelname)s::%(message)s')
-logging.getLogger('pymoku').setLevel(logging.INFO)
 
 ARB_MODE_1000 = 0x0
 ARB_MODE_500 = 0x1
@@ -21,14 +14,16 @@ ARB_MODE_125 = 0x3
 signalx = [1,3,2,4,3,5,4,6,5,7,6,8,1,3,2,4,3,5,4,6,5,7,6,8,1,3,2,4,3,5,4,6,5,7,6,8,1,3,2,4,3,5,4,6,5,7,6,8]
 
 # normalise the values to be between [-1, 1]
-signaly = [x/max(signalx) for x in signalx]
+signalx = [x/max(signalx) for x in signalx]
 
 # beeing lacy and just copied the signal across
-signalx = signaly 
+signaly = signalx 
 
+# Connect to your Moku by its device name
+# Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
+m = Moku.get_by_name('Moku')
 
-# connect to moku device
-m = Moku('192.168.69.222')
+# Prepare the ArbWaveformGenerator instrument
 i = ArbWaveGen()
 m.deploy_instrument(i)
 
@@ -54,7 +49,7 @@ try:
 	i.set_source(1, 'out', lmode='round')
 	i.set_source(2, 'out', lmode='round')
 	i.set_trigger('out1', 'rising', 0.0, hysteresis=True, mode='auto')
-	i.set_timebase(0, 0.001)
+	i.set_timebase(0, 2e-6)
 	data = i.get_realtime_data()
 
 	# Set up the plotting parameters

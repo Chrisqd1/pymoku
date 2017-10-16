@@ -160,7 +160,7 @@ class ArbWaveGen(_CoreOscilloscope):
 		self._set_mmap_access(False)
 	
 	@needs_commit
-	def gen_waveform(self, ch, period, phase, amplitude, offset=0, interpolation=True, dead_time=0, dead_voltage = 0, fiftyr=True):
+	def gen_waveform(self, ch, period, phase, amplitude, offset=0, interpolation=True, dead_time=0, dead_voltage = 0):
 		""" Generate a Wave with the given parameters on the given channel.
 
 		:type ch: int; {1,2}
@@ -200,7 +200,6 @@ class ArbWaveGen(_CoreOscilloscope):
 		_utils.check_parameter_valid('bool', interpolation, desc='linear interpolation')
 		_utils.check_parameter_valid('range', dead_time, [0.0, 2e18], desc='signal dead time', units='cycles')
 		_utils.check_parameter_valid('range', dead_voltage, [0.0, 2.0], desc='dead value', units='volts')
-		_utils.check_parameter_valid('bool', fiftyr, desc='50 Ohm termination')
 		_utils.check_parameter_valid('range', phase, [0, 360], desc='phase offset', units='degrees')
 
 		upper_voltage = offset + (amplitude/2.0)
