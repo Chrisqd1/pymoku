@@ -321,7 +321,7 @@ class IIRFilterBox(_CoreOscilloscope):
 		for m in range(4):
 			for n in range(6):
 				if filter_array[m+1][n] >= 4.0 or filter_array[m+1][n] < -4.0:
-					raise ValueOutOfRangeException("Filter array entry m = %d, n = %d is out of bounds",m,n)
+					raise ValueOutOfRangeException("Filter array entry m = %d, n = %d is out of bounds"%(m+1,n))
 
 		if ch == 1:
 			self.ch1_sampling_freq = 0 if sample_rate == 'high' else 1
