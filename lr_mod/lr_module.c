@@ -96,7 +96,7 @@ PyMODINIT_FUNC PyInit_lr(void)
 
 PyMODINIT_FUNC initlr(void)
 {
-    return Py_InitModule("lr", LrMethods);
+    Py_InitModule("lr", LrMethods);
 }
 
 #endif

@@ -33,6 +33,7 @@ _OSC_TRIG_CH1		= 0
 _OSC_TRIG_CH2		= 1
 _OSC_TRIG_DA1		= 2
 _OSC_TRIG_DA2		= 3
+_OSC_TRIG_EXT		= 4
 
 _OSC_EDGE_RISING	= 0
 _OSC_EDGE_FALLING	= 1
@@ -436,9 +437,10 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		'noise', a small value will be automatically calulated based on decimation. Values 'auto' and 'noise' are suitable
 		for high- and low-SNR signals respectively.
 
-		:type source: string, {'in1','in2','out1','out2'}
-		:param source: Trigger Source. May be either an input or output channel,
-						allowing one to trigger off a synthesised waveform.
+		:type source: string, {'in1','in2','out1','out2','ext'}
+		:param source: Trigger Source. May be either an input or output channel, or external. The output options allow
+				triggering off an internally-generated waveform. External refers to the back-panel connector of the same
+				name, allowing triggering from an externally-generated digital [LV]TTL or CMOS signal.
 
 		:type edge: string, {'rising','falling','both'}
 		:param edge: Which edge to trigger on.
@@ -481,7 +483,8 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 			'in1' : _OSC_TRIG_CH1,
 			'in2' : _OSC_TRIG_CH2,
 			'out1' : _OSC_TRIG_DA1,
-			'out2' : _OSC_TRIG_DA2
+			'out2' : _OSC_TRIG_DA2,
+			'ext' : _OSC_TRIG_EXT
 		}
 		_str_to_edge = {
 			'rising' : _OSC_EDGE_RISING,
