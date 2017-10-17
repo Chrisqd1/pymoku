@@ -13,8 +13,6 @@ from . import _utils
 
 log = logging.getLogger(__name__)
 
-REG_MMAP_ACCESS = 62 #TODO this should go somewhere more instrument generic
-
 REG_ARB_SETTINGS = 96
 REG_ARB_PHASE_STEP1_L = 97
 REG_ARB_PHASE_STEP1_H = 98
@@ -141,8 +139,6 @@ class ArbWaveGen(_CoreOscilloscope):
 		mode = _utils.str_to_val(_str_to_mode, mode, "operating mode")
 
 		self._set_mode(ch, mode, len(data))
-
-		print(mode)
 
 		# picks the stepsize and the steps based in the mode
 		steps, stepsize = [(8, 8192), (4, 8192 * 2), (2, 8192 * 4), (1, 8192 * 8)][mode]
