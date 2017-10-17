@@ -233,29 +233,29 @@ class PIDController(_CoreOscilloscope):
 		:type ch: int; [1,2]
 		:param ch: Channel of PID controller to  configure
 
-		:type kp: 
-		:param kp:
+		:type kp: float; [-1e3,1e3]
+		:param kp: Proportional gain factor
 
-		:type i_xover:
-		:param i_xover:
+		:type i_xover: float; [1e-3,1e6] Hz
+		:param i_xover: Integrator crossover frequency
 
-		:type d_xover:
-		:param d_xover:
+		:type d_xover: float; [1,10e6] Hz
+		:param d_xover: Differentiator crossover frequency
 
-		:type ii_xover:
-		:param ii_xover:
+		:type ii_xover: float; [1, 1e6] Hz
+		:param ii_xover: Second integrator crossover frequency
 
-		:type si:
-		:param si:
+		:type si: float; float; [-1e3,1e3]
+		:param si: Integrator gain saturation
 
-		:type sd:
-		:param sd:
+		:type sd: float; [-1e3,1e3]
+		:param sd: Differentiator gain saturation
 
-		:type in_offset:
-		:param in_offset:
+		:type in_offset: float; [-1.0,1.0] V
+		:param in_offset: Input signal offset
 
-		:type out_offset:
-		:type out_offset:
+		:type out_offset: float; [-1.0, 1.0] V
+		:type out_offset: Output signal offset
 
 		:raises InvalidConfigurationException: if the configuration of PID gains is not possible.
 		"""
@@ -272,10 +272,10 @@ class PIDController(_CoreOscilloscope):
 		:type ch: int; [1,2]
 		:param ch: Channel of the PID controller to be configured.
 
-		:type g: float;
-		:param g: 
+		:type g: float; [0,2^16 - 1]
+		:param g: Gain
 
-		:type kp: float; [-60dB, 60dB]
+		:type kp: float; [-1e3,1e3]
 		:param kp: Proportional gain factor
 
 		:type ki: float;
@@ -284,20 +284,20 @@ class PIDController(_CoreOscilloscope):
 		:type kd: float;
 		:param kd: Differentiator gain factor
 
-		:type kii:
-		:param kii:
+		:type kii: float;
+		:param kii: Second integrator gain factor
 
-		:type si:
-		:param si:
+		:type si: float; float; [-1e3,1e3]
+		:param si: Integrator gain saturation
 
-		:type sd:
-		:param sd:
+		:type sd: float; [-1e3,1e3]
+		:param sd: Differentiator gain saturation
 
-		:type in_offset:
-		:param in_offset:
+		:type in_offset: float; [-1.0,1.0] V
+		:param in_offset: Input signal offset
 
-		:type out_offset:
-		:param out_offset:
+		:type out_offset: float; [-1.0, 1.0] V
+		:type out_offset: Output signal offset
 
 		:raises InvalidConfigurationException: if the configuration of PID gains is not possible.
 		"""
@@ -400,6 +400,19 @@ class PIDController(_CoreOscilloscope):
 
 	@needs_commit
 	def set_control_matrix(self, ch, self_gain, cross_gain):
+		"""
+		Set the linear combination of ADC input signals for a given PID channel.
+		
+		:type ch: int; [1,2] 
+		:param ch: PID Channel
+
+		:type self_gain: float; [-20,20]
+		:param self_gain: ADC input gain for same PID channel
+
+		:type cross_gain: float; [-20, 20]
+		:param cross_gain: 
+
+		"""
 		# We chuck in a factor of 1000 here then take it off again in the controller
 		# gain. This optimises the rounding strategy, as the control matrix itself
 		# doesn't have many fractional bits.
