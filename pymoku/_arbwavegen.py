@@ -38,10 +38,10 @@ REG_ARB_DEAD_VALUE2 = 112
 REG_ARB_LUT_LENGTH2 = 114
 REG_ARB_OFFSET2 = 116
 
-ARB_MODE_1000 = 0x0
-ARB_MODE_500 = 0x1
-ARB_MODE_250 = 0x2
-ARB_MODE_125 = 0x3
+_ARB_MODE_1000 = 0x0
+_ARB_MODE_500 = 0x1
+_ARB_MODE_250 = 0x2
+_ARB_MODE_125 = 0x3
 
 _ARB_AMPSCALE = 2.0**16
 _ARB_VOLTSCALE = 2.0**15
@@ -49,10 +49,7 @@ _ARB_LUT_LENGTH = 8192
 _ARB_LUT_LSB = 2.0**32
 _ARB_LUT_INTERPLOATION_LENGTH = 2**32
 
-_ARB_UPDATE_1GS = 1.0e9
-_ARB_UPDATE_500MS = 500.0e6
-_ARB_UPDATE_250MS = 250.0e6
-_ARB_UPDATE_125MS = 125.0e6
+_ARB_MODE_RATE = [1.0e9, 500.0e6, 250.0e6, 125.0e6] #1GS, 500MS, 250MS, 125MS
 
 class ArbWaveGen(_CoreOscilloscope):
 	def __init__(self):
@@ -64,9 +61,9 @@ class ArbWaveGen(_CoreOscilloscope):
 	@needs_commit
 	def set_defaults(self):
 		super(ArbWaveGen, self).set_defaults()
-		self.mode1 = ARB_MODE_125
+		self.mode1 = _ARB_MODE_125
 		self.lut_length1 = _ARB_LUT_LENGTH
-		self.mode2 = ARB_MODE_125
+		self.mode2 = _ARB_MODE_125
 		self.lut_length2 = _ARB_LUT_LENGTH
 		self.phase_modulo1 = 2**42
 		self.phase_modulo2 = 2**42
@@ -99,15 +96,15 @@ class ArbWaveGen(_CoreOscilloscope):
 		:raises ValueOutOfRangeException: if wave parameters are out of range
 		"""
 		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
-		_utils.check_parameter_valid('set', mode, [ARB_MODE_1000, ARB_MODE_500, ARB_MODE_250, ARB_MODE_125], desc='mode is not vaild')
+		_utils.check_parameter_valid('set', mode, [_ARB_MODE_1000, _ARB_MODE_500, _ARB_MODE_250, _ARB_MODE_125], desc='mode is not vaild')
 
-		if mode is ARB_MODE_500:
+		if mode is _ARB_MODE_500:
 			_utils.check_parameter_valid('range', length, [1,2**13], desc='length for lookup table')
-		if mode is ARB_MODE_250:
+		if mode is _ARB_MODE_250:
 			_utils.check_parameter_valid('range', length, [1,2**14], desc='length for lookup table')
-		if mode is ARB_MODE_125:
+		if mode is _ARB_MODE_125:
 			_utils.check_parameter_valid('range', length, [1,2**15], desc='length for lookup table')
-		if mode is ARB_MODE_1000:
+		if mode is _ARB_MODE_1000:
 			_utils.check_parameter_valid('range', length, [1,2**16], desc='length for lookup table')
 		
 		if ch == 1:
@@ -117,7 +114,7 @@ class ArbWaveGen(_CoreOscilloscope):
 			self.mode2 = mode
 			self.lut_length2 = length-1
 			
-	def write_lut(self, ch, data, srate=None):
+	def write_lut(self, ch, data, mode = '125MS'):
 		"""writes the lookup table to memmory in the moku
 
 		To write the lookup table a file is created. It contains the values for both channels.
@@ -126,15 +123,29 @@ class ArbWaveGen(_CoreOscilloscope):
 		:type ch: int; {1,2}
 		:param ch: Channel on which the mode is set
 
+		:type mode: string: '1GS', '500MS', '250MS', '125MS'
+		:param: defines the sample rate the Arb-Waveform-Generator is running with.
+
 		:raises ValueError: if the channel is invalid
 		:raises ValueOutOfRangeException: if wave parameters are out of range
 		"""
 		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
 
-		if srate is not None:
-			self._set_mode(ch, srate, len(data))
+		_str_to_mode = {
+			'1gs' : _ARB_MODE_1000,
+			'500ms' : _ARB_MODE_500,
+			'250ms'	: _ARB_MODE_250,
+			'125ms'	: _ARB_MODE_125
+		}
+
+		mode = _utils.str_to_val(_str_to_mode, mode, "operating mode")
+
+		self._set_mode(ch, mode, len(data))
+
+		print(mode)
+
 		# picks the stepsize and the steps based in the mode
-		steps, stepsize = [(8, 8192), (4, 8192 * 2), (2, 8192 * 4), (1, 8192 * 8)][srate]
+		steps, stepsize = [(8, 8192), (4, 8192 * 2), (2, 8192 * 4), (1, 8192 * 8)][mode]
 
 		with open('.lutdata.dat', 'r+b') as f:
 			#first check and make the file the right size
@@ -187,9 +198,6 @@ class ArbWaveGen(_CoreOscilloscope):
 		:type dead_voltage: float [0.0,2.0] V
 		:param dead_voltage: signal level during dead time in Volts
 
-		:type fifyr: bool [True, False]
-		:param fifyr: use of 50 Ohm impedance
-
 		:raises ValueError: if the parameters  is invalid
 		:raises ValueOutOfRangeException: if wave parameters are out of range
 		:raises InvalidParameterException: if the parameters are the wrong types
@@ -211,8 +219,8 @@ class ArbWaveGen(_CoreOscilloscope):
 		if(ch == 1):
 			freq = 1/period
 			self.interpolation1 = interpolation
-			phase_modulo = (self.lut_length1 + 1 ) * _ARB_LUT_INTERPLOATION_LENGTH 
-			update_rate = [_ARB_UPDATE_1GS, _ARB_UPDATE_500MS, _ARB_UPDATE_250MS, _ARB_UPDATE_125MS][self.mode1]
+			phase_modulo = (self.lut_length1 + 1) * _ARB_LUT_INTERPLOATION_LENGTH 
+			update_rate = _ARB_MODE_RATE[self.mode1]
 			self.phase_step1 = freq / update_rate * phase_modulo
 			phase_modulo = phase_modulo * dead_time if dead_time > 0 else phase_modulo
 			self.phase_modulo1 = phase_modulo
@@ -225,8 +233,8 @@ class ArbWaveGen(_CoreOscilloscope):
 		if(ch == 2):
 			freq = 1/period
 			self.interpolation2 = interpolation
-			phase_modulo = (self.lut_length2 + 1 ) * _ARB_LUT_INTERPLOATION_LENGTH 
-			update_rate = [_ARB_UPDATE_1GS, _ARB_UPDATE_500MS, _ARB_UPDATE_250MS, _ARB_UPDATE_125MS][self.mode2]
+			phase_modulo = (self.lut_length2 + 1) * _ARB_LUT_INTERPLOATION_LENGTH 
+			update_rate = _ARB_MODE_RATE[self.mode2]
 			self.phase_step2 = freq / update_rate * phase_modulo
 			phase_modulo = phase_modulo * dead_time if dead_time > 0 else phase_modulo
 			self.phase_modulo2 = phase_modulo
@@ -238,10 +246,10 @@ class ArbWaveGen(_CoreOscilloscope):
 
 	@needs_commit
 	def sync_phase(self, ch):
-		""" resets the phase off the given channel to the other
+		""" syncs the phase off the given channel to the other
 		
 		:type ch: int; {1,2}
-		:param ch: Channel on which to generate the wave
+		:param ch: Channel that is synced to the other
 
 		:raises ValueError: if the channel number is invalid
 		"""
@@ -280,10 +288,10 @@ class ArbWaveGen(_CoreOscilloscope):
 
 
 		if ch == 1:
-			update_rate = [_ARB_UPDATE_1GS, _ARB_UPDATE_500MS, _ARB_UPDATE_250MS, _ARB_UPDATE_125MS][self.mode1]
+			update_rate = _ARB_MODE_RATE[self.mode1]
 			return (self.phase_step1 / self.phase_modulo1) * update_rate
 		if ch == 2:
-			update_rate = [_ARB_UPDATE_1GS, _ARB_UPDATE_500MS, _ARB_UPDATE_250MS, _ARB_UPDATE_125MS][self.mode2]
+			update_rate = _ARB_MODE_RATE[self.mode2]
 			return (self.phase_step2 / self.phase_modulo2) * update_rate
 
 	@needs_commit
@@ -313,7 +321,7 @@ _arb_reg_handlers = {
 	'enable1':			(REG_ARB_SETTINGS,		to_reg_bool(16),		from_reg_bool(16)),
 	'phase_rst1':		(REG_ARB_SETTINGS,		to_reg_bool(20),		from_reg_bool(20)),
 	'phase_sync1':		(REG_ARB_SETTINGS,		to_reg_bool(22),		from_reg_bool(22)),
-	'mode1':			(REG_ARB_SETTINGS,		to_reg_unsigned(0, 2, allow_set=[ARB_MODE_125, ARB_MODE_250, ARB_MODE_500, ARB_MODE_1000]),
+	'mode1':			(REG_ARB_SETTINGS,		to_reg_unsigned(0, 2, allow_set=[_ARB_MODE_125, _ARB_MODE_250, _ARB_MODE_500, _ARB_MODE_1000]),
 												from_reg_unsigned(0, 2)),
 	'interpolation1':	(REG_ARB_SETTINGS,		to_reg_bool(4),			from_reg_bool(4)),
 	'lut_length1':		(REG_ARB_LUT_LENGTH1,	to_reg_unsigned(0, 16), from_reg_signed(0, 16)),
@@ -331,7 +339,7 @@ _arb_reg_handlers = {
 	'enable2':			(REG_ARB_SETTINGS,		to_reg_bool(17),		from_reg_bool(17)),
 	'phase_rst2':		(REG_ARB_SETTINGS,		to_reg_bool(21),		from_reg_bool(21)),
 	'phase_sync2':		(REG_ARB_SETTINGS,		to_reg_bool(23),		from_reg_bool(23)),
-	'mode2':			(REG_ARB_SETTINGS,		to_reg_unsigned(8, 2, allow_set=[ARB_MODE_125, ARB_MODE_250, ARB_MODE_500, ARB_MODE_1000]),
+	'mode2':			(REG_ARB_SETTINGS,		to_reg_unsigned(8, 2, allow_set=[_ARB_MODE_125, _ARB_MODE_250, _ARB_MODE_500, _ARB_MODE_1000]),
 												from_reg_unsigned(8, 2)),
 	'interpolation2':	(REG_ARB_SETTINGS,		to_reg_bool(12),			from_reg_bool(12)),
 	'lut_length2':		(REG_ARB_LUT_LENGTH2,	to_reg_unsigned(0, 16), from_reg_signed(0, 16)),

@@ -5,18 +5,11 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 
-ARB_MODE_1000 = 0x0
-ARB_MODE_500 = 0x1
-ARB_MODE_250 = 0x2
-ARB_MODE_125 = 0x3
-
-# generates a funny looking waveform so interpolation can be observed
+# generates  waveform so interpolation can be observed
 signalx = [1,3,2,4,3,5,4,6,5,7,6,8,1,3,2,4,3,5,4,6,5,7,6,8,1,3,2,4,3,5,4,6,5,7,6,8,1,3,2,4,3,5,4,6,5,7,6,8]
 
 # normalise the values to be between [-1, 1]
 signalx = [x/max(signalx) for x in signalx]
-
-# beeing lacy and just copied the signal across
 signaly = signalx 
 
 # Connect to your Moku by its device name
@@ -32,18 +25,15 @@ try:
 	i.set_defaults()
 
 	# writing values to lookup tables
-	i.write_lut(1, signalx, ARB_MODE_1000)
-	i.write_lut(2, signaly, ARB_MODE_125)
+	i.write_lut(ch = 1, data = signalx, mode = '1GS')
+	i.write_lut(ch = 2, data = signaly, mode = '125MS')
 
-	# use gen waveform to generate a signal from look up table (ch, period, phase, amplitude, offset, interpolation, dead_time, dead_value, fiftyr)
-	i.gen_waveform(1, 1e-6, 0, 1, 0.0, False, 0, 0.0, False)
-	i.gen_waveform(2, 1e-6, 0, 1, 0.0, True, 0, 0.0, False)
+	# use gen waveform to generate a signal from look up table
+	i.gen_waveform(ch = 1, period = 1e-6, phase = 0, amplitude = 1, offset = 0.0, interpolation = False, dead_time = 0, dead_voltage = 0.0)
+	i.gen_waveform(ch = 2, period = 1e-6, phase = 0, amplitude = 1, offset = 0.0, interpolation = True, dead_time = 0, dead_voltage = 0.0)
 
 	# sync the phase from channel 2 to channel 1
-	i.sync_phase(2)
-	
-	# reset the phase(restart phase from 0)
-	i.reset_phase(2)
+	i.sync_phase(ch = 2)
 	
 	# set up the oscilloscope to read data from the Output channels
 	i.set_source(1, 'out', lmode='round')
