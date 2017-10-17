@@ -165,6 +165,7 @@ class ArbWaveGen(_CoreOscilloscope):
 		self._set_mmap_access(True)
 		error = self._moku._send_file('j', '.lutdata.dat')
 		self._set_mmap_access(False)
+		os.remove('.lutdata.dat')
 	
 	@needs_commit
 	def gen_waveform(self, ch, period, phase, amplitude, offset=0, interpolation=True, dead_time=0, dead_voltage = 0):
