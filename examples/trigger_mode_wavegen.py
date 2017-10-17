@@ -30,7 +30,7 @@ try:
 	i.set_trigger(ch = 1, mode = 'gated', trigger_source = 'external', trigger_threshold = 0.5)
 
 	# set the trigger mode on channel 1 to sweep (ch, mode, sweep_init_freq, sweep_final_freq, sweep_duration, trigger_source, trigger_threshold)
-	i.set_trigger(ch = 2, mode = 'sweep', sweep_init_freq = 1.0, sweep_final_freq = 5.0, sweep_duration = 10.0, trigger_source = 'adc', trigger_threshold = 0.5)
+	i.set_trigger(ch = 2, mode = 'sweep', sweep_init_freq = 1.0, sweep_final_freq = 5.0, sweep_duration = 10.0, trigger_source = 'in', trigger_threshold = 0.5)
 
 finally:
 	m.close()
