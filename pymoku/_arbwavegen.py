@@ -80,10 +80,6 @@ class ArbWaveGen(_CoreOscilloscope):
 
 
 	@needs_commit
-	def _set_mmap_access(self, access):
-		self.mmap_access = access
-
-	@needs_commit
 	def _set_mode(self, ch, mode, length):
 		"""Changes the mode used to determine outut the waveform.
 
@@ -142,6 +138,9 @@ class ArbWaveGen(_CoreOscilloscope):
 
 		# picks the stepsize and the steps based in the mode
 		steps, stepsize = [(8, 8192), (4, 8192 * 2), (2, 8192 * 4), (1, 8192 * 8)][mode]
+	
+		if not os.path.exists('.lutdata.dat'):
+  			open('.lutdata.dat', 'w').close()
 
 		with open('.lutdata.dat', 'r+b') as f:
 			#first check and make the file the right size
@@ -165,7 +164,6 @@ class ArbWaveGen(_CoreOscilloscope):
 		self._set_mmap_access(True)
 		error = self._moku._send_file('j', '.lutdata.dat')
 		self._set_mmap_access(False)
-		os.remove('.lutdata.dat')
 	
 	@needs_commit
 	def gen_waveform(self, ch, period, phase, amplitude, offset=0, interpolation=True, dead_time=0, dead_voltage = 0):
@@ -314,7 +312,6 @@ class ArbWaveGen(_CoreOscilloscope):
 
 
 _arb_reg_handlers = {
-	'mmap_access':		(REG_MMAP_ACCESS,		to_reg_bool(0),			from_reg_bool(0)),
 	'enable1':			(REG_ARB_SETTINGS,		to_reg_bool(16),		from_reg_bool(16)),
 	'phase_rst1':		(REG_ARB_SETTINGS,		to_reg_bool(20),		from_reg_bool(20)),
 	'phase_sync1':		(REG_ARB_SETTINGS,		to_reg_bool(22),		from_reg_bool(22)),
