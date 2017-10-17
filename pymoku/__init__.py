@@ -241,7 +241,8 @@ class Moku(object):
 
 	def _ownership(self, t, flags):
 		name = socket.gethostname()[:255]
-		packet_data = struct.pack("<BBB", t, len(name) + 1, flags) + name.encode('ascii')
+		#packet_data = struct.pack("<BBB", t, len(name) + 1, flags) + name.encode('ascii')
+		packet_data = struct.pack("<BB", t, flags)
 		self._conn.send(packet_data)
 
 		ack = self._conn.recv()
