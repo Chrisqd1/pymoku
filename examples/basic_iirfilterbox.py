@@ -1,12 +1,5 @@
 from pymoku import Moku
-from pymoku.instruments import *
-import struct
-import csv
-import logging
-import copy
-from scipy import io
-import numpy as np
-import time
+from pymoku.instruments import IIRFilterBox
 
 """
 Moku:DigitalFilterBox implements infinite impulse resposne (IIR) filters using 4 cascaded Direct Form 1 second-order stages

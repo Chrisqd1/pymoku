@@ -2,12 +2,8 @@
 import math
 import logging
 from copy import deepcopy
-
 from pymoku._oscilloscope import _CoreOscilloscope, VoltsData
-
 from ._instrument import *
-from . import _frame_instrument
-from . import _siggen
 from . import _utils
 
 
