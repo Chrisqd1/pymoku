@@ -112,11 +112,6 @@ class BasicWaveformGenerator(MokuInstrument):
 
 	.. automethod:: pymoku.instruments.WaveformGenerator.__init__
 
-	.. attribute:: type
-		:annotation: = "signal_generator"
-
-		Name of this instrument.
-
 	"""
 	def __init__(self):
 		""" Create a new WaveformGenerator instance, ready to be attached to a Moku."""
@@ -128,9 +123,6 @@ class BasicWaveformGenerator(MokuInstrument):
 
 	@needs_commit
 	def set_defaults(self):
-		""" Set sane defaults.
-		Defaults are outputs off, amplitudes and frequencies zero.
-		"""
 		super(BasicWaveformGenerator, self).set_defaults()
 		self.out1_enable = True
 		self.out2_enable = True
@@ -262,7 +254,7 @@ class BasicWaveformGenerator(MokuInstrument):
 		# Check rise/fall times are within allowable DAC frequency
 
 		# TODO: Implement clipped sine squarewave above threshold
-		if frequency > _SG_SQUARE_CLIPSINE_THRESH: 
+		if frequency > _SG_SQUARE_CLIPSINE_THRESH:
 			log.warning("Squarewave may experience edge jitter above %d kHz.", _SG_SQUARE_CLIPSINE_THRESH/1e3)
 
 		riserate = frequency / risetime if risetime else _SG_MAX_RISE
@@ -309,7 +301,7 @@ class BasicWaveformGenerator(MokuInstrument):
 			self.out2_fallrate = frequency / falltime if falltime else _SG_MAX_RISE
 			self.out2_phase = phase
 			self.ch2_edgetime_nonzero = 1 if (risetime != 0 or falltime != 0) else 0
-			self.ch2_is_ramp = False 
+			self.ch2_is_ramp = False
 
 	@needs_commit
 	def gen_rampwave(self, ch, amplitude, frequency, offset=0, symmetry=0.5, phase= 0.0):
@@ -415,35 +407,48 @@ class WaveformGenerator(BasicWaveformGenerator):
 		self.trig_volts_ch2 = 0.0
 
 	@needs_commit
-	def set_trigger(self, ch, mode, ncycles = 1, sweep_init_freq = None, sweep_final_freq = 5.0, sweep_duration = 1.0, trigger_source = 'external', trigger_threshold = 0.0, internal_trig_period = 1.0):
-		""" Configure gated, start, ncycle or sweep trigger mode on target channel
+	def set_trigger(self, ch, mode, ncycles = 1, sweep_start_freq = None, sweep_end_freq = 5.0, sweep_duration = 1.0, trigger_source = 'external', trigger_threshold = 0.0, internal_trig_period = 1.0):
+		""" Configure gated, start, ncycle or sweep trigger mode on target channel.
+
+		The trigger event can come from an ADC channel, the opposite generated waveform, the external
+		trigger input (for hardware that supports that) or a internally-generated clock of configurable
+		period.
+
+		The trigger event can be used in several different ways:
+		- *gated*: The output waveform is only generated while the trigger is asserted
+		- *start*: The output waveform is enabled once the trigger event fires
+		- *ncycle*: The output waveform starts at a trigger event and completes the given number of cycles, before turning off and re-arming
+		- *sweep*: The trigger event starts the waveform generation at the *sweep_start_freq*, before automatically sweeping the
+		   frequency to *sweep_end_freq* over the course of *sweep_duration* seconds.
+
+		Set the trigger mode to *'off'* to disable this feature.
 
 		:type ch : int
 		:param ch: target channel.
 
-		:type mode: string , {'gated', 'start', 'ncycle', 'sweep'}
+		:type mode: string, {'gated', 'start', 'ncycle', 'sweep', 'off'}
 		:param mode: Select the mode in which the trigger is operated.
 
 		:type ncycles : int, [1, 1e6]
 		:param ncycles : integer number of signal repetitions in ncycle mode.
 
-		:type sweep_init_freq : float, [0.0,250.0e6], hertz
-		:param sweep_init_freq : starting sweep frequency, set to waveform frequency if not specified. Value range may vary for different waveforms.
+		:type sweep_start_freq : float, [0.0,250.0e6], hertz
+		:param sweep_start_freq : starting sweep frequency, set to current waveform frequency if not specified. Value range may vary for different waveforms.
 
-		:type sweep_final_freq : float, [0.0,250.0e6], hertz
-		:param sweep_final_freq : finishing sweep frequency. Value range may vary for different waveforms.
+		:type sweep_end_freq : float, [0.0,250.0e6], hertz
+		:param sweep_end_freq : finishing sweep frequency. Value range may vary for different waveforms.
 
 		:type sweep_duration : float, [0.0,1000.0], seconds
 		:param sweep_duration : sweep duration in seconds.
 
-		:type trigger_source: string {'external', 'in', 'out', "internal'}
+		:type trigger_source: string {'external', 'in', 'out', 'internal'}
 		:param: defines which source should be used as triggering signal.
 
 		:type trigger_threshold: float, [-5, 5], volts
-		:param trigger_threshold: The trhesholds value range dependes on the source and the attenution used. Values ranges might be less for different settings.
+		:param trigger_threshold: The threshold value range dependes on the source and the attenution used. Values ranges might be less for different settings.
 
 		:type internal_trig_period: float, [0,1e11], seconds
-		:param internal_trig_period: period of the internal trigger source.
+		:param internal_trig_period: period of the internal trigger clock, if used.
 
 		"""
 		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
@@ -479,21 +484,21 @@ class WaveformGenerator(BasicWaveformGenerator):
 				self.internal_trig_increment_ch2 = internal_trig_increment
 			self.adc2_statuslight = True if source == _SG_TRIG_ADC else False
 
-		# Configure trigger mode settings and evaluate exception conditions:	
-		if sweep_init_freq is None:
+		# Configure trigger mode settings and evaluate exception conditions:
+		if sweep_start_freq is None:
 			channel_frequency = self.out1_frequency if ch == 1 else self.out2_frequency
 		else:
-			channel_frequency = sweep_init_freq
-		
+			channel_frequency = sweep_start_freq
+
 		# check the wavefrom parameter
-		waveform = self.out1_waveform if ch == 1 else self.out2_waveform 
-		
+		waveform = self.out1_waveform if ch == 1 else self.out2_waveform
+
 		#if waveform is a sinewave certain ranges do change
 		if waveform == _SG_WAVE_SINE:
-			_utils.check_parameter_valid('range', sweep_final_freq, [0.0,250.0e6],'sweep finishing frequency','frequency')
+			_utils.check_parameter_valid('range', sweep_end_freq, [0.0,250.0e6],'sweep finishing frequency','frequency')
 			_utils.check_parameter_valid('range', channel_frequency, [0.0,250.0e6],'sweep starting frequency','frequency')
 		else:
-			_utils.check_parameter_valid('range', sweep_final_freq, [0.0,100.0e6],'sweep finishing frequency','frequency')
+			_utils.check_parameter_valid('range', sweep_end_freq, [0.0,100.0e6],'sweep finishing frequency','frequency')
 			_utils.check_parameter_valid('range', channel_frequency, [0.0,100.0e6],'sweep starting frequency','frequency')
 
 		# Ramp waveform cannot be used for any burst/sweep mode:
@@ -525,7 +530,7 @@ class WaveformGenerator(BasicWaveformGenerator):
 			if ch == 2 and self.ch2_edgetime_nonzero == True:
 				raise ValueOutOfRangeException("Pulse waveform rise and fall times must be set to zero for gated burst mode and sweep mode.")
 
-		# Waveform frequencies are restricted to <= 10 MHz in Ncycle burst mode: 
+		# Waveform frequencies are restricted to <= 10 MHz in Ncycle burst mode:
 		if mode is _SG_TRIG_MODE_NCYCLE and channel_frequency > 10.0e6:
 			raise ValueOutOfRangeException("Waveform frequencies are restricted to 10 MHz or less in Ncycle burst mode.")
 
@@ -533,16 +538,16 @@ class WaveformGenerator(BasicWaveformGenerator):
 		trigger_source = self.trigger_select_ch1 if ch == 1 else self.trigger_select_ch2
 		if mode is _SG_TRIG_MODE_START and trigger_source == 3:
 			raise ValueOutOfRangeException("The internal trigger source cannot be used in start burst mode.")
-		
+
 		# ensure combination of signal frequency and Ncycles doesn't cause 64 bit register overflow:
 		if mode is _SG_TRIG_MODE_NCYCLE:
-			signal_period = 0 if channel_frequency == 0.0 else channel_frequency**-1 
+			signal_period = 0 if channel_frequency == 0.0 else channel_frequency**-1
 			FPGA_cycles = math.ceil(125e6 * signal_period * ncycles)
 			if FPGA_cycles > 2**63-1:
 				raise ValueOutOfRangeException("NCycle Register Overflow")
 
 		if mode is _SG_TRIG_MODE_SWEEP:
-			phase_increment = math.ceil((float(2**31 * 2**48) / float(125*10**15)) * float(sweep_final_freq - channel_frequency)/float(sweep_duration))
+			phase_increment = math.ceil((float(2**31 * 2**48) / float(125*10**15)) * float(sweep_end_freq - channel_frequency)/float(sweep_duration))
 			sweep_length_FPGA_cycles = math.ceil(125e6 * sweep_duration)
 			init_freq = channel_frequency * math.ceil(float(2**48)/float(10**9))
 
@@ -554,8 +559,8 @@ class WaveformGenerator(BasicWaveformGenerator):
 			if mode is _SG_TRIG_MODE_SWEEP:
 				self.sweep_length_ch1 = sweep_length_FPGA_cycles
 				self.sweep_init_freq_ch1 = init_freq
-				self.sweep_increment_ch1 = phase_increment			
-		
+				self.sweep_increment_ch1 = phase_increment
+
 		elif ch == 2:
 			self.trig_volts_ch2 = trigger_threshold
 			self.trig_sweep_mode_ch2 = mode
