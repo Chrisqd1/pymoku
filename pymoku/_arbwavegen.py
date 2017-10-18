@@ -50,7 +50,9 @@ _ARB_LUT_INTERPLOATION_LENGTH = 2**32
 _ARB_MODE_RATE = [1.0e9, 500.0e6, 250.0e6, 125.0e6] #1GS, 500MS, 250MS, 125MS
 
 class ArbWaveGen(_CoreOscilloscope):
-	# TODO: Class-level documentation
+	"""
+	.. automethod:: pymoku.instruments.WaveformGenerator.__init__
+	"""
 
 	def __init__(self):
 		super(ArbWaveGen, self).__init__()
