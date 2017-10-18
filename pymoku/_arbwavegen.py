@@ -50,6 +50,8 @@ _ARB_LUT_INTERPLOATION_LENGTH = 2**32
 _ARB_MODE_RATE = [1.0e9, 500.0e6, 250.0e6, 125.0e6] #1GS, 500MS, 250MS, 125MS
 
 class ArbWaveGen(_CoreOscilloscope):
+	# TODO: Class-level documentation
+
 	def __init__(self):
 		super(ArbWaveGen, self).__init__()
 		self._register_accessors(_arb_reg_handlers)
@@ -81,14 +83,8 @@ class ArbWaveGen(_CoreOscilloscope):
 
 	@needs_commit
 	def _set_mode(self, ch, mode, length):
-		"""Changes the mode used to determine outut the waveform.
+		#Changes the mode used to determine outut the waveform.
 
-		:type ch: int; {1,2}
-		:param ch: Channel on which the mode is set
-
-		:raises ValueError: if the channel is invalid
-		:raises ValueOutOfRangeException: if wave parameters are out of range
-		"""
 		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
 		_utils.check_parameter_valid('set', mode, [_ARB_MODE_1000, _ARB_MODE_500, _ARB_MODE_250, _ARB_MODE_125], desc='mode is not vaild')
 
@@ -100,25 +96,37 @@ class ArbWaveGen(_CoreOscilloscope):
 			_utils.check_parameter_valid('range', length, [1,2**15], desc='length for lookup table')
 		if mode is _ARB_MODE_1000:
 			_utils.check_parameter_valid('range', length, [1,2**16], desc='length for lookup table')
-		
+
 		if ch == 1:
 			self.mode1 = mode
 			self.lut_length1 = length-1
 		elif ch ==2:
 			self.mode2 = mode
 			self.lut_length2 = length-1
-			
-	def write_lut(self, ch, data, mode = '125MS'):
-		"""writes the lookup table to memmory in the moku
 
-		To write the lookup table a file is created. It contains the values for both channels.
-		On send the file is transmitted to the Moku:Lab device.
+	def write_lut(self, ch, data, mode=None):
+		"""Writes the signal lookup table to memory in the Moku:Lab.
+
+		You can also choose the output rate of the AWG, which influences the
+		maximum length of the look-up table as follows:
+
+		- 1000MSPS: 8192 points per channel
+		- 500MSPS: 16384 points per channel
+		- 250MSPS: 32768 points per channel
+		- 125MSPS: 65534 points per channel
+
+		If you don't specify a mode, the fastest output rate for the given data
+		length will be automatically chosen. This is correct in almost all
+		circumstances.
+
+		If you specify a particular mode along with a data array too big for
+		that mode, the behaviour is undefined.
 
 		:type ch: int; {1,2}
-		:param ch: Channel on which the mode is set
+		:param ch: Output channel to load the LUT to
 
-		:type mode: string: '1GS', '500MS', '250MS', '125MS'
-		:param: defines the sample rate the Arb-Waveform-Generator is running with.
+		:type mode: string: '1000', '500', '250', '125'
+		:param: defines the output sample rate of the AWG (in MSPS).
 
 		:raises ValueError: if the channel is invalid
 		:raises ValueOutOfRangeException: if wave parameters are out of range
@@ -126,19 +134,31 @@ class ArbWaveGen(_CoreOscilloscope):
 		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
 
 		_str_to_mode = {
-			'1gs' : _ARB_MODE_1000,
-			'500ms' : _ARB_MODE_500,
-			'250ms'	: _ARB_MODE_250,
-			'125ms'	: _ARB_MODE_125
+			'1000' : _ARB_MODE_1000,
+			'500' : _ARB_MODE_500,
+			'250'	: _ARB_MODE_250,
+			'125'	: _ARB_MODE_125
 		}
 
-		mode = _utils.str_to_val(_str_to_mode, mode, "operating mode")
+		mode = _utils.str_to_val(_str_to_mode, mode, "operating mode", allow_none=True)
+
+		if mode is None:
+			if len(data) <= 8192:
+				mode = '1000'
+			elif len(data) <= 16384:
+				mode = '500'
+			elif len(data) <= 32768:
+				mode = '250'
+			elif len(data) <= 65534:
+				mode = '125'
+			else:
+				raise ValueOutOfRangeException("Maximum data length is 65534 samples")
 
 		self._set_mode(ch, mode, len(data))
 
 		# picks the stepsize and the steps based in the mode
 		steps, stepsize = [(8, 8192), (4, 8192 * 2), (2, 8192 * 4), (1, 8192 * 8)][mode]
-	
+
 		if not os.path.exists('.lutdata.dat'):
   			open('.lutdata.dat', 'w').close()
 
@@ -156,24 +176,35 @@ class ArbWaveGen(_CoreOscilloscope):
 			else:
 				offset = _ARB_LUT_LENGTH * 8 * 4
 			for step in range(steps):
-				f.seek(offset + (step * stepsize * 4)) 
+				f.seek(offset + (step * stepsize * 4))
 				f.write(b''.join([struct.pack('<hh', math.ceil((2.0**15-1) * d),0) for d in data]))
-			
+
 			f.flush()
 
 		self._set_mmap_access(True)
 		error = self._moku._send_file('j', '.lutdata.dat')
 		self._set_mmap_access(False)
-	
+
 	@needs_commit
 	def gen_waveform(self, ch, period, phase, amplitude, offset=0, interpolation=True, dead_time=0, dead_voltage = 0):
-		""" Generate a Wave with the given parameters on the given channel.
+		""" Generate the Arbitrary Waveform with the given parameters on the given channel.
+
+		The Look-up table for this channel should have been loaded beforehand using :any:`write_lut`.
+
+		The Arbitrary Waveform Generator has the ability to insert a deadtime between cycles from the look-up
+		table. This time is specified in cycles of the waveform. During this time, the output will be held
+		at the given *dead_voltage*.  This allows the user to, for example, generate infrequent pulses without
+		using space in the LUT to specify the time between, keeping the full LUT size to provide a high-resolution
+		pulse shape.
+
+		Where the period and look-up table contents are set such that there isn't exactly one LUT point per output
+		sample, the AWG instrument can optionally provide a linear interpolation between LUT points.
 
 		:type ch: int; {1,2}
 		:param ch: Channel on which to generate the wave
 
 		:type period: float, [4e-9, 1];
-		:param period: periode of the signal in s
+		:param period: period of the signal in seconds
 
 		:type phase: float, [0-360] degrees
 		:param phase: Phase offset of the wave
@@ -185,12 +216,12 @@ class ArbWaveGen(_CoreOscilloscope):
 		:param offset: DC offset applied to the waveform
 
 		:type interpolation: bool [True, False]
-		:param interpolation: Uses linear interploation if true
+		:param interpolation: Enable linear interpolation of LUT entries
 
 		:type dead_time: float [0, 2e18] cyc
 		:param dead_time: number of cycles which show the dead voltage. Use 0 for no dead time
 
-		:type dead_voltage: float [0.0,2.0] V
+		:type dead_voltage: float [-2.0,2.0] V
 		:param dead_voltage: signal level during dead time in Volts
 
 		:raises ValueError: if the parameters  is invalid
@@ -202,7 +233,7 @@ class ArbWaveGen(_CoreOscilloscope):
 		_utils.check_parameter_valid('range', amplitude, [0.0,2.0], desc='peak to peak amplitude', units='volts')
 		_utils.check_parameter_valid('bool', interpolation, desc='linear interpolation')
 		_utils.check_parameter_valid('range', dead_time, [0.0, 2e18], desc='signal dead time', units='cycles')
-		_utils.check_parameter_valid('range', dead_voltage, [0.0, 2.0], desc='dead value', units='volts')
+		_utils.check_parameter_valid('range', dead_voltage, [-2.0, 2.0], desc='dead value', units='volts')
 		_utils.check_parameter_valid('range', phase, [0, 360], desc='phase offset', units='degrees')
 
 		upper_voltage = offset + (amplitude/2.0)
@@ -214,7 +245,7 @@ class ArbWaveGen(_CoreOscilloscope):
 		if(ch == 1):
 			freq = 1/period
 			self.interpolation1 = interpolation
-			phase_modulo = (self.lut_length1 + 1) * _ARB_LUT_INTERPLOATION_LENGTH 
+			phase_modulo = (self.lut_length1 + 1) * _ARB_LUT_INTERPLOATION_LENGTH
 			update_rate = _ARB_MODE_RATE[self.mode1]
 			self.phase_step1 = freq / update_rate * phase_modulo
 			phase_modulo = phase_modulo * dead_time if dead_time > 0 else phase_modulo
@@ -228,7 +259,7 @@ class ArbWaveGen(_CoreOscilloscope):
 		if(ch == 2):
 			freq = 1/period
 			self.interpolation2 = interpolation
-			phase_modulo = (self.lut_length2 + 1) * _ARB_LUT_INTERPLOATION_LENGTH 
+			phase_modulo = (self.lut_length2 + 1) * _ARB_LUT_INTERPLOATION_LENGTH
 			update_rate = _ARB_MODE_RATE[self.mode2]
 			self.phase_step2 = freq / update_rate * phase_modulo
 			phase_modulo = phase_modulo * dead_time if dead_time > 0 else phase_modulo
@@ -241,8 +272,8 @@ class ArbWaveGen(_CoreOscilloscope):
 
 	@needs_commit
 	def sync_phase(self, ch):
-		""" syncs the phase off the given channel to the other
-		
+		""" Synchronizes the phase off the given channel to the other
+
 		:type ch: int; {1,2}
 		:param ch: Channel that is synced to the other
 
@@ -258,7 +289,7 @@ class ArbWaveGen(_CoreOscilloscope):
 	@needs_commit
 	def reset_phase(self, ch):
 		""" resets the channels phase accumulator to zero
-		
+
 		:type ch: int; {1,2}
 		:param ch: Channel on which the reset is performed
 
@@ -273,7 +304,7 @@ class ArbWaveGen(_CoreOscilloscope):
 
 	def get_frequency(self, ch):
 		""" returns the frequency for a given channel
-		
+
 		:type ch: int; {1,2}
 		:param ch: Channel from which the frequency is calculated
 
