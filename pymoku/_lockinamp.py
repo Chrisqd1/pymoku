@@ -88,7 +88,6 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 	@needs_commit
 	def set_defaults(self):
 		""" Reset the lockinamp to sane defaults. """
-		#super(LockInAmp, self).set_defaults()
 
 		# Avoid calling the PID controller set_defaults
 		_CoreOscilloscope.set_defaults(self)
@@ -165,7 +164,6 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		self.lpf_bypass = 1
 		self.ch1_pid1_bypass = 1
 		self.set_by_gain(1, kp=1)
-		# self.filt_bypass = 0
 
 	@needs_commit
 	def set_pid_by_gain(self, g, kp=0, ki=0, kd=0, si=None, sd=None, in_offset=0, out_offset=0):
@@ -253,10 +251,9 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 			raise Exception("Invalid auxillary output selection.")
 
 	@needs_commit
-	def set_single_channel_sig(self, signal='i'):
+	def set_main_signal(self, signal='i'):
 		"""
-
-		Selects the signal sent to ch 1 when only one lockin signal is active
+		Selects the signal sent to the main channel (Channel 1), only if the Auxillary lock-in is inactive.
 		
 		signal is one of:
 			- **i** : the i channel coming from the mixer
@@ -268,9 +265,23 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		:param signal: signal routed to output channel 1
 
 		"""
+		_utils.check_parameter_valid('set',signal, allowed=['i','q','r','theta'], desc="main signal")
+
+		if signal in ['i','q'] and self.pid_mode_select==1:
+			raise InvalidConfigurationException('Unable to set main signal to %s as lock-in signal mode is set to R/theta.' % signal)
+		elif signal in ['r','theta'] and self.pid_mode_select=0:
+			raise InvalidConfigurationException('Unable to set main signal to %s as lock-in signal mode is set to I/Q.' % signal)
+
 		if self.aux_select == 1 :
-			raise InvalidConfigurationException('Channel 2 active. Cannot change channel 1 output.')
+			raise InvalidConfigurationException('Auxillary output is already set to Channel 2. Cannot change main output.')
 		elif signal == 'i' :
+			# Check that IQ has been set FIRST
+
+			# Check that RTheta has been set FIRST and dont choose
+
+		if signal in ['i','r']:
+
+		# Assume PID is on main channel
 			self.pid_select = 0
 			self.pid_mode_select = 0
 		elif signal == 'q' :
@@ -282,28 +293,29 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		elif signal == 'theta' :
 			self.pid_select = 1
 			self.pid_mode_select = 1
-		else :
-			raise ValueOutOfRangeException('Signal Mode must be one of "i", "q", "r" or "theta", not %s. Value unchanged', signal)
+		else:
+			# Should never be reached
+			raise Exception("Invalid main signal.")
 
 	@needs_commit
 	def set_signal_mode(self, mode='iq'):
 		"""
 		Sets "I/Q" mode or "R/Theta" mode
 
-		:type string:
-		:param mode: set the signal mode either  IQ or R/Theta 
+		:type mode: string; {'iq',r_theta'}
+		:param mode: Signal mode
 
 		"""
-		if mode == 'r_theta':
+		_utils.check_parameter_valid('set', mode, allowed=['iq','r_theta'],desc="lock-in signal mode")
+
+		if mode == 'r_theta':                  
 			self.pid_mode_select = 1
 			self.gain_mode_select = 1
 		elif mode == 'iq':
 			self.pid_mode_select = 0
 			self.gain_mode_select = 0
-		else :
-			self.pid_mode_select = 0
-			self.gain_mode_select = 0
-			raise ValueOutOfRangeException('Signal Mode must be one of "r_theta" or "iq", not %s. Defaulted to iq mode.', mode)
+		else:
+			Exception("Invalid signal mode")
 
 	@needs_commit
 	def set_pid_channel(self, ch=1):
@@ -318,9 +330,11 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		"""
 		_utils.check_parameter_valid('set', ch, allowed=[1,2], desc="PID output channel")
 
+		
+
 		if (self.aux_select != 1)  and (ch == 2):
 			self.pid_ch_select = 0
-			raise InvalidConfigurationException('Cannot place pid on second channel. Only one channel selected. Output routed to channel 1') 
+			raise InvalidConfigurationException('The PID can only be output on Channel 2 when the Auxillary Output mode is set to Channel 2.') 
 		else:
 			self.pid_ch_select = self.pid_select = ch - 1
 
@@ -337,35 +351,34 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		self.gainstage_gain = gain
 
 	@needs_commit
-	def set_demodulation(self, mode, frequency, phase=0):
+	def set_demodulation(self, mode, frequency=1e6, phase=0):
 		"""
-		Configure the demodulation stage
+		Configure the demodulation stage.
 		
 		The mode is one of:
-			- **internal** : for an internally set LO
+			- **internal** : for an internally set local oscillator
 			- **external** : to directly use an external signal for demodulation (Note: Q is not selectable in this mode)
-			- **external_pll** : to use an external signal for demodulation after running it through an internal pll
+			- **external_pll** : to use an external signal for demodulation after running it through an internal PLL.
 
 		:type mode: string; {'internal', 'external', 'external_pll'}
 		:param mode: Demodulation mode
 
 		:type frequency: float; [0, 200e6] Hz
-		:param frequency: Demodulation signal frequency
+		:param frequency: Internal demodulation signal frequency (ignored for all 'external' modes)
 
 		:type phase: float; [0, 360] deg
-		:param phase: Demodulation signal phase
-
+		:param phase: Internal demodulation signal phase (ignored in 'external' mode)
 
 		"""
 		_utils.check_parameter_valid('range', frequency, allowed=[0,200e6], desc="demodulation frequency", units="Hz")
 		_utils.check_parameter_valid('range', phase, allowed=[0,360], desc="demodulation phase", units="degrees")
-
-		self.frequency_demod = frequency
-		self.phase_demod = phase
-
+		_utils.check_parameter_valid('set', mode, allowed=['internal', 'external', 'external_pll'] )
+		
 		if mode == 'internal':
 			self.ext_demod = 0
 			self.lo_PLL = 0
+			self.frequency_demod = frequency
+			self.phase_demod = phase
 		elif mode == 'external':
 			self.ext_demod = 1
 			self.lo_PLL = 0
@@ -373,8 +386,10 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 			self.ext_demod = 0
 			self.lo_PLL = 1
 			self.lo_reacquire = 1
+			self.phase_demod = phase
 		else :
-			raise ValueOutOfRangeException('LO Mode must be one of "internal", "external" or "external_pll", not %s', mode)
+			# Should not happen
+			raise ValueOutOfRangeException('Demodulation mode must be one of "internal", "external" or "external_pll", not %s', mode)
 
 
 	def _recalc_offsets(self):
