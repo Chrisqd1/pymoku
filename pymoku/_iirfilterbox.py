@@ -2,7 +2,7 @@
 import math
 import logging
 from copy import deepcopy
-from pymoku._oscilloscope import _CoreOscilloscope, VoltsData
+from pymoku._oscilloscope import _CoreOscilloscope
 from ._instrument import *
 from . import _utils
 
@@ -35,51 +35,57 @@ _IIR_MON_OUT_CH2 		= 5
 _IIR_COEFFWIDTH = 48
 
 class IIRFilterBox(_CoreOscilloscope):
-	""" Oscilloscope instrument object. This should be instantiated and attached to a :any:`Moku` instance.
+	r"""  
 
-	.. automethod:: pymoku.instruments.Oscilloscope.__init__
+	The IIR Filter Box implements infinite impulse resposne (IIR) filters using 4 cascaded Direct Form 1 second-order stages
+	with a final output gain stage. The total transfer function can be written:
 
-	.. attribute:: hwver
+	.. math::
+		H(z) = G * \prod_{k=1}^4 s_k * \frac{b_0k + b_1k * z^-1 + b_2k * z^-2}{1 + a_1k * z^-1 + a_2k * z^-2}
 
-		Hardware Version
+	To specify a filter, you must supply an array containing the filter coefficients. The array should contain five rows and six columns. 
+	The first row has one column entry, corresponding to the overall gain factor G. The following four rows have six entries each, corresponding
+	to the s, b0, b1, b2, a1 and a2 coefficients of the four cascaded SOS filters. 
 
-	.. attribute:: hwserial
+	Example array dimensions:		
 
-		Hardware Serial Number
+	+----------+------+------+------+------+-------+
+	| G        |      |      |      |      |       |
+	+==========+======+======+======+======+=======+
+	| s1       | b0.1 | b1.1 | b2.1 | a1.1 |  a2.1 |
+	+----------+------+------+------+------+-------+
+	| s2       | b0.2 | b1.2 | b2.2 | a1.2 |  a2.2 |
+	+----------+------+------+------+------+-------+
+	| s3       | b0.3 | b1.3 | b2.3 | a1.3 |  a2.3 |
+	+----------+------+------+------+------+-------+
+	| s4       | b0.4 | b1.4 | b2.4 | a1.4 |  a2.4 |
+	+----------+------+------+------+------+-------+
 
-	.. attribute:: framerate
-		:annotation: = 10
+	Each coefficient must be in the range [-4.0, +4.0). Internally, these are represented as signed 48-bit fixed-point numbers, with 45 fractional bits.
+	The output scaling can be up to 8,000,000. Filter coefficients can be computed using signal processing toolboxes in e.g. MATLAB or SciPy.
 
-		Frame Rate, range 1 - 30.
-
-	.. attribute:: type
-		:annotation: = "oscilloscope"
-
-		Name of this instrument.
+	Warning: some coefficients may result in overflow or underflow, which degrade filter performance. Filter responses should be checked prior to use.
 
 	"""
 
 
 	def __init__(self):
-		"""Create a new Oscilloscope instrument, ready to be attached to a Moku."""
+		"""Create a new IIR FilterBox instrument, ready to be attached to a Moku."""
 		super(IIRFilterBox, self).__init__()
 		self._register_accessors(_iir_reg_handlers)
 
 		self.id = 6
 		self.type = "iirfilterbox"
-		self.calibration = None
-
-		self.scales = {}
 
 	def set_defaults(self):
 		""" Reset the Oscilloscope to sane defaults. """
 		super(IIRFilterBox, self).set_defaults()
 
 		# #Default values
-		self.ch1_input = 0
-		self.ch1_output = 0
-		self.ch2_input = 0
-		self.ch2_output = 0
+		self.ch1_input = True
+		self.ch1_output = False
+		self.ch2_input = True
+		self.ch2_output = False
 
 		self.ch0_ch0gain = 0.0
 		self.ch0_ch1gain = 0.0
@@ -112,111 +118,78 @@ class IIRFilterBox(_CoreOscilloscope):
 
 
 	@needs_commit
-	def set_filter_io(self, ch = 1, input_switch = False, output_switch = False):
+	def set_filter_settings(self, ch = 1, sample_rate = 'high', filter_coefficients = None, output_off = False):
 		"""
-		Configure filter channel I/O and front-end settings
-
-		:type ch : int; {1,2}
-		:param ch : target channel
-
-		:type input_switch : bool;
-		:param input_switch : toggle input on(true)/off(false)
-
-		:type output_switch : bool; 
-		:param output_switch : toggle output on(true)/off(false)			
-		"""
-		_utils.check_parameter_valid('set', ch, [1,2],'filter channel')
-		_utils.check_parameter_valid('bool', input_switch, desc = 'input switch')
-		_utils.check_parameter_valid('bool', output_switch, desc = 'output switch')
-
-		if ch == 1:
-			self.ch1_input = input_switch
-			self.ch1_output = output_switch
-
-		else:
-			self.ch2_input = input_switch
-			self.ch2_output = output_switch
-			
-
-	@needs_commit
-	def set_filter_settings(self, ch = 1, sample_rate = 'high', filter_coefficients = None):
-		"""
-		Set SOS filter sample rate and send filter coefficients to the device via the memory map.
-
-		Moku:DigitalFilterBox implements infinite impulse resposne (IIR) filters using 4 cascaded Direct Form 1 second-order stages
-		with a final output gain stage. The total transfer function can be written:
-
-		H(Z) = G * prod(1 <= k <= 4) : sk * [b0,k + b1,k * z^-1 + b2,k * z^-2] / [1 + a1,k * z^-1 + a2,k * z^-2]
-
-		To specify a filter, you must supply an array containing the filter coefficients. The array should contain five rows and six columns. 
-		The first row has one column entry, corresponding to the overall gain factor G. The following four rows have six entries each, corresponding
-		to the s, b0, b1, b2, a1 and a2 coefficients of the four cascaded SOS filters. 
-
-		Each coefficient must be in the range [-4.0, +4.0). Internally, these are represented as signed 48-bit fixed-point numbers, with 45 fractional bits.
-
-		Example array dimensions:
-
-	 	[[G],
-		[s1, b0.1, b1.1, b2.1, a1.1, a2.1],
-		[s2, b0.2, b1.2, b2.2, a1.2, a2.2],
-		[s3, b0.3, b1.3, b2.3, a1.3, a2.3],
-		[s4, b0.4, b1.4, b2.4, a1.4, a2.4]]
+		Set SOS filter sample rate and send filter coefficients to the device.
 
 		:type ch : int; {1,2}
 		:param ch : target channel
 
 		:type sample_rate : string; {'high','low'}
-		:param sample_rate : set sos sample rate
+		:param sample_rate : set sos sample rate. High = 15.625 MHz, low = 122.070 KHz
+
+		:type output_off : bool;
+		:param output_off : disable channel output
 
 		:type filter_coefficients : array; 
-		:param filter_coefficients : array containing SOS filter coefficients
+		:param filter_coefficients : array containing SOS filter coefficients. The array format can be seen in the class documentation above
 		"""
 
 		_utils.check_parameter_valid('set', ch, [1,2],'filter channel')
 		_utils.check_parameter_valid('set', sample_rate, ['high','low'],'sample rate')
-
-		# check filter array dimensions
-		if len(filter_coefficients) != 5:
-			_utils.check_parameter_valid('set', len(filter_coefficients), [5],'number of coefficient array rows')
-		for m in range(4):
-			if m == 0:
-				if len(filter_coefficients[0]) != 1:
-					_utils.check_parameter_valid('set', len(filter_coefficients[0]), [1],'number of columns in coefficient array row 0')
-			else:
-				if len(filter_coefficients[m]) != 6:
-					_utils.check_parameter_valid('set', len(filter_coefficients[m]), [6],("number of columns in coefficient array row %s"%(m)))
-
-		# check if filter array values are within required bounds:
-		_utils.check_parameter_valid('range', filter_coefficients[0][0], [-8e6,8e6 - 2**(-24)],("coefficient array entry m = %s, n = %s"%(0,0)))
-		for m in range(1, 5):
-			for n in range(6):
-				_utils.check_parameter_valid('range', filter_coefficients[m][n], [-4.0,4.0 - 2**(-45)],("coefficient array entry m = %s, n = %s"%(0,0)))
-
+		_utils.check_parameter_valid('bool', output_off, desc = 'disable output')
 
 		if ch == 1:
+			self.ch1_output = False if output_off else True
 			self.ch1_sampling_freq = 0 if sample_rate == 'high' else 1
 		else:
+			self.ch2_output = False if output_off else True
 			self.ch2_sampling_freq = 0 if sample_rate == 'high' else 1
 
-		intermediate_filter = deepcopy(filter_coefficients)
 
-		# multiply S coefficients into B coefficients and replace all S coefficients with 1.0
-		for n in range(1,5):
-			intermediate_filter[n][1] *= intermediate_filter[n][0]
-			intermediate_filter[n][2] *= intermediate_filter[n][0]
-			intermediate_filter[n][3] *= intermediate_filter[n][0]
-			intermediate_filter[n][0] = 1.0
+		## The following converts the input filter coefficient array into a format required by the memory map to correctly configure the HDL.
+		## We don't use this modified format for the input array to reduce the amount of coefficient manipulation a user must perform after generating them in Matlab/Scipy, etc.
 
-		# place gain factor G into S coefficient position 4 to comply with HDL requirements:
-		intermediate_filter[4][0] = intermediate_filter[0][0]
-		intermediate_filter = intermediate_filter[1:5]
+		if filter_coefficients != None:
 
-		if ch == 1:
-			self.filter_ch1 = intermediate_filter
-		else:
-			self.filter_ch2 = intermediate_filter
+			# deep copy the filter coefficient array as it is modified below and potentially used by further set_filter_settings function calls 
+			intermediate_filter = deepcopy(filter_coefficients)
 
-		# combine both filter arrays to the format required for memory map access:
+			# check filter array dimensions
+			if len(filter_coefficients) != 5:
+				_utils.check_parameter_valid('set', len(filter_coefficients), [5],'number of coefficient array rows')
+			for m in range(4):
+				if m == 0:
+					if len(filter_coefficients[0]) != 1:
+						_utils.check_parameter_valid('set', len(filter_coefficients[0]), [1],'number of columns in coefficient array row 0')
+				else:
+					if len(filter_coefficients[m]) != 6:
+						_utils.check_parameter_valid('set', len(filter_coefficients[m]), [6],("number of columns in coefficient array row %s"%(m)))
+
+			# check if filter array values are within required bounds:
+			_utils.check_parameter_valid('range', filter_coefficients[0][0], [-8e6,8e6 - 2**(-24)],("coefficient array entry m = %s, n = %s"%(0,0)))
+			for m in range(1, 5):
+				for n in range(6):
+					_utils.check_parameter_valid('range', filter_coefficients[m][n], [-4.0,4.0 - 2**(-45)],("coefficient array entry m = %s, n = %s"%(0,0)))
+
+
+			# multiply S coefficients into B coefficients and replace all S coefficients with 1.0
+			for n in range(1,5):
+				intermediate_filter[n][1] *= intermediate_filter[n][0]
+				intermediate_filter[n][2] *= intermediate_filter[n][0]
+				intermediate_filter[n][3] *= intermediate_filter[n][0]
+				intermediate_filter[n][0] = 1.0
+
+			# place gain factor G into S coefficient position 4 to comply with HDL requirements:
+			intermediate_filter[4][0] = intermediate_filter[0][0]
+			intermediate_filter = intermediate_filter[1:5]
+
+			if ch == 1:
+				self.filter_ch1 = intermediate_filter
+			else:
+				self.filter_ch2 = intermediate_filter
+
+		# combine both filter arrays:
 		filter_coeffs = [[0.0]*6]*4
 		coeff_list = [ [ [0 for k in range(2)] for x in range(6)] for y in range(8) ]
 		for n in range(4):
@@ -230,29 +203,30 @@ class IIRFilterBox(_CoreOscilloscope):
 						else:
 							coeff_list[x][y][k] = int(round( 2**(_IIR_COEFFWIDTH - 3) * filter_coeffs[x][y + k*6]))
 
-		with open('data.dat', 'wb') as f:
+		with open('.data.dat', 'wb') as f:
 			for k in range(2):
 				for y in range(6):
 					for x in range(4):
-						f.write(struct.pack('<Q', coeff_list[x][y][k] & 0xFFFFFFFFFFFFFFFF))
+						f.write(struct.pack('<q', coeff_list[x][y][k]))
 
 		self._set_mmap_access(True)
-		self._moku._send_file('j', 'data.dat')
+		self._moku._send_file('j', '.data.dat')
 		self._set_mmap_access(False)
+		os.remove('.data.dat')
 
 
 	@needs_commit
-	def set_instrument_gains(self, ch = 1, input_scale = 0, output_scale = 0, input_offset = 0, output_offset = 0, matrix_scalar_ch1 = 1, matrix_scalar_ch2 = 1):
+	def set_instrument_gains(self, ch = 1, input_scale = 1, output_scale = 1, input_offset = 0, output_offset = 0, matrix_scalar_ch1 = 1, matrix_scalar_ch2 = 1):
 		"""
 		Configure non-SOS filterbox settings for specified channel
 
 		:type ch : int, {1,2}
 		:param ch : target channel
 
-		:type input_scale, output_scale : int, dB, [-40,40]
+		:type input_scale, output_scale : int, linear scalar, [0,100]
 		:param input_scale, output_scale : channel scalars before and after the IIR filter
 
-		:type input_offset, output_offset : int, mW, [-500,500]
+		:type input_offset, output_offset : int, mV, [-500,500]
 		:param input_offset, output_offset : channel offsets before and after the IIR filter
 
 		:type matrix_scalar_ch1 : int, linear scalar, [0,20]
@@ -262,10 +236,10 @@ class IIRFilterBox(_CoreOscilloscope):
 		:param matrix_scalar_ch2 : scalar controlling proportion of signal coming from channel 2 that is added to the current filter channel
 		"""
 		_utils.check_parameter_valid('set', ch, [1,2],'filter channel')
-		_utils.check_parameter_valid('range', input_scale, [-40,40],'input scale','dB')
-		_utils.check_parameter_valid('range', output_scale, [-40,40],'output scale','dB')
-		_utils.check_parameter_valid('range', input_offset, [-500,500],'input offset','mW')
-		_utils.check_parameter_valid('range', output_offset, [-500,500],'output offset','mW')
+		_utils.check_parameter_valid('range', input_scale, [0,100],'input scale','linear scalar')
+		_utils.check_parameter_valid('range', output_scale, [0,100],'output scale','linear scalar')
+		_utils.check_parameter_valid('range', input_offset, [-500,500],'input offset','mV')
+		_utils.check_parameter_valid('range', output_offset, [-500,500],'output offset','mV')
 		_utils.check_parameter_valid('range', matrix_scalar_ch1, [0,20],'matrix ch1 scalar','linear scalar')
 		_utils.check_parameter_valid('range', matrix_scalar_ch2, [0,20],'matrix ch2 scalar','linear scalar')
 
@@ -284,8 +258,8 @@ class IIRFilterBox(_CoreOscilloscope):
 
 		## Calculate input/output scale values
 		output_gain_factor = 1 / 375.0 / 8 / dac_calibration
-		input_scale_bits = int(round(10**(round(input_scale)/20)*2**9))
-		output_scale_bits = int(round(10**(round(output_scale)/20)*2**6 * output_gain_factor))
+		input_scale_bits = int(round(input_scale*2**9))
+		output_scale_bits = int(round(output_scale*2**6*output_gain_factor))
 
 		## Calculate input/output offset values
 		input_offset_bits = int(round(375.0 * round(input_offset) / 500.0))
@@ -311,7 +285,7 @@ class IIRFilterBox(_CoreOscilloscope):
 		self.mmap_access = access
 
 	@needs_commit
-	def set_monitor(self, ch, source = 'in ch1'):
+	def set_monitor(self, ch, source = 'adc1'):
 		"""
 		Select the point inside the filterbox to monitor.
 
@@ -326,23 +300,23 @@ class IIRFilterBox(_CoreOscilloscope):
 			- **in ch2 offset**	: Filter CH 2 After Input Offset
 			- **out ch2**		: Filter CH 2 Output
 		"""
+		_utils.check_parameter_valid('set', ch, [1,2],'filter channel')
+
 		sources = {
-			'in ch1' 		: _IIR_MON_IN_CH1,
-			'in ch1 offset' : _IIR_MON_IN_CH1OFF,
-			'out ch1'		: _IIR_MON_OUT_CH1,
-			'in ch2' 		: _IIR_MON_IN_CH2,
-			'in ch2 offset' : _IIR_MON_IN_CH2OFF,
-			'out ch2'		: _IIR_MON_OUT_CH2,
+			'adc1' 		: _IIR_MON_IN_CH1,
+			'in1' : _IIR_MON_IN_CH1OFF,
+			'out1'		: _IIR_MON_OUT_CH1,
+			'adc2' 		: _IIR_MON_IN_CH2,
+			'in2' : _IIR_MON_IN_CH2OFF,
+			'out2'		: _IIR_MON_OUT_CH2,
 		}
 
 		source = source.lower()
 
 		if ch == 1:
 			self.monitor_select0 = sources[source]
-		elif ch == 2:
-			self.monitor_select1 = sources[source]
 		else:
-			raise ValueOutOfRangeException("Invalid channel %d", ch)
+			self.monitor_select1 = sources[source]
 
 
 _iir_reg_handlers = {
