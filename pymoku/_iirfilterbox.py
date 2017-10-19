@@ -35,7 +35,7 @@ _IIR_MON_OUT_CH2 		= 5
 _IIR_COEFFWIDTH = 48
 
 class IIRFilterBox(_CoreOscilloscope):
-	r"""  
+	r"""
 
 	The IIR Filter Box implements infinite impulse resposne (IIR) filters using 4 cascaded Direct Form 1 second-order stages
 	with a final output gain stage. The total transfer function can be written:
@@ -43,11 +43,11 @@ class IIRFilterBox(_CoreOscilloscope):
 	.. math::
 		H(z) = G * \prod_{k=1}^4 s_k * \frac{b_0k + b_1k * z^-1 + b_2k * z^-2}{1 + a_1k * z^-1 + a_2k * z^-2}
 
-	To specify a filter, you must supply an array containing the filter coefficients. The array should contain five rows and six columns. 
+	To specify a filter, you must supply an array containing the filter coefficients. The array should contain five rows and six columns.
 	The first row has one column entry, corresponding to the overall gain factor G. The following four rows have six entries each, corresponding
-	to the s, b0, b1, b2, a1 and a2 coefficients of the four cascaded SOS filters. 
+	to the s, b0, b1, b2, a1 and a2 coefficients of the four cascaded SOS filters.
 
-	Example array dimensions:		
+	Example array dimensions:
 
 	+----------+------+------+------+------+-------+
 	| G        |      |      |      |      |       |
@@ -64,7 +64,12 @@ class IIRFilterBox(_CoreOscilloscope):
 	Each coefficient must be in the range [-4.0, +4.0). Internally, these are represented as signed 48-bit fixed-point numbers, with 45 fractional bits.
 	The output scaling can be up to 8,000,000. Filter coefficients can be computed using signal processing toolboxes in e.g. MATLAB or SciPy.
 
-	Warning: some coefficients may result in overflow or underflow, which degrade filter performance. Filter responses should be checked prior to use.
+	.. note::
+		The overall output gain of the instrument is the product of the gain of the filter, set in the coefficient matrix, and the output stage
+		gain set using :any:`set_offset_gain`.
+
+	.. warning::
+		Some coefficients may result in overflow or underflow, which degrade filter performance. Filter responses should be checked prior to use.
 
 	"""
 
@@ -112,26 +117,27 @@ class IIRFilterBox(_CoreOscilloscope):
 		self.filter_ch1 = [b,b,b,b]
 		self.filter_ch2 = [b,b,b,b]
 
-		# do we want to set here? 
+		# do we want to set here?
 		self.set_frontend(1,fiftyr=True, atten=False, ac=False)
 		self.set_frontend(2,fiftyr=True, atten=False, ac=False)
 
+		# Default unity gain, zero offset, identiy mixing matrix.
+		self.set_offset_gain(1)
+		self.set_offset_gain(2)
+
 
 	@needs_commit
-	def set_filter_settings(self, ch = 1, sample_rate = 'high', filter_coefficients = None, output_off = False):
+	def set_filter(self, ch, sample_rate, filter_coefficients):
 		"""
-		Set SOS filter sample rate and send filter coefficients to the device.
+		Set SOS filter sample rate and filter coefficients.
 
 		:type ch : int; {1,2}
 		:param ch : target channel
 
 		:type sample_rate : string; {'high','low'}
-		:param sample_rate : set sos sample rate. High = 15.625 MHz, low = 122.070 KHz
+		:param sample_rate : filter sample rate. High = 15.625 MHz, low = 122.070 KHz
 
-		:type output_off : bool;
-		:param output_off : disable channel output
-
-		:type filter_coefficients : array; 
+		:type filter_coefficients : array;
 		:param filter_coefficients : array containing SOS filter coefficients. The array format can be seen in the class documentation above
 		"""
 
@@ -140,10 +146,10 @@ class IIRFilterBox(_CoreOscilloscope):
 		_utils.check_parameter_valid('bool', output_off, desc = 'disable output')
 
 		if ch == 1:
-			self.ch1_output = False if output_off else True
+			self.ch1_output = True
 			self.ch1_sampling_freq = 0 if sample_rate == 'high' else 1
 		else:
-			self.ch2_output = False if output_off else True
+			self.ch2_output = True
 			self.ch2_sampling_freq = 0 if sample_rate == 'high' else 1
 
 
@@ -152,7 +158,7 @@ class IIRFilterBox(_CoreOscilloscope):
 
 		if filter_coefficients != None:
 
-			# deep copy the filter coefficient array as it is modified below and potentially used by further set_filter_settings function calls 
+			# deep copy the filter coefficient array as it is modified below and potentially used by further set_filter_settings function calls
 			intermediate_filter = deepcopy(filter_coefficients)
 
 			# check filter array dimensions
@@ -216,9 +222,16 @@ class IIRFilterBox(_CoreOscilloscope):
 
 
 	@needs_commit
-	def set_instrument_gains(self, ch = 1, input_scale = 1, output_scale = 1, input_offset = 0, output_offset = 0, matrix_scalar_ch1 = 1, matrix_scalar_ch2 = 1):
+	def set_offset_gain(self, ch, input_scale=1, output_scale=1, input_offset=0, output_offset=0, matrix_scalar_ch1=None, matrix_scalar_ch2=None):
 		"""
-		Configure non-SOS filterbox settings for specified channel
+		Configure pre- and post-filter scales, offsets and input mixing for a channel.
+
+		Input mixing allows one filter to act on a linear combination of the two input signals. If *matrix_scalar_ch[12]* are left blank,
+		the input matrix is set to the identitiy; that is, filter channel 1 comes only from input channel 1 etc.
+
+		.. note::
+			The overall output gain of the instrument is the product of the gain of the filter, set by the filter coefficients,
+			and the output stage gain set here.
 
 		:type ch : int, {1,2}
 		:param ch : target channel
@@ -245,7 +258,7 @@ class IIRFilterBox(_CoreOscilloscope):
 
 		## Get calibration coefficients
 		a1, a2 = self._adc_gains()
-		d1, d2 = self._dac_gains()		
+		d1, d2 = self._dac_gains()
 
 		front_end = self._get_frontend(channel = 1) if ch == 1 else self._get_frontend(channel = 2)
 		atten = 10.0 if front_end[1] else 1.0
@@ -253,8 +266,14 @@ class IIRFilterBox(_CoreOscilloscope):
 		adc_calibration = a1 if ch == 1 else a2
 		dac_calibration = d1 if ch == 1 else d2
 
-		control_matrix_ch1 = int(round(matrix_scalar_ch1 * 375.0 * adc_calibration * 2**10 / atten)) 
-		control_matrix_ch2 = int(round(matrix_scalar_ch2 * 375.0 * adc_calibration * 2**10 / atten)) 
+		if matrix_scalar_ch1 is None:
+			matrix_scalar_ch1 = 1 if ch == 1 else 0
+
+		if matrix_scalar_ch2 is None:
+			matrix_scalar_ch2 = 1 if ch == 2 else 0
+
+		control_matrix_ch1 = int(round(matrix_scalar_ch1 * 375.0 * adc_calibration * 2**10 / atten))
+		control_matrix_ch2 = int(round(matrix_scalar_ch2 * 375.0 * adc_calibration * 2**10 / atten))
 
 		## Calculate input/output scale values
 		output_gain_factor = 1 / 375.0 / 8 / dac_calibration
@@ -285,7 +304,7 @@ class IIRFilterBox(_CoreOscilloscope):
 		self.mmap_access = access
 
 	@needs_commit
-	def set_monitor(self, ch, source = 'adc1'):
+	def set_monitor(self, ch, source):
 		"""
 		Select the point inside the filterbox to monitor.
 
@@ -293,22 +312,22 @@ class IIRFilterBox(_CoreOscilloscope):
 		monitoring points to either of these channels.
 
 		The source is one of:
-			- **in ch1**		: CH 1 ADC Input
-			- **in ch1 offset**	: Filter CH 1 After Input Offset
-			- **out ch1**		: Filter CH 1 Output
-			- **in ch2**		: CH 2 ADC Input
-			- **in ch2 offset**	: Filter CH 2 After Input Offset
-			- **out ch2**		: Filter CH 2 Output
+			- **adc1**	: CH 1 ADC Input
+			- **in1**	: Filter CH 1 After Input Offset
+			- **out1**	: Filter CH 1 Output
+			- **adc2**	: CH 2 ADC Input
+			- **in2**	: Filter CH 2 After Input Offset
+			- **out2**	: Filter CH 2 Output
 		"""
 		_utils.check_parameter_valid('set', ch, [1,2],'filter channel')
 
 		sources = {
-			'adc1' 		: _IIR_MON_IN_CH1,
-			'in1' : _IIR_MON_IN_CH1OFF,
-			'out1'		: _IIR_MON_OUT_CH1,
-			'adc2' 		: _IIR_MON_IN_CH2,
-			'in2' : _IIR_MON_IN_CH2OFF,
-			'out2'		: _IIR_MON_OUT_CH2,
+			'adc1': _IIR_MON_IN_CH1,
+			'in1'	_IIR_MON_IN_CH1OFF,
+			'out1': _IIR_MON_OUT_CH1,
+			'adc2': _IIR_MON_IN_CH2,
+			'in2':	_IIR_MON_IN_CH2OFF,
+			'out2':	_IIR_MON_OUT_CH2,
 		}
 
 		source = source.lower()
@@ -338,15 +357,15 @@ _iir_reg_handlers = {
 
 	'filter_reset':		(REG_FILT_RESET, 		to_reg_bool(0), from_reg_bool(0)),
 
-	'inputscale_ch1':	(REG_INPUTSCALE_CH0,	to_reg_unsigned(0, 18), from_reg_unsigned(0, 18)),	
+	'inputscale_ch1':	(REG_INPUTSCALE_CH0,	to_reg_unsigned(0, 18), from_reg_unsigned(0, 18)),
 	'inputscale_ch2':	(REG_INPUTSCALE_CH1,	to_reg_unsigned(0, 18), from_reg_unsigned(0, 18)),
 
 	'outputscale_ch1':	(REG_OUTPUTSCALE_CH0,	to_reg_unsigned(0, 18), from_reg_unsigned(0, 18)),
 	'outputscale_ch2':	(REG_OUTPUTSCALE_CH1,	to_reg_unsigned(0, 18), from_reg_unsigned(0, 18)),
 
-	'inputoffset_ch1':	(REG_INPUTOFFSET_CH0,	to_reg_signed(0, 13), from_reg_signed(0, 13)),	
-	'inputoffset_ch2':	(REG_INPUTOFFSET_CH1,	to_reg_signed(0, 13), from_reg_signed(0, 13)),	
+	'inputoffset_ch1':	(REG_INPUTOFFSET_CH0,	to_reg_signed(0, 13), from_reg_signed(0, 13)),
+	'inputoffset_ch2':	(REG_INPUTOFFSET_CH1,	to_reg_signed(0, 13), from_reg_signed(0, 13)),
 
-	'outputoffset_ch1':	(REG_OUTPUTOFFSET_CH0,	to_reg_signed(0, 16), from_reg_signed(0, 16)),	
+	'outputoffset_ch1':	(REG_OUTPUTOFFSET_CH0,	to_reg_signed(0, 16), from_reg_signed(0, 16)),
 	'outputoffset_ch2':	(REG_OUTPUTOFFSET_CH1,	to_reg_signed(0, 16), from_reg_signed(0, 16))
 }
