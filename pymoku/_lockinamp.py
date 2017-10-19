@@ -96,65 +96,20 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		# Avoid calling the PID controller set_defaults
 		_CoreOscilloscope.set_defaults(self)
 
-		self.lpf_en = 1
-		self.lpf_int_i_en = 0
-		self.lpf_int_dc_pole = 0
-		self.lpf_pen = 1
-		self.lpf_diff_d_en = 0 #TODO Not used according to Confluence, should we touch it at all?
-		self.lpf_den = 0
+		# Configure the low-pass filter
 
-		self.lo_reset = 0 #TODO: Not used, we shouldn't set this in defaults
-
-		self.ch1_pid1_en = 1
-		self.ch1_pid1_ien = 0
-		self.ch1_pid1_int_dc_pole = 0
-		self.ch1_pid1_pen = 1
-		self.ch1_pid1_den = 0
-		self.pid1_ch1_den = 0
-
-		self._pid_offset = 0
-
-		self.lpf_int_p_gain = 2**12 / 2**24
-		self.lpf_diff_d_gain = 0.0
-		self.lpf_diff_p_gain = 0.0
-		self.lpf_diff_i_gain = 0.0
-		self.lpf_diff_ifb_gain = 0.0
-
-		self.ch1_pid1_pidgain = 1.0
-		self.gainstage_gain = 1.0
-		self.ch1_pid1_int_p_gain = 2**12 / 2**24
-		self.ch1_pid1_diff_p_gain = 0.0
-		self.ch1_pid1_diff_i_gain = 0.0
-		self.ch1_pid1_diff_ifb_gain = 0.0
-		self.decimation_bitshift = 0
-
-		self.monitor_select0 = _LIA_MON_IN1
-		self.monitor_select1 = _LIA_MON_IN2
-
-		self.autoacquire = 1
-		self.bandwidth = 0
-		self.lo_PLL = 0
-		self.pid_select = 0
-		self.gain_select = 1
-		self.pid_ch_select = 0
-		self.aux_select = 1
-		self.autoacquire = 1
-		self.lo_PLL_reset = 0
-		self.lo_reacquire = 0
-		self.ext_demod = 0
-
+		"""
+		self.set_filter(100e3, 1, 1.0)
+		self.set_gain('aux',1.0)
+		self.set_pid_by_gain('main',1.0)
+		self.set_lo_output(0.5,1e6,0)
+		self.set_monitor(1, 'in1')
+		self.set_monitor(2, 'main')
+		self.set_demodulation('internal')
+		self.set_outputs('i','demod',0,0)
+		"""
 		self.output_decimation = 1
 		self.output_bitshift = 0
-
-		self.input_gain = 1.0
-
-		self.filt_bypass1 = 1
-		self.filt_bypass2 = 1
-		self.lpf_bypass = 1
-		self.ch1_pid1_bypass = 1
-
-	set_by_gain = set_pid_by_gain
-	set_by_frequency = set_pid_by_frequency
 
 	@needs_commit
 	def set_outputs(self, main, aux, main_offset=0.0, aux_offset=0.0):
@@ -206,8 +161,8 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 			return [i for i,x in signal_select_map if x==sig][0]
 
 		# If the PID is moved, the signals have to be re-selected to be a gain stage or otherwise
-		self.pid_signal_select = _signal_select_num(main self.pid_ch_select==0 else aux)
-		self.gain_signal_select = _signal_select_num(main self.pid_ch_select==0 else aux)
+		self.pid_signal_select = _signal_select_num(main if self.pid_ch_select==0 else aux)
+		self.gain_signal_select = _signal_select_num(main if self.pid_ch_select==0 else aux)
 
 		# Change which lock-in signals are passed into gain/pid stage
 		if main in lia_signals:
@@ -278,6 +233,7 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 
 		# Turns on the auxillary output for most cases
 		self.ch2_out_en = True
+		self.ch2_signal_en = True
 
 		if auxsel == 'sine':
 			self.aux_select = 0
@@ -371,10 +327,13 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		self._set_pid_channel(lia_ch)
 		self._set_by_gain(1, g, kp, ki, kd, 0, si, sd, in_offset, out_offset, touch_ii=False)
 
+	set_by_gain = set_pid_by_gain
+	set_by_frequency = set_pid_by_frequency
+
 	def _set_pid_channel(self, lia_ch):
 		# Helper function which switches connections to gain stage and PID 
 
-		_utils.check_parameter_valid('set', ch, allowed=['main','aux'], desc="PID channel")
+		_utils.check_parameter_valid('set', lia_ch, allowed=['main','aux'], desc="PID channel")
 
 		# Register value translation
 		new_pid_ch_select = (lia_ch=='aux')
@@ -455,6 +414,11 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		_utils.check_parameter_valid('range', phase, allowed=[0,360], desc="demodulation phase", units="degrees")
 		_utils.check_parameter_valid('set', mode, allowed=['internal', 'external', 'external_pll'] )
 		
+		self.autoacquire = 1
+		self.bandwidth = 0
+		self.lo_PLL_reset = 0
+		self.lo_reacquire = 0
+
 		if mode == 'internal':
 			self.ext_demod = 0
 			self.lo_PLL = 0
@@ -487,6 +451,14 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		:param gain: Overall gain of low-pass filter
 
 		"""
+		# Ensure the right parts of the filter are enabled
+		self.lpf_en = 1
+		self.lpf_int_i_en = 0
+		self.lpf_int_dc_pole = 0
+		self.lpf_pen = 1
+		self.lpf_diff_d_en = 0
+		self.lpf_den = 0
+
 		impedence_gain = 1 if (self.relays_ch1 & RELAY_LOWZ) else 2
 		atten_gain = 1 if (self.relays_ch1 & RELAY_LOWG) else 10
 		gain_factor = impedence_gain * atten_gain * (10**(gain / 20.0)) * self._dac_gains()[0] / self._adc_gains()[0]
@@ -511,12 +483,8 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		else:
 			raise ValueOutOfRangeException("Order must be 0 (bypass), 1 or 2; not %d" % order)
 
-		if order == 1:
-			self.lpf_pidgain =  gain_factor
-			self.input_gain = 1.0
-		else:
-			self.lpf_pidgain = math.sqrt(gain_factor)
-			self.input_gain = 1.0
+		self.input_gain = 1.0
+		self.lpf_pidgain = gain_factor if order == 1 else math.sqrt(gain_factor)
 
 	@needs_commit
 	def set_lo_output(self, amplitude, frequency, phase):
@@ -552,7 +520,7 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 
 		The source is one of:
 			- **none**: Disable monitor channel
-			- **input1**, **input1**: Input Channel 1/2
+			- **in1**, **in2**: Input Channel 1/2
 			- **main**: Lock-in output (Output Channel 1)
 			- **aux**: Auxillary output (Output Channel 2)
 			- **demod**: Demodulation signal input to mixer
@@ -560,16 +528,16 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 
 		:type ch: int; [1,2]
 		:param ch: Monitor channel number
-		:type source: string; {'none','input1','input2','out','aux','demod','i','q'}
+		:type source: string; {'none','in1','in2','main','aux','demod','i','q'}
 		:param source: Signal to monitor
 		"""
 		_utils.check_parameter_valid('set', ch, allowed=[1,2], desc="monitor channel")
-		_utils.check_parameter_valid('set', source, allowed=['none', 'input1', 'input2', 'out', 'aux', 'demod', 'i','q'], desc="monitor source")
+		_utils.check_parameter_valid('set', source, allowed=['none', 'in1', 'in2', 'main', 'aux', 'demod', 'i','q'], desc="monitor source")
 
 		sources = {
 			'none'	: _LIA_MON_NONE,
-			'input1': _LIA_MON_IN1,
-			'input2': _LIA_MON_IN2,
+			'in1'	: _LIA_MON_IN1,
+			'in2'	: _LIA_MON_IN2,
 			'main'	: _LIA_MON_OUT,
 			'aux'	: _LIA_MON_AUX,
 			'demod'	: _LIA_MON_DEMOD,
@@ -732,7 +700,7 @@ _lia_reg_hdl = {
 											from_reg_unsigned(0,2)),
 
 	'gain_sig_select':	(REG_LIA_SIG_SELECT, to_reg_unsigned(2,2),
-											 from_reg_bool(2,2)),
+											 from_reg_unsigned(2,2)),
 
 	'output_decimation':	(REG_LIA_PM_OUTDEC,	to_reg_unsigned(0,17),
 												from_reg_unsigned(0,17)),

@@ -28,7 +28,7 @@ def check_parameter_valid(check_type, v, allowed=None, desc="", units="", allow_
 			int(v)
 		except (ValueError, TypeError):
 			raise InvalidParameterException("Invalid parameter \'%s\': %s. Expected integer." % (desc, v))
-	elif check_type == 'string'
+	elif check_type == 'string':
 		try:
 			# Correct string check for Python 2.x
 			if not isinstance(v, basestring):
