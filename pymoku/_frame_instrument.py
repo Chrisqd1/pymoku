@@ -199,8 +199,8 @@ class FrameBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuIn
 	def get_data(self, timeout=None, wait=True):
 		""" Get full-resolution data from the instrument.
 
-		This will pause the instrument and download the entire contents of the instrument's 
-		internal memory. This may include slightly more data than the instrument is set up 
+		This will pause the instrument and download the entire contents of the instrument's
+		internal memory. This may include slightly more data than the instrument is set up
 		to record due to rounding of some parameters in the instrument.
 
 		All settings must be committed before you call this function. If *pymoku.autocommit=True*
@@ -212,10 +212,10 @@ class FrameBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuIn
 
 		If the *wait* parameter is true (the default), this function will wait for any new
 		settings to be applied before returning. That is, if you have set a new timebase (for example),
-		calling this with *wait=True* will guarantee that the data returned has this new timebase. 
-		
-		Note that if instrument configuration is changed, a trigger event must occur before data 
-		captured with that configuration set can become available. This can take an arbitrary amount 
+		calling this with *wait=True* will guarantee that the data returned has this new timebase.
+
+		Note that if instrument configuration is changed, a trigger event must occur before data
+		captured with that configuration set can become available. This can take an arbitrary amount
 		of time. For this reason the *timeout* should be set appropriately.
 
 		:type timeout: float
@@ -239,11 +239,15 @@ class FrameBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuIn
 		# This also gives us acquisition parameters for the buffer we will subsequently stream
 		frame = self.get_realtime_data(timeout=timeout, wait=wait)
 
-		# Wait on a synchronised frame or timeout, whichever comes first
-		timeout_time = time.time() + (timeout if timeout else 0)
+		# Wait on a synchronised frame or timeout, whichever comes first.
+		# XXX: Timeout is not well-handled, in that each sub-operation has its own timeout
+		# rather than the timeout applying to the whole function. This works in most circumstances
+		# but can mean that the function's maximum return time is several times longer than the
+		# user wanted.
+		start = time.time()
 		while not(frame.synchronised):
-			if (time.time() > timeout_time):
-				raise FrameTimeout("Timed out waiting on instrument data.") 
+			if timeout is not None and (time.time() > start + timeout):
+				raise FrameTimeout("Timed out waiting on instrument data.")
 			frame = self.get_realtime_data(timeout=timeout, wait=wait)
 
 		# Check if it is already paused
@@ -314,10 +318,10 @@ class FrameBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuIn
 
 		If the *wait* parameter is true (the default), this function will wait for any new
 		settings to be applied before returning. That is, if you have set a new timebase (for example),
-		calling this with *wait=True* will guarantee that the data returned has this new timebase. 
-		
-		Note that if instrument configuration is changed, a trigger event must occur before data 
-		captured with that configuration set can become available. This can take an arbitrary amount 
+		calling this with *wait=True* will guarantee that the data returned has this new timebase.
+
+		Note that if instrument configuration is changed, a trigger event must occur before data
+		captured with that configuration set can become available. This can take an arbitrary amount
 		of time. For this reason the *timeout* should be set appropriately.
 
 		:type timeout: float
@@ -337,7 +341,7 @@ class FrameBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuIn
 				# Return only frames with a triggered and rendered state being equal (so we can
 				# interpret the data correctly using the entire state)
 				# If wait is set, only frames that have the triggered state equal to the
-				# currently committed state will be returned. 
+				# currently committed state will be returned.
 				if (not wait and frame._trigstate == frame._stateid) or (frame._trigstate == self._stateid):
 					return frame
 				elif time.time() > endtime:
