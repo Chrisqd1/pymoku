@@ -300,10 +300,6 @@ class IIRFilterBox(_CoreOscilloscope):
 			self.ch1_ch1gain = control_matrix_ch2
 
 	@needs_commit
-	def _set_mmap_access(self, access):
-		self.mmap_access = access
-
-	@needs_commit
 	def set_monitor(self, ch, source):
 		"""
 		Select the point inside the filterbox to monitor.

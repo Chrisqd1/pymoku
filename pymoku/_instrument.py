@@ -262,7 +262,7 @@ def needs_commit(func, self, *args, **kwargs):
 			res = func(self, *args, **kwargs)
 		finally:
 			# Do this even if the function raises an Exception
-			
+
 			# Commit if we weren't already waiting for one before
 			if not was_awaiting:
 				self.commit()
@@ -350,7 +350,7 @@ class MokuInstrument(object):
 
 		# These may be called again in the instrument's implementation to overwrite this,
 		# however they must be called at least once to load the initial calibration values
-		self._set_frontend(1, fiftyr=True, atten=False, ac=False) 
+		self._set_frontend(1, fiftyr=True, atten=False, ac=False)
 		self._set_frontend(2, fiftyr=True, atten=False, ac=False)
 
 
