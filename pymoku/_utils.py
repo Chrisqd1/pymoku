@@ -28,6 +28,15 @@ def check_parameter_valid(check_type, v, allowed=None, desc="", units="", allow_
 			int(v)
 		except (ValueError, TypeError):
 			raise InvalidParameterException("Invalid parameter \'%s\': %s. Expected integer." % (desc, v))
+	elif check_type == 'string'
+		try:
+			# Correct string check for Python 2.x
+			if not isinstance(v, basestring):
+				raise InvalidParameterException("Invalid parameter \'%s\': %s. Expected string." % (desc, v))
+		except NameError:
+			# Correct string check for Python 3.x
+			if not isinstance(v, str):
+				raise InvalidParameterException("Invalid parameter \'%s\': %s. Expected string." % (desc, v))
 	elif check_type == 'float':
 		try:
 			float(v)
