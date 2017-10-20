@@ -89,6 +89,11 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		self._g_aux = 1.0
 		self._g_main = 1.0
 
+		# Remembers monitor source choice
+		self.monitor_a = None
+		self.monitor_b = None
+		self.demod_mode = None
+
 	@needs_commit
 	def set_defaults(self):
 		""" Reset the lockinamp to sane defaults. """
@@ -424,14 +429,17 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 			self.lo_PLL = 0
 			self.frequency_demod = frequency
 			self.phase_demod = phase
+			self.demod_mode = mode
 		elif mode == 'external':
 			self.ext_demod = 1
 			self.lo_PLL = 0
+			self.demod_mode = mode
 		elif mode == 'external_pll':
 			self.ext_demod = 0
 			self.lo_PLL = 1
 			self.lo_reacquire = 1
 			self.phase_demod = phase
+			self.demod_mode = mode
 		else :
 			# Should not happen
 			raise ValueOutOfRangeException('Demodulation mode must be one of "internal", "external" or "external_pll", not %s', mode)
@@ -511,11 +519,11 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		self.lo_phase = phase
 
 	@needs_commit
-	def set_monitor(self, ch, source):
+	def set_monitor(self, monitor_ch, source):
 		"""
 		Select the point inside the lockin amplifier to monitor.
 
-		There are two monitoring channels available, '1' and '2'; you can mux any of the internal
+		There are two monitoring channels available, 'A' and 'B'; you can mux any of the internal
 		monitoring points to either of these channels.
 
 		The source is one of:
@@ -526,12 +534,19 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 			- **demod**: Demodulation signal input to mixer
 			- **i**, **q**: Mixer I and Q channels respectively.
 
-		:type ch: int; [1,2]
-		:param ch: Monitor channel number
+		:type monitor_ch: string; {'A','B'}
+		:param monitor_ch: Monitor channel
 		:type source: string; {'none','in1','in2','main','aux','demod','i','q'}
 		:param source: Signal to monitor
 		"""
-		_utils.check_parameter_valid('set', ch, allowed=[1,2], desc="monitor channel")
+		_utils.check_parameter_valid('string', monitor_ch, desc="monitor channel")
+		_utils.check_parameter_valid('string', source, desc="monitor signal")
+
+		monitor_ch = string.lower(monitor_ch)
+		# Many people naturally use 'I' and 'Q' and I don't care enough to argue
+		source = source.lower()
+
+		_utils.check_parameter_valid('set', monitor_ch, allowed=['a','b'], desc="monitor channel")
 		_utils.check_parameter_valid('set', source, allowed=['none', 'in1', 'in2', 'main', 'aux', 'demod', 'i','q'], desc="monitor source")
 
 		sources = {
@@ -545,16 +560,85 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 			'q'		: _LIA_MON_Q,
 		}
 
-		# Many people naturally use 'I' and 'Q' and I don't care enough to argue
-		source = source.lower()
-
-		if ch == 1:
+		if monitor_ch == 'a':
+			self.monitor_a = source
 			self.monitor_select0 = sources[source]
-		elif ch == 2:
+		elif monitor_ch == 'b':
+			self.monitor_b = source
 			self.monitor_select1 = sources[source]
 		else:
-			raise ValueOutOfRangeException("Invalid channel %d", ch)
+			raise ValueOutOfRangeException("Invalid channel %d", monitor_ch)
 
+	@needs_commit
+	def set_trigger(self, source, edge, level, hysteresis=False, hf_reject=False, mode='auto'):
+		"""
+			Set the trigger for the monitor signals. This can be either of the input channel signals 
+			or monitor channel signals.
+
+			:type source: string; {'in1','in2','A','B'}
+			:param source: Trigger channel
+
+			:type edge: string, {'rising','falling','both'}
+			:param edge: Which edge to trigger on.
+
+			:type level: float, [-10.0, 10.0] volts
+			:param level: Trigger level
+
+			:type hysteresis: bool
+			:param hysteresis: Enable Hysteresis around trigger point.
+
+			:type hf_reject: bool
+			:param hf_reject: Enable high-frequency noise rejection
+
+			:type mode: string, {'auto', 'normal'}
+			:param mode: Trigger mode.
+		"""
+		_utils.check_parameter_valid('string', source, desc="trigger source")
+		source = source.lower()
+		_utils.check_parameter_valid('set', source, allowed=['in1','in2','a','b'], desc="trigger source")
+
+		# Translate the monitors to Oscilloscope DAC trigger sources
+		# TODO: Check this translation is valid
+		if source=='a':
+			source = 'out1'
+		elif source=='b':
+			source = 'out2'
+
+		super(LockInAmp, self).set_trigger(source=source, edge=edge, level=level, hysteresis=hysteresis, hf_reject=hf_reject, mode=mode)
+
+	def _calculate_scales(self):
+		# This calculates scaling factors for the internal Oscilloscope frames
+		scales = super(LockInAmp, self)._calculate_scales()
+
+		# Change the scales we care about
+		deci_gain = self._deci_gain()
+		atten1 = self.get_frontend(1)
+		atten2 = self.get_frontend(2)
+
+		def _demod_mode_to_gain(mode):
+			if mode == 'internal' or 'external_pll':
+				return 1.0/deci_gain/2**11
+			elif mode == 'external':
+				return 1.0/deci_gain/scales['gain_adc2']/(10.0 if atten else 1.0)
+			else:
+				return 1.0
+
+		monitor_source_gains = {
+			'none'	: 1.0,
+			'in1'	: scales['gain_adc1']*(10.0 if atten1 else 1.0), # Undo range scaling
+			'in2'	: scales['gain_adc2']*(10.0 if atten2 else 1.0), 
+			'main'	: scales['gain_dac1']*(2**4), # 12bit ADC - 16bit DAC 
+			'aux'	: scales['gain_dac2']*(2**4),
+			'demod'	: _demod_mode_to_gain(self.demod_mode),
+			'i'		: scales['gain_adc1']*(10.0 if atten1 else 1.0),
+			'q'		: scales['gain_adc1']*(10.0 if atten1 else 1.0)
+		}
+
+		# Replace scaling factors depending on the monitor signal source
+		scales['scale_ch1'] = 1.0 if not self.monitor_a else monitor_source_gains[self.monitor_a]
+		scales['scale_ch2'] = 1.0 if not self.monitor_b else monitor_source_gains[self.monitor_b]
+
+		return scales
 
 _lia_reg_hdl = {
 	'lpf_en':			(REG_LIA_ENABLES,		to_reg_bool(0),
