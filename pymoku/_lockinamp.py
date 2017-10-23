@@ -117,6 +117,34 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		self.output_bitshift = 0
 
 	@needs_commit
+	def set_input_gain(self, sel = '0dB'):
+		"""
+
+		Selects the input gain
+
+		sel is one of:
+			- **-20dB**
+			- **0dB**
+			- **12dB**
+			-**24dB**
+
+		"""
+		front_end_setting = self.get_frontend(1)
+
+		if sel == '0dB' :
+			self.input_gain_select = 0
+			self.set_frontend(1, fiftyr = front_end_setting[0], atten=False, ac = front_end_setting[2])
+		elif sel == '12dB' :
+			self.input_gain_select = 1
+			self.set_frontend(1, fiftyr = front_end_setting[0], atten=False, ac = front_end_setting[2])
+		elif sel == '24dB' :
+			self.input_gain_select = 2
+			self.set_frontend(1, fiftyr = front_end_setting[0], atten=False, ac = front_end_setting[2])
+		elif sel == '-20dB' :
+			self.input_gain_select = 0
+			self.set_frontend(1, fiftyr = front_end_setting[0], atten=True, ac = front_end_setting[2])
+
+	@needs_commit
 	def set_outputs(self, main, aux, main_offset=0.0, aux_offset=0.0):
 		"""
 			Configures the main (Channel 1) and auxillary (Channel 2) output signals of the Lock-In.
@@ -161,9 +189,9 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		# Assume PID on main channel for now
 		# Only set the ones that care about a lockin signal
 
-		def _signal_select_num(sig):
-			signal_select_map = [(0,'i'),(0,'x'),(1,'q'),(1,'y'),(2,'r'),(3,'theta')]
-			return [i for i,x in signal_select_map if x==sig][0]
+	def _signal_select_num(sig):
+		signal_select_map = [(0,'i'),(0,'x'),(1,'q'),(1,'y'),(2,'r'),(3,'theta')]
+		return [i for i,x in signal_select_map if x==sig][0]
 
 		# If the PID is moved, the signals have to be re-selected to be a gain stage or otherwise
 		self.pid_signal_select = _signal_select_num(main if self.pid_ch_select==0 else aux)
@@ -698,6 +726,9 @@ _lia_reg_hdl = {
 
 	'aux_select':		(REG_LIA_ENABLES, 		to_reg_unsigned(26, 2),
 												from_reg_unsigned(26, 2)),
+
+	'input_gain_select': (REG_LIA_ENABLES,		to_reg_unsigned(28, 2),
+												from_reg_unsigned(28,2)),
 
 	'ch1_pid1_in_offset':	(REG_LIA_IN_OFFSET1,	to_reg_signed(16, 16, xform=lambda obj, x: x * obj._dac_gains()[0]),
 													from_reg_signed(16, 16, xform=lambda obj, x: x / obj._dac_gains()[0])),
