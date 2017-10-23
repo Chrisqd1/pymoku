@@ -134,7 +134,7 @@ class Moku(object):
 		return known_mokus
 
 	@staticmethod
-	def get_by_ip(ip_addr, timeout=10):
+	def get_by_ip(ip_addr, timeout=10, *args, **kwargs):
 		"""
 		Factory function, returns a :any:`Moku` instance with the given IP address.
 
@@ -154,12 +154,12 @@ class Moku(object):
 		mokus = BonjourFinder().find_all(max_results=1, filter_callback=_filter, timeout=timeout)
 
 		if len(mokus):
-			return Moku(mokus[0])
+			return Moku(mokus[0], *args, **kwags)
 
 		raise MokuNotFound("Couldn't find Moku: %s" % ip_addr)
 
 	@staticmethod
-	def get_by_serial(serial, timeout=10):
+	def get_by_serial(serial, timeout=10, *args, **kwargs):
 		"""
 		Factory function, returns a :any:`Moku` instance with the given Serial number.
 
@@ -186,12 +186,12 @@ class Moku(object):
 		mokus = BonjourFinder().find_all(max_results=1, filter_callback=_filter, timeout=timeout)
 
 		if len(mokus):
-			return Moku(mokus[0])
+			return Moku(mokus[0], *args, **kwargs)
 
 		raise MokuNotFound("Couldn't find Moku: %s" % serial)
 
 	@staticmethod
-	def get_by_name(name, timeout=10):
+	def get_by_name(name, timeout=10, *args, **kwargs):
 		"""
 		Factory function, returns a :any:`Moku` instance with the given name.
 
@@ -218,7 +218,7 @@ class Moku(object):
 		mokus = BonjourFinder().find_all(max_results=1, filter_callback=_filter, timeout=timeout)
 
 		if len(mokus):
-			return Moku(mokus[0])
+			return Moku(mokus[0], *args, **kwargs)
 
 		raise MokuNotFound("Couldn't find Moku: %s" % name)
 
