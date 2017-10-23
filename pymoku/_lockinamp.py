@@ -575,7 +575,7 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 			Set the trigger for the monitor signals. This can be either of the input channel signals 
 			or monitor channel signals.
 
-			:type source: string; {'in1','in2','A','B'}
+			:type source: string; {'in1','in2','A','B','ext'}
 			:param source: Trigger channel
 
 			:type edge: string, {'rising','falling','both'}
@@ -595,14 +595,18 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		"""
 		_utils.check_parameter_valid('string', source, desc="trigger source")
 		source = source.lower()
-		_utils.check_parameter_valid('set', source, allowed=['in1','in2','a','b'], desc="trigger source")
+		_utils.check_parameter_valid('set', source, allowed=['in1','in2','a','b','ext'], desc="trigger source")
 
-		# Translate the monitors to Oscilloscope DAC trigger sources
-		# TODO: Check this translation is valid
-		if source=='a':
-			source = 'out1'
-		elif source=='b':
-			source = 'out2'
+		# Translate the LIA trigger sources to Oscilloscope sources
+		_str_to_osc_trig_source = {
+			'a' : 'in1',
+			'b' : 'in2',
+			'in1' : 'out1',
+			'in2' : 'out2',
+			'ext' : 'ext'
+		}
+
+		source = _utils.str_to_val(_str_to_osc_trig_source, source, 'trigger source')
 
 		super(LockInAmp, self).set_trigger(source=source, edge=edge, level=level, hysteresis=hysteresis, hf_reject=hf_reject, mode=mode)
 
