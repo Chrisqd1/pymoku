@@ -21,6 +21,7 @@ REG_AINCTL	= 13
 REG_PRETRIG	= 15
 REG_CAL_ADC0, REG_CAL_ADC1, REG_CAL_DAC0, REG_CAL_DAC1 = list(range(16, 20))
 REG_TEMP_DAC = 14
+REG_MMAP_ACCESS = 62
 REG_STATE	= 63
 
 # Common instrument parameters
@@ -261,7 +262,7 @@ def needs_commit(func, self, *args, **kwargs):
 			res = func(self, *args, **kwargs)
 		finally:
 			# Do this even if the function raises an Exception
-			
+
 			# Commit if we weren't already waiting for one before
 			if not was_awaiting:
 				self.commit()
@@ -349,7 +350,7 @@ class MokuInstrument(object):
 
 		# These may be called again in the instrument's implementation to overwrite this,
 		# however they must be called at least once to load the initial calibration values
-		self._set_frontend(1, fiftyr=True, atten=False, ac=False) 
+		self._set_frontend(1, fiftyr=True, atten=False, ac=False)
 		self._set_frontend(2, fiftyr=True, atten=False, ac=False)
 
 
@@ -602,6 +603,11 @@ class MokuInstrument(object):
 		# For now we don't support switching clock modes during a partial deploy
 		self._moku._deploy(use_external=self._moku.external_reference, partial_index=index)
 
+	@needs_commit
+	def _set_mmap_access(self, access):
+		self.mmap_access = access
+
+
 
 
 _instr_reg_handlers = {
@@ -668,6 +674,7 @@ _instr_reg_handlers = {
 
 	'state_id':			(REG_STATE,	 	to_reg_unsigned(0, 8),		from_reg_unsigned(0, 8)),
 	'state_id_alt':		(REG_STATE,	 	to_reg_unsigned(16, 8),		from_reg_unsigned(16, 8)),
+	'mmap_access':		(REG_MMAP_ACCESS,		to_reg_bool(0),			from_reg_bool(0)),
 	'temp_dac':			(REG_TEMP_DAC,	None,		from_reg_signed(0, 12, xform=lambda obj, f: f * 0.0625)),
 	'temp_adc':			(REG_AINCTL,	None,		from_reg_signed(20, 12, xform=lambda obj, f: f * 0.0625)),
 }

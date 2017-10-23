@@ -27,6 +27,7 @@ Contents
    phasemeter
    bodeanalyser
    lockin
+   iirfilterbox
    utils
 
 

@@ -241,7 +241,8 @@ class Moku(object):
 
 	def _ownership(self, t, flags):
 		name = socket.gethostname()[:255]
-		packet_data = struct.pack("<BBB", t, len(name) + 1, flags) + name.encode('ascii')
+		#packet_data = struct.pack("<BBB", t, len(name) + 1, flags) + name.encode('ascii')
+		packet_data = struct.pack("<BB", t, flags)
 		self._conn.send(packet_data)
 
 		ack = self._conn.recv()
@@ -883,7 +884,11 @@ class Moku(object):
 		log.debug("Sending firmware file")
 		self._send_file('f', path, 'moku.fw')
 		log.debug("Updating firmware")
-		self._trigger_fwload()
+		try:
+			self._trigger_fwload()
+		except zmq.error.Again:
+			# Sometimes the network connection goes down before the ack can be received
+			pass
 
 	def get_ip(self):
 		""" :return: IP address of the connected Moku:Lab """
