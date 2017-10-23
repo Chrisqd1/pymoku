@@ -423,6 +423,15 @@ class PIDController(_CoreOscilloscope):
 			self.ch2_ch1_gain = cross_gain * 1000
 			self.ch2_ch2_gain = self_gain * 1000
 
+		if self.ch1_ch1_gain == self.ch2_ch1_gain == 0:
+			self.ch1_input_light = False;
+		else:
+			self.ch1_input_light = True;
+
+		if self.ch1_ch2_gain == self.ch2_ch2_gain == 0:
+			self.ch1_input_light = False;
+		else:
+			self.ch2_input_light = True;	
 
 
 _PID_reg_hdl = {
@@ -454,7 +463,8 @@ _PID_reg_hdl = {
 	'ch2_output_en':		(REG_PID_ENABLES,	to_reg_bool(25), from_reg_bool(25)),
 	'ch1_input_en':			(REG_PID_MONSELECT,	to_reg_bool(6), from_reg_bool(6)),
 	'ch2_input_en':			(REG_PID_MONSELECT,	to_reg_bool(7), from_reg_bool(7)),
-
+	'ch1_input_light':		(REG_PID_MONSELECT, to_reg_bool(8), from_reg_bool(8)),
+	'ch2_input_light':		(REG_PID_MONSELECT, to_reg_bool(9), from_reg_bool(9)),
 	'ch1_ch1_gain' :		((REG_PID_CH0_CH0GAIN_MSB, REG_PID_CH0_CH0GAIN_LSB),
 												to_reg_signed(24,16, xform=lambda obj, x : x * 2**8 * obj._adc_gains()[0]),
 												from_reg_signed(24,16, xform=lambda obj, x : x / 2**8 / obj._adc_gains()[0])),
