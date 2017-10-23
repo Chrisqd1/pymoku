@@ -319,7 +319,7 @@ class IIRFilterBox(_CoreOscilloscope):
 
 		sources = {
 			'adc1': _IIR_MON_IN_CH1,
-			'in1'	_IIR_MON_IN_CH1OFF,
+			'in1':	_IIR_MON_IN_CH1OFF,
 			'out1': _IIR_MON_OUT_CH1,
 			'adc2': _IIR_MON_IN_CH2,
 			'in2':	_IIR_MON_IN_CH2OFF,

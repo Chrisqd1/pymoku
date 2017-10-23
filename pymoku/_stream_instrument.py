@@ -111,9 +111,9 @@ class StreamBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuI
 			num_processed_samples = [-1,-1]
 
 		# Only "get" samples off the network if we haven't already processed enough to return 'n'
-		# for all enabled channels. 
-		while ((n == -1) or 
-			(self.ch1 and ((num_processed_samples[0] <= n) or (num_processed_samples[0] <= 0))) or 
+		# for all enabled channels.
+		while ((n == -1) or
+			(self.ch1 and ((num_processed_samples[0] <= n) or (num_processed_samples[0] <= 0))) or
 			(self.ch2 and ((num_processed_samples[1] < n) or (num_processed_samples[1] <=0)))):
 
 			try:
@@ -155,7 +155,7 @@ class StreamBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuI
 
 		.. note:: The Moku's internal filesystem is volatile and will be wiped when the Moku is turned off.
 			If you want your data logs to persist either save to SD card or move them to a permanent
-			storage location prior to powering your Moku off. 
+			storage location prior to powering your Moku off.
 
 		:type duration: float
 		:param duration: Log duration in seconds
@@ -277,7 +277,7 @@ class StreamBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuI
 
 		:rtype: float
 		:returns: Time between data samples in seconds.
-		""" 
+		"""
 		if self.timestep == 0:
 			raise Exception("Samplerate looks to be unset.")
 		return self.timestep
