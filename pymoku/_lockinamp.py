@@ -103,18 +103,16 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 
 		# Configure the low-pass filter
 
-		"""
-		self.set_filter(100e3, 1, 1.0)
+		self.set_filter(10e3, 2, 1.0)
 		self.set_gain('aux',1.0)
 		self.set_pid_by_gain('main',1.0)
 		self.set_lo_output(0.5,1e6,0)
-		self.set_monitor(1, 'in1')
-		self.set_monitor(2, 'main')
-		self.set_demodulation('internal')
+		self.set_monitor('a', 'in1')
+		self.set_monitor('b', 'main')
+		self.set_demodulation('internal', 0, 90)
 		self.set_outputs('i','demod',0,0)
-		"""
-		self.output_decimation = 1
-		self.output_bitshift = 0
+		# self.output_decimation = 1
+		# self.output_bitshift = 0
 
 	@needs_commit
 	def set_input_gain(self, sel = '0dB'):
@@ -165,8 +163,8 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		_utils.check_parameter_valid('string', aux, desc="auxillary output signal")
 
 		# Allow uppercase options
-		main = string.lower(main)
-		aux = string.lower(aux)
+		main = main.lower()
+		aux = aux.lower()
 
 		_utils.check_parameter_valid('set', main, allowed=['x','y','i','q','r','theta','offset','none'], desc="main output signal")
 		_utils.check_parameter_valid('set', aux, allowed=['y','q','theta','sine','demod','offset','none'], desc="auxillary output signal")
@@ -321,7 +319,7 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		self._set_by_gain(1, g, kp, ki, kd, 0, si, sd, in_offset, out_offset, touch_ii=False)
 
 	@needs_commit
-	def set_pid_by_gain(self, lia_ch, g, kp=0, ki=0, kd=0, si=None, sd=None, in_offset=0, out_offset=0):
+	def set_pid_by_gain(self, lia_ch, g, kp=1.0, ki=0, kd=0, si=None, sd=None, in_offset=0, out_offset=0):
 		"""
 		Set which lock-in channel the PID is on and configure it using gain parameters.
 
@@ -483,15 +481,15 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		:type order: int; [0, 1, 2]
 		:param order: filter order; 0 (bypass), first- or second-order.
 
-		:type gain: float; # TODO: Range?
+		:type gain: float; [237e-3, 3e6]
 		:param gain: Overall gain of low-pass filter
 
 		"""
 		# Ensure the right parts of the filter are enabled
 		self.lpf_en = 1
-		self.lpf_int_i_en = 0
+		self.lpf_int_i_en = 1
 		self.lpf_int_dc_pole = 0
-		self.lpf_pen = 1
+		self.lpf_pen = 0
 		self.lpf_diff_d_en = 0
 		self.lpf_den = 0
 
@@ -570,8 +568,7 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		_utils.check_parameter_valid('string', monitor_ch, desc="monitor channel")
 		_utils.check_parameter_valid('string', source, desc="monitor signal")
 
-		monitor_ch = string.lower(monitor_ch)
-		# Many people naturally use 'I' and 'Q' and I don't care enough to argue
+		monitor_ch = monitor_ch.lower()
 		source = source.lower()
 
 		_utils.check_parameter_valid('set', monitor_ch, allowed=['a','b'], desc="monitor channel")
