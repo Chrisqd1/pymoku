@@ -19,6 +19,7 @@ except ImportError:
 
 class InvalidFormatException(Exception): pass
 class InvalidFileException(Exception): pass
+class DataIntegrityException(Exception): pass
 
 class LIDataFileReader(object):
 	"""
@@ -555,12 +556,13 @@ class LIDataParser(object):
 		self.fmt = fmtstr
 		self.dout = hdrstr.format(**self.fmtdict)
 
-		# We should be doing this based on number of channels
-		self.dcache 	= ['' for x in range(self.nch)]
-		self.records 	= [[] for x in range(self.nch)]
-		self.processed 	= [[] for x in range(self.nch)]
-		self._currecord = [[] for x in range(self.nch)]
-		self._currfmt 	= [[] for x in range(self.nch)]
+		self.dcache 	= ['' for _ in range(self.nch)]
+		self.records 	= [[] for _ in range(self.nch)]
+		self.processed 	= [[] for _ in range(self.nch)]
+		self._currecord = [[] for _ in range(self.nch)]
+		self._currfmt 	= [[] for _ in range(self.nch)]
+
+		self._sampleidx = [0 for _ in range(self.nch)]
 
 	def _process_records(self):
 		for ch in range(self.nch):
@@ -725,10 +727,20 @@ class LIDataParser(object):
 			self.records[chidx].append(self._currecord[chidx])
 
 
-	def parse(self, data, ch):
+	def parse(self, data, ch, start_idx=None):
 		""" Parse a chunk of data.
 
 		:param data: bytestring of new data
 		:param ch: Channel to which the data belongs"""
+
+		prev_len = len(self.processed[ch])
 		self._parse(data, ch)
 		self._process_records()
+
+		# The sample index isn't the same as the total length of the processed
+		# array as the user can empty the processed array themselves
+		if start_idx is not None and self._sampleidx[ch] == start_idx:
+			nprocessed = len(self.processed[ch]) - prev_len
+			self._sampleidx[ch] += nprocessed
+		else:
+			raise DataIntegrityException("Data loss detected on stream interface")

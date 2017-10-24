@@ -13,6 +13,8 @@ try:
 except Exception as e:
 	log.warning("Can't import the Bonjour libraries, I won't be able to automatically detect Mokus ({:s}).  Please install DNSSD libraries (e.g. libavahi-dnssd-compat on Linux)".format(str(e)))
 
+from . import dataparser
+
 class MokuException(Exception):	"""Base class for other Exceptions""";	pass
 class MokuNotFound(MokuException): """Can't find Moku. Raised from discovery factory functions."""; pass
 class NetworkError(MokuException): """Network connection to Moku failed"""; pass
@@ -37,6 +39,12 @@ class UnknownAction(MokuException): """The request was unknown"""; pass
 class MokuBusy(MokuException): """The Moku is busy"""; pass
 class UncommittedSettings(MokuException): """Instrument settings are awaiting commit."""; pass
 
+
+# Re-export the exceptions that get raised by instruments, that aren't part of the instruments themselves.
+# XXX: Don't love it..
+InvalidFormatException = dataparser.InvalidFormatException
+InvalidFileException = dataparser.InvalidFileException
+DataIntegrityException = dataparser.DataIntegrityException
 
 autocommit = True
 def _get_autocommit():
