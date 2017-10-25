@@ -8,3 +8,5 @@ MANIFEST
 dist
 tests/test.li
 tests/test2.li
+lr.*
+.cache/
