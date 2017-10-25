@@ -103,7 +103,7 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 
 		# Configure the low-pass filter
 
-		self.set_filter(10e3, 2, 1.0)
+		self.set_filter(1e3, 1, 1)
 		self.set_gain('aux',1.0)
 		self.set_pid_by_gain('main',1.0)
 		self.set_lo_output(0.5,1e6,0)
@@ -111,6 +111,7 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		self.set_monitor('b', 'main')
 		self.set_demodulation('internal', 0, 90)
 		self.set_outputs('i','demod',0,0)
+		self.set_input_gain(0)
 		# self.output_decimation = 1
 		# self.output_bitshift = 0
 
@@ -495,7 +496,7 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 
 		impedence_gain = 1 if (self.relays_ch1 & RELAY_LOWZ) else 2
 		atten_gain = 1 if (self.relays_ch1 & RELAY_LOWG) else 10
-		gain_factor = impedence_gain * atten_gain * (10**(gain / 20.0)) * self._dac_gains()[0] / self._adc_gains()[0]
+		gain_factor = impedence_gain * atten_gain * gain / (4.4) * self._dac_gains()[0] / self._adc_gains()[0]
 
 		coeff = 1 - 2*(math.pi * f_corner) /_LIA_CONTROL_FS
 
