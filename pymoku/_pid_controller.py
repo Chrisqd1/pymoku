@@ -148,6 +148,10 @@ class PIDController(_CoreOscilloscope):
 
 		kp /= best_gain
 
+		ii_xover = None if i_xover is None else ii_xover
+		si = None if i_xover is None else si
+		sd = None if d_xover is None else sd
+
 		if ii_xover :
 			if i_xover :
 				ki = math.sqrt(kp) * i_xover
