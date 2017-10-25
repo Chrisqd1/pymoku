@@ -6,3 +6,5 @@ build/
 tests/test.dat
 MANIFEST
 dist
+tests/test.li
+tests/test2.li

@@ -37,7 +37,17 @@ def test_binfmts(fmt, din, expected):
 		dut._parse(din, ch)
 		assert dut.records[ch] == expected
 
-procfmt_data = [
+@pytest.mark.parametrize("fmt,din,expected", binfmt_data)
+def test_fast_binfmts(fmt, din, expected):
+	dut = FastDataParser(True, True, fmt, ["", ""], "", "", 0, 0, [1, 1], 0)
+	# Use the internal parser method so the records don't get processed and removed before
+	# we've had a chance to check them
+
+	for ch in [0, 1]:
+		dut._parse(din, ch)
+		assert dut.records[ch] == expected
+
+procfmt_nocompound = [
 	("<s32", "", b"\x01\x00\x00\x00", [1]), # No-op, single element tuple
 	("<s32:f32", ":", b"\x01\x00\x00\x00\x00\x00\x80\xBF", [(1,-1.0)]), # No-op
 	("<s32:f32", "*-1e2:*1e-1", b"\x01\x00\x00\x00\x00\x00\x80\xBF", [(-100,-0.1)]), # Exponential notation
@@ -47,6 +57,9 @@ procfmt_data = [
 	#("<s32:f32", "/2:/2", b"\x01\x00\x00\x00\x00\x00\x80\xBF", [(0,-0.5)]), # integer division :: This behaviour changes between python 2 and 3, shouldn't rely on it.
 	("<s32:f32", "/2.0:/2.0", b"\x01\x00\x00\x00\x00\x00\x80\xBF", [(0.5,-0.5)]), # fp division
 	("<s32:f32", "+0x01:-0x01", b"\x01\x00\x00\x00\x00\x00\x80\xBF", [(2, -2)]), # Hex literals, addition and subtraction
+]
+
+procfmt_compound = [
 	("<s32:f32", "&0:f&0", b"\x01\x00\x00\x00\x00\x00\x80\xBF", [(0, 0)]), # Masking and float-to-int conversion by floor operation
 	("<s32:f32", "s:*-1s", b"\x01\x00\x00\x00\x00\x00\x80\xBF", [(1, 1)]), # Square root, compound operations
 	("<s32:f32", "+1^2:-1^2", b"\x01\x00\x00\x00\x00\x00\x80\xBF", [(4, 4)]), # Square root, compound operations
@@ -57,14 +70,26 @@ procfmt_data = [
 	("<s32:f32", "+1+1-2:-1-1+2", b"\x01\x00\x00\x00\x00\x00\x80\xBF\x01\x00\x00\x00\x00\x00\x80\xBF\x00\x80\xBF", [(1, -1.0),(1, -1.0)]), # Multiple records, including partial
 ]
 
-@pytest.mark.parametrize("_bin,proc,din,expected", procfmt_data)
+@pytest.mark.parametrize("_bin,proc,din,expected", procfmt_nocompound + procfmt_compound)
 def test_procfmts(_bin, proc, din, expected):
 	dut = LIDataParser(True, True, _bin, [proc, proc], "", "", 0, 0, [2, 2], 0)
 
 	for ch in [0, 1]:
 		dut.parse(din, ch)
+
+	for ch in [0, 1]:
 		assert dut.processed[ch] == expected
 
+# LIReader doesn't yet support compound operations(?)
+@pytest.mark.parametrize("_bin,proc,din,expected", procfmt_nocompound)
+def test_fast_procfmts(_bin, proc, din, expected):
+	dut = FastDataParser(True, True, _bin, [proc, proc], "", "", 0, 0, [2, 2], 0)
+
+	for ch in [0, 1]:
+		dut.parse(din, ch)
+
+	for ch in [0, 1]:
+		assert dut.processed[ch] == expected
 
 # File contents are hand-crafted, hence the small number of test cases!
 write_binfile_data = [
