@@ -121,11 +121,12 @@ class PIDController(_CoreOscilloscope):
 		# Particularly high or low I or D crossover frequencies (<1Hz, >1MHz) require that some of their gain is
 		# pushed to the overall gain on the end due to dynamic range limitations
 		fs = _PID_CONTROL_FS
+		cross_over_gain = kp if kp else 1
 
 		i_gmin = d_gmin = 1
 		i_gmax = d_gmax = 1
 		if i_xover:
-			i_unity = i_xover * kp
+			i_unity = i_xover * cross_over_gain
 			i_gmin = min(i_unity, 1)
 			i_gmax = max(i_unity / 1e6, 1)
 
@@ -146,7 +147,7 @@ class PIDController(_CoreOscilloscope):
 		else:
 			best_gain = 1
 
-		kp /= best_gain
+		cross_over_gain /= best_gain
 
 		ii_xover = None if i_xover is None else ii_xover
 		si = None if i_xover is None else si
@@ -154,18 +155,18 @@ class PIDController(_CoreOscilloscope):
 
 		if ii_xover :
 			if i_xover :
-				ki = math.sqrt(kp) * i_xover
-				kii = math.sqrt(kp) * ii_xover
+				ki = math.sqrt(cross_over_gain) * i_xover
+				kii = math.sqrt(cross_over_gain) * ii_xover
 			else:
 				ki = kii = 0
 		else:
 			if i_xover :
-				ki = kp * i_xover
+				ki = cross_over_gain * i_xover
 			else:
 				ki = 0
 			kii = 0
 
-		kd = kp / d_xover if d_xover else 0
+		kd = cross_over_gain / d_xover if d_xover else 0
 		si = si / best_gain if si else None
 		sd = sd / best_gain if sd else None
 
