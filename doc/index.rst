@@ -26,6 +26,7 @@ Contents
    specan
    phasemeter
    bodeanalyser
+   lockin
    iirfilterbox
    utils
 
