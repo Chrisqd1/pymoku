@@ -86,6 +86,7 @@ class StreamBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuI
 		:raises FrameTimeout: if the timeout expired
 		:raises InvalidOperationException: if there is no streaming session running
 		:raises ValueOutOfRangeException: invalid input parameters
+		:raises DataIntegrityException: If the network layer detects dropped data
 		"""
 		if timeout and timeout <= 0:
 			raise ValueOutOfRangeException("Timeout must be positive or 'None'")

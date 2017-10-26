@@ -383,7 +383,9 @@ class InputInstrument(_instrument.MokuInstrument):
 		"""
 			Gets raw samples off the network and parses them.
 
-			:raises NoDataException: if there is no more data to receive for the session.
+			:raises NoDataException: Once the stream terminates.
+			:raises FrameTimeout: If the network times out waiting for data.
+			:raises DataIntegrityException: If the network layer detects dropped data
 		"""
 		if not self._stream_net_is_running():
 			raise StreamException("No network stream is currently running.")
@@ -391,7 +393,7 @@ class InputInstrument(_instrument.MokuInstrument):
 		ch, start, coeff, raw = self._stream_get_samples_raw(timeout)
 
 		self._strparser.set_coeff(ch, coeff)
-		self._strparser.parse(raw, ch)
+		self._strparser.parse(raw, ch, start_idx=start)
 
 	def _stream_get_processed_samples(self):
 		"""
@@ -428,7 +430,9 @@ class InputInstrument(_instrument.MokuInstrument):
 			:type timeout: int
 			:param timeout: Timeout in seconds
 
-			:raises NoDataException: if the network times out waiting for samples.
+			:raises NoDataException: Once the stream terminates.
+			:raises FrameTimeout: If the network times out waiting for data.
+			:raises DataIntegrityException: If the network layer detects dropped data
 
 		"""
 		if self._dlskt in zmq.select([self._dlskt], [], [], timeout)[0]:
@@ -457,7 +461,7 @@ class InputInstrument(_instrument.MokuInstrument):
 		self._dlskt.connect("tcp://%s:27186" % self._moku._ip)
 		self._dlskt.setsockopt_string(zmq.SUBSCRIBE, tag)
 
-		self._strparser = dataparser.LIDataParser(self.ch1, self.ch2,
+		self._strparser = dataparser.FastDataParser(self.ch1, self.ch2,
 			self.binstr, self.procstr, self.fmtstr, self.hdrstr,
 			self.timestep, int(time.time()), [0] * self.nch,
 			0) # Zero offset from start time to first sample, valid for streams but not so much for single frame transfers
