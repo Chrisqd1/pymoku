@@ -102,7 +102,6 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		_CoreOscilloscope.set_defaults(self)
 
 		# Configure the low-pass filter
-
 		self.set_filter(1e3, 1, 1)
 		self.set_gain('aux',1.0)
 		self.set_pid_by_gain('main',1.0)
@@ -112,36 +111,33 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		self.set_demodulation('internal', 0, 90)
 		self.set_outputs('i','demod',0,0)
 		self.set_input_gain(0)
-		# self.output_decimation = 1
-		# self.output_bitshift = 0
 
 	@needs_commit
-	def set_input_gain(self, sel = '0dB'):
+	def set_input_gain(self, gain = 0):
 		"""
-
-		Selects the input gain
-
-		sel is one of:
-			- **-20dB**
-			- **0dB**
-			- **12dB**
-			-**24dB**
+		Set the main input gain (Input Channel 1).
+		
+		:type gain: int; {-20, 0, 24, 48} dB
+		:param gain: Input gain
 
 		"""
+		_utils.check_parameter_valid('set', gain, allowed=[-20,0,24,48], desc="main input gain", units="dB")
 		front_end_setting = self.get_frontend(1)
 
-		if sel == '0dB' :
+		if gain == 0:
 			self.input_gain_select = 0
 			self.set_frontend(1, fiftyr = front_end_setting[0], atten=False, ac = front_end_setting[2])
-		elif sel == '12dB' :
+		elif gain == 24:
 			self.input_gain_select = 1
 			self.set_frontend(1, fiftyr = front_end_setting[0], atten=False, ac = front_end_setting[2])
-		elif sel == '24dB' :
+		elif gain == 48:
 			self.input_gain_select = 2
 			self.set_frontend(1, fiftyr = front_end_setting[0], atten=False, ac = front_end_setting[2])
-		elif sel == '-20dB' :
+		elif gain == -20:
 			self.input_gain_select = 0
 			self.set_frontend(1, fiftyr = front_end_setting[0], atten=True, ac = front_end_setting[2])
+		else:
+			raise Exception("Invalid input gain value.")
 
 	@needs_commit
 	def set_outputs(self, main, aux, main_offset=0.0, aux_offset=0.0):

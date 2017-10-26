@@ -41,12 +41,12 @@ def check_parameter_valid(check_type, v, allowed=None, desc="", units="", allow_
 		try:
 			float(v)
 		except (ValueError, TypeError):
-			raise InvalidParameterException("Invalid parameter \'%s\': %s. Expected floating-point number." % (desc, v))
+			raise InvalidParameterException("Invalid parameter \'%s\': %s %s. Expected floating-point number." % (desc, v, units))
 	elif not isinstance(allowed, (list,tuple)):
-		raise InvalidParameterException("Invalid parameter 'allowed': %s. Expected array or tuple." % allowed)
+		raise InvalidParameterException("Invalid parameter 'allowed': %s %s. Expected array or tuple." % (allowed,units))
 	elif check_type == 'set':
 		if not (v in allowed):
-			raise InvalidParameterException("Invalid parameter \'%s\': %s. Valid set %s." % (desc, v, allowed))
+			raise InvalidParameterException("Invalid parameter \'%s\': %s. Valid set %s %s." % (desc, v, allowed, units))
 	elif check_type == 'range':
 		if not (len(allowed) == 2):
 			raise InvalidParameterException("Invalid allowed range %s. Expected [MIN,MAX]." % allowed)
