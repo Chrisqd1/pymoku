@@ -433,9 +433,14 @@ class WaveformGenerator(BasicWaveformGenerator):
 
 		"""
 		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
+		_utils.check_parameter_valid('set', mode, ['gated','start','ncycle','sweep'],'trigger mode')
+		_utils.check_parameter_valid('set', trigger_source, ['external','adc','dac','internal'],'trigger source')
 		_utils.check_parameter_valid('range', ncycles, [0,1e6],'output channel','frequency')
 		_utils.check_parameter_valid('range', sweep_duration, [0.0,1000.0],'sweep duration','seconds')
 		_utils.check_parameter_valid('range', internal_trig_period, [0,1e11],'internal trigger period','seconds')
+
+		# Can't use modulation with trigger/sweep modes
+		self.gen_modulate_off(ch)
 
 		## Configure trigger source settings:
 
@@ -491,18 +496,18 @@ class WaveformGenerator(BasicWaveformGenerator):
 			'gated' : _SG_TRIG_MODE_GATE,
 			'start' : _SG_TRIG_MODE_START,
 			'ncycle' : _SG_TRIG_MODE_NCYCLE,
-			'sweep'	: _SG_TRIG_MODE_SWEEP,
-			'off':	_SG_TRIG_MODE_OFF
+			'sweep'	: _SG_TRIG_MODE_SWEEP
+			#'off':	_SG_TRIG_MODE_OFF
 		}
 		mode = _utils.str_to_val(_str_to_trigger_mode, mode, 'trigger mode')
 
-		# Exit early if mode = off
-		if mode is _SG_TRIG_MODE_OFF:
-			if ch == 1:
-				self.trig_sweep_mode_ch1 = mode
-			else:
-				self.trig_sweep_mode_ch2 = mode
-			return None
+		# # Exit early if mode = off
+		# if mode is _SG_TRIG_MODE_OFF:
+		# 	if ch == 1:
+		# 		self.trig_sweep_mode_ch1 = mode
+		# 	else:
+		# 		self.trig_sweep_mode_ch2 = mode
+		# 	return None
 
 		# Pulse waveform edge must be minimum for gated burst mode and sweep mode:
 		if (mode is _SG_TRIG_MODE_GATE or mode is _SG_TRIG_MODE_SWEEP) and waveform != 0: #'sine':
@@ -560,6 +565,27 @@ class WaveformGenerator(BasicWaveformGenerator):
 				self.sweep_increment_ch2 = phase_increment
 
 	@needs_commit
+	def gen_trigger_off(self, ch=None):
+		"""
+		Turn off trigger/sweep mode for the specified output channel.
+
+		If *ch* is None (the default), both channels will be turned off,
+		otherwise just the one specified by the argument.
+
+		:type ch: int; {1,2} or None
+		:param ch: Output channel to turn trigger/sweep mode off
+		"""
+		_utils.check_parameter_valid('set', ch, [1,2],'output channel', allow_none=True)
+
+		if ch==1:
+			self.trig_sweep_mode_ch1 = 0
+		elif ch==2:
+			self.trig_sweep_mode_ch2 = 0
+		else:
+			self.trig_sweep_mode_ch1 = 0
+			self.trig_sweep_mode_ch2 = 0
+
+	@needs_commit
 	def gen_modulate_off(self, ch=None):
 		"""
 		Turn off modulation for the specified output channel.
@@ -602,6 +628,9 @@ class WaveformGenerator(BasicWaveformGenerator):
 		"""
 		_utils.check_parameter_valid('set', ch, [1,2],'output modulation channel')
 		_utils.check_parameter_valid('range', frequency, [0,250e6],'internal modulation frequency')
+
+		# Can't use trigger/sweep modes at the same time as modulation
+		self.gen_trigger_off(ch)
 
 		_str_to_modsource = {
 			'internal' : _SG_MODSOURCE_INT,
