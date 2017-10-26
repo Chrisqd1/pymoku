@@ -120,7 +120,7 @@ class LIDataFileReader(object):
 
 		self.records = [ [] for _ in range(self.nch)]
 
-		self.parser = LIDataParser(self.ch1, self.ch2, self.rec, self.proc, self.fmt, self.hdr, self.deltat, self.starttime, self.cal, self.startoffset)
+		self.parser = FastDataParser(self.ch1, self.ch2, self.rec, self.proc, self.fmt, self.hdr, self.deltat, self.starttime, self.cal, self.startoffset)
 
 
 	def _parse_v1_header(self):
