@@ -14,28 +14,51 @@ import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 
-logging.basicConfig(format='%(asctime)s:%(name)s:%(levelname)s::%(message)s')
-logging.getLogger('pymoku').setLevel(logging.DEBUG)
+#logging.basicConfig(format='%(asctime)s:%(name)s:%(levelname)s::%(message)s')
+#logging.getLogger('pymoku').setLevel(logging.DEBUG)
 
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
-m = Moku.get_by_name('Moku')
+m = Moku('192.168.69.120')
+
+ipad_reg_list =  m._read_regs(range(127))
+#for n,x in ipad_reg_list:
+#	print("%3d - %x" % (n,x))
 
 i = LockInAmp()
+
 m.deploy_instrument(i)
 
 try:
+
 	# Trigger on input Channel 1, rising edge, 0V with 0.1V hysteresis
-	i.set_trigger('in1', 'rising', 0, hysteresis=0.1)
+	# Remap the trigger function in the oscilloscope to be {'in1','in2','1','2'}
+	i.set_trigger('B', 'rising', 0)
 
 	 # View +- 0.1 second, i.e. trigger in the centre
-	i.set_timebase(-0.001, 0.001)
+	i.set_timebase(-1e-6, 1e-6)
 
 	# Monitor the input signal on CH1 and the PID output on CH2
-	i.set_monitor(1, 'i')
-	i.set_monitor(2, 'q')
 
-	i.set_lo_parameters(1e3, 0)
+	# These must change the scaling factor of the Oscilloscope, refer to IPad code
+	i.set_monitor('A', 'i')
+	i.set_monitor('B', 'aux')
+
+	i.set_demodulation('internal')
+
+	i.set_lo_output(1.0,1e6,0)
+
+	i.set_outputs(main='i',aux='demod')
+	i.set_gain('aux',1.0)
+	i.set_gain('main',1.0)
+	#i.set_pid_by_gain('main',1.0)
+
+	pymoku_reg_list =  m._read_regs(range(127))
+	print("		PYMOKU 					|  IPAD")
+	for n,x in pymoku_reg_list:
+		if pymoku_reg_list[n] != ipad_reg_list[n]:
+			print("{:3d} - {:032b} | {:032b}".format(n,x,ipad_reg_list[n][1]))
+	#i.set_lo_output(0.5, 1e3, 0)
 
 	# Get initial data frame to set up plotting parameters. This can be done once
 	# if we know that the axes aren't going to change (otherwise we'd do
@@ -65,6 +88,7 @@ try:
 		data = i.get_realtime_data()
 
 		# Update the plot
+		
 		line1.set_ydata(data.ch1)
 		line2.set_ydata(data.ch2)
 		line1.set_xdata(data.time)

@@ -12,6 +12,7 @@ from . import _arbwavegen
 from . import _stream_instrument
 from . import _frame_instrument
 from . import _input_instrument
+from . import _pid_controller
 from . import _iirfilterbox
 
 ''' Preferred import point. Aggregates the separate instruments and helper classes
@@ -33,6 +34,7 @@ SpectrumAnalyser = _specan.SpectrumAnalyser
 LockInAmp = _lockinamp.LockInAmp
 Datalogger = _datalogger.Datalogger
 BodeAnalyser = _bodeanalyser.BodeAnalyser
+PIDController = _pid_controller.PIDController
 ArbWaveGen = _arbwavegen.ArbWaveGen
 IIRFilterBox = _iirfilterbox.IIRFilterBox
 
@@ -41,7 +43,7 @@ id_table = {
 	2: SpectrumAnalyser,
 	3: Phasemeter,
 	4: WaveformGenerator,
-	5: None,
+	5: PIDController,
 	6: IIRFilterBox,
 	7: Datalogger,
 	8: LockInAmp,
