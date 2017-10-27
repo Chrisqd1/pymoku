@@ -813,12 +813,12 @@ class Moku(object):
 
 
 	def _fs_rename_status(self):
-		self._fs_send_generic(9, '')
+		self._fs_send_generic(9, b'')
 
 		try:
 			dat = self._fs_receive_generic(9)
 			stat = _ERR_OK
-		except NetworkError as e:
+		except MokuBusy as e:
 			dat = e.dat
 			stat = _ERR_BUSY
 
