@@ -2,7 +2,7 @@
 # pymoku example: Basic Datalogger
 #
 # This example demonstrates use of the Datalogger instrument to log time-series
-# voltage data to a (Binary or CSV) file. 
+# voltage data to a (Binary or CSV) file.
 #
 # (c) 2017 Liquid Instruments Pty. Ltd.
 #
@@ -47,7 +47,7 @@ try:
 	i.stop_data_log()
 
 except StreamException as e:
-	print("Error occured: %s" % e.message)
+	print("Error occured: %s" % e)
 finally:
 	# Close the connection to the Moku
 	m.close()
