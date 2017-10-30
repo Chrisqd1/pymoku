@@ -1032,7 +1032,7 @@ class Moku(object):
 		:returns: The detected instrument ready to be controlled, otherwise None.
 		"""
 		import pymoku.instruments
-		i = int(self._get_property_single('system.instrument'))
+		i = int(self._get_property_single('system.instrument').split('.')[0])
 		try:
 			instr = pymoku.instruments.id_table[i]
 		except KeyError:

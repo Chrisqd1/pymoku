@@ -28,7 +28,7 @@ class BonjourFinder(object):
 			if self.max_results and len(self.moku_list) >= self.max_results:
 				self.finished = True
 
-			self.queried.append(True)
+		self.queried.append(True)
 
 
 	def resolve_callback(self, sdRef, flags, interfaceIndex, errorCode, fullname,
@@ -44,25 +44,22 @@ class BonjourFinder(object):
 		txtRecord_dict = pybonjour.TXTRecord.parse(txtRecord)
 
 		# If specified, filter service by serial number (extracted from service metadata)
-		if self.filter_type=='serial' and self.filter_callback(txtRecord_dict)==False:
-			return
-
-		query_sdRef = \
-			pybonjour.DNSServiceQueryRecord(interfaceIndex = interfaceIndex,
-											fullname = hosttarget,
-											rrtype = pybonjour.kDNSServiceType_A,
-											callBack = self.query_record_callback)
-
-		try:
-			while not self.queried:
-				ready = select.select([query_sdRef], [], [], self.timeout)
-				if query_sdRef not in ready[0]:
-					break
-				pybonjour.DNSServiceProcessResult(query_sdRef)
-			else:
-				self.queried.pop()
-		finally:
-			query_sdRef.close()
+		if not(self.filter_type=='serial' and self.filter_callback(txtRecord_dict)==False):
+			query_sdRef = \
+				pybonjour.DNSServiceQueryRecord(interfaceIndex = interfaceIndex,
+												fullname = hosttarget,
+												rrtype = pybonjour.kDNSServiceType_A,
+												callBack = self.query_record_callback)
+			try:
+				while not self.queried:
+					ready = select.select([query_sdRef], [], [], self.timeout)
+					if query_sdRef not in ready[0]:
+						break
+					pybonjour.DNSServiceProcessResult(query_sdRef)
+				else:
+					self.queried.pop()
+			finally:
+				query_sdRef.close()
 
 		self.resolved.append(True)
 
