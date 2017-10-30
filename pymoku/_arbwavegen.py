@@ -135,15 +135,6 @@ class ArbWaveGen(_CoreOscilloscope):
 		"""
 		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
 
-		_str_to_mode = {
-			'1000' : _ARB_MODE_1000,
-			'500' : _ARB_MODE_500,
-			'250'	: _ARB_MODE_250,
-			'125'	: _ARB_MODE_125
-		}
-
-		mode = _utils.str_to_val(_str_to_mode, mode, "operating mode", allow_none=True)
-
 		if mode is None:
 			if len(data) <= 8192:
 				mode = '1000'
@@ -156,6 +147,15 @@ class ArbWaveGen(_CoreOscilloscope):
 			else:
 				raise ValueOutOfRangeException("Maximum data length is 65534 samples")
 
+		_str_to_mode = {
+			'1000' : _ARB_MODE_1000,
+			'500' : _ARB_MODE_500,
+			'250'	: _ARB_MODE_250,
+			'125'	: _ARB_MODE_125
+		}
+
+		mode = _utils.str_to_val(_str_to_mode, mode, "operating mode")
+		
 		self._set_mode(ch, mode, len(data))
 
 		# picks the stepsize and the steps based in the mode
