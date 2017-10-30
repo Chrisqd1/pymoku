@@ -347,6 +347,8 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 			level = (scales['gain_dac1'])*16
 		elif (source == _OSC_TRIG_DA2):
 			level = (scales['gain_dac2'])*16
+		else:
+			level = 1.0
 		return level
 
 	@needs_commit
@@ -470,6 +472,10 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		_utils.check_parameter_valid('bool', hysteresis, desc="enable hysteresis")
 		_utils.check_parameter_valid('range', level, [_OSC_TRIGLVL_MIN, _OSC_TRIGLVL_MAX], 'trigger level', 'Volts')
 		_utils.check_parameter_valid('bool', hf_reject, 'High-frequency reject enable')
+
+		# External trigger source is only available on Moku 20
+		if (self._moku.get_hw_version() == 1.0) and source == 'ext':
+			raise ValueOutOfRangeException('External trigger source is not available on your hardware.')
 
 		# Precision mode should be off if hysteresis is being used
 		#if self.ain_mode == _OSC_AIN_DECI and hysteresis > 0:
@@ -749,7 +755,7 @@ _osc_reg_handlers = {
 	'trig_edge':		(REG_OSC_TRIGCTL,	to_reg_unsigned(0, 2, allow_set=[_OSC_EDGE_RISING, _OSC_EDGE_FALLING, _OSC_EDGE_BOTH]),
 											from_reg_unsigned(0, 2)),
 
-	'trig_ch':			(REG_OSC_TRIGCTL,	to_reg_unsigned(4, 6, allow_set=[_OSC_TRIG_CH1, _OSC_TRIG_CH2, _OSC_TRIG_DA1, _OSC_TRIG_DA2]),
+	'trig_ch':			(REG_OSC_TRIGCTL,	to_reg_unsigned(4, 6, allow_set=[_OSC_TRIG_CH1, _OSC_TRIG_CH2, _OSC_TRIG_DA1, _OSC_TRIG_DA2, _OSC_TRIG_EXT]),
 											from_reg_unsigned(4, 6)),
 
 	'hf_reject':		(REG_OSC_TRIGCTL,	to_reg_bool(12),			from_reg_bool(12)),
