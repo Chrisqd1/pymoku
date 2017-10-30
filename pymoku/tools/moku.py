@@ -194,7 +194,10 @@ def main():
 	try:
 		args.func(moku, args)
 	finally:
-		moku.close()
+		try:
+			moku.close()
+		except zmq.error.Again:
+			pass # Firmware update can stop up being able to close
 
 # Compatible with direct run and distutils binary packaging
 if __name__ == '__main__':
