@@ -69,14 +69,14 @@ class BodeData(_frame_instrument.InstrumentData):
 	:any:`get_data <pymoku.instruments.BodeAnalyser.get_data>` on the associated :any:`BodeAnalyser`
 	instrument.
 
-	- ``ch1.magnitude`` = ``[CH1_MAG_DATA]`` 
-	- ``ch1.magnitude_dB`` = ``[CH1_MAG_DATA_DB]`` 
-	- ``ch1.phase`` = ``[CH1_PHASE_DATA]`` 
-	- ``ch2.magnitude`` = ``[CH2_MAG_DATA]`` 
-	- ``ch2.magnitude_dB`` = ``[CH2_MAG_DATA_DB]`` 
-	- ``ch2.phase`` = ``[CH2_PHASE_DATA]`` 
-	- ``frequency`` = ``[FREQ]`` 
-	- ``waveformid`` = ``n`` 
+	- ``ch1.magnitude`` = ``[CH1_MAG_DATA]``
+	- ``ch1.magnitude_dB`` = ``[CH1_MAG_DATA_DB]``
+	- ``ch1.phase`` = ``[CH1_PHASE_DATA]``
+	- ``ch2.magnitude`` = ``[CH2_MAG_DATA]``
+	- ``ch2.magnitude_dB`` = ``[CH2_MAG_DATA_DB]``
+	- ``ch2.phase`` = ``[CH2_PHASE_DATA]``
+	- ``frequency`` = ``[FREQ]``
+	- ``waveformid`` = ``n``
 
 	"""
 	def __init__(self, instrument, scales):
@@ -89,7 +89,8 @@ class BodeData(_frame_instrument.InstrumentData):
 		self.scales = scales
 
 	def __json__(self):
-		return { 'ch1' : self.ch1, 'ch2' : self.ch2, 'frequency' : self.frequency, 'waveform_id' : self.waveformid }
+		# Annoying this doesn't recursively-descend, I thought it did. Manually serialise the children for now
+		return { 'ch1' : self.ch1.__json__(), 'ch2' : self.ch2.__json__(), 'frequency' : self.frequency, 'waveform_id' : self.waveformid }
 
 	def process_complete(self):
 		super(BodeData, self).process_complete()
@@ -153,7 +154,7 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 		return sweep_freq_delta
 
 	def _calculate_freq_axis(self):
-		# Generates the frequency vector for plotting. 
+		# Generates the frequency vector for plotting.
 		f_start = self.sweep_freq_min
 		fs = []
 
@@ -258,7 +259,7 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 
 		:type averaging_cycles: int; cycles
 		:param averaging_cycles: Minimum averaging cycles per sweep point.
-		
+
 		:type settling_cycles: int; cycles
 		:param settling_cycles: Minimum settling cycles per sweep point.
 		"""
@@ -300,7 +301,7 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 
 	@needs_commit
 	def stop_sweep(self):
-		""" Stop sweeping. 
+		""" Stop sweeping.
 
 		This will stop new data frames from being received, so ensure you implement a timeout
 		on :any:`get_data<pymoku.instruments.BodeAnalyser.get_data>` calls. """
@@ -388,7 +389,7 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 		self.set_frontend(2, fiftyr=True, atten=False, ac=False)
 
 		self.set_sweep()
-		
+
 		# 100mVpp swept outputs
 		self.set_output(1,0.1)
 		self.set_output(2,0.1)
