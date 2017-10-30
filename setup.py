@@ -1,21 +1,69 @@
+import subprocess, os, os.path, sys
+
 from setuptools import setup, Extension
-import subprocess, os
+from setuptools.command.install import install
+from setuptools.command.develop import develop
+
+from pkg_resources import resource_filename, resource_isdir
+from tempfile import mkstemp
+from zipfile import ZipFile
 
 version = open('pymoku/version.txt').read().strip()
+data_url = 'http://www.liquidinstruments.com/s/data-latest.zip'
+
+try:
+	sys.argv.remove("--no-fetch-data")
+	fetch_bs = False
+except:
+	fetch_bs = True
+
+
+def download_bitstreams():
+	import requests
+	assert resource_isdir('pymoku', 'instr')
+	base_path = resource_filename('pymoku', 'instr')
+
+	data = mkstemp()
+
+	try:
+		r = requests.get(data_url)
+		os.write(data[0], r.content)
+		ZipFile(data[1]).extractall(base_path)
+
+		os.close(data[0])
+		os.remove(data[1])
+	except:
+		print("Failed to fetch updated instrument data, please re-run install with internet access or specify '--no-fetch-data' to disable this message.")
+		raise
+
+
+class InstallWithBitstreams(install):
+	def run(self):
+		install.run(self)
+		if fetch_bs:
+			download_bitstreams()
+
+class DevelopWithBitstreams(develop):
+	def run(self):
+		develop.run(self)
+		if fetch_bs:
+			download_bitstreams()
+
+j = os.path.join
 
 lr_ext = Extension(
 	'lr',
 	include_dirs=['liquidreader'],
 	sources=[
-		'liquidreader/lireader.c',
-		'liquidreader/liparse.c',
-		'liquidreader/liutility.c',
-		'liquidreader/linumber.c',
-		'liquidreader/capn.c',
-		'liquidreader/capn-malloc.c',
-		'liquidreader/capn-stream.c',
-		'liquidreader/li.capnp.c',
-		'lr_mod/lr_module.c',
+		j('liquidreader','lireader.c'),
+		j('liquidreader','liparse.c'),
+		j('liquidreader','liutility.c'),
+		j('liquidreader','linumber.c'),
+		j('liquidreader','capn.c'),
+		j('liquidreader','capn-malloc.c'),
+		j('liquidreader','capn-stream.c'),
+		j('liquidreader','li.capnp.c'),
+		j('lr_mod','lr_module.c'),
 	],
 	extra_compile_args=['-std=c99'],
 )
@@ -28,7 +76,7 @@ setup(
 	packages=['pymoku', 'pymoku.tools'],
 	package_dir={'pymoku': 'pymoku'},
 	package_data={
-		'pymoku' : ['version.txt', '*.capnp']
+		'pymoku' : ['version.txt', '*.capnp', j('instr', '.empty')]
 	},
 	license='MIT',
 	long_description="Python scripting interface to the Liquid Instruments Moku:Lab",
@@ -60,5 +108,10 @@ setup(
 		lr_ext,
 	],
 
-	zip_safe=False, # This isn't strictly true, but makes debugging easier on the device
+	cmdclass={
+		'install': InstallWithBitstreams,
+		'develop': DevelopWithBitstreams,
+	},
+
+	zip_safe=False, # Due to bitstream download
 )

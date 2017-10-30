@@ -19,35 +19,28 @@ parser.add_argument('--name', default=None, help="Name of the Moku to connect to
 parser.add_argument('--ip', default=None, help="IP Address of the Moku to connect to")
 
 # View and load new instrument bitstreams
-def instrument(args):
-	try:
-		moku = connect(args)
-		if args.action == 'list':
-			instrs = moku._list_bitstreams(include_version=True)
+def instrument(moku, args):
+	if args.action == 'list':
+		instrs = moku._list_bitstreams(include_version=True)
 
-			if len(instrs):
-				print("The following instruments are available on your Moku:")
-				for i in instrs:
-					print('\t{}-{}'.format(i[0], i[1][:8]))
-			else:
-				print("No instruments found on your Moku.")
-		elif args.action == 'load':
-			if not len(args.files):
-				print("No instrument files specified for loading")
-				return
-
-			for file in args.files:
-				if not file.endswith('bit'):
-					print('Package load requires a BIT file to be specified')
-					return
-
-				fname = os.path.basename(file)
-				chk = moku._load_bitstream(file)
-				print("Successfully loaded new instrument {} version {:X}".format(fname, chk))
+		if len(instrs):
+			print("The following instruments are available on your Moku:")
+			for i in instrs:
+				print('\t{}-{}'.format(i[0], i[1][:8]))
 		else:
-			exit(1)
-	finally:
-		moku.close()
+			print("No instruments found on your Moku.")
+	elif args.action == 'load':
+		if not len(args.files):
+			print("No instrument files specified for loading")
+			return
+
+		for file in args.files:
+			fname = os.path.basename(file)
+			chk = moku._load_bitstream(file)
+			print("Successfully loaded new instrument {} version {}".format(fname, chk))
+
+	else:
+		exit(1)
 
 parser_instruments = subparsers.add_parser('instrument', help="Check and update instruments on the Moku.")
 parser_instruments.add_argument('action', help='Action to take', choices=['list', 'load'])
@@ -132,7 +125,14 @@ def connect(args, force=False):
 		moku = Moku.get_by_name(args.name)
 	else:
 		moku = Moku(args.ip, force=force)
-	return moku
+
+	try:
+		args.func(moku, args)
+	finally:
+		try:
+			moku.close()
+		except zmq.error.Again:
+			pass # Firmware update can stop us being able to close
 
 # Compatible with direct run and distutils binary packaging
 if __name__ == '__main__':

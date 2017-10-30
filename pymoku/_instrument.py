@@ -21,6 +21,7 @@ REG_AINCTL	= 13
 REG_PRETRIG	= 15
 REG_CAL_ADC0, REG_CAL_ADC1, REG_CAL_DAC0, REG_CAL_DAC1 = list(range(16, 20))
 REG_TEMP_DAC = 14
+REG_MMAP_ACCESS = 62
 REG_STATE	= 63
 
 # Common instrument parameters
@@ -261,7 +262,7 @@ def needs_commit(func, self, *args, **kwargs):
 			res = func(self, *args, **kwargs)
 		finally:
 			# Do this even if the function raises an Exception
-			
+
 			# Commit if we weren't already waiting for one before
 			if not was_awaiting:
 				self.commit()
@@ -349,7 +350,7 @@ class MokuInstrument(object):
 
 		# These may be called again in the instrument's implementation to overwrite this,
 		# however they must be called at least once to load the initial calibration values
-		self._set_frontend(1, fiftyr=True, atten=False, ac=False) 
+		self._set_frontend(1, fiftyr=True, atten=False, ac=False)
 		self._set_frontend(2, fiftyr=True, atten=False, ac=False)
 
 
@@ -500,13 +501,9 @@ class MokuInstrument(object):
 			g1 = g2 = 1
 			gt1 = gt2 = 0
 
-		log.debug("DAC gain values for sections %s, %s, %s, %s = %f, %f, %f, %f", g1s, g2s, gt1s, gt2s, g1, g2, gt1, gt2)
-
 		# For now, assume a fixed 48 degrees C board temperature. In future, should read temperature registers
 		g1 += gt1 * 48.0
 		g2 += gt2 * 48.0
-
-		log.debug("Calculated temperature corrected gains as %f, %f", g1, g2)
 
 		# The sense of these parameters as used in pymoku is inverted from the storage on the Moku
 		g1 = 1 / g1
@@ -529,8 +526,6 @@ class MokuInstrument(object):
 			log.warning("Moku appears uncalibrated")
 			o1 = o2 = 0
 			ot1 = ot2 = 0
-
-		log.debug("DAC offset values for sections %s, %s, %s, %s = %f, %f, %f, %f", o1s, o2s, ot1s, ot2s, o1, o2, ot1, ot2)
 
 		return o1, ot1, o2, ot2
 
@@ -560,13 +555,9 @@ class MokuInstrument(object):
 			g1 = g2 = 1
 			gt1 = gt2 = 0
 
-		log.debug("ADC gain values for sections %s, %s, %s, %s = %f, %f, %f, %f", g1s, g2s, gt1s, gt2s, g1, g2, gt1, gt2)
-
 		# For now, assume a fixed 48 degrees C board temperature. In future, should read temperature registers
 		g1 += gt1 * 48.0
 		g2 += gt2 * 48.0
-
-		log.debug("Calculated temperature corrected gains as %f, %f", g1, g2)
 
 		# The sense of these parameters as used in pymoku is inverted from the storage on the Moku
 		g1 = 1 / g1
@@ -599,8 +590,6 @@ class MokuInstrument(object):
 			o1 = o2 = 0
 			ot1 = ot2 = 0
 
-		log.debug("ADC offset values for sections %s, %s, %s, %s = %f, %f, %f, %f", o1s, o2s, ot1s, ot2s, o1, o2, ot1, ot2)
-
 		return o1, ot1, o2, ot2
 
 	@needs_commit
@@ -613,6 +602,11 @@ class MokuInstrument(object):
 	def _load_feature(self, index):
 		# For now we don't support switching clock modes during a partial deploy
 		self._moku._deploy(use_external=self._moku.external_reference, partial_index=index)
+
+	@needs_commit
+	def _set_mmap_access(self, access):
+		self.mmap_access = access
+
 
 
 
@@ -680,6 +674,7 @@ _instr_reg_handlers = {
 
 	'state_id':			(REG_STATE,	 	to_reg_unsigned(0, 8),		from_reg_unsigned(0, 8)),
 	'state_id_alt':		(REG_STATE,	 	to_reg_unsigned(16, 8),		from_reg_unsigned(16, 8)),
+	'mmap_access':		(REG_MMAP_ACCESS,		to_reg_bool(0),			from_reg_bool(0)),
 	'temp_dac':			(REG_TEMP_DAC,	None,		from_reg_signed(0, 12, xform=lambda obj, f: f * 0.0625)),
 	'temp_adc':			(REG_AINCTL,	None,		from_reg_signed(20, 12, xform=lambda obj, f: f * 0.0625)),
 }

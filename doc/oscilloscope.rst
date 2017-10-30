@@ -13,9 +13,9 @@ Example Usage
 
 For an in-depth walkthrough on using the pymoku Oscilloscope Instrument, see the `pymoku Oscilloscope tutorial <https://liquidinstruments.atlassian.net/wiki/display/MCS/The+Oscilloscope>`_. For the following example code and a wide range of other pymoku demo scripts, see the `pymoku example repository <https://anaconda.org/liquidinstruments/pymoku-examples/files>`_.
 
-.. literalinclude:: ../examples/basic_oscilloscope.py
+.. literalinclude:: ../examples/oscilloscope_basic.py
 	:language: python
-	:caption: basic_oscilloscope.py
+	:caption: oscilloscope_basic.py
 
 The VoltsData Class
 --------------------

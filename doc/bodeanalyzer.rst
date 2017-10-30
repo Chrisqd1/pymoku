@@ -1,5 +1,5 @@
 
-Bode Analyser Instrument
+Bode Analyzer Instrument
 ============================
 
 This instrument measures the transfer function of a system by generating a swept output sinewave and measuring the system response on the input. 
@@ -9,9 +9,9 @@ Example Usage
 
 For the following example code and a wide range of other pymoku demo scripts, see the `pymoku example repository <https://anaconda.org/liquidinstruments/pymoku-examples>`_.
 
-.. literalinclude:: ../examples/basic_bodeanalyser.py
+.. literalinclude:: ../examples/bodeanalyzer_basic.py
 	:language: python
-	:caption: basic_bodeanalyser.py
+	:caption: bodeanalyzer_basic.py
 
 The BodeData Class
 -----------------------
@@ -21,9 +21,9 @@ The BodeData Class
 	.. Don't use :members: as it doesn't handle instance attributes well. Directives in the source code list required attributes directly.
 
 
-The BodeAnalyser Class
+The BodeAnalyzer Class
 --------------------------
 
-.. autoclass:: pymoku.instruments.BodeAnalyser
+.. autoclass:: pymoku.instruments.BodeAnalyzer
 	:members:
 	:inherited-members:

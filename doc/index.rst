@@ -25,7 +25,9 @@ Contents
    wavegen
    specan
    phasemeter
-   bodeanalyser
+   bodeanalyzer
+   lockin
+   iirfilterbox
    utils
 
 

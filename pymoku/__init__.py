@@ -1,7 +1,9 @@
 import socket, select, struct, logging
-import os.path
+import os, os.path
 import zmq
 import pymoku.version
+
+import pkg_resources
 
 from pymoku.tools import compat as cp
 
@@ -11,6 +13,8 @@ try:
 	from .finders import BonjourFinder
 except Exception as e:
 	log.warning("Can't import the Bonjour libraries, I won't be able to automatically detect Mokus ({:s}).  Please install DNSSD libraries (e.g. libavahi-dnssd-compat on Linux)".format(str(e)))
+
+from . import dataparser
 
 class MokuException(Exception):	"""Base class for other Exceptions""";	pass
 class MokuNotFound(MokuException): """Can't find Moku. Raised from discovery factory functions."""; pass
@@ -37,12 +41,21 @@ class MokuBusy(MokuException): """The Moku is busy"""; pass
 class UncommittedSettings(MokuException): """Instrument settings are awaiting commit."""; pass
 
 
+# Re-export the exceptions that get raised by instruments, that aren't part of the instruments themselves.
+# XXX: Don't love it..
+InvalidFormatException = dataparser.InvalidFormatException
+InvalidFileException = dataparser.InvalidFileException
+DataIntegrityException = dataparser.DataIntegrityException
+
 autocommit = True
 def _get_autocommit():
 	return autocommit
 def _set_autocommit(enable):
 	global autocommit
 	autocommit = enable
+
+# Allow environment variable override of bitstream path
+data_folder = os.path.expanduser(os.environ.get('PYMOKU_INSTR_PATH', None) or pkg_resources.resource_filename('pymoku', 'data'))
 
 # Network status codes
 _ERR_OK = 0
@@ -68,11 +81,14 @@ class Moku(object):
 	"""
 	PORT = 27184
 
-	def __init__(self, ip_addr, force=False):
+	def __init__(self, ip_addr, load_instruments=None, force=False):
 		"""Create a connection to the Moku:Lab unit at the given IP address
 
 		:type ip_addr: string
 		:param ip_addr: The address to connect to. This should be in IPv4 dotted notation.
+
+		:type load_instruments: bool
+		:param load_instruments: Leave *True* unless you know what you're doing.
 
 		:type force: bool
 		:param force: Ignore firmware compatibility checks and force the instrument to deploy. 
@@ -99,6 +115,8 @@ class Moku(object):
 			build = self.get_firmware_build()
 			if cp.firmware_is_compatible(build) == False: # Might be None = unknown, don't print that.
 				raise MokuException("The connected Moku appears to be incompatible with this version of pymoku. Please run 'moku --ip={} firmware check_compat' for more information.".format(self._ip))
+
+		self.load_instruments = load_instruments or self.get_bootmode() == 'normal'
 
 	@staticmethod
 	def list_mokus(timeout=5, all_versions=True):
@@ -133,7 +151,7 @@ class Moku(object):
 		return known_mokus
 
 	@staticmethod
-	def get_by_ip(ip_addr, timeout=10, force=False):
+	def get_by_ip(ip_addr, timeout=10, force=False, *args, **kwargs):
 		"""
 		Factory function, returns a :any:`Moku` instance with the given IP address.
 
@@ -144,6 +162,8 @@ class Moku(object):
 		:param ip_addr: target IP address
 		:type timeout: float
 		:param timeout: operation timeout
+		:type force: bool
+		:param force: Ignore firmware compatibility checks and force the instrument to deploy. 
 		:rtype: :any:`Moku`
 		:return: Moku with given IP address
 		:raises *MokuNotFound*: if no such Moku is found within the timeout"""
@@ -153,12 +173,12 @@ class Moku(object):
 		mokus = BonjourFinder().find_all(max_results=1, filter_type='ip', filter_callback=_filter, timeout=timeout)
 
 		if len(mokus):
-			return Moku(mokus[0], force=force)
+			return Moku(mokus[0], force=force, *args, **kwargs)
 
 		raise MokuNotFound("Couldn't find Moku: %s" % ip_addr)
 
 	@staticmethod
-	def get_by_serial(serial, timeout=10, force=False):
+	def get_by_serial(serial, timeout=10, force=False, *args, **kwargs):
 		"""
 		Factory function, returns a :any:`Moku` instance with the given Serial number.
 
@@ -166,6 +186,8 @@ class Moku(object):
 		:param ip_addr: target serial
 		:type timeout: float
 		:param timeout: operation timeout
+		:type force: bool
+		:param force: Ignore firmware compatibility checks and force the instrument to deploy. 
 		:rtype: :any:`Moku`
 		:return: Moku with given serial number
 		:raises *MokuNotFound*: if no such Moku is found within the timeout"""
@@ -178,12 +200,13 @@ class Moku(object):
 		mokus = BonjourFinder().find_all(max_results=1, filter_type='serial', filter_callback=_filter, timeout=timeout)
 
 		if len(mokus):
-			return Moku(mokus[0], force=force)
+			return Moku(mokus[0], force=force, *args, **kwargs)
 
 		raise MokuNotFound("Couldn't find Moku: %s" % serial)
 
 	@staticmethod
-	def get_by_name(name, timeout=10, force=False):
+	def get_by_name(name, timeout=10, force=False, *args, **kwargs):
+
 		"""
 		Factory function, returns a :any:`Moku` instance with the given name.
 
@@ -191,6 +214,8 @@ class Moku(object):
 		:param ip_addr: target device name
 		:type timeout: float
 		:param timeout: operation timeout
+		:type force: bool
+		:param force: Ignore firmware compatibility checks and force the instrument to deploy. 
 		:rtype: :any:`Moku`
 		:return: Moku with given device name
 		:raises *MokuNotFound*: if no such Moku is found within the timeout"""
@@ -200,7 +225,7 @@ class Moku(object):
 		mokus = BonjourFinder().find_all(max_results=1, filter_type='name', filter_callback=_filter, timeout=timeout)
 
 		if len(mokus):
-			return Moku(mokus[0], force=force)
+			return Moku(mokus[0], force=force, *args, **kwargs)
 
 		raise MokuNotFound("Couldn't find Moku: %s" % name)
 
@@ -223,7 +248,8 @@ class Moku(object):
 
 	def _ownership(self, t, flags):
 		name = socket.gethostname()[:255]
-		packet_data = struct.pack("<BBB", t, len(name) + 1, flags) + name.encode('ascii')
+		#packet_data = struct.pack("<BBB", t, len(name) + 1, flags) + name.encode('ascii')
+		packet_data = struct.pack("<BB", t, flags)
 		self._conn.send(packet_data)
 
 		ack = self._conn.recv()
@@ -327,17 +353,17 @@ class Moku(object):
 
 
 
-	def _deploy(self, partial_index=0, use_external=False):
+	def _deploy(self, sub_index=0, is_partial=False, use_external=False):
 		if self._instrument is None:
 			DeployException("No Instrument Selected")
 
 		# Deploy doesn't return until the deploy has completed which can take several
 		# seconds on the device. Set an appropriately long timeout for this case.
 		self._set_timeout(short=False)
-		if partial_index < 0 or partial_index > 2**7:
-			raise DeployException("Invalid partial index %d" % partial_index)
+		if sub_index < 0 or sub_index > 2**7:
+			raise DeployException("Invalid sub-index %d" % sub_index)
 
-		flags = partial_index << 2 | int(use_external)
+		flags = (sub_index << 2) | (int(is_partial) << 1) | int(use_external)
 
 		self._conn.send(bytearray([0x43, self._instrument.id, flags]))
 		ack = self._conn.recv()
@@ -650,7 +676,7 @@ class Moku(object):
 
 		# Once all chunks have been uploaded, finalise the file on the
 		# device making it available for use
-		self._fs_finalise_fromlocal(mp, localname)
+		self._fs_finalise_fromlocal(mp, localname, remotename)
 
 		return remotename
 
@@ -763,9 +789,9 @@ class Moku(object):
 		reply = self._fs_receive_generic(7)
 
 
-	def _fs_finalise_fromlocal(self, mp, localname):
+	def _fs_finalise_fromlocal(self, mp, localname, remotename=None):
 		fsize = os.path.getsize(localname)
-		remotename = os.path.basename(localname)
+		remotename = remotename or os.path.basename(localname)
 
 		return self._fs_finalise(mp, remotename, fsize)
 
@@ -786,12 +812,12 @@ class Moku(object):
 
 
 	def _fs_rename_status(self):
-		self._fs_send_generic(9, '')
+		self._fs_send_generic(9, b'')
 
 		try:
 			dat = self._fs_receive_generic(9)
 			stat = _ERR_OK
-		except NetworkError as e:
+		except MokuBusy as e:
 			dat = e.dat
 			stat = _ERR_BUSY
 
@@ -811,7 +837,7 @@ class Moku(object):
 	def _delete_file(self, mp, path):
 		self._fs_finalise(mp, path, 0)
 
-	def _load_bitstream(self, path, remotename=None):
+	def _load_bitstream(self, path, instr_id=None, sub_id=0):
 		"""
 		Load a bitstream file to the Moku, ready for deployment.
 
@@ -820,31 +846,24 @@ class Moku(object):
 
 		:raises NetworkError: if the upload fails verification.
 		"""
-		return self._load_persistent(path, remotename, mp='b')
-
-	def _load_persistent(self, path, remotename=None, mp='p'):
 		import zlib
+		mp = 'b'
 
-		rname = self._send_file(mp, path, remotename)
+		localname = os.path.basename(path)
 
-		log.debug("Verifying upload")
+		if instr_id is not None:
+			remotename = "{:03d}.{:03d}".format(instr_id, sub_id)
+		elif localname.count('.') == 2:
+			remotename = localname[localname.index('.') + 1:]
+		else:
+			remotename = None
 
-		chk = self._fs_chk(mp, rname)
+		remotename = self._send_file(mp, path, remotename)
 
-		with open(path, 'rb') as fp:
-			chk2 = zlib.crc32(fp.read()) & 0xffffffff
-
-		if chk != chk2:
-			raise NetworkError("Bitstream upload failed checksum verification.")
-
-		return chk
-
-	def _list_persistent(self):
-		fs = self._fs_list('p')
-		return list(zip(*fs))[0]
+		return self._fs_sha('b', remotename)
 
 	def _list_bitstreams(self, include_version=True):
-		fs = self._fs_list('p', calculate_sha=include_version)
+		fs = self._fs_list('b', calculate_sha=include_version)
 
 		if include_version:
 			return [(b.split('.')[0], c) for b, c, s in fs if b.endswith('.bit')]
@@ -872,7 +891,11 @@ class Moku(object):
 		log.debug("Sending firmware file")
 		self._send_file('f', path, 'moku.fw')
 		log.debug("Updating firmware")
-		self._trigger_fwload()
+		try:
+			self._trigger_fwload()
+		except zmq.error.Again:
+			# Sometimes the network connection goes down before the ack can be received
+			pass
 
 	def get_ip(self):
 		""" :return: IP address of the connected Moku:Lab """
@@ -896,6 +919,10 @@ class Moku(object):
 		""" :return: Version of connected Moku:Lab """
 		return version.release
 
+	def get_hw_version(self):
+		""" :return: Hardware version of connected Moku:Lab """
+		return float(self._get_property_single('device.hw_version'))
+
 	def set_name(self, name):
 		""" :param name: Set new name for the Moku:Lab. This can make it easier to discover the device if multiple Moku:Labs are on a network"""
 		self.name = self._set_property_single('system.name', name)
@@ -904,6 +931,10 @@ class Moku(object):
 		""" :return: The colour of the under-Moku "UFO" ring lights"""
 		self.led = self._get_property_single('leds.ufo1')
 		return self.led
+
+	def get_bootmode(self):
+		""" :return: A string representing the boot mode of the attached Moku:Lab """
+		return self._get_property_single('system.bootmode')
 
 	def set_led_colour(self, colour):
 		"""
@@ -953,7 +984,20 @@ class Moku(object):
 		self._instrument = instrument
 		self._instrument.attach_moku(self)
 
-		bsv = self._deploy(partial_index=0, use_external=use_external)
+		if self.load_instruments:
+			log.debug("Loading instrument")
+			try:
+				# HW version 2.0, instrument 1 -> 20.001.000 (no partial/sub-id support)
+				bs_name = "{:02d}.{:03d}.000".format(int(self.get_hw_version() * 10), instrument.id)
+				bs_path = os.path.join(data_folder, bs_name)
+				self._load_bitstream(bs_path, instrument.id)
+				log.debug("Load complete.")
+			except:
+				log.exception("Unable to automatically load instrument, deploy may fail")
+		else:
+			log.info("Moku in development mode, no instrument upload.")
+
+		bsv = self._deploy(use_external=use_external)
 		log.debug("Bitstream version %d", bsv)
 		self._instrument._set_running(True)
 		self._instrument._set_instrument_active(True)

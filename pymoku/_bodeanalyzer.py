@@ -63,20 +63,20 @@ class BodeData(_frame_instrument.InstrumentData):
 	"""
 	Object representing a frame of dual-channel (amplitude and phase) vs frequency response data.
 
-	This is the native output format of the :any:`BodeAnalyser` instrument.
+	This is the native output format of the :any:`BodeAnalyzer` instrument.
 
 	This object should not be instantiated directly, but will be returned by a call to
-	:any:`get_data <pymoku.instruments.BodeAnalyser.get_data>` on the associated :any:`BodeAnalyser`
+	:any:`get_data <pymoku.instruments.BodeAnalyzer.get_data>` on the associated :any:`BodeAnalyzer`
 	instrument.
 
-	- ``ch1.magnitude`` = ``[CH1_MAG_DATA]`` 
-	- ``ch1.magnitude_dB`` = ``[CH1_MAG_DATA_DB]`` 
-	- ``ch1.phase`` = ``[CH1_PHASE_DATA]`` 
-	- ``ch2.magnitude`` = ``[CH2_MAG_DATA]`` 
-	- ``ch2.magnitude_dB`` = ``[CH2_MAG_DATA_DB]`` 
-	- ``ch2.phase`` = ``[CH2_PHASE_DATA]`` 
-	- ``frequency`` = ``[FREQ]`` 
-	- ``waveformid`` = ``n`` 
+	- ``ch1.magnitude`` = ``[CH1_MAG_DATA]``
+	- ``ch1.magnitude_dB`` = ``[CH1_MAG_DATA_DB]``
+	- ``ch1.phase`` = ``[CH1_PHASE_DATA]``
+	- ``ch2.magnitude`` = ``[CH2_MAG_DATA]``
+	- ``ch2.magnitude_dB`` = ``[CH2_MAG_DATA_DB]``
+	- ``ch2.phase`` = ``[CH2_PHASE_DATA]``
+	- ``frequency`` = ``[FREQ]``
+	- ``waveformid`` = ``n``
 
 	"""
 	def __init__(self, instrument, scales):
@@ -89,7 +89,8 @@ class BodeData(_frame_instrument.InstrumentData):
 		self.scales = scales
 
 	def __json__(self):
-		return { 'ch1' : self.ch1, 'ch2' : self.ch2, 'frequency' : self.frequency, 'waveform_id' : self.waveformid }
+		# Annoying this doesn't recursively-descend, I thought it did. Manually serialise the children for now
+		return { 'ch1' : self.ch1.__json__(), 'ch2' : self.ch2.__json__(), 'frequency' : self.frequency, 'waveform_id' : self.waveformid }
 
 	def process_complete(self):
 		super(BodeData, self).process_complete()
@@ -121,25 +122,25 @@ class BodeData(_frame_instrument.InstrumentData):
 
 		except (IndexError, TypeError, struct.error):
 			# If the data is bollocksed, force a reinitialisation on next packet
-			log.exception("Invalid Bode Analyser packet")
+			log.exception("Invalid Bode Analyzer packet")
 			self.frameid = None
 			self.complete = False
 
 		# A valid frame is there's at least one valid sample in each channel
 		return self.ch1 and self.ch2
 
-class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
-	""" Bode Analyser instrument object. This should be instantiated and attached to a :any:`Moku` instance.
+class BodeAnalyzer(_frame_instrument.FrameBasedInstrument):
+	""" Bode Analyzer instrument object. This should be instantiated and attached to a :any:`Moku` instance.
 	"""
 	def __init__(self):
-		super(BodeAnalyser, self).__init__()
+		super(BodeAnalyzer, self).__init__()
 		self._register_accessors(_na_reg_handlers)
 
 		self.scales = {}
 		self._set_frame_class(BodeData, instrument=self, scales=self.scales)
 
 		self.id = 9
-		self.type = "BodeAnalyser"
+		self.type = "bodeanalyzer"
 
 		self.sweep_amp_volts_ch1 = 0
 		self.sweep_amp_volts_ch2 = 0
@@ -153,7 +154,7 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 		return sweep_freq_delta
 
 	def _calculate_freq_axis(self):
-		# Generates the frequency vector for plotting. 
+		# Generates the frequency vector for plotting.
 		f_start = self.sweep_freq_min
 		fs = []
 
@@ -258,7 +259,7 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 
 		:type averaging_cycles: int; cycles
 		:param averaging_cycles: Minimum averaging cycles per sweep point.
-		
+
 		:type settling_cycles: int; cycles
 		:param settling_cycles: Minimum settling cycles per sweep point.
 		"""
@@ -300,10 +301,10 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 
 	@needs_commit
 	def stop_sweep(self):
-		""" Stop sweeping. 
+		""" Stop sweeping.
 
 		This will stop new data frames from being received, so ensure you implement a timeout
-		on :any:`get_data<pymoku.instruments.BodeAnalyser.get_data>` calls. """
+		on :any:`get_data<pymoku.instruments.BodeAnalyzer.get_data>` calls. """
 		self.single_sweep = self.loop_sweep = False
 
 	def _restart_sweep(self):
@@ -374,8 +375,8 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 
 	@needs_commit
 	def set_defaults(self):
-		""" Reset the Bode Analyser to sane defaults """
-		super(BodeAnalyser, self).set_defaults()
+		""" Reset the Bode Analyzer to sane defaults """
+		super(BodeAnalyzer, self).set_defaults()
 		self.frame_length = _NA_SCREEN_WIDTH
 
 		self.x_mode = FULL_FRAME
@@ -388,7 +389,7 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 		self.set_frontend(2, fiftyr=True, atten=False, ac=False)
 
 		self.set_sweep()
-		
+
 		# 100mVpp swept outputs
 		self.set_output(1,0.1)
 		self.set_output(2,0.1)
@@ -397,15 +398,15 @@ class BodeAnalyser(_frame_instrument.FrameBasedInstrument):
 
 	def get_data(self, timeout=None, wait=True):
 		""" Get current sweep data.
-		In the BodeAnalyser this is an alias for ``get_realtime_data`` as the data
+		In the BodeAnalyzer this is an alias for ``get_realtime_data`` as the data
 		is never downsampled. """
-		return super(BodeAnalyser, self).get_realtime_data(timeout, wait)
+		return super(BodeAnalyzer, self).get_realtime_data(timeout, wait)
 
 	def commit(self):
 		# Restart the sweep as instrument settings are being changed
 		self._restart_sweep()
 
-		super(BodeAnalyser, self).commit()
+		super(BodeAnalyzer, self).commit()
 
 		# Update the scaling factors for processing of incoming frames
 		# stateid allows us to track which scales correspond to which register state

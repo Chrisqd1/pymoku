@@ -1,22 +1,22 @@
 #
-# pymoku example: Basic Spectrum Analyser
+# pymoku example: Basic Spectrum Analyzer
 #
-# This example demonstrates how you can use the Spectrum Analyser instrument to
+# This example demonstrates how you can use the Spectrum Analyzer instrument to
 # to retrieve a single spectrum data frame over a set frequency span.
 #
 # (c) 2017 Liquid Instruments Pty. Ltd.
 #
 from pymoku import *
-from pymoku.instruments import SpectrumAnalyser
+from pymoku.instruments import SpectrumAnalyzer
 
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
 
-# Prepare the Spectrum Analyser instrument
-i = SpectrumAnalyser()
+# Prepare the Spectrum Analyzer instrument
+i = SpectrumAnalyzer()
 
-# Deploy the Spectrum Analyser to your Moku
+# Deploy the Spectrum Analyzer to your Moku
 m.deploy_instrument(i)
 
 try:
