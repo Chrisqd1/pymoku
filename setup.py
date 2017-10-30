@@ -49,21 +49,21 @@ class DevelopWithBitstreams(develop):
 		if fetch_bs:
 			download_bitstreams()
 
-
+j = os.path.join
 
 lr_ext = Extension(
 	'lr',
 	include_dirs=['liquidreader'],
 	sources=[
-		'liquidreader/lireader.c',
-		'liquidreader/liparse.c',
-		'liquidreader/liutility.c',
-		'liquidreader/linumber.c',
-		'liquidreader/capn.c',
-		'liquidreader/capn-malloc.c',
-		'liquidreader/capn-stream.c',
-		'liquidreader/li.capnp.c',
-		'lr_mod/lr_module.c',
+		j('liquidreader','lireader.c'),
+		j('liquidreader','liparse.c'),
+		j('liquidreader','liutility.c'),
+		j('liquidreader','linumber.c'),
+		j('liquidreader','capn.c'),
+		j('liquidreader','capn-malloc.c'),
+		j('liquidreader','capn-stream.c'),
+		j('liquidreader','li.capnp.c'),
+		j('lr_mod','lr_module.c'),
 	],
 	extra_compile_args=['-std=c99'],
 )
@@ -76,7 +76,7 @@ setup(
 	packages=['pymoku', 'pymoku.tools'],
 	package_dir={'pymoku': 'pymoku'},
 	package_data={
-		'pymoku' : ['version.txt', '*.capnp', 'instr/']
+		'pymoku' : ['version.txt', '*.capnp', j('instr', '.empty')]
 	},
 	license='MIT',
 	long_description="Python scripting interface to the Liquid Instruments Moku:Lab",

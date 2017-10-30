@@ -13,6 +13,8 @@ try:
 except Exception as e:
 	log.warning("Can't import the Bonjour libraries, I won't be able to automatically detect Mokus ({:s}).  Please install DNSSD libraries (e.g. libavahi-dnssd-compat on Linux)".format(str(e)))
 
+from . import dataparser
+
 class MokuException(Exception):	"""Base class for other Exceptions""";	pass
 class MokuNotFound(MokuException): """Can't find Moku. Raised from discovery factory functions."""; pass
 class NetworkError(MokuException): """Network connection to Moku failed"""; pass
@@ -37,6 +39,12 @@ class UnknownAction(MokuException): """The request was unknown"""; pass
 class MokuBusy(MokuException): """The Moku is busy"""; pass
 class UncommittedSettings(MokuException): """Instrument settings are awaiting commit."""; pass
 
+
+# Re-export the exceptions that get raised by instruments, that aren't part of the instruments themselves.
+# XXX: Don't love it..
+InvalidFormatException = dataparser.InvalidFormatException
+InvalidFileException = dataparser.InvalidFileException
+DataIntegrityException = dataparser.DataIntegrityException
 
 autocommit = True
 def _get_autocommit():
@@ -134,7 +142,7 @@ class Moku(object):
 		return known_mokus
 
 	@staticmethod
-	def get_by_ip(ip_addr, timeout=10):
+	def get_by_ip(ip_addr, timeout=10, *args, **kwargs):
 		"""
 		Factory function, returns a :any:`Moku` instance with the given IP address.
 
@@ -154,12 +162,12 @@ class Moku(object):
 		mokus = BonjourFinder().find_all(max_results=1, filter_callback=_filter, timeout=timeout)
 
 		if len(mokus):
-			return Moku(mokus[0])
+			return Moku(mokus[0], *args, **kwags)
 
 		raise MokuNotFound("Couldn't find Moku: %s" % ip_addr)
 
 	@staticmethod
-	def get_by_serial(serial, timeout=10):
+	def get_by_serial(serial, timeout=10, *args, **kwargs):
 		"""
 		Factory function, returns a :any:`Moku` instance with the given Serial number.
 
@@ -186,12 +194,12 @@ class Moku(object):
 		mokus = BonjourFinder().find_all(max_results=1, filter_callback=_filter, timeout=timeout)
 
 		if len(mokus):
-			return Moku(mokus[0])
+			return Moku(mokus[0], *args, **kwargs)
 
 		raise MokuNotFound("Couldn't find Moku: %s" % serial)
 
 	@staticmethod
-	def get_by_name(name, timeout=10):
+	def get_by_name(name, timeout=10, *args, **kwargs):
 		"""
 		Factory function, returns a :any:`Moku` instance with the given name.
 
@@ -218,7 +226,7 @@ class Moku(object):
 		mokus = BonjourFinder().find_all(max_results=1, filter_callback=_filter, timeout=timeout)
 
 		if len(mokus):
-			return Moku(mokus[0])
+			return Moku(mokus[0], *args, **kwargs)
 
 		raise MokuNotFound("Couldn't find Moku: %s" % name)
 
@@ -805,12 +813,12 @@ class Moku(object):
 
 
 	def _fs_rename_status(self):
-		self._fs_send_generic(9, '')
+		self._fs_send_generic(9, b'')
 
 		try:
 			dat = self._fs_receive_generic(9)
 			stat = _ERR_OK
-		except NetworkError as e:
+		except MokuBusy as e:
 			dat = e.dat
 			stat = _ERR_BUSY
 
