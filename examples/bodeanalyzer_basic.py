@@ -1,8 +1,8 @@
 #
-# pymoku example: Plotting Bode Analyser
+# pymoku example: Plotting Bode Analyzer
 #
 # This example demonstrates how you can generate output sweeps using the
-# Bode Analyser instrument, and view transfer function data in real-time.
+# Bode Analyzer instrument, and view transfer function data in real-time.
 #
 # (c) 2017 Liquid Instruments Pty. Ltd.
 #
@@ -14,10 +14,10 @@ import logging, time
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
 
-# Prepare the Bode Analyser instrument
-i = BodeAnalyser()
+# Prepare the Bode Analyzer instrument
+i = BodeAnalyzer()
 
-# Deploy the Bode Analyser to your Moku
+# Deploy the Bode Analyzer to your Moku
 m.deploy_instrument(i)
 
 try:

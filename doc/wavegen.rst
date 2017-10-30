@@ -21,9 +21,9 @@ Example Usage
 
 For an in-depth walkthrough on using the pymoku Waveform Generator Instrument, see the `pymoku Waveform Generator tutorial <https://liquidinstruments.atlassian.net/wiki/display/MCS/The+Waveform+Generator>`_. For the following example code and a wide range of other pymoku demo scripts, see the `pymoku example repository <https://anaconda.org/liquidinstruments/pymoku-examples/files>`_.
 
-.. literalinclude:: ../examples/basic_wavegen.py
+.. literalinclude:: ../examples/waveformgenerator_basic.py
 	:language: python
-	:caption: basic_wavegen.py
+	:caption: waveformgenerator_basic.py
 
 The WaveformGenerator Class
 -------------------------

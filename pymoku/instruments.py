@@ -7,7 +7,7 @@ from . import _phasemeter
 from . import _specan
 from . import _lockinamp
 from . import _datalogger
-from . import _bodeanalyser
+from . import _bodeanalyzer
 from . import _arbwavegen
 from . import _stream_instrument
 from . import _frame_instrument
@@ -23,35 +23,35 @@ from . import _iirfilterbox
 InstrumentData = _frame_instrument.InstrumentData
 VoltsData = _oscilloscope.VoltsData
 SpectrumData = _specan.SpectrumData
-BodeData = _bodeanalyser.BodeData
+BodeData = _bodeanalyzer.BodeData
 
 MokuInstrument = _instrument.MokuInstrument
 
 Oscilloscope = _oscilloscope.Oscilloscope
 WaveformGenerator = _waveform_generator.WaveformGenerator
 Phasemeter = _phasemeter.Phasemeter
-SpectrumAnalyser = _specan.SpectrumAnalyser
+SpectrumAnalyzer = _specan.SpectrumAnalyzer
 LockInAmp = _lockinamp.LockInAmp
 Datalogger = _datalogger.Datalogger
-BodeAnalyser = _bodeanalyser.BodeAnalyser
+BodeAnalyzer = _bodeanalyzer.BodeAnalyzer
 PIDController = _pid_controller.PIDController
-ArbWaveGen = _arbwavegen.ArbWaveGen
+ArbitraryWaveGen = _arbwavegen.ArbitraryWaveGen
 IIRFilterBox = _iirfilterbox.IIRFilterBox
 
 id_table = {
 	1: Oscilloscope,
-	2: SpectrumAnalyser,
+	2: SpectrumAnalyzer,
 	3: Phasemeter,
 	4: WaveformGenerator,
 	5: PIDController,
 	6: IIRFilterBox,
 	7: Datalogger,
 	8: LockInAmp,
-	9: BodeAnalyser,
+	9: BodeAnalyzer,
 	10: None,
 	11: None,
 	12: None,
 	13: None,
 	14: None,
-	15: ArbWaveGen
+	15: ArbitraryWaveGen
 }

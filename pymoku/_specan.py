@@ -137,12 +137,12 @@ class SpectrumData(_frame_instrument.InstrumentData):
 	Object representing a frame of dual-channel frequency spectrum data (amplitude vs frequency in Hz).
 	Amplitude is in units of either dBm power or RMS Voltage, as indicated by the `dbm` attribute 
 	of the frame. The amplitude scale may be selected by calling :any:`set_dbmscale` on the relevant
-	:any:`SpectrumAnalyser` instrument.
+	:any:`SpectrumAnalyzer` instrument.
 
-	This is the native output format of the :any:`SpectrumAnalyser` instrument.
+	This is the native output format of the :any:`SpectrumAnalyzer` instrument.
 
 	This object should not be instantiated directly, but will be returned by a call to
-	:any:`get_data <pymoku.instruments.SpectrumAnalyser.get_data>` on the associated :any:`SpectrumAnalyser`
+	:any:`get_data <pymoku.instruments.SpectrumAnalyzer.get_data>` on the associated :any:`SpectrumAnalyzer`
 	instrument.
 
 	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumData.ch1
@@ -176,7 +176,7 @@ class SpectrumData(_frame_instrument.InstrumentData):
 		#: Whether the data is in logarithmic (dBm) scale. The alternative is a linear scale.
 		self.dbm = None
 
-		#: Obtain all data scaling factors relevant to current SpectrumAnalyser configuration
+		#: Obtain all data scaling factors relevant to current SpectrumAnalyzer configuration
 		self._scales = scales
 
 	def __json__(self):
@@ -190,7 +190,7 @@ class SpectrumData(_frame_instrument.InstrumentData):
 		super(SpectrumData, self).process_complete()
 
 		if self._stateid not in self._scales:
-			log.error("Can't render SpectrumAnalyser frame, haven't saved calibration data for state %d", self._stateid)
+			log.error("Can't render SpectrumAnalyzer frame, haven't saved calibration data for state %d", self._stateid)
 			return
 
 		# Get scaling/correction factors based on current instrument configuration
@@ -206,7 +206,7 @@ class SpectrumData(_frame_instrument.InstrumentData):
 			self.dbm = dbmscale
 
 			# Find the starting index for the valid frame data
-			# SpectrumAnalyser generally gives more than we ask for due to integer decimations
+			# SpectrumAnalyzer generally gives more than we ask for due to integer decimations
 			start_index = bisect_right(fs,f1)
 
 			# Set the frequency range of valid data in the current frame (same for both channels)
@@ -219,7 +219,7 @@ class SpectrumData(_frame_instrument.InstrumentData):
 			dat = struct.unpack('<' + 'i' * smpls, self._raw1)
 			dat = [ x if x != -0x80000000 else None for x in dat ]
 
-			# SpectrumAnalyser data is backwards because $(EXPLETIVE), also remove zeros for the sake of common
+			# SpectrumAnalyzer data is backwards because $(EXPLETIVE), also remove zeros for the sake of common
 			# display on a log axis.
 			self._ch1_bits = [ max(float(x), 1) if x is not None else None for x in reversed(dat[:_SA_SCREEN_WIDTH]) ]
 
@@ -243,7 +243,7 @@ class SpectrumData(_frame_instrument.InstrumentData):
 
 		except (IndexError, TypeError, struct.error):
 			# If the data is bollocksed, force a reinitialisation on next packet
-			log.exception("SpectrumAnalyser packet")
+			log.exception("SpectrumAnalyzer packet")
 			self._frameid = None
 			self._complete = False
 
@@ -285,7 +285,7 @@ class SpectrumData(_frame_instrument.InstrumentData):
 
 	def _get_xaxis_fmt(self,x,pos):
 		# This function returns a format string for the x-axis ticks and x-coordinates along the frequency scale
-		# Use this to set an x-axis format during plotting of SpecAn frames
+		# Use this to set an x-axis format during plotting of SpectrumAnalyzer frames
 
 		if self._stateid not in self._scales:
 			log.error("Can't get x-axis format, haven't saved calibration data for state %d", self._stateid)
@@ -335,15 +335,15 @@ class SpectrumData(_frame_instrument.InstrumentData):
 		return self._get_yaxis_fmt(y,None)['ycoord']
 
 
-class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
-	""" Spectrum Analyser instrument object.
+class SpectrumAnalyzer(_frame_instrument.FrameBasedInstrument):
+	""" Spectrum Analyzer instrument object.
 
-	To run a new Spectrum Analyser instrument, this should be instantiated and deployed via a connected
+	To run a new Spectrum Analyzer instrument, this should be instantiated and deployed via a connected
 	:any:`Moku` object using :any:`deploy_instrument`. Alternatively, a pre-configured instrument object
-	can be obtained by discovering an already running Spectrum Analyser instrument on a Moku:Lab device via
+	can be obtained by discovering an already running Spectrum Analyzer instrument on a Moku:Lab device via
 	:any:`discover_instrument`.
 
-	.. automethod:: pymoku.instruments.SpectrumAnalyser.__init__
+	.. automethod:: pymoku.instruments.SpectrumAnalyzer.__init__
 
 	.. attribute:: framerate
 		:annotation: = 10
@@ -351,21 +351,21 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		Frame Rate, range 10 - 30.
 
 	.. attribute:: type
-		:annotation: = "specan"
+		:annotation: = "spectrumanalyzer"
 
 		Name of this instrument.
 
 	"""
 	def __init__(self):
-		"""Create a new Spectrum Analyser instrument, ready to be attached to a Moku."""
-		super(SpectrumAnalyser, self).__init__()
+		"""Create a new Spectrum Analyzer instrument, ready to be attached to a Moku."""
+		super(SpectrumAnalyzer, self).__init__()
 		self._register_accessors(_sa_reg_handlers)
 
 		self.scales = {}
 		self._set_frame_class(SpectrumData, instrument=self, scales=self.scales)
 
 		self.id = 2
-		self.type = "specan"
+		self.type = "spectrumanalyzer"
 		self.calibration = None
 
 		self.tr1_incr = 0
@@ -554,7 +554,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 
 	@needs_commit
 	def set_dbmscale(self,dbm=True):
-		""" Configures the scale of the Spectrum Analyser amplitude data.
+		""" Configures the scale of the Spectrum Analyzer amplitude data.
 		This can be either power in dBm, or RMS Voltage.
 		
 		:type dbm: bool
@@ -565,8 +565,8 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 
 	@needs_commit
 	def set_defaults(self):
-		""" Reset the Spectrum Analyser to sane defaults. """
-		super(SpectrumAnalyser, self).set_defaults()
+		""" Reset the Spectrum Analyzer to sane defaults. """
+		super(SpectrumAnalyzer, self).set_defaults()
 		#TODO this should reset ALL registers
 		self.frame_length = _SA_SCREEN_WIDTH
 
@@ -762,7 +762,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		self._update_dependent_regs()
 
 		# Push the controls through to the device
-		super(SpectrumAnalyser, self).commit()
+		super(SpectrumAnalyzer, self).commit()
 
 		# Update the scaling factors for processing of incoming frames
 		# stateid allows us to track which scales correspond to which register state
@@ -774,7 +774,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 	commit.__doc__ = MokuInstrument.commit.__doc__
 
 	def _on_reg_sync(self):
-		super(SpectrumAnalyser, self)._on_reg_sync()
+		super(SpectrumAnalyzer, self)._on_reg_sync()
 
 		if self.dec_enable:
 			d1 = 4
@@ -798,7 +798,7 @@ class SpectrumAnalyser(_frame_instrument.FrameBasedInstrument):
 		"""
 		Get the latest sweep results.
 
-		On SpectrumAnalyser this is an alias for :any:`get_realtime_data <pymoku.instruments.SpectrumAnalyser.get_realtime_data>` as the
+		On SpectrumAnalyzer this is an alias for :any:`get_realtime_data <pymoku.instruments.SpectrumAnalyzer.get_realtime_data>` as the
 		output data is never downsampled from the sweep results.
 		"""
 		_utils.check_parameter_valid('float', timeout, desc='data timeout', allow_none=True)

@@ -1,5 +1,5 @@
 from pymoku import Moku
-from pymoku.instruments import ArbWaveGen
+from pymoku.instruments import ArbitraryWaveGen
 import numpy as np
 import time
 
@@ -20,8 +20,8 @@ not_sq = not_sq /max(not_sq)
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
 
-# Prepare the ArbWaveformGenerator instrument
-i = ArbWaveGen()
+# Prepare the ArbitraryWaveGen instrument
+i = ArbitraryWaveGen()
 m.deploy_instrument(i)
 
 try:
