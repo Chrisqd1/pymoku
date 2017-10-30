@@ -49,20 +49,20 @@ _ARB_LUT_INTERPLOATION_LENGTH = 2**32
 
 _ARB_MODE_RATE = [1.0e9, 500.0e6, 250.0e6, 125.0e6] #1GS, 500MS, 250MS, 125MS
 
-class ArbWaveGen(_CoreOscilloscope):
+class ArbitraryWaveGen(_CoreOscilloscope):
 	"""
 	.. automethod:: pymoku.instruments.WaveformGenerator.__init__
 	"""
 
 	def __init__(self):
-		super(ArbWaveGen, self).__init__()
+		super(ArbitraryWaveGen, self).__init__()
 		self._register_accessors(_arb_reg_handlers)
 		self.id = 15
-		self.type = "arbwavegen"
+		self.type = "arbitrarywavegen"
 
 	@needs_commit
 	def set_defaults(self):
-		super(ArbWaveGen, self).set_defaults()
+		super(ArbitraryWaveGen, self).set_defaults()
 		self.mode1 = _ARB_MODE_125
 		self.lut_length1 = _ARB_LUT_LENGTH
 		self.mode2 = _ARB_MODE_125
@@ -324,7 +324,7 @@ class ArbWaveGen(_CoreOscilloscope):
 
 	@needs_commit
 	def gen_off(self, ch=None):
-		""" Turn ArbWaveGen output(s) off.
+		""" Turn ArbitraryWaveGen output(s) off.
 
 		The channel will be turned on when configuring the waveform type but can be turned off
 		using this function. If *ch* is None (the default), both channels will be turned off,

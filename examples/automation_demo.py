@@ -175,12 +175,12 @@ def phase2(moku):
 	linewidth_maximum = 3.0e3 # Hz
 
 
-	# Set up and configure the Spectrum Analyser instrument
+	# Set up and configure the Spectrum Analyzer instrument
 	# --------------------------------------------------------------
-	# Prepare a Spectrum Analyser instrument
-	specan = SpectrumAnalyser()
+	# Prepare a Spectrum Analyzer instrument
+	specan = SpectrumAnalyzer()
 
-	# Deploy the Spectrum Analyser to the Moku
+	# Deploy the Spectrum Analyzer to the Moku
 	moku.deploy_instrument(specan)
 
 	# Set +- 0.1MHz span around simulated signal frequency

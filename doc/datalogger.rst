@@ -14,13 +14,13 @@ Example Usage
 
 For an in-depth walkthrough on using the pymoku Datalogger Instrument, see the `pymoku Datalogger tutorial <https://liquidinstruments.atlassian.net/wiki/display/MCS/The+Datalogger>`_. For the following example code and a wide range of other pymoku demo scripts, see the `pymoku example repository <https://anaconda.org/liquidinstruments/pymoku-examples/files>`_.
 
-.. literalinclude:: ../examples/basic_datalogger.py
+.. literalinclude:: ../examples/datalogger_basic.py
 	:language: python
-	:caption: basic_datalogger.py
+	:caption: datalogger_basic.py
 
-.. literalinclude:: ../examples/livestream_datalogger.py
+.. literalinclude:: ../examples/datalogger_streaming.py
 	:language: python
-	:caption: livestream_datalogger.py
+	:caption: datalogger_streaming.py
 
 The Datalogger Class
 ----------------------

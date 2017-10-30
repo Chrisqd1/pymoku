@@ -21,16 +21,16 @@ Where:
 	For the output phase measure of a channel to be valid, it's tracking loop (PLL) must be "locked" to the input signal. A channel's PLL is considered to be "locked" if the ratio **I/Q** is large. That is, **Q ~ 0**. Note that the exact ratio depends upon the SNR of your signal. 
 
 
-For logging data to a file, the *data_log* type functions should be used (see the `basic_phasemeter.py` example below). For networking streaming, the *stream_data* type functions should be used (see the `realtime_phasemeter.py` example script). 
+For logging data to a file, the *data_log* type functions should be used (see the `phasemeter_basic.py` example below). For networking streaming, the *stream_data* type functions should be used (see the `realtime_phasemeter.py` example script). 
 
 Example Usage
 -------------
 
 For an in-depth walkthrough on using the pymoku Phasemeter Instrument, see the `pymoku Phasemeter tutorial <https://liquidinstruments.atlassian.net/wiki/display/MCS/The+Phasemeter>`_. For the following example code and a wide range of other pymoku demo scripts, see the `pymoku example repository <https://anaconda.org/liquidinstruments/pymoku-examples/files>`_.
 
-.. literalinclude:: ../examples/basic_phasemeter.py
+.. literalinclude:: ../examples/phasemeter_basic.py
 	:language: python
-	:caption: basic_phasemeter.py
+	:caption: phasemeter_basic.py
 
 The Phasemeter Class
 --------------------

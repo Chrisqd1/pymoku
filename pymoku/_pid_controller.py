@@ -90,7 +90,7 @@ class PIDController(_CoreOscilloscope):
 		Frame Rate, range 1 - 30.
 
 	.. attribute:: type
-		:annotation: = "PIDController"
+		:annotation: = "pidcontroller"
 
 		Name of this instrument.
 
@@ -100,6 +100,7 @@ class PIDController(_CoreOscilloscope):
 		self._register_accessors(_PID_reg_hdl)
 
 		self.id = 5
+		self.type = "pidcontroller"
 
 	@needs_commit
 	def set_defaults(self):

@@ -1,7 +1,7 @@
 #
-# pymoku example: Plotting Spectrum Analyser
+# pymoku example: Plotting Spectrum Analyzer
 #
-# This example demonstrates how you can configure the Spectrum Analyser 
+# This example demonstrates how you can configure the Spectrum Analyzer 
 # instrument and plot its spectrum data in real-time. It also shows how
 # you can use its embedded signal generator to generate a sweep and single
 # frequency waveform on the output channels.
@@ -9,7 +9,7 @@
 # (c) 2017 Liquid Instruments Pty. Ltd.
 #
 from pymoku import *
-from pymoku.instruments import SpectrumAnalyser
+from pymoku.instruments import SpectrumAnalyzer
 import time, logging
 
 import matplotlib
@@ -24,19 +24,19 @@ logging.getLogger('pymoku').setLevel(logging.INFO)
 m = Moku.get_by_name('Moku')
 
 i = m.discover_instrument()
-if i is None or i.type != 'specan':
+if i is None or i.type != 'spectrumanalyzer':
 	print("No or wrong instrument deployed")
-	i = SpectrumAnalyser()
+	i = SpectrumAnalyzer()
 	m.deploy_instrument(i)
 else:
-	print("Attached to existing Spectrum Analyser")
+	print("Attached to existing Spectrum Analyzer")
 	m.take_ownership()
 
 # Use dBm scaling on the y-axis
 dbm=True
 
 try:
-	# Set spectrum analyser configuration
+	# Set spectrum analyzer configuration
 	i.set_defaults()
 	i.set_dbmscale(dbm)
 	i.set_span(0, 70e6)

@@ -20,9 +20,9 @@ Example Usage
 
 For more details on searching for your Moku:Lab and retrieving device configuration information, see the `Bonjour Moku guide <https://liquidinstruments.atlassian.net/wiki/pages/viewpage.action?pageId=295806>`_. The following example code and a wide range of other pymoku demo scripts, can be found at the `pymoku example repository <https://anaconda.org/liquidinstruments/pymoku-examples/files>`_.
 
-.. literalinclude:: ../examples/basic_moku.py
+.. literalinclude:: ../examples/moku_basic.py
 	:language: python
-	:caption: basic_moku.py
+	:caption: moku_basic.py
 
 
 --------------
