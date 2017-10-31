@@ -90,13 +90,13 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
 		_utils.check_parameter_valid('set', mode, [_ARB_MODE_1000, _ARB_MODE_500, _ARB_MODE_250, _ARB_MODE_125], desc='mode is not vaild')
 
-		if mode is _ARB_MODE_500:
-			_utils.check_parameter_valid('range', length, [1,2**13], desc='length for lookup table')
-		if mode is _ARB_MODE_250:
-			_utils.check_parameter_valid('range', length, [1,2**14], desc='length for lookup table')
-		if mode is _ARB_MODE_125:
-			_utils.check_parameter_valid('range', length, [1,2**15], desc='length for lookup table')
 		if mode is _ARB_MODE_1000:
+			_utils.check_parameter_valid('range', length, [1,2**13], desc='length for lookup table')
+		if mode is _ARB_MODE_500:
+			_utils.check_parameter_valid('range', length, [1,2**14], desc='length for lookup table')
+		if mode is _ARB_MODE_250:
+			_utils.check_parameter_valid('range', length, [1,2**15], desc='length for lookup table')
+		if mode is _ARB_MODE_125:
 			_utils.check_parameter_valid('range', length, [1,2**16], desc='length for lookup table')
 
 		if ch == 1:
