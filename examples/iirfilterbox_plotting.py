@@ -22,7 +22,7 @@ filt_coeff = 	[[1.0],
 				[1.0000000000,0.1301131088,0.1223154629,0.1301131088,-0.7955572476,0.1780989281]]
 
 
-m = Moku('192.168.69.58')
+m = Moku.get_by_name('Moku')
 i = IIRFilterBox()
 m.deploy_instrument(i)
 i.set_frontend(1, fiftyr=True, atten=False, ac=False)
@@ -35,23 +35,21 @@ try:
 	i.set_filter(1, sample_rate='high', filter_coefficients=filt_coeff)
 	i.set_filter(2, sample_rate='low',  filter_coefficients=filt_coeff)
 
-	# Filter channel 1 acts solely on the data from ADC CH1. Filter channel 2 acts solely on ADC CH 2. 
+	# # Filter channel 1 acts solely on the data from ADC CH1. Filter channel 2 acts solely on ADC CH 2. 
 	i.set_offset_gain(1, matrix_scalar_ch1=1, matrix_scalar_ch2=0)
-	i.set_offset_gain(2, matrix_scalar_ch1=1, matrix_scalar_ch2=0)
+	i.set_offset_gain(2, matrix_scalar_ch1=0, matrix_scalar_ch2=1)
 
-	# Set up monitoring of the input and output of the first filter channel.
-	i.set_monitor('a', 'in1') #blue
+	# Set up monitoring on the input and output of the first filter channel.
+	i.set_monitor('a', 'inch1') #blue
 	i.set_monitor('b', 'out1') #green
 
 	# Trigger on monitor channel 'a', rising edge, 0V with 0.1V hysteresis
 	i.set_trigger('a', 'rising', 0)
 
-	# View +- 1 miro second with the trigger point centered
+	# View +/- 1 micro second with the trigger point centered
 	i.set_timebase(-1e-6, 1e-6)
 
-	# Get initial data frame to set up plotting parameters. This can be done once
-	# if we know that the axes aren't going to change (otherwise we'd do
-	# this in the loop)
+	# Get initial data frame to set up plotting parameters. 
 	data = i.get_realtime_data()
 
 	# Set up the plotting parameters
