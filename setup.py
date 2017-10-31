@@ -55,6 +55,7 @@ lr_ext = Extension(
 	'lr',
 	include_dirs=['liquidreader'],
 	sources=[
+		j('liquidreader','bitcpy.c'),
 		j('liquidreader','lireader.c'),
 		j('liquidreader','liparse.c'),
 		j('liquidreader','liutility.c'),
