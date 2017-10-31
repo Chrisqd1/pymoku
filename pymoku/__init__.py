@@ -866,9 +866,9 @@ class Moku(object):
 		fs = self._fs_list('b', calculate_sha=include_version)
 
 		if include_version:
-			return [(b.split('.')[0], c) for b, c, s in fs if b.endswith('.bit')]
+			return [(b.split('.')[0], c) for b, c, s in fs]
 		else:
-			return [b.split('.')[0] for b, c, s in fs if b.endswith('.bit')]
+			return [b.split('.')[0] for b, c, s in fs]
 
 	def _trigger_fwload(self):
 		self._set_timeout(seconds=20)
