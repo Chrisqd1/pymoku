@@ -91,7 +91,7 @@ class Moku(object):
 		:param load_instruments: Leave *True* unless you know what you're doing.
 
 		:type force: bool
-		:param force: Ignore firmware compatibility checks and force the instrument to deploy. 
+		:param force: Ignore firmware compatibility checks and force the instrument to deploy.
 		"""
 		self._ip = ip_addr
 		self._seq = 0
@@ -145,7 +145,6 @@ class Moku(object):
 				known_mokus.append((ip, ser, name))
 				m.close()
 			except Exception as e:
-				print e
 				continue
 
 		return known_mokus
@@ -163,7 +162,7 @@ class Moku(object):
 		:type timeout: float
 		:param timeout: operation timeout
 		:type force: bool
-		:param force: Ignore firmware compatibility checks and force the instrument to deploy. 
+		:param force: Ignore firmware compatibility checks and force the instrument to deploy.
 		:rtype: :any:`Moku`
 		:return: Moku with given IP address
 		:raises *MokuNotFound*: if no such Moku is found within the timeout"""
@@ -187,7 +186,7 @@ class Moku(object):
 		:type timeout: float
 		:param timeout: operation timeout
 		:type force: bool
-		:param force: Ignore firmware compatibility checks and force the instrument to deploy. 
+		:param force: Ignore firmware compatibility checks and force the instrument to deploy.
 		:rtype: :any:`Moku`
 		:return: Moku with given serial number
 		:raises *MokuNotFound*: if no such Moku is found within the timeout"""
@@ -215,7 +214,7 @@ class Moku(object):
 		:type timeout: float
 		:param timeout: operation timeout
 		:type force: bool
-		:param force: Ignore firmware compatibility checks and force the instrument to deploy. 
+		:param force: Ignore firmware compatibility checks and force the instrument to deploy.
 		:rtype: :any:`Moku`
 		:return: Moku with given device name
 		:raises *MokuNotFound*: if no such Moku is found within the timeout"""
@@ -973,7 +972,7 @@ class Moku(object):
 		:type set_default: bool
 		:param set_default: Set the instrument to its default config upon connection, overwriting user changes before this point.
 		:type use_external: bool
-		:param use_external: Attempt to lock to an external reference clock. 
+		:param use_external: Attempt to lock to an external reference clock.
 		"""
 		self.external_reference = use_external
 
