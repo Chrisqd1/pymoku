@@ -1,5 +1,5 @@
 
-import math
+import math, time
 import logging
 from copy import deepcopy
 from pymoku._oscilloscope import _CoreOscilloscope
@@ -26,12 +26,13 @@ REG_SAMPLINGFREQ		= 124
 
 REG_FILT_RESET 		= 62
 
-_IIR_MON_IN_CH1 		= 0
-_IIR_MON_IN_CH1OFF		= 1
-_IIR_MON_OUT_CH1		= 2
-_IIR_MON_IN_CH2 		= 3
-_IIR_MON_IN_CH2OFF 		= 4
-_IIR_MON_OUT_CH2 		= 5
+_IIR_MON_NONE		= 0
+_IIR_MON_IN1 		= 1
+_IIR_MON_INCH1		= 2
+_IIR_MON_OUT1		= 3
+_IIR_MON_IN2 		= 4
+_IIR_MON_INCH2 		= 5
+_IIR_MON_OUT2 		= 6
 _IIR_COEFFWIDTH = 48
 
 class IIRFilterBox(_CoreOscilloscope):
@@ -82,6 +83,10 @@ class IIRFilterBox(_CoreOscilloscope):
 		self.id = 6
 		self.type = "iirfilterbox"
 
+		# Remembers monitor source choice
+		self.monitor_a = None
+		self.monitor_b = None
+
 	def set_defaults(self):
 		""" Reset the Oscilloscope to sane defaults. """
 		super(IIRFilterBox, self).set_defaults()
@@ -121,13 +126,11 @@ class IIRFilterBox(_CoreOscilloscope):
 		self.set_frontend(1,fiftyr=True, atten=False, ac=False)
 		self.set_frontend(2,fiftyr=True, atten=False, ac=False)
 
-		# Default unity gain, zero offset, identiy mixing matrix.
+		# Default unity gain, zero offset, identity mixing matrix.
 		self.set_offset_gain(1)
 		self.set_offset_gain(2)
 
-
-	@needs_commit
-	def set_filter(self, ch, sample_rate, filter_coefficients):
+	def set_filter(self, ch, sample_rate, filter_coefficients=None):
 		"""
 		Set SOS filter sample rate and filter coefficients.
 
@@ -143,15 +146,9 @@ class IIRFilterBox(_CoreOscilloscope):
 
 		_utils.check_parameter_valid('set', ch, [1,2],'filter channel')
 		_utils.check_parameter_valid('set', sample_rate, ['high','low'],'sample rate')
-		_utils.check_parameter_valid('bool', output_off, desc = 'disable output')
 
-		if ch == 1:
-			self.ch1_output = True
-			self.ch1_sampling_freq = 0 if sample_rate == 'high' else 1
-		else:
-			self.ch2_output = True
-			self.ch2_sampling_freq = 0 if sample_rate == 'high' else 1
-
+		# needs seperate function call with @needs_commit as we make use of _set_mmap_access below in this function
+		self._set_output_samplerate(ch, sample_rate)
 
 		## The following converts the input filter coefficient array into a format required by the memory map to correctly configure the HDL.
 		## We don't use this modified format for the input array to reduce the amount of coefficient manipulation a user must perform after generating them in Matlab/Scipy, etc.
@@ -220,6 +217,14 @@ class IIRFilterBox(_CoreOscilloscope):
 		self._set_mmap_access(False)
 		os.remove('.data.dat')
 
+	@needs_commit
+	def _set_output_samplerate(self, ch, sample_rate):
+		if ch == 1:
+			self.ch1_output = True
+			self.ch1_sampling_freq = 0 if sample_rate == 'high' else 1
+		else:
+			self.ch2_output = True
+			self.ch2_sampling_freq = 0 if sample_rate == 'high' else 1
 
 	@needs_commit
 	def set_offset_gain(self, ch, input_scale=1, output_scale=1, input_offset=0, output_offset=0, matrix_scalar_ch1=None, matrix_scalar_ch2=None):
@@ -253,8 +258,8 @@ class IIRFilterBox(_CoreOscilloscope):
 		_utils.check_parameter_valid('range', output_scale, [0,100],'output scale','linear scalar')
 		_utils.check_parameter_valid('range', input_offset, [-500,500],'input offset','mV')
 		_utils.check_parameter_valid('range', output_offset, [-500,500],'output offset','mV')
-		_utils.check_parameter_valid('range', matrix_scalar_ch1, [0,20],'matrix ch1 scalar','linear scalar')
-		_utils.check_parameter_valid('range', matrix_scalar_ch2, [0,20],'matrix ch2 scalar','linear scalar')
+		_utils.check_parameter_valid('range', matrix_scalar_ch1, [0,20],'matrix ch1 scalar','linear scalar',allow_none=True)
+		_utils.check_parameter_valid('range', matrix_scalar_ch2, [0,20],'matrix ch2 scalar','linear scalar',allow_none=True)
 
 		## Get calibration coefficients
 		a1, a2 = self._adc_gains()
@@ -272,11 +277,11 @@ class IIRFilterBox(_CoreOscilloscope):
 		if matrix_scalar_ch2 is None:
 			matrix_scalar_ch2 = 1 if ch == 2 else 0
 
-		control_matrix_ch1 = int(round(matrix_scalar_ch1 * 375.0 * adc_calibration * 2**10 / atten))
-		control_matrix_ch2 = int(round(matrix_scalar_ch2 * 375.0 * adc_calibration * 2**10 / atten))
+		control_matrix_ch1 = int(round(matrix_scalar_ch1 * 3750.0 * adc_calibration * 2**10 / atten))
+		control_matrix_ch2 = int(round(matrix_scalar_ch2 * 3750.0 * adc_calibration * 2**10 / atten))
 
 		## Calculate input/output scale values
-		output_gain_factor = 1 / 375.0 / 8 / dac_calibration
+		output_gain_factor = 1 / 3750.0 / 8 / dac_calibration
 		input_scale_bits = int(round(input_scale*2**9))
 		output_scale_bits = int(round(output_scale*2**6*output_gain_factor))
 
@@ -315,24 +320,97 @@ class IIRFilterBox(_CoreOscilloscope):
 			- **in2**	: Filter CH 2 After Input Offset
 			- **out2**	: Filter CH 2 Output
 		"""
-		_utils.check_parameter_valid('set', ch, [1,2],'filter channel')
+		#_utils.check_parameter_valid('set', ch, [1,2],'filter channel')
+		_utils.check_parameter_valid('string', ch, desc="monitor channel")
+		_utils.check_parameter_valid('string', source, desc="monitor signal")
+
+		_utils.check_parameter_valid('set', ch, allowed=['a','b'], desc="monitor channel")
+		_utils.check_parameter_valid('set', source, allowed=['in1', 'inch1', 'out1', 'in2', 'inch2', 'out2'], desc="monitor source")
 
 		sources = {
-			'adc1': _IIR_MON_IN_CH1,
-			'in1':	_IIR_MON_IN_CH1OFF,
-			'out1': _IIR_MON_OUT_CH1,
-			'adc2': _IIR_MON_IN_CH2,
-			'in2':	_IIR_MON_IN_CH2OFF,
-			'out2':	_IIR_MON_OUT_CH2,
+			'none': 	_IIR_MON_NONE,
+			'in1': 		_IIR_MON_IN1,
+			'inch1':	_IIR_MON_INCH1,
+			'out1': 	_IIR_MON_OUT1,
+			'in2': 		_IIR_MON_IN2,
+			'inch2':	_IIR_MON_INCH2,
+			'out2':		_IIR_MON_OUT2,
 		}
 
 		source = source.lower()
 
-		if ch == 1:
+		if ch == 'a':
+			self.monitor_a = source
 			self.monitor_select0 = sources[source]
 		else:
+			self.monitor_b = source
 			self.monitor_select1 = sources[source]
 
+	@needs_commit
+	def set_trigger(self, source, edge, level, hysteresis=False, hf_reject=False, mode='auto'):
+		"""
+			Set the trigger for the monitor signals. This can be either of the input channel signals 
+			or monitor channel signals.
+
+			:type source: string; {'in1','in2','A','B','ext'}
+			:param source: Trigger channel
+
+			:type edge: string, {'rising','falling','both'}
+			:param edge: Which edge to trigger on.
+
+			:type level: float, [-10.0, 10.0] volts
+			:param level: Trigger level
+
+			:type hysteresis: bool
+			:param hysteresis: Enable Hysteresis around trigger point.
+
+			:type hf_reject: bool
+			:param hf_reject: Enable high-frequency noise rejection
+
+			:type mode: string, {'auto', 'normal'}
+			:param mode: Trigger mode.
+		"""
+		_utils.check_parameter_valid('string', source, desc="trigger source")
+		source = source.lower()
+		_utils.check_parameter_valid('set', source, allowed=['in1','in2','a','b','ext'], desc="trigger source")
+
+		# Translate the IIR trigger sources to Oscilloscope sources
+		_str_to_osc_trig_source = {
+			'a' : 'in1',
+			'b' : 'in2',
+			'in1' : 'out1',
+			'in2' : 'out2',
+			'ext' : 'ext'
+		}
+
+		source = _utils.str_to_val(_str_to_osc_trig_source, source, 'trigger source')
+
+		super(IIRFilterBox, self).set_trigger(source=source, edge=edge, level=level, hysteresis=hysteresis, hf_reject=hf_reject, mode=mode)
+
+	def _calculate_scales(self):
+		# This calculates scaling factors for the internal Oscilloscope frames
+		scales = super(IIRFilterBox, self)._calculate_scales()
+
+		# Change the scales we care about
+		#deci_gain = self._deci_gain()
+		atten1 = self.get_frontend(1)
+		atten2 = self.get_frontend(2)
+
+		monitor_source_gains = {
+			'none'	: 1.0,
+			'in1'	: scales['gain_adc1']*(10.0 if atten1[1] else 1.0), 
+			'inch1'	: scales['gain_adc1']*(10.0 if atten1[1] else 1.0),
+			'out1'	: (scales['gain_dac1']*(2**4)), # 12bit ADC - 16bit DAC 
+			'in2'	: scales['gain_adc2']*(10.0 if atten2[1] else 1.0),
+			'inch2'	: scales['gain_adc2']*(10.0 if atten2[1] else 1.0),
+			'out2'	: (scales['gain_dac2']*(2**4))
+		}
+
+		# Replace scaling factors depending on the monitor signal source
+		scales['scale_ch1'] = 1.0 if not self.monitor_a else monitor_source_gains[self.monitor_a]
+		scales['scale_ch2'] = 1.0 if not self.monitor_b else monitor_source_gains[self.monitor_b]
+
+		return scales
 
 _iir_reg_handlers = {
 	'monitor_select0':	(REG_MONSELECT,		to_reg_unsigned(0,3), from_reg_unsigned(0,3)),
