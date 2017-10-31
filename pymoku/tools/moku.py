@@ -19,37 +19,33 @@ parser.add_argument('--name', default=None, help="Name of the Moku to connect to
 parser.add_argument('--ip', default=None, help="IP Address of the Moku to connect to")
 
 # View and load new instrument bitstreams
-def instrument(moku, args):
-	if args.action == 'list':
-		instrs = moku._list_bitstreams(include_version=True)
+def instrument(args):
+	moku = None
+	try:
+		moku = connect(args, force=True)
+		if args.action == 'load':
+			if not len(args.files):
+				print("No instrument files specified for loading")
+				return
 
-		if len(instrs):
-			print("The following instruments are available on your Moku:")
-			for i in instrs:
-				print('\t{}-{}'.format(i[0], i[1][:8]))
+			for file in args.files:
+				fname = os.path.basename(file)
+				chk = moku._load_bitstream(file)
+				print("Successfully loaded new instrument {} version {}".format(fname, chk))
 		else:
-			print("No instruments found on your Moku.")
-	elif args.action == 'load':
-		if not len(args.files):
-			print("No instrument files specified for loading")
-			return
-
-		for file in args.files:
-			fname = os.path.basename(file)
-			chk = moku._load_bitstream(file)
-			print("Successfully loaded new instrument {} version {}".format(fname, chk))
-
-	else:
-		exit(1)
+			exit(1)
+	finally:
+		if moku:
+			moku.close()
 
 parser_instruments = subparsers.add_parser('instrument', help="Check and update instruments on the Moku.")
-parser_instruments.add_argument('action', help='Action to take', choices=['list', 'load'])
+parser_instruments.add_argument('action', help='Action to take', choices=['load'])
 parser_instruments.add_argument('files', nargs='*', default=None, help="Path to local instrument file(s), if any")
 parser_instruments.set_defaults(func=instrument)
 
-
 # View and load new packages
 def package(args):
+	moku = None
 	try:
 		moku = connect(args)
 		if args.action == 'load':
@@ -69,7 +65,8 @@ def package(args):
 		else:
 			exit(1)
 	finally:
-		moku.close()
+		if moku:
+			moku.close()
 
 parser_package = subparsers.add_parser('package', help="Check and load special feature packages on the Moku.")
 parser_package.add_argument('action', help='Action to perform', choices=['load'])
@@ -79,6 +76,7 @@ parser_package.set_defaults(func=package)
 
 # View firmware version and load new versions.
 def firmware(args):
+	moku = None
 
 	try:
 		moku = connect(args, force=True)
@@ -88,7 +86,6 @@ def firmware(args):
 			if not args.file or not args.file.endswith('fw'):
 				print('Package load requires an FW file to be specified')
 				return
-
 			moku._load_firmware(args.file)
 			print("Successfully started firmware update. Your Moku will shut down automatically when complete.")
 		elif args.action == 'check_compat':
@@ -102,7 +99,10 @@ def firmware(args):
 		else:
 			exit(1)
 	finally:
-		moku.close()
+		try:
+			moku.close()
+		except zmq.error.Again:
+			pass # Firmware update can stop us being able to close
 
 parser_firmware = subparsers.add_parser('firmware', help="Check and load new firmware for your Moku.")
 parser_firmware.add_argument('action', help='Action to perform', choices=['version', 'load', 'check_compat'])
@@ -120,19 +120,15 @@ def main():
 
 def connect(args, force=False):
 	if args.serial:
-		moku = Moku.get_by_serial(args.serial)
+		moku = Moku.get_by_serial(args.serial, force=force)
+		print(moku.get_name())
 	elif args.name:
-		moku = Moku.get_by_name(args.name)
+		moku = Moku.get_by_name(args.name, force=force)
 	else:
 		moku = Moku(args.ip, force=force)
 
-	try:
-		args.func(moku, args)
-	finally:
-		try:
-			moku.close()
-		except zmq.error.Again:
-			pass # Firmware update can stop us being able to close
+	return moku
+
 
 # Compatible with direct run and distutils binary packaging
 if __name__ == '__main__':
