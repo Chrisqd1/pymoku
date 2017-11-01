@@ -461,7 +461,7 @@ class WaveformGenerator(BasicWaveformGenerator):
 		_utils.check_parameter_valid('range', ncycles, [0,1e6],'output channel','frequency')
 		_utils.check_parameter_valid('range', sweep_duration, [0.0,1000.0],'sweep duration','seconds')
 		_utils.check_parameter_valid('range', internal_trig_period, [100.0e-9,1000.0],'internal trigger period','seconds')
-		_utils.check_parameter_valid('range', internal_trig_period, [10.0e-9,1000.0],'internal trigger duty period','seconds')
+		_utils.check_parameter_valid('range', internal_trig_dutyperiod, [10.0e-9,1000.0],'internal trigger duty period','seconds')
 
 		# Can't use modulation with trigger/sweep modes
 		self.gen_modulate_off(ch)
