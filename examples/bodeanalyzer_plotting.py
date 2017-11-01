@@ -18,7 +18,7 @@ logging.getLogger('pymoku').setLevel(logging.DEBUG)
 
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
-m = Moku('192.168.69.53', force=True)#.get_by_name('Moku')
+m = Moku.get_by_name('Moku')
 
 # See whether there's already a Bode Analyzer running. If there is, take
 # control of it; if not, deploy a new Bode Analyzer instrument
