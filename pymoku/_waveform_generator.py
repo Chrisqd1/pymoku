@@ -460,7 +460,8 @@ class WaveformGenerator(BasicWaveformGenerator):
 		_utils.check_parameter_valid('set', trigger_source, ['external','adc','dac','internal'],'trigger source')
 		_utils.check_parameter_valid('range', ncycles, [0,1e6],'output channel','frequency')
 		_utils.check_parameter_valid('range', sweep_duration, [0.0,1000.0],'sweep duration','seconds')
-		_utils.check_parameter_valid('range', internal_trig_period, [0,1e11],'internal trigger period','seconds')
+		_utils.check_parameter_valid('range', internal_trig_period, [100.0e-9,1000.0],'internal trigger period','seconds')
+		_utils.check_parameter_valid('range', internal_trig_period, [10.0e-9,1000.0],'internal trigger duty period','seconds')
 
 		# Can't use modulation with trigger/sweep modes
 		self.gen_modulate_off(ch)
@@ -480,8 +481,14 @@ class WaveformGenerator(BasicWaveformGenerator):
 		elif source is _SG_TRIG_DAC:
 			_utils.check_parameter_valid('range', trigger_threshold, [_SG_TRIGLVL_DAC_MIN, _SG_TRIGLVL_DAC_MAX], 'trigger threshold', 'Volts')
 
-		internal_trig_increment = math.ceil(2**64/(internal_trig_period*125*10**6))		
-		internal_trig_dutytarget = internal_trig_increment * internal_trig_dutyperiod / (8e-9)
+		## The internal trigger's duty cycle is only used in gated burst mode. Duty cycle is limited such that the duty period is not 
+		## less than 8 ns and not greater than the trigger period minus 8 ns. 
+		
+		if (internal_trig_period - internal_trig_dutyperiod) <= 8.0e-9:
+			internal_trig_dutyperiod <= internal_trig_period - 10.0e-9 
+
+		internal_trig_increment = math.ceil((2**64)/(internal_trig_period*125*10**6))		
+		internal_trig_dutytarget = round((2**64)*(internal_trig_dutyperiod/internal_trig_period)) if mode == 'gated' else 2**63
 
 		if ch == 1:
 			self.trigger_select_ch1 = source
