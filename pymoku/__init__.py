@@ -1006,6 +1006,37 @@ class Moku(object):
 			# Ensure this always implicitly commits
 			self._instrument.commit()
 
+	def deploy_or_connect(self, instrument, set_default=True, use_external=True):
+		"""
+		Ensures the Moku:Lab is running the given instrument, either by connecting to an already-running instance, or deploying a new one.
+
+		*instrument* is the class of the instrument you wish to deploy, e.g. :any:`Oscilloscope`. This function
+		will check what instrument, if any, is already running on the Moku:Lab using :any:`discover_instrument`. If
+		that instrument is of the wrong type, a new instance of the given instrument class is created and deployed
+		using :any:`deploy_instrument`.
+
+		:param instrument: A Class representing the instrument type required
+		:type instrument: :any:`MokuInstrument` subclass
+
+		:type set_default: bool
+		:param set_default: Set the instrument to its default config upon connection, overwriting user changes before this point.
+
+		:type use_external: bool
+		:param use_external: Attempt to lock to an external reference clock.
+
+		:return: An object of type *instrument* representing the running Instrument.
+		"""
+		i = self.discover_instrument()
+		if i is None or pymoku.instruments.id_table[i.id] != instrument:
+			log.debug("New %s required", instrument.__name__)
+			i = instrument()
+			self.deploy_instrument(i, set_default, use_external)
+		else:
+			log.debug("%s already deployed, taking ownership", instrument.__name__)
+			self.take_ownership()
+
+		return i
+
 	def detach_instrument(self):
 		"""
 		Detaches the :any:`MokuInstrument` from this Moku.
