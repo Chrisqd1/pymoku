@@ -59,7 +59,7 @@ _PM_SG_FREQSCALE = _PM_FREQSCALE
 _PM_SG_PHASESCALE = 360.0 / (2**48) # Wraps
 
 # Pre-defined log rates which ensure samplerate will set to ~120Hz or ~30Hz
-_PM_LOGRATE_ULTRA_FAST = 3 # 125 kHz 
+_PM_LOGRATE_ULTRA_FAST = 3 # 125 kHz
 _PM_LOGRATE_VERY_FAST = 6 # 15.625 kHz
 _PM_LOGRATE_FAST = 9 # 1.95 kHz
 _PM_LOGRATE_MEDIUM = 11 # 490 Hz
@@ -79,7 +79,7 @@ class Phasemeter_WaveformGenerator(MokuInstrument):
 	@needs_commit
 	def gen_sinewave(self, ch, amplitude, frequency, phase=0.0, phase_locked=False):
 		""" Generate a sinewave signal on the specified output channel
-		
+
 		:type ch: int; {1,2}
 		:param ch: Channel number
 		:type amplitude: float; V
@@ -181,7 +181,7 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_WaveformGe
 		self.type = "phasemeter"
 		self.logname = "MokuPhasemeterData"
 
-		self.binstr = "<p32,0xAAAAAAAA:u48:u48:s15:p1,0:s48:s32:s31:u1>"
+		self.binstr = "<p32,0xAAAAAAAA:u48:u48:s15:p1,0:s48:s32:s31:u1"
 		self.procstr = ["*{:.16e} : *{:.16e} : : *{:.16e} : *C*{:.16e} : : *C*{:.16e} ".format(_PM_HERTZ_SCALE, _PM_HERTZ_SCALE,  _PM_CYCLE_SCALE, _PM_VOLTS_SCALE, _PM_VOLTS_SCALE),
 						"*{:.16e} : *{:.16e} : : *{:.16e} : *C*{:.16e} : : *C*{:.16e} ".format(_PM_HERTZ_SCALE, _PM_HERTZ_SCALE,  _PM_CYCLE_SCALE, _PM_VOLTS_SCALE, _PM_VOLTS_SCALE)]
 
@@ -194,7 +194,7 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_WaveformGe
 	def set_samplerate(self, samplerate):
 		""" Set the sample rate of the Phasemeter.
 
-		Options are {'veryslow','slow','medium','fast','veryfast','ultrafast'} corresponding to 30.5176 smp/s, 
+		Options are {'veryslow','slow','medium','fast','veryfast','ultrafast'} corresponding to 30.5176 smp/s,
 		122.0703 smp/s, 1.9531 ksmp/s, 15.625 ksmp/s, 125 ksps/s.
 
 		:type samplerate: string, {'veryslow','slow','medium','fast','veryfast','ultrafast'}
@@ -267,9 +267,9 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_WaveformGe
 
 	@needs_commit
 	def set_bandwidth(self, ch, bw):
-		""" Set the bandwidth of the phasemeter. 
+		""" Set the bandwidth of the phasemeter.
 
-		The phasemeter can measure deviations in phase and frequency up to the set bandwidth. 
+		The phasemeter can measure deviations in phase and frequency up to the set bandwidth.
 
 		:type ch: int; *{1,2}*
 		:param ch: Analog channel number to set bandwidth of.
@@ -293,7 +293,7 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_WaveformGe
 		log.info("Bandwidth (Ch %d) set to %.2f Hz", ch, 10e3/(2**n))
 
 	def get_bandwidth(self, ch):
-		""" Get the bandwidth of the phasemeter. 
+		""" Get the bandwidth of the phasemeter.
 
 		:type ch: int; *{1,2}*
 		:param ch: Analog channel number to get bandwidth of.
@@ -311,7 +311,7 @@ class Phasemeter(_stream_instrument.StreamBasedInstrument, Phasemeter_WaveformGe
 
 		:type ch: int; *{1,2}*
 		:param ch: Analog channel number to get bandwidth of.
-			
+
 		:type: auto; bool
 		:param auto: True will turn the auto aquire on. False will require using the using the init frequency.
 		"""

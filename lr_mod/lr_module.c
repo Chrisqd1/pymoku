@@ -73,6 +73,7 @@ lr_get_data(PyObject *self, PyObject *args)
             case 4:    return Py_BuildValue("(dddd)", d[0], d[1], d[2], d[3]);
             case 5:    return Py_BuildValue("(ddddd)", d[0], d[1], d[2], d[3], d[4]);
             case 6:    return Py_BuildValue("(dddddd)", d[0], d[1], d[2], d[3], d[4], d[5]);
+            case 7:    return Py_BuildValue("(ddddddd)", d[0], d[1], d[2], d[3], d[4], d[5], d[6]);
             default:   PyErr_Format(PyExc_Exception, "Unknown record count %d for ch %d", count, chs); return NULL;
         }
     } else { // Both channels active, need to split the record in half
@@ -84,6 +85,7 @@ lr_get_data(PyObject *self, PyObject *args)
             case 8:    return Py_BuildValue("((dddd)(dddd))", d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]);
             case 10:   return Py_BuildValue("((ddddd)(ddddd))", d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9]);
             case 12:   return Py_BuildValue("((dddddd)(dddddd))", d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9], d[10], d[11]);
+            case 14:   return Py_BuildValue("((dddddd)(dddddd))", d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9], d[10], d[11], d[12], d[13]);
             default:   PyErr_Format(PyExc_Exception, "Unknown record count %d for ch %d", count, chs); return NULL;
         }
     }
