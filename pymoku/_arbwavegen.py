@@ -41,7 +41,7 @@ _ARB_MODE_500 = 0x1
 _ARB_MODE_250 = 0x2
 _ARB_MODE_125 = 0x3
 
-_ARB_AMPSCALE = 2.0**16
+_ARB_AMPSCALE = 2.0**16 - 1
 _ARB_VOLTSCALE = 2.0**15
 _ARB_LUT_LENGTH = 8192
 _ARB_LUT_LSB = 2.0**32
@@ -155,20 +155,17 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		}
 
 		mode = _utils.str_to_val(_str_to_mode, mode, "operating mode")
-		
+
 		self._set_mode(ch, mode, len(data))
 
 		# picks the stepsize and the steps based in the mode
 		steps, stepsize = [(8, 8192), (4, 8192 * 2), (2, 8192 * 4), (1, 8192 * 8)][mode]
 
-		if not os.path.exists('.lutdata.dat'):
-  			open('.lutdata.dat', 'w').close()
-
-		with open('.lutdata.dat', 'r+b') as f:
+		with open('.lutdata.dat', 'w+b') as f:
 			#first check and make the file the right size
 			f.seek(0, os.SEEK_END)
 			size = f.tell()
-			f.write('\0'.encode(encoding='UTF-8') * (_ARB_LUT_LENGTH * 8 * 4 * 2 - size))
+			f.write(b'\0' * (_ARB_LUT_LENGTH * 8 * 4 * 2 - size))
 			f.flush()
 
 			#Leave the previous data file so we just rewite the new part,
@@ -186,9 +183,10 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		self._set_mmap_access(True)
 		error = self._moku._send_file('j', '.lutdata.dat')
 		self._set_mmap_access(False)
+		os.remove('.lutdata.dat')
 
 	@needs_commit
-	def gen_waveform(self, ch, period, phase, amplitude, offset=0, interpolation=True, dead_time=0, dead_voltage = 0):
+	def gen_waveform(self, ch, period, amplitude, phase=0, offset=0, interpolation=True, dead_time=0, dead_voltage = 0):
 		""" Generate the Arbitrary Waveform with the given parameters on the given channel.
 
 		The Look-up table for this channel should have been loaded beforehand using :any:`write_lut`.
@@ -208,11 +206,11 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		:type period: float, [4e-9, 1];
 		:param period: period of the signal in seconds
 
-		:type phase: float, [0-360] degrees
-		:param phase: Phase offset of the wave
-
 		:type amplitude: float, [0.0,2.0] Vpp
 		:param amplitude: Waveform peak-to-peak amplitude
+
+		:type phase: float, [0-360] degrees
+		:param phase: Phase offset of the wave
 
 		:type offset: float, [-1.0,1.0] Volts
 		:param offset: DC offset applied to the waveform

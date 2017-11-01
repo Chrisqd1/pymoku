@@ -3,18 +3,19 @@ from pymoku.instruments import ArbitraryWaveGen
 import numpy as np
 import time
 
-#generate a signal the the Arb Waveform Gen should generate on the output	
+#generate a signal the the Arb Waveform Gen should generate on the output
+t = np.linspace(0, 1, 100) # Evaluate our waveform at 100 points
 
-Fs = 100 #a lot more than twice per period
-t = np.linspace(0,2,201) #two cycles, 100 points each
+# Simple square wave (can also use scipy.signal)
+sq_wave = np.sign(np.sin(2 * np.pi * t))
 
-sqwave = np.sign(np.sin(2*np.pi*t)) #an actual square wave
-
+# More interesting waveform. Note that we have to normalize this waveform
+# to the range [-1, 1]
 not_sq = np.zeros(len(t))
-for h in np.arange(1,15,2):
-    not_sq += (4/(np.pi*h))*np.cos(2*np.pi*h*t)
+for h in np.arange(1, 15, 2):
+    not_sq += (4 / (np.pi * h)) * np.cos(2 * np.pi * h * t)
 
-not_sq = not_sq /max(not_sq)
+not_sq = not_sq / max(not_sq)
 
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
@@ -25,13 +26,15 @@ i = ArbitraryWaveGen()
 m.deploy_instrument(i)
 
 try:
-	i.write_lut(ch = 1, data = not_sq, mode = '1GS')
-	i.write_lut(ch = 2, data = sqwave, mode = '1GS')
+	# Load the waveforms to the device. This doesn't yet generate an output as we haven't
+	# set the amplitude, frequency etc; this only defines the shape.
+	i.write_lut(1, not_sq)
+	i.write_lut(2, sq_wave)
 
-	i.gen_waveform(ch = 1, period = 1e-6, phase = 0, amplitude = 1, offset = 0.0, interpolation = False, dead_time = 0, dead_voltage = 0.0)
-	i.gen_waveform(ch = 2, period = 1e-6, phase = 0, amplitude = 1, offset = 0.0, interpolation = True, dead_time = 0, dead_voltage = 0.0)
-
-	time.sleep(30)
-
+	# We have configurable on-device linear interpolation between LUT points. Normally
+	# interpolation is a good idea, but for sharp edges like square waves it will
+	# improve jitter but reduce rise-time. Configure whatever's suitable for your application.
+	i.gen_waveform(1, period=1e-6, amplitude=1, interpolation=True)
+	i.gen_waveform(2, period=1e-6, amplitude=2, interpolation=False)
 finally:
 	m.close()
