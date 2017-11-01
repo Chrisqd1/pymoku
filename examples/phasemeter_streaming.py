@@ -2,7 +2,7 @@
 # pymoku example: Phasemeter networking streaming
 #
 # This example starts a 10-second network stream of Channel 1 Phasemeter data and processes
-# it live. The contents of each data sample are printed out, along with the signal amplitude 
+# it live. The contents of each data sample are printed out, along with the signal amplitude
 # which may be calculated as A = (I^2 + Q^2).
 #
 # (c) 2017 Liquid Instruments Pty. Ltd.
@@ -77,13 +77,13 @@ try:
 			print("Ch1 - fs: %f, f: %f, phase: %f, amplitude: %f" % (s[0],s[1],s[3],math.sqrt(s[4]**2 + s[5]**2)))
 
 except StreamException as e:
-	print("Error occured: %s" % e.message)
+	print("Error occured: %s" % e)
 except FrameTimeout:
 	print("Logging session timed out")
 finally:
-	# Make sure you stop a network stream to release network resources and 
+	# Make sure you stop a network stream to release network resources and
 	# clean up session metadata
 	i.stop_stream_data()
-	
+
 	# Close the connection to the Moku:Lab
 	m.close()

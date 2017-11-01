@@ -2,7 +2,7 @@
 # pymoku example: Phasemeter data logging
 #
 # This example demonstrates how you can configure the Phasemeter instrument
-# and log single-channel phase and [I,Q] data to a CSV file for a 10 
+# and log single-channel phase and [I,Q] data to a CSV file for a 10
 # second duration.
 #
 # (c) 2017 Liquid Instruments Pty. Ltd.
@@ -45,7 +45,7 @@ try:
 	print("Uploaded log file to local directory.")
 
 except StreamException as e:
-	print("Error occured: %s" % e.message)
+	print("Error occured: %s" % e)
 finally:
 	# Denote that we are done with the data logging session so resources may be cleand up
 	i.stop_data_log()
