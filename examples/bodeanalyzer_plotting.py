@@ -71,7 +71,7 @@ try:
 		line4, = plt.plot([])
 	ax_2 = plt.gca()
 	ax_2.set_xlabel('Frequency (Hz)')
-	ax_2.set_ylabel('Magnitude (dB)')
+	ax_2.set_ylabel('Phase (Cycles)')
 
 	plt.ion()
 	plt.show()
