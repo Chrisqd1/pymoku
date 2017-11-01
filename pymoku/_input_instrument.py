@@ -117,7 +117,7 @@ class InputInstrument(_instrument.MokuInstrument):
 			if(use_sd):
 				maxrates = { 'bin' : 150e3, 'csv' : 1e3, 'net' : 20e3, 'plot' : 10}
 			else:
-				maxrates = { 'bin' : 1e6, 'csv' : 1e3, 'net' : 20e3, 'plot' : 10}
+				maxrates = { 'bin' : 500e3, 'csv' : 1e3, 'net' : 20e3, 'plot' : 10}
 		else:
 			if(use_sd):
 				maxrates = { 'bin' : 250e3, 'csv' : 3e3, 'net' : 40e3, 'plot' : 10}
