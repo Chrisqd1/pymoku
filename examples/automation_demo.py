@@ -2,7 +2,7 @@
 # pymoku example: Automated Test Demonstration Script
 #
 # This script demonstrates how the Moku could be utilised in an
-# automated test application. 
+# automated test application.
 #
 # (c) 2017 Liquid Instruments Pty. Ltd.
 #

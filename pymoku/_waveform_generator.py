@@ -407,10 +407,10 @@ class WaveformGenerator(BasicWaveformGenerator):
 		self.trig_volts_ch2 = 0.0
 
 	@needs_commit
-	def set_trigger(self, ch, mode, ncycles = 1, sweep_start_freq = None, sweep_end_freq = 5.0, sweep_duration = 1.0, trigger_source = 'external', trigger_threshold = 0.0, internal_trig_period = 1.0):
+	def set_trigger(self, ch, mode, ncycles=1, sweep_start_freq=None, sweep_end_freq=0, sweep_duration=0, trigger_source='external', trigger_threshold=0.0, internal_trig_period=1.0):
 		""" Configure gated, start, ncycle or sweep trigger mode on target channel.
 
-		The trigger event can come from an ADC channel, the opposite generated waveform, the external
+		The trigger event can come from an ADC input channel, the opposite generated waveform, the external
 		trigger input (for hardware that supports that) or a internally-generated clock of configurable
 		period.
 
@@ -441,7 +441,7 @@ class WaveformGenerator(BasicWaveformGenerator):
 		:type sweep_duration : float, [0.0,1000.0], seconds
 		:param sweep_duration : sweep duration in seconds.
 
-		:type trigger_source: string {'external', 'in', 'out', 'internal'}
+		:type trigger_source: string {'external', 'adc', 'dac', 'internal'}
 		:param: defines which source should be used as triggering signal.
 
 		:type trigger_threshold: float, [-5, 5], volts
@@ -464,8 +464,8 @@ class WaveformGenerator(BasicWaveformGenerator):
 		## Configure trigger source settings:
 		_str_to_trigger_source = {
 			'external' : _SG_TRIG_EXT,
-			'in' : _SG_TRIG_ADC,
-			'out' : _SG_TRIG_DAC,
+			'adc' : _SG_TRIG_ADC,
+			'dac' : _SG_TRIG_DAC,
 			'internal' : _SG_TRIG_INTER
 		}
 
@@ -581,17 +581,13 @@ class WaveformGenerator(BasicWaveformGenerator):
 		g1, g2 = self._adc_gains()
 		d1, d2 = self._dac_gains()
 		if self.trigger_select_ch1 == _SG_TRIG_ADC:
-			print(g1)
-			print(self.trig_volts_ch1)
 			try:
 				self.trig_ADC_threshold_ch1 = self.trig_volts_ch1 / g1
-				print(self.trig_ADC_threshold_ch1)
 			except ValueOutOfRangeException:
 				raise ValueOutOfRangeException("Invalid Trigger threshold on channel 1. Valid range for input is [-0.5, 0.5] and if attenution is on [-5, 5].")
 		if self.trigger_select_ch2 == _SG_TRIG_ADC:
 			try:
 				self.trig_ADC_threshold_ch2 = self.trig_volts_ch2 / g2
-				print(self.trig_ADC_threshold_ch2)
 			except ValueOutOfRangeException:
 				raise ValueOutOfRangeException("Invalid Trigger threshold on channel 2. Valid range for input is [-0.5, 0.5] and if attenution is on [-5, 5].")
 		if self.trigger_select_ch1 == _SG_TRIG_DAC:

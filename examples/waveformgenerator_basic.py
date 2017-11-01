@@ -1,8 +1,8 @@
 #
-# pymoku example: Basic Signal Generator
+# pymoku example: Basic Waveform Generator
 #
-# This example demonstrates how you can use the Signal Generator instrument to
-# generate an amplitude modulated sinewave on Channel 1, and un-modulated 
+# This example demonstrates how you can use the Waveform Generator instrument to
+# generate an amplitude modulated sinewave on Channel 1, and un-modulated
 # squarewave on Channel 2.
 #
 # (c) 2017 Liquid Instruments Pty. Ltd.

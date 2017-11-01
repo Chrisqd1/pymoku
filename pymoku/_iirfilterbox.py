@@ -309,32 +309,38 @@ class IIRFilterBox(_CoreOscilloscope):
 		"""
 		Select the point inside the filterbox to monitor.
 
-		There are two monitoring channels available, '1' and '2'; you can mux any of the internal
+		There are two monitoring channels available, 'a' and 'b'; you can mux any of the internal
 		monitoring points to either of these channels.
 
 		The source is one of:
-			- **adc1**	: CH 1 ADC Input
-			- **in1**	: Filter CH 1 After Input Offset
-			- **out1**	: Filter CH 1 Output
-			- **adc2**	: CH 2 ADC Input
-			- **in2**	: Filter CH 2 After Input Offset
+			- **adc1**	: CH 1 ADC input
+			- **in1**	: Filter CH 1 after input offset and mixing
+			- **out1**	: Filter CH 1 output
+			- **adc2**	: CH 2 ADC input
+			- **in2**	: Filter CH 2 after input offset and
 			- **out2**	: Filter CH 2 Output
+
+		:param ch: Monitor channel
+		:type ch: str ['a', 'b']
+
+		:param source: Signal to connect to this monitor channel
+		:type source: str
 		"""
 		#_utils.check_parameter_valid('set', ch, [1,2],'filter channel')
 		_utils.check_parameter_valid('string', ch, desc="monitor channel")
 		_utils.check_parameter_valid('string', source, desc="monitor signal")
 
 		_utils.check_parameter_valid('set', ch, allowed=['a','b'], desc="monitor channel")
-		_utils.check_parameter_valid('set', source, allowed=['in1', 'inch1', 'out1', 'in2', 'inch2', 'out2'], desc="monitor source")
+		_utils.check_parameter_valid('set', source, allowed=['adc1', 'in1', 'out1', 'adc2', 'in2', 'out2'], desc="monitor source")
 
 		sources = {
-			'none': 	_IIR_MON_NONE,
-			'in1': 		_IIR_MON_IN1,
-			'inch1':	_IIR_MON_INCH1,
-			'out1': 	_IIR_MON_OUT1,
-			'in2': 		_IIR_MON_IN2,
-			'inch2':	_IIR_MON_INCH2,
-			'out2':		_IIR_MON_OUT2,
+			'none': _IIR_MON_NONE,
+			'adc1': _IIR_MON_IN1,
+			'in1':	_IIR_MON_INCH1,
+			'out1': _IIR_MON_OUT1,
+			'adc2': _IIR_MON_IN2,
+			'in2':	_IIR_MON_INCH2,
+			'out2':	_IIR_MON_OUT2,
 		}
 
 		source = source.lower()
@@ -349,7 +355,7 @@ class IIRFilterBox(_CoreOscilloscope):
 	@needs_commit
 	def set_trigger(self, source, edge, level, hysteresis=False, hf_reject=False, mode='auto'):
 		"""
-			Set the trigger for the monitor signals. This can be either of the input channel signals 
+			Set the trigger for the monitor signals. This can be either of the input channel signals
 			or monitor channel signals.
 
 			:type source: string; {'in1','in2','A','B','ext'}
@@ -398,9 +404,9 @@ class IIRFilterBox(_CoreOscilloscope):
 
 		monitor_source_gains = {
 			'none'	: 1.0,
-			'in1'	: scales['gain_adc1']*(10.0 if atten1[1] else 1.0), 
+			'in1'	: scales['gain_adc1']*(10.0 if atten1[1] else 1.0),
 			'inch1'	: scales['gain_adc1']*(10.0 if atten1[1] else 1.0),
-			'out1'	: (scales['gain_dac1']*(2**4)), # 12bit ADC - 16bit DAC 
+			'out1'	: (scales['gain_dac1']*(2**4)), # 12bit ADC - 16bit DAC
 			'in2'	: scales['gain_adc2']*(10.0 if atten2[1] else 1.0),
 			'inch2'	: scales['gain_adc2']*(10.0 if atten2[1] else 1.0),
 			'out2'	: (scales['gain_dac2']*(2**4))

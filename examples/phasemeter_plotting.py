@@ -2,8 +2,8 @@
 # pymoku example: Plotting Phasemeter
 #
 # This example demonstrates how you can configure the Phasemeter instrument
-# and stream dual-channel samples of the form [fs, f, count, phase, I, Q]. 
-# The signal amplitude is calculated using these samples, and plotted for 
+# and stream dual-channel samples of the form [fs, f, count, phase, I, Q].
+# The signal amplitude is calculated using these samples, and plotted for
 # real-time viewing.
 #
 # (c) 2017 Liquid Instruments Pty. Ltd.
@@ -13,19 +13,10 @@ from pymoku.instruments import Phasemeter
 import math, numpy
 import matplotlib.pyplot as plt
 
-
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
-i = m.discover_instrument()
-
-if i is None or i.type != 'phasemeter':
-	print("No or wrong instrument deployed")
-	i = Phasemeter()
-	m.deploy_instrument(i)
-else:
-	print("Attached to existing Phasemeter")
-	m.take_ownership()
+i = m.deploy_or_connect(Phasemeter)
 
 try:
 	# Set samplerate to slow mode ~30Hz
@@ -82,12 +73,8 @@ try:
 		# Each sample has format [fs, f, count, phase, I, Q]
 		# Convert I,Q to amplitude and append to line graph
 		ch1_samples = data[0]
-		for s in ch1_samples:
-			ydata1 = ydata1 + [math.sqrt(s[4]**2 + s[5]**2)]
-
-		ch2_samples = data[1]
-		for s in ch2_samples:
-			ydata2 = ydata2 + [math.sqrt(s[4]**2 + s[5]**2)]
+		ydata1 += [ math.sqrt(s[4]**2 + s[5]**2) for s in data[0] ]
+		ydata2 += [ math.sqrt(s[4]**2 + s[5]**2) for s in data[1] ]
 
 		ydata1 = ydata1[-plot_points:]
 		ydata2 = ydata2[-plot_points:]
@@ -105,7 +92,7 @@ try:
 		plt.draw()
 
 except StreamException as e:
-	print("Error occured: %s" % e.message)
+	print("Error occured: %s" % e)
 finally:
 	i.stop_stream_data()
 	m.close()

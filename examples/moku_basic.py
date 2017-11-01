@@ -8,17 +8,13 @@
 # 	- Serial number
 #	- IP address
 #
-# These and other Moku:Lab device settings can be configured using 
-# Moku.set_* type functions on a connected Moku object (as opposed to 
+# These and other Moku:Lab device settings can be configured using
+# Moku.set_* type functions on a connected Moku object (as opposed to
 # Moku.get_* used here)
 #
 # (c) 2017 Liquid Instruments Pty. Ltd.
 #
 from pymoku import Moku
-
-# This will hold our connected Moku object
-moku = None
-
 try:
 	# Search for any Mokus on the current network
 	mokus = Moku.list_mokus()
@@ -29,7 +25,7 @@ try:
 	else:
 		# Print details of all Moku:Labs found on the network
 		print("Found Moku:Labs!")
-		for i,m in enumerate(mokus):
+		for i, m in enumerate(mokus):
 			print("%d. %s, %s, %s" % (i+1,m[0],m[1],m[2]))
 
 		# Extract the IP address of the first found Moku:Lab device on the network
@@ -44,6 +40,4 @@ try:
 		print("LED Colour: %s" % moku.get_led_colour())
 
 finally:
-	# Close off the network connection to the Moku:Lab device (if any)
-	if moku:
-		moku.close()
+	moku.close()

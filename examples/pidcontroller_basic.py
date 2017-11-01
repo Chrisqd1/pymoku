@@ -1,7 +1,3 @@
-from pymoku import Moku  
-from pymoku.instruments import PIDController
-import time, logging
-#
 # pymoku example: Basic PID Controller
 #
 # This script demonstrates how to configure one of the two PID Controllers
@@ -10,7 +6,8 @@ import time, logging
 #
 # (c) 2017 Liquid Instruments Pty. Ltd.
 #
-from pymoku import *
+
+from pymoku import Moku
 from pymoku.instruments import PIDController
 
 def from_dB(dB):
@@ -19,7 +16,7 @@ def from_dB(dB):
 
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
-m = Moku.get_by_serial("41221")
+m = Moku.get_by_name("Moku")
 
 # Prepare the PID Controller instrument
 i = PIDController()

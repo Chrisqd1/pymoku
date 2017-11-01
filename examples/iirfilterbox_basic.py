@@ -1,14 +1,18 @@
+# pymoku example: Basic IIR Filter Box
+#
+# This example demonstrates how you can configure the IIR Filter instrument,
+# configure real-time monitoring of the input and output signals.
+#
+# (c) 2017 Liquid Instruments Pty. Ltd.
+#
 from pymoku import Moku
 from pymoku.instruments import IIRFilterBox
 
-"""
-This script provides a basic example showing how to load coefficients from an array into the IIRFilterBox.
+# This script provides a basic example showing how to load coefficients from an array into the IIRFilterBox.
 
-The following example array produces an 8th order Direct-form 1 Chebyshev type 2 IIR filter with a normalized stopband frequency of 0.2 pi rad/sample and a stopband attenuation
-of 40 dB. Output gain is set to 1.0. See the IIRFilterBox documentation for array dimension specifics.
-
-"""
-
+# The following example array produces an 8th order Direct-form 1 Chebyshev type 2 IIR filter with a
+# normalized stopband frequency of 0.2 pi rad/sample and a stopband attenuation of 40 dB. Output gain
+# is set to 1.0. See the IIRFilterBox documentation for array dimension specifics.
 filt_coeff = 	[[1.0],
 				[1.0000000000,0.6413900006,-1.0290561741,0.6413900006,-1.6378425857,0.8915664128],
 				[1.0000000000,0.5106751138,-0.7507394931,0.5106751138,-1.4000444473,0.6706551819],
@@ -21,7 +25,6 @@ i = IIRFilterBox()
 m.deploy_instrument(i)
 
 try:
-
 	i.set_frontend(1, fiftyr=True, atten=False, ac=False)
 	i.set_frontend(2, fiftyr=True, atten=False, ac=False)
 
@@ -35,11 +38,11 @@ try:
 	i.set_offset_gain(2, matrix_scalar_ch1=0.5, matrix_scalar_ch2=0.5)
 
 	# Set up monitoring of the input and output of the second filter channel.
-	i.set_monitor(1, 'in2')
-	i.set_monitor(2, 'out2')
+	i.set_monitor('a', 'in2')
+	i.set_monitor('b', 'out2')
 
 	# Capture and print one set of time-domain input and output points
-	print(i.get_data())
-
+	d = i.get_data()
+	print(d.ch1, d.ch2)
 finally:
 	m.close()

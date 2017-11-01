@@ -7,29 +7,22 @@
 # (c) 2017 Liquid Instruments Pty. Ltd.
 #
 from pymoku import *
-from pymoku.instruments import *
+from pymoku.instruments import BodeAnalyzer
 import logging
 
 import matplotlib
 import matplotlib.pyplot as plt
 
 logging.basicConfig(format='%(asctime)s:%(name)s:%(levelname)s::%(message)s')
-logging.getLogger('pymoku').setLevel(logging.INFO)
+logging.getLogger('pymoku').setLevel(logging.DEBUG)
 
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
-m = Moku.get_by_name('Moku')
+m = Moku('192.168.69.53', force=True)#.get_by_name('Moku')
 
 # See whether there's already a Bode Analyzer running. If there is, take
 # control of it; if not, deploy a new Bode Analyzer instrument
-i = m.discover_instrument()
-if i is None or i.type != 'bodeanalyzer':
-	print("No or wrong instrument deployed")
-	i = BodeAnalyzer()
-	m.deploy_instrument(i)
-else:
-	print("Attached to existing Bode Analyzer")
-	m.take_ownership()
+i = m.deploy_or_connect(BodeAnalyzer)
 
 # Define output sweep parameters here for readability
 f_start = 100 # Hz
@@ -51,7 +44,7 @@ try:
 
 	# Set the sweep configuration
 	i.set_sweep(f_start, f_end, sweep_length, log_scale, averaging_time, settling_time, averaging_cycles, settling_cycles)
-	
+
 	# Start the output sweep in loop mode
 	i.start_sweep(single=single_sweep)
 

@@ -28,7 +28,7 @@ REG_LIA_DIFF_PGAIN2		= 108
 REG_LIA_DIFF_IGAIN1		= 109
 REG_LIA_DIFF_IGAIN2		= 110
 REG_LIA_DIFF_IFBGAIN1	= 111
-REG_LIA_DIFF_IFBGAIN2	= 112  
+REG_LIA_DIFF_IFBGAIN2	= 112
 
 REG_LIA_IN_OFFSET1		= 113
 REG_LIA_OUT_OFFSET1		= 114
@@ -65,7 +65,7 @@ _LIA_MON_NONE	= 0
 _LIA_MON_IN1	= 1
 _LIA_MON_I		= 2
 _LIA_MON_Q		= 3
-_LIA_MON_OUT	= 4 
+_LIA_MON_OUT	= 4
 _LIA_MON_AUX	= 5
 _LIA_MON_IN2	= 6
 _LIA_MON_DEMOD	= 7
@@ -102,7 +102,7 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		_CoreOscilloscope.set_defaults(self)
 
 		# Configure the low-pass filter
-		self.set_filter(1e3, 1, 1)
+		self.set_filter(1e3, 1)
 		self.set_gain('aux',1.0)
 		self.set_pid_by_gain('main',1.0)
 		self.set_lo_output(0.5,1e6,0)
@@ -113,10 +113,10 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		self.set_input_gain(0)
 
 	@needs_commit
-	def set_input_gain(self, gain = 0):
+	def set_input_gain(self, gain=0):
 		"""
 		Set the main input gain (Input Channel 1).
-		
+
 		:type gain: int; {-20, 0, 24, 48} dB
 		:param gain: Input gain
 
@@ -359,7 +359,7 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 	set_by_frequency = set_pid_by_frequency
 
 	def _set_pid_channel(self, lia_ch):
-		# Helper function which switches connections to gain stage and PID 
+		# Helper function which switches connections to gain stage and PID
 
 		_utils.check_parameter_valid('set', lia_ch, allowed=['main','aux'], desc="PID channel")
 
@@ -397,7 +397,7 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 			:param g: Gain
 		"""
 		_utils.check_parameter_valid('set', lia_ch, allowed=['main','aux'], desc="lock-in channel")
-		_utils.check_parameter_valid('range', g, allowed=[0,2^16-1], desc="gain")
+		_utils.check_parameter_valid('range', g, allowed=[0, 2**16 - 1], desc="gain")
 
 		if lia_ch == 'aux':
 			# Track gain value for the main channel
@@ -415,14 +415,14 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 				self.set_pid_by_gain('main',g)
 			else:
 				self.gainstage_gain = g
-		else:	
+		else:
 			raise Exception("Invalid LIA channel.")
 
 	@needs_commit
 	def set_demodulation(self, mode, frequency=1e6, phase=0):
 		"""
 		Configure the demodulation stage.
-		
+
 		The mode is one of:
 			- **internal** : for an internally set local oscillator
 			- **external** : to directly use an external signal for demodulation (Note: Q is not selectable in this mode)
@@ -441,7 +441,7 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		_utils.check_parameter_valid('range', frequency, allowed=[0,200e6], desc="demodulation frequency", units="Hz")
 		_utils.check_parameter_valid('range', phase, allowed=[0,360], desc="demodulation phase", units="degrees")
 		_utils.check_parameter_valid('set', mode, allowed=['internal', 'external', 'external_pll'] )
-		
+
 		self.autoacquire = 1
 		self.bandwidth = 0
 		self.lo_PLL_reset = 0
@@ -468,18 +468,15 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 			raise ValueOutOfRangeException('Demodulation mode must be one of "internal", "external" or "external_pll", not %s', mode)
 
 	@needs_commit
-	def set_filter(self, f_corner, order, gain=1.0):
+	def set_filter(self, f_corner, order):
 		"""
-		Set the low-pass filter parameters. 
+		Set the low-pass filter parameters.
 
-		:type f_corner: float; # TODO: Range?
+		:type f_corner: float
 		:param f_corner: Corner frequency of the low-pass filter (Hz)
 
 		:type order: int; [0, 1, 2]
 		:param order: filter order; 0 (bypass), first- or second-order.
-
-		:type gain: float; [237e-3, 3e6]
-		:param gain: Overall gain of low-pass filter
 
 		"""
 		# Ensure the right parts of the filter are enabled
@@ -490,6 +487,10 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		self.lpf_diff_d_en = 0
 		self.lpf_den = 0
 
+		# It is strictly possible for this filter to have gain separate from the output
+		# gain. It's almost always right to leave this at 1 and manipulate the output gain
+		gain = 1
+
 		impedence_gain = 1 if (self.relays_ch1 & RELAY_LOWZ) else 2
 		atten_gain = 1 if (self.relays_ch1 & RELAY_LOWG) else 10
 		gain_factor = impedence_gain * atten_gain * gain / (4.4) * self._dac_gains()[0] / self._adc_gains()[0]
@@ -497,7 +498,7 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		coeff = 1 - 2*(math.pi * f_corner) /_LIA_CONTROL_FS
 
 		self.lpf_int_ifb_gain = coeff
-	
+
 		self.lpf_int_i_gain = 1.0 - coeff
 
 		if order == 0:
@@ -594,7 +595,7 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 	@needs_commit
 	def set_trigger(self, source, edge, level, hysteresis=False, hf_reject=False, mode='auto'):
 		"""
-			Set the trigger for the monitor signals. This can be either of the input channel signals 
+			Set the trigger for the monitor signals. This can be either of the input channel signals
 			or monitor channel signals.
 
 			:type source: string; {'in1','in2','A','B','ext'}
@@ -652,8 +653,8 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		monitor_source_gains = {
 			'none'	: 1.0,
 			'in1'	: scales['gain_adc1']*(10.0 if atten1 else 1.0), # Undo range scaling
-			'in2'	: scales['gain_adc2']*(10.0 if atten2 else 1.0), 
-			'main'	: scales['gain_dac1']*(2**4), # 12bit ADC - 16bit DAC 
+			'in2'	: scales['gain_adc2']*(10.0 if atten2 else 1.0),
+			'main'	: scales['gain_dac1']*(2**4), # 12bit ADC - 16bit DAC
 			'aux'	: scales['gain_dac2']*(2**4),
 			'demod'	: _demod_mode_to_gain(self.demod_mode),
 			'i'		: scales['gain_adc1']*(10.0 if atten1 else 1.0),
@@ -679,10 +680,10 @@ _lia_reg_hdl = {
 	'ch1_pid1_pen':		(REG_LIA_ENABLES,		to_reg_bool(5),
 												from_reg_bool(5)),
 
-	'ch1_out_en': 		(REG_LIA_ENABLES,		to_reg_bool(8), 
+	'ch1_out_en': 		(REG_LIA_ENABLES,		to_reg_bool(8),
 												from_reg_bool(8)),
 
-	'ch2_out_en': 		(REG_LIA_ENABLES, 		to_reg_bool(9), 
+	'ch2_out_en': 		(REG_LIA_ENABLES, 		to_reg_bool(9),
 												from_reg_bool(9)),
 
 	'lpf_den':			(REG_LIA_ENABLES,		to_reg_bool(10),
@@ -821,6 +822,6 @@ _lia_reg_hdl = {
 	'output_shift':			(REG_LIA_PM_OUTSHIFT, 	to_reg_unsigned(17,5),
 													from_reg_unsigned(17,5)),
 
-	'autoacquire':		(REG_LIA_PM_AUTOA1, to_reg_bool(0), 
+	'autoacquire':		(REG_LIA_PM_AUTOA1, to_reg_bool(0),
 											from_reg_bool(0))
 }

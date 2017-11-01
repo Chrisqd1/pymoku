@@ -51,7 +51,9 @@ class _BodeChannelData():
 
 		self.magnitude = [calculate_magnitude(I,Q,G,front_end_scale) for I, Q, G in zip(self.i_sig, self.q_sig, gain_correction)]
 
-		self.magnitude_dB = [ None if not x else 20.0 * math.log10(x / output_amp) for x in self.magnitude ]
+		# Sometimes there's a transient condition at startup where we don't have a valid output_amp. Return Nones in that
+		# case in preference to exploding.
+		self.magnitude_dB = [ None if not x else 20.0 * math.log10(x / output_amp) if output_amp else None for x in self.magnitude ]
 
 		self.phase = [ None if (I is None or Q is None) else (math.atan2(Q or 0, I or 0))/(2.0*math.pi) for I, Q in zip(self.i_sig, self.q_sig)]
 

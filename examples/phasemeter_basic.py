@@ -9,7 +9,7 @@
 #
 from pymoku import *
 from pymoku.instruments import Phasemeter
-import math, time
+import time
 
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')

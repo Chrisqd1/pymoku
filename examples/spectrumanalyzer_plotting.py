@@ -1,7 +1,7 @@
 #
 # pymoku example: Plotting Spectrum Analyzer
 #
-# This example demonstrates how you can configure the Spectrum Analyzer 
+# This example demonstrates how you can configure the Spectrum Analyzer
 # instrument and plot its spectrum data in real-time. It also shows how
 # you can use its embedded signal generator to generate a sweep and single
 # frequency waveform on the output channels.
@@ -10,7 +10,7 @@
 #
 from pymoku import *
 from pymoku.instruments import SpectrumAnalyzer
-import time, logging
+import logging
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -22,15 +22,7 @@ logging.getLogger('pymoku').setLevel(logging.INFO)
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
-
-i = m.discover_instrument()
-if i is None or i.type != 'spectrumanalyzer':
-	print("No or wrong instrument deployed")
-	i = SpectrumAnalyzer()
-	m.deploy_instrument(i)
-else:
-	print("Attached to existing Spectrum Analyzer")
-	m.take_ownership()
+i = m.deploy_or_connect(SpectrumAnalyzer)
 
 # Use dBm scaling on the y-axis
 dbm=True
@@ -63,7 +55,7 @@ try:
 	plt.autoscale(axis='x',tight=True)
 
 	# Get an initial frame of data to set any frame-specific plot parameters
-	frame = i.get_data()
+	frame = i.get_realtime_data()
 
 	# Format the x-axis as a frequency scale
 	ax = plt.gca()
@@ -74,7 +66,7 @@ try:
 
 	# Get and update the plot with new data
 	while True:
-		frame = i.get_data()
+		frame = i.get_realtime_data()
 		plt.pause(0.001)
 
 		# Set the frame data for each channel plot

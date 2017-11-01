@@ -2,40 +2,23 @@
 # pymoku example: Plotting Oscilloscope
 #
 # This example demonstrates how you can configure the Oscilloscope instrument,
-# and view triggered time-voltage data frames in real-time. 
+# and view triggered time-voltage data frames in real-time.
 #
 # (c) 2017 Liquid Instruments Pty. Ltd.
 #
 from pymoku import *
 from pymoku.instruments import Oscilloscope
-import time, logging
 
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 
-logging.basicConfig(format='%(asctime)s:%(name)s:%(levelname)s::%(message)s')
-logging.getLogger('pymoku').setLevel(logging.INFO)
-
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
-
-# See whether there's already an Oscilloscope running. If there is, take
-# control of it; if not, attach a new Oscilloscope instrument
-i = m.discover_instrument()
-if i is None or i.type != 'oscilloscope':
-	print("No or wrong instrument deployed")
-	i = Oscilloscope()
-	m.deploy_instrument(i)
-else:
-	print("Attached to existing Oscilloscope")
-	m.take_ownership()
+i = m.deploy_or_connect(Oscilloscope)
 
 try:
-	# Reset instrument settings to default
-	i.set_defaults()
-
 	# Trigger on input Channel 1, rising edge, 0V with 0.1V hysteresis
 	i.set_trigger('in1', 'rising', 0, hysteresis=True)
 
@@ -48,7 +31,7 @@ try:
 	# Set the data source of Channel 1 to be Input 1
 	i.set_source(1, 'in')
 
-	# Set the data source of Channel 2 to the generated output sinewave 
+	# Set the data source of Channel 2 to the generated output sinewave
 	i.set_source(2, 'out')
 
 	# Get initial data frame to set up plotting parameters. This can be done once

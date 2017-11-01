@@ -1,7 +1,14 @@
+#
+# pymoku example: Arbitrary waveform generator
+#
+# This example demonstrates how you can generate and output arbitrary
+# waveforms using Moku:AWG
+#
+# (c) 2017 Liquid Instruments Pty. Ltd.
+#
 from pymoku import Moku
 from pymoku.instruments import ArbitraryWaveGen
 import numpy as np
-import time
 
 #generate a signal the the Arb Waveform Gen should generate on the output
 t = np.linspace(0, 1, 100) # Evaluate our waveform at 100 points

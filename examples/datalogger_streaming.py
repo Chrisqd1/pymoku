@@ -8,11 +8,10 @@
 #
 from pymoku import *
 from pymoku.instruments import Datalogger
-import time
 
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
-m = Moku('192.168.69.90', load_instruments=True)#.get_by_name('Moku')
+m = Moku.get_by_name('Moku')
 
 # Prepare the Datalogger instrument
 i = Datalogger()
@@ -44,7 +43,7 @@ try:
 	i.stop_stream_data()
 
 except StreamException as e:
-	print("Error occured: %s" % e.message)
+	print("Error occured: %s" % e)
 finally:
 	# Close the connection to the Moku to release network resources
 	m.close()
