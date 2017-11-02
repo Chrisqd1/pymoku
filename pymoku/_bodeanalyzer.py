@@ -383,6 +383,7 @@ class BodeAnalyzer(_frame_instrument.FrameBasedInstrument):
 
 		self.x_mode = FULL_FRAME
 		self.render_mode = RDR_DDS
+		self.framerate = 10
 
 		self.en_in_ch1 = True
 		self.en_in_ch2 = True
