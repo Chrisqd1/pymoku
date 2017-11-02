@@ -2,6 +2,8 @@ import subprocess, os, os.path, sys
 
 from setuptools import setup, Extension
 
+from Cython.Build import cythonize
+
 from pkg_resources import resource_filename, resource_isdir
 from tempfile import mkstemp
 from zipfile import ZipFile
@@ -31,6 +33,9 @@ lr_ext = Extension(
 
 	extra_compile_args=['-std=c99'],
 )
+
+cythonize('pymoku/*.pyx')
+bd_ext = Extension('pymoku._bodeanalyzer_data', ['pymoku/_bodeanalyzer_data.c'])
 
 setup(
 	name='pymoku',
@@ -70,6 +75,7 @@ setup(
 
 	ext_modules=[
 		lr_ext,
+		bd_ext,
 	],
 
 	zip_safe=False, # Due to bitstream download
