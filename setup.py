@@ -1,54 +1,15 @@
 import subprocess, os, os.path, sys
 
 from setuptools import setup, Extension
-from setuptools.command.install import install
-from setuptools.command.develop import develop
 
 from pkg_resources import resource_filename, resource_isdir
 from tempfile import mkstemp
 from zipfile import ZipFile
 
 version = open('pymoku/version.txt').read().strip()
-data_url = 'http://www.liquidinstruments.com/s/data-latest.zip'
 
-try:
-	sys.argv.remove("--no-fetch-data")
-	fetch_bs = False
-except:
-	fetch_bs = True
-
-
-def download_bitstreams():
-	import requests
-	assert resource_isdir('pymoku', 'instr')
-	base_path = resource_filename('pymoku', 'instr')
-
-	data = mkstemp()
-
-	try:
-		r = requests.get(data_url)
-		os.write(data[0], r.content)
-		ZipFile(data[1]).extractall(base_path)
-
-		os.close(data[0])
-		os.remove(data[1])
-	except:
-		print("Failed to fetch updated instrument data, please re-run install with internet access or specify '--no-fetch-data' to disable this message.")
-		raise
-
-
-class InstallWithBitstreams(install):
-	def run(self):
-		install.run(self)
-		if fetch_bs:
-			download_bitstreams()
-
-class DevelopWithBitstreams(develop):
-	def run(self):
-		develop.run(self)
-		if fetch_bs:
-			download_bitstreams()
-
+# I thought this fixed a bug on Windows but I'm now not convinved, should
+# check that this is required (rather than just using '/' as path sep.)
 j = os.path.join
 
 lr_ext = Extension(
@@ -77,7 +38,7 @@ setup(
 	packages=['pymoku', 'pymoku.tools'],
 	package_dir={'pymoku': 'pymoku'},
 	package_data={
-		'pymoku' : ['version.txt', '*.capnp', j('instr', '.empty')]
+		'pymoku' : ['version.txt', '*.capnp', j('data', '*')]
 	},
 	license='MIT',
 	long_description="Python scripting interface to the Liquid Instruments Moku:Lab",
@@ -108,11 +69,6 @@ setup(
 	ext_modules=[
 		lr_ext,
 	],
-
-	cmdclass={
-		'install': InstallWithBitstreams,
-		'develop': DevelopWithBitstreams,
-	},
 
 	zip_safe=False, # Due to bitstream download
 )
