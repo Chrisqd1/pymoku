@@ -116,7 +116,7 @@ class Moku(object):
 			if cp.firmware_is_compatible(build) == False: # Might be None = unknown, don't print that.
 				raise MokuException("The connected Moku appears to be incompatible with this version of pymoku. Please run 'moku --ip={} firmware check_compat' for more information.".format(self._ip))
 
-		self.load_instruments = load_instruments or self.get_bootmode() == 'normal'
+		self.load_instruments = load_instruments if load_instruments is not None else self.get_bootmode() == 'normal'
 
 	@staticmethod
 	def list_mokus(timeout=5, all_versions=True):
@@ -1005,6 +1005,8 @@ class Moku(object):
 			self._instrument.set_defaults()
 			# Ensure this always implicitly commits
 			self._instrument.commit()
+
+		return self._instrument
 
 	def deploy_or_connect(self, instrument, set_default=True, use_external=True):
 		"""
