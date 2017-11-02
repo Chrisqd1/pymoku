@@ -25,7 +25,7 @@ m = Moku.get_by_name('Moku')
 i = m.deploy_or_connect(BodeAnalyzer)
 
 # Define output sweep parameters here for readability
-f_start = 100 # Hz
+f_start = 10 # Hz
 f_end = 100e6 # Hz
 sweep_length = 512
 log_scale = True
@@ -38,6 +38,13 @@ averaging_cycles = 1
 settling_cycles = 1
 
 try:
+	# Many PCs struggle to plot magnitude and phase for both channels at the default
+	# 10fps, turn it down so it remains smooth, albeit slow. Turn the output to 'sweep'
+	# mode so we can see the in-progress sweep (set to 'full_frame' or leave blank if
+	# if you only want to get completed traces, e.g. for analysis rather than viewing)
+	i.set_framerate(5)
+	i.set_xmode('sweep')
+
 	# Set the output sweep amplitudes
 	i.set_output(1, amp_ch1)
 	i.set_output(2, amp_ch2)
@@ -79,7 +86,7 @@ try:
 
 	# Retrieves and plot new data
 	while True:
-		frame = i.get_data(timeout=5)
+		frame = i.get_realtime_data(timeout=5)
 
 		# Set the frame data for each channel plot
 		plt.subplot(211)
