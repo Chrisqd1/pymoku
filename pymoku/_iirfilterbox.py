@@ -244,7 +244,7 @@ class IIRFilterBox(_CoreOscilloscope):
 		:type input_scale, output_scale : int, linear scalar, [0,100]
 		:param input_scale, output_scale : channel scalars before and after the IIR filter
 
-		:type input_offset, output_offset : int, mV, [-500,500]
+		:type input_offset, output_offset : int, Volts, [-0.5,0.5]
 		:param input_offset, output_offset : channel offsets before and after the IIR filter
 
 		:type matrix_scalar_ch1 : int, linear scalar, [0,20]
@@ -256,8 +256,8 @@ class IIRFilterBox(_CoreOscilloscope):
 		_utils.check_parameter_valid('set', ch, [1,2],'filter channel')
 		_utils.check_parameter_valid('range', input_scale, [0,100],'input scale','linear scalar')
 		_utils.check_parameter_valid('range', output_scale, [0,100],'output scale','linear scalar')
-		_utils.check_parameter_valid('range', input_offset, [-500,500],'input offset','mV')
-		_utils.check_parameter_valid('range', output_offset, [-500,500],'output offset','mV')
+		_utils.check_parameter_valid('range', input_offset, [-0.5,0.5],'input offset','Volts')
+		_utils.check_parameter_valid('range', output_offset, [-0.5,0.5],'output offset','Volts')
 		_utils.check_parameter_valid('range', matrix_scalar_ch1, [0,20],'matrix ch1 scalar','linear scalar',allow_none=True)
 		_utils.check_parameter_valid('range', matrix_scalar_ch2, [0,20],'matrix ch2 scalar','linear scalar',allow_none=True)
 
@@ -286,8 +286,8 @@ class IIRFilterBox(_CoreOscilloscope):
 		output_scale_bits = int(round(output_scale*2**6*output_gain_factor))
 
 		## Calculate input/output offset values
-		input_offset_bits = int(round(375.0 * round(input_offset) / 500.0))
-		output_offset_bits = int(round(1 / dac_calibration / 2 * output_offset / 500.0))
+		input_offset_bits = int(round(375.0 * round(input_offset) / 0.5))
+		output_offset_bits = int(round(1 / dac_calibration / 2 * output_offset / 0.5))
 
 		if ch == 1:
 			self.inputscale_ch1 = input_scale_bits
@@ -326,7 +326,6 @@ class IIRFilterBox(_CoreOscilloscope):
 		:param source: Signal to connect to this monitor channel
 		:type source: str
 		"""
-		#_utils.check_parameter_valid('set', ch, [1,2],'filter channel')
 		_utils.check_parameter_valid('string', ch, desc="monitor channel")
 		_utils.check_parameter_valid('string', source, desc="monitor signal")
 
@@ -343,6 +342,7 @@ class IIRFilterBox(_CoreOscilloscope):
 			'out2':	_IIR_MON_OUT2,
 		}
 
+		ch = ch.lower()
 		source = source.lower()
 
 		if ch == 'a':

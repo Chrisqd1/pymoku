@@ -24,7 +24,7 @@ try:
 
     # Demodulate at 1MHz (internally-generated) with a 100Hz, 2nd-order
     # (6dB / octave) LPF.
-    i.set_modulation('internal', 1e6)
+    i.set_demodulation('internal', 1e6)
     i.set_filter(100, 2)
 finally:
     m.close()
