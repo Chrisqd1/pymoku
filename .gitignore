@@ -10,3 +10,5 @@ tests/test.li
 tests/test2.li
 lr.*
 .cache/
+pymoku/data/10.*
+pymoku/data/20.*
