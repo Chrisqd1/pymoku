@@ -8,6 +8,10 @@ from . import _utils
 
 log = logging.getLogger(__name__)
 
+REG_SG_TrigDutyInternalCH0_L		= 69
+REG_SG_TrigDutyInternalCH0_H		= 70
+REG_SG_TrigDutyInternalCH1_L		= 71
+REG_SG_TrigDutyInternalCH1_H		= 72
 REG_SG_TrigPeriodInternalCH0_L		= 73
 REG_SG_TrigPeriodInternalCH0_H		= 74
 REG_SG_TrigPeriodInternalCH1_L		= 75
@@ -407,7 +411,7 @@ class WaveformGenerator(BasicWaveformGenerator):
 		self.trig_volts_ch2 = 0.0
 
 	@needs_commit
-	def set_trigger(self, ch, mode, ncycles=1, sweep_start_freq=None, sweep_end_freq=0, sweep_duration=0, trigger_source='external', trigger_threshold=0.0, internal_trig_period=1.0):
+	def set_trigger(self, ch, mode, ncycles=1, sweep_start_freq=None, sweep_end_freq=0, sweep_duration=0, trigger_source='external', trigger_threshold=0.0, internal_trig_period=1.0, internal_trig_high=0.5):
 		""" Configure gated, start, ncycle or sweep trigger mode on target channel.
 
 		The trigger event can come from an ADC input channel, the opposite generated waveform, the external
@@ -450,13 +454,17 @@ class WaveformGenerator(BasicWaveformGenerator):
 		:type internal_trig_period: float, [0,1e11], seconds
 		:param internal_trig_period: period of the internal trigger clock, if used.
 
+		:type internal_trig_high: float, [0,1e11], seconds
+		:param internal_trig_high: High time of the internal trigger clock, if used. Must be less than the internal trigger period.
+
 		"""
 		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
 		_utils.check_parameter_valid('set', mode, ['gated','start','ncycle','sweep'],'trigger mode')
 		_utils.check_parameter_valid('set', trigger_source, ['external','adc','dac','internal'],'trigger source')
 		_utils.check_parameter_valid('range', ncycles, [0,1e6],'output channel','frequency')
 		_utils.check_parameter_valid('range', sweep_duration, [0.0,1000.0],'sweep duration','seconds')
-		_utils.check_parameter_valid('range', internal_trig_period, [0,1e11],'internal trigger period','seconds')
+		_utils.check_parameter_valid('range', internal_trig_period, [100.0e-9,1000.0],'internal trigger period','seconds')
+		_utils.check_parameter_valid('range', internal_trig_high, [10.0e-9,1000.0],'internal trigger high time','seconds')
 
 		# Can't use modulation with trigger/sweep modes
 		self.gen_modulate_off(ch)
@@ -476,17 +484,26 @@ class WaveformGenerator(BasicWaveformGenerator):
 		elif source is _SG_TRIG_DAC:
 			_utils.check_parameter_valid('range', trigger_threshold, [_SG_TRIGLVL_DAC_MIN, _SG_TRIGLVL_DAC_MAX], 'trigger threshold', 'Volts')
 
-		internal_trig_increment = math.ceil(2**64/(internal_trig_period*125*10**6))
+		## The internal trigger's duty cycle is only used in gated burst mode. Duty cycle is limited such that the duty period is not
+		## less than 8 ns and not greater than the trigger period minus 8 ns.
+
+		if (internal_trig_period - internal_trig_high) <= 8.0e-9:
+			internal_trig_high <= internal_trig_period - 10.0e-9
+
+		internal_trig_increment = math.ceil((2**64)/(internal_trig_period*125*10**6))
+		internal_trig_dutytarget = round((2**64)*(internal_trig_high/internal_trig_period)) if mode == 'gated' else 2**63
 
 		if ch == 1:
 			self.trigger_select_ch1 = source
 			if source == _SG_TRIG_INTER:
 				self.internal_trig_increment_ch1 = internal_trig_increment
+				self.internal_trig_dutytarget_ch1 = internal_trig_dutytarget
 			self.adc1_statuslight = True if source == _SG_TRIG_ADC else False
 		elif ch == 2:
 			self.trigger_select_ch2 = source
 			if source == _SG_TRIG_INTER:
 				self.internal_trig_increment_ch2 = internal_trig_increment
+				self.internal_trig_dutytarget_ch2 = internal_trig_dutytarget
 			self.adc2_statuslight = True if source == _SG_TRIG_ADC else False
 
 		# Configure trigger mode settings and evaluate exception conditions:
@@ -844,6 +861,12 @@ _siggen_reg_handlers = {
 											to_reg_unsigned(0,64), from_reg_unsigned(0,64)),
 
 	'internal_trig_increment_ch2':	((REG_SG_TrigPeriodInternalCH1_H, REG_SG_TrigPeriodInternalCH1_L),
+											to_reg_unsigned(0,64), from_reg_unsigned(0,64)),
+
+	'internal_trig_dutytarget_ch1': ((REG_SG_TrigDutyInternalCH0_H, REG_SG_TrigDutyInternalCH0_L),
+											to_reg_unsigned(0,64), from_reg_unsigned(0,64)),
+
+	'internal_trig_dutytarget_ch2': ((REG_SG_TrigDutyInternalCH1_H, REG_SG_TrigDutyInternalCH1_L),
 											to_reg_unsigned(0,64), from_reg_unsigned(0,64)),
 
 	'trig_ADC_threshold_ch1':		(REG_SG_ADCThreshold, 	to_reg_signed(0,12), from_reg_signed(0,12)),
