@@ -12,7 +12,7 @@ up a Moku by Name or Serial Number.
 
 		sudo apt-get install libavahi-compat-libdnssd1
 
-A :any:`Moku` object is useful only for flashing lights until an instrument is deployed to it. The deployment process 
+A :any:`Moku` object is useful only for flashing lights until an instrument is deployed to it. The deployment process
 defines the functionality of the Moku:Lab. For examples on how to deploy an instrument, see demo scripts on each of the `Instruments`_ pages below.
 
 Example Usage
@@ -32,41 +32,43 @@ The Moku Class
 .. autoclass:: pymoku.Moku
 	:members:
 
-.. _instruments-contents:
 -----------
 Instruments
 -----------
 
 .. toctree::
-	:maxdepth: 1
 
-	oscilloscope
-	datalogger
-	wavegen
-	specan
-	phasemeter
+   oscilloscope
+   datalogger
+   wavegen
+   arbwave
+   specan
+   phasemeter
+   bodeanalyzer
+   pid
+   lockin
+   iirfilterbox
 
 ----------
 Exceptions
 ----------
 
-.. Can't get automodule to work properly for this..
-.. autoexception:: MokuException
-.. autoexception:: DeployException
-.. autoexception:: FileNotFound
-.. autoexception:: FrameTimeout
-.. autoexception:: InsufficientSpace
-.. autoexception:: InvalidConfigurationException
-.. autoexception:: InvalidOperationException
-.. autoexception:: MokuBusy
-.. autoexception:: MokuNotFound
-.. autoexception:: MPNotMounted
-.. autoexception:: MPReadOnly
-.. autoexception:: NetworkError
-.. autoexception:: NoDataException
-.. autoexception:: NotDeployedException
-.. autoexception:: StreamException
-.. autoexception:: UnknownAction
-.. autoexception:: ValueOutOfRangeException
-
-
+.. autoexception MokuException
+.. autoexception MokuNotFound
+.. autoexception NetworkError
+.. autoexception DeployException
+.. autoexception InvalidOperationException
+.. autoexception InvalidParameterException
+.. autoexception ValueOutOfRangeException
+.. autoexception NotDeployedException
+.. autoexception FrameTimeout
+.. autoexception NoDataException
+.. autoexception InvalidConfigurationException
+.. autoexception StreamException
+.. autoexception FileNotFound
+.. autoexception InsufficientSpace
+.. autoexception MPNotMounted
+.. autoexception MPReadOnly
+.. autoexception UnknownAction
+.. autoexception MokuBusy
+.. autoexception UncommittedSettings

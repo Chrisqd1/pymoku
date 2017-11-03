@@ -66,14 +66,14 @@ _OSC_POSTTRIGGER_MAX = -2**28
 
 class VoltsData(_frame_instrument.InstrumentData):
 	"""
-	Object representing a frame of dual-channel data in units of Volts, and time in units of seconds. 
+	Object representing a frame of dual-channel data in units of Volts, and time in units of seconds.
 	This is the native output format of	the :any:`Oscilloscope` instrument. The *waveformid* property
 	enables identification of uniqueness of a frame of data, as it is possible to retrieve the same
 	data more than once (i.e. if the instrument has been paused).
 
 	This object should not be instantiated directly, but will be returned by a call to
-	:any:`get_data <pymoku.instruments.Oscilloscope.get_data>` or 
-	:any:`get_realtime_data <pymoku.instruments.Oscilloscope.get_realtime_data>` on the associated 
+	:any:`get_data <pymoku.instruments.Oscilloscope.get_data>` or
+	:any:`get_realtime_data <pymoku.instruments.Oscilloscope.get_realtime_data>` on the associated
 	:any:`Oscilloscope`	instrument.
 
 	.. autoinstanceattribute:: pymoku._frame_instrument.VoltsData.ch1
@@ -364,7 +364,7 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		:type samplerate: float; *0 < samplerate <= 500 Msmp/s*
 		:param samplerate: Target samples per second. Will get rounded to the nearest allowable unit.
 
-		:type trigger_offset: int; *-2^16 < trigger_offset < 2^31 *
+		:type trigger_offset: int; *-2^16 < trigger_offset < 2^31*
 		:param trigger_offset: Number of samples before (-) or after (+) the trigger point to start capturing.
 
 		:raises ValueOutOfRangeException: if either parameter is out of range.
@@ -480,7 +480,7 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		# Precision mode should be off if hysteresis is being used
 		#if self.ain_mode == _OSC_AIN_DECI and hysteresis > 0:
 		#	raise InvalidConfigurationException("Precision mode and Hysteresis can't be set at the same time.")
-		
+
 		# self.hysteresis_volts = hysteresis
 		# TODO: Enable setting hysteresis level. For now we use the iPad LSB values for ON/OFF.
 		self.hysteresis = 25 if hysteresis else 5

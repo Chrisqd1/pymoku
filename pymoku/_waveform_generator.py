@@ -423,7 +423,7 @@ class WaveformGenerator(BasicWaveformGenerator):
 		- *start*: The output waveform is enabled once the trigger event fires
 		- *ncycle*: The output waveform starts at a trigger event and completes the given number of cycles, before turning off and re-arming
 		- *sweep*: The trigger event starts the waveform generation at the *sweep_start_freq*, before automatically sweeping the
-		   frequency to *sweep_end_freq* over the course of *sweep_duration* seconds.
+		frequency to *sweep_end_freq* over the course of *sweep_duration* seconds.
 
 		Set the trigger mode to *'off'* to disable this feature.
 
@@ -456,8 +456,8 @@ class WaveformGenerator(BasicWaveformGenerator):
 
 		:type internal_trig_high: float, [0,1e11], seconds
 		:param internal_trig_high: High time of the internal trigger clock, if used. Must be less than the internal trigger period.
-
 		"""
+
 		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
 		_utils.check_parameter_valid('set', mode, ['gated','start','ncycle','sweep'],'trigger mode')
 		_utils.check_parameter_valid('set', trigger_source, ['external','adc','dac','internal'],'trigger source')

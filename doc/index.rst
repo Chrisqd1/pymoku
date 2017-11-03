@@ -23,9 +23,11 @@ Contents
    oscilloscope
    datalogger
    wavegen
+   arbwave
    specan
    phasemeter
    bodeanalyzer
+   pid
    lockin
    iirfilterbox
    utils

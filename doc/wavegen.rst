@@ -2,14 +2,14 @@
 Waveform Generator Instrument
 =============================
 
-Supports the generation of Sine, Square and Ramp waves. 
+Supports the generation of Sine, Square and Ramp waves.
 
 The output waveforms can also be frequency, phase or amplitude modulated. The modulation source can
 be another internally-generated Sinewave, the associated analog input channel or the other output channel.
 That other output channel may itself be modulated in some way, allowing the creation of very complex
 waveforms.
 
-.. note:: 
+.. note::
 
 	For frequencies over approximately 30MHz, the Square Wave can be subject to edge jitter due to the
 	DDS technology used in the Moku:Lab. If this is a problem, and you don't need duty-cycle control,
@@ -26,7 +26,7 @@ For an in-depth walkthrough on using the pymoku Waveform Generator Instrument, s
 	:caption: waveformgenerator_basic.py
 
 The WaveformGenerator Class
--------------------------
+---------------------------
 
 .. autoclass:: pymoku.instruments.WaveformGenerator
 	:members:
