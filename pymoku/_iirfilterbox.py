@@ -258,8 +258,8 @@ class IIRFilterBox(_CoreOscilloscope):
 		_utils.check_parameter_valid('range', output_scale, [0,100],'output scale','linear scalar')
 		_utils.check_parameter_valid('range', input_offset, [-0.5,0.5],'input offset','Volts')
 		_utils.check_parameter_valid('range', output_offset, [-0.5,0.5],'output offset','Volts')
-		_utils.check_parameter_valid('range', matrix_scalar_ch1, [0,20],'matrix ch1 scalar','linear scalar',allow_none=True)
-		_utils.check_parameter_valid('range', matrix_scalar_ch2, [0,20],'matrix ch2 scalar','linear scalar',allow_none=True)
+		_utils.check_parameter_valid('range', matrix_scalar_ch1, [-20,20],'matrix ch1 scalar','linear scalar',allow_none=True)
+		_utils.check_parameter_valid('range', matrix_scalar_ch2, [-20,20],'matrix ch2 scalar','linear scalar',allow_none=True)
 
 		## Get calibration coefficients
 		a1, a2 = self._adc_gains()
