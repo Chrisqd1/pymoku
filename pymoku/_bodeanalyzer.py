@@ -298,6 +298,12 @@ class BodeAnalyzer(_frame_instrument.FrameBasedInstrument):
 		"""
 		_utils.check_parameter_valid('bool', single, desc='enable single sweep')
 
+		self.adc1_en = True
+		self.adc2_en = True
+		self.dac1_en = True
+		self.dac2_en = True
+
+		self.sweep_reset = False
 		self.single_sweep = single
 		self.loop_sweep = not single
 
@@ -308,6 +314,11 @@ class BodeAnalyzer(_frame_instrument.FrameBasedInstrument):
 		This will stop new data frames from being received, so ensure you implement a timeout
 		on :any:`get_data<pymoku.instruments.BodeAnalyzer.get_data>` calls. """
 		self.single_sweep = self.loop_sweep = False
+
+		self.adc2_en = False
+		self.dac1_en = False
+		self.dac2_en = False
+		self.adc1_en = False
 
 	def _restart_sweep(self):
 		self.sweep_reset = True
@@ -423,6 +434,11 @@ _na_reg_handlers = {
 	'sweep_reset':				(REG_NA_ENABLES, to_reg_bool(2), from_reg_bool(2)),
 	'channel1_en':				(REG_NA_ENABLES, to_reg_bool(3), from_reg_bool(3)),
 	'channel2_en':				(REG_NA_ENABLES, to_reg_bool(4), from_reg_bool(4)),
+
+	'adc1_en':					(REG_NA_ENABLES, to_reg_bool(5), from_reg_bool(5)),
+	'adc2_en':					(REG_NA_ENABLES, to_reg_bool(6), from_reg_bool(6)),
+	'dac1_en':					(REG_NA_ENABLES, to_reg_bool(7), from_reg_bool(7)),
+	'dac2_en':					(REG_NA_ENABLES, to_reg_bool(8), from_reg_bool(8)),
 
 	'sweep_freq_min':			((REG_NA_SWEEP_FREQ_MIN_H, REG_NA_SWEEP_FREQ_MIN_L),
 											to_reg_unsigned(0, 48, xform=lambda obj, f: f * _NA_FREQ_SCALE),
