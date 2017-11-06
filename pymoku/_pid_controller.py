@@ -41,7 +41,7 @@ REG_PID_CH1_INT_IFBGAIN1_LSB	= 115
 REG_PID_CH1_INT_IFBGAIN1_MSB	= 116
 REG_PID_CH1_INT_IFBGAIN2		= 116
 REG_PID_CH1_INT_PGAIN1			= 117
-REG_PID_CH1_INT_PGAIN2_LSB		= 118
+REG_PID_CH1_INT_PGAIN2_LSB		= 117
 REG_PID_CH1_INT_PGAIN2_MSB		= 118
 REG_PID_CH1_DIFF_PGAIN1			= 120
 REG_PID_CH1_DIFF_IGAIN1_LSB		= 121
@@ -53,7 +53,7 @@ REG_PID_CH1_CH0GAIN_MSB			= 124
 REG_PID_CH1_OFFSET1				= 125
 REG_PID_CH1_OFFSET2				= 126
 REG_PID_CH1_CH1GAIN				= 127
-  
+
 REG_PID_MONSELECT				= 104
 
 # SIGNAL PRECISION MODES
@@ -212,7 +212,7 @@ class PIDController(_CoreOscilloscope):
 		# D gain and corner, magic factors different from iPad?? Note there's kind of a
 		# magic factor of 1/2 in the d saturation case as I would expect it to be 2*pi
 		d_gain = 4 * sd if sd else 4 * 1000
-		
+
 		# Calculate the differentiator feedback gain and ensure saturation corner doesn't exceed 1MHz.
 		if sd :
 			if kd >0 :
@@ -233,7 +233,7 @@ class PIDController(_CoreOscilloscope):
 	@needs_commit
 	def set_by_frequency(self, ch, kp=1, i_xover=None, d_xover=None, ii_xover=None, si=None, sd=None, in_offset=0, out_offset=0):
 		"""
-		
+
 		Configure the selected PID controller using crossover frequencies.
 
 		:type ch: int; [1,2]
@@ -272,7 +272,7 @@ class PIDController(_CoreOscilloscope):
 	@needs_commit
 	def set_by_gain(self, ch, g, kp=0, ki=0, kd=0, kii=0, si=None, sd=None, in_offset=0, out_offset=0):
 		"""
-		
+
 		Configure the selected PID controller using gain coefficients.
 
 		:type ch: int; [1,2]
@@ -310,7 +310,7 @@ class PIDController(_CoreOscilloscope):
 		self._set_by_gain(ch, g, kp, ki, kd, kii, si, sd, in_offset, out_offset, touch_ii=True)
 
 	def _set_by_gain(self, ch, g, kp, ki, kd, kii, si, sd, in_offset, out_offset, touch_ii):
-	
+
 		p_gain, i_gain, d_gain, gain_factor, ii_gain, i_fb, d_fb = self._calculate_regs_by_gain(
 			ch, g, kp, ki, kd, kii, si, sd)
 
@@ -408,15 +408,15 @@ class PIDController(_CoreOscilloscope):
 	def set_control_matrix(self, ch, self_gain, cross_gain):
 		"""
 		Set the linear combination of ADC input signals for a given PID channel.
-		
-		:type ch: int; [1,2] 
+
+		:type ch: int; [1,2]
 		:param ch: PID Channel
 
 		:type self_gain: float; [-20,20]
 		:param self_gain: ADC input gain for same PID channel
 
 		:type cross_gain: float; [-20, 20]
-		:param cross_gain: 
+		:param cross_gain:
 
 		"""
 		# We chuck in a factor of 1000 here then take it off again in the controller
@@ -437,7 +437,7 @@ class PIDController(_CoreOscilloscope):
 		if self.ch1_ch2_gain == self.ch2_ch2_gain == 0:
 			self.ch1_input_light = False;
 		else:
-			self.ch2_input_light = True;	
+			self.ch2_input_light = True;
 
 
 _PID_reg_hdl = {
@@ -479,7 +479,7 @@ _PID_reg_hdl = {
 												to_reg_signed(0,16, xform=lambda obj, x : x * 2**8 * obj._adc_gains()[0]),
 												from_reg_signed(0,16, xform=lambda obj, x : x / 2**8 / obj._adc_gains()[0])),
 
-	'ch2_ch1_gain' :	((REG_PID_CH1_CH0GAIN_MSB, REG_PID_CH1_CH0GAIN_LSB), 
+	'ch2_ch1_gain' :	((REG_PID_CH1_CH0GAIN_MSB, REG_PID_CH1_CH0GAIN_LSB),
 												to_reg_signed(24,16, xform=lambda obj, x: x * 2**8 * obj._adc_gains()[1]),
 												from_reg_signed(24,16, xform=lambda obj, x: x / 2**8 / obj._adc_gains()[1])),
 
@@ -493,7 +493,7 @@ _PID_reg_hdl = {
 												from_reg_signed(0, 16, xform=lambda obj, x: x * obj._dac_gains()[0])),
 
 	'ch1_pid1_out_offset':	(REG_PID_CH0_OFFSET1, to_reg_signed(16, 16, xform=lambda obj, x: x / obj._dac_gains()[0]),
-												from_reg_signed(16, 16, xform=lambda obj, x: x * obj._dac_gains()[0])),	
+												from_reg_signed(16, 16, xform=lambda obj, x: x * obj._dac_gains()[0])),
 
 	'ch1_pid2_out_offset':	(REG_PID_CH0_OFFSET2, to_reg_signed(16, 16, xform=lambda obj, x: x / obj._dac_gains()[0]),
 												from_reg_signed(16, 16, xform=lambda obj, x: x * obj._dac_gains()[0])),
@@ -528,15 +528,15 @@ _PID_reg_hdl = {
 												to_reg_unsigned(24, 24, xform=lambda obj, x: x * 2**11),
 												from_reg_unsigned(24, 24, xform=lambda obj, x: x / 2**11)),
 
-	'ch1_pid1_diff_p_gain':	(REG_PID_CH0_DIFF_PGAIN1,	
+	'ch1_pid1_diff_p_gain':	(REG_PID_CH0_DIFF_PGAIN1,
 												to_reg_unsigned(0, 24, xform=lambda obj, x: x * 2**11),
 												from_reg_unsigned(0, 24, xform=lambda obj, x: x / 2**11)),
 
-	'ch1_pid1_diff_i_gain':	((REG_PID_CH0_DIFF_IGAIN1_MSB, REG_PID_CH0_DIFF_IGAIN1_LSB),	
+	'ch1_pid1_diff_i_gain':	((REG_PID_CH0_DIFF_IGAIN1_MSB, REG_PID_CH0_DIFF_IGAIN1_LSB),
 												to_reg_unsigned(16, 24),
 												from_reg_unsigned(16, 24)),
 
-	'ch1_pid1_diff_ifb_gain':	(REG_PID_CH0_DIFF_IFBGAIN1,	
+	'ch1_pid1_diff_ifb_gain':	(REG_PID_CH0_DIFF_IFBGAIN1,
 												to_reg_unsigned(0, 24, xform=lambda obj, x: x * (2**24 - 1)),
 												from_reg_unsigned(0, 24, xform=lambda obj, x: x / (2**24 - 1))),
 
@@ -547,7 +547,7 @@ _PID_reg_hdl = {
 												from_reg_signed(0, 16, xform=lambda obj, x: x * obj._dac_gains()[1])),
 
 	'ch2_pid1_out_offset':	(REG_PID_CH1_OFFSET1, to_reg_signed(16, 16, xform=lambda obj, x: x / obj._dac_gains()[1]),
-												from_reg_signed(16, 16, xform=lambda obj, x: x * obj._dac_gains()[1])),	
+												from_reg_signed(16, 16, xform=lambda obj, x: x * obj._dac_gains()[1])),
 
 	'ch2_pid2_out_offset':	(REG_PID_CH1_OFFSET2, to_reg_signed(16, 16, xform=lambda obj, x: x / obj._dac_gains()[1]),
 												from_reg_signed(16, 16, xform=lambda obj, x: x * obj._dac_gains()[1])),
@@ -581,15 +581,15 @@ _PID_reg_hdl = {
 												to_reg_unsigned(24, 24, xform=lambda obj, x: x * 2**11),
 												from_reg_unsigned(24, 24, xform=lambda obj, x: x / 2**11)),
 
-	'ch2_pid1_diff_p_gain':	(REG_PID_CH1_DIFF_PGAIN1,	
+	'ch2_pid1_diff_p_gain':	(REG_PID_CH1_DIFF_PGAIN1,
 												to_reg_unsigned(0, 24, xform=lambda obj, x: x * 2**11),
 												from_reg_unsigned(0, 24, xform=lambda obj, x: x / 2**11)),
 
-	'ch2_pid1_diff_i_gain':	((REG_PID_CH1_DIFF_IGAIN1_MSB, REG_PID_CH1_DIFF_IGAIN1_LSB),	
+	'ch2_pid1_diff_i_gain':	((REG_PID_CH1_DIFF_IGAIN1_MSB, REG_PID_CH1_DIFF_IGAIN1_LSB),
 												to_reg_unsigned(16, 24),
 												from_reg_unsigned(16, 24)),
 
-	'ch2_pid1_diff_ifb_gain':	(REG_PID_CH1_DIFF_IFBGAIN1,	
+	'ch2_pid1_diff_ifb_gain':	(REG_PID_CH1_DIFF_IFBGAIN1,
 												to_reg_unsigned(0, 24, xform=lambda obj, x: x * (2**24 - 1)),
 												from_reg_unsigned(0, 24, xform=lambda obj, x: x / (2**24 - 1))),
 
