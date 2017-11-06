@@ -82,6 +82,8 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		self.offset1 = 0.0
 		self.offset2 = 0.0
 
+		self.data = [[0], [0]]
+
 
 	@needs_commit
 	def _set_mode(self, ch, mode, length):
@@ -142,10 +144,10 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 				mode = '500'
 			elif len(data) <= 32768:
 				mode = '250'
-			elif len(data) <= 65534:
+			elif len(data) <= 65535:
 				mode = '125'
 			else:
-				raise ValueOutOfRangeException("Maximum data length is 65534 samples")
+				raise ValueOutOfRangeException("Maximum data length is 65535 samples")
 
 		_str_to_mode = {
 			'1000' : _ARB_MODE_1000,
@@ -161,6 +163,8 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		# picks the stepsize and the steps based in the mode
 		steps, stepsize = [(8, 8192), (4, 8192 * 2), (2, 8192 * 4), (1, 8192 * 8)][mode]
 
+		self.data[ch - 1] = data
+
 		with open('.lutdata.dat', 'w+b') as f:
 			#first check and make the file the right size
 			f.seek(0, os.SEEK_END)
@@ -170,13 +174,13 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 
 			#Leave the previous data file so we just rewite the new part,
 			#as we have to upload both channels at once.
-			if ch == 1:
-				offset = 0
-			else:
-				offset = _ARB_LUT_LENGTH * 8 * 4
 			for step in range(steps):
-				f.seek(offset + (step * stepsize * 4))
-				f.write(b''.join([struct.pack('<hh', math.ceil((2.0**15-1) * d),0) for d in data]))
+				f.seek(step * stepsize * 4)
+				f.write(b''.join([struct.pack('<hh', math.ceil((2.0**15-1) * d),0) for d in self.data[0]]))
+
+			for step in range(steps):
+				f.seek((_ARB_LUT_LENGTH * 8 * 4) + (step * stepsize * 4))
+				f.write(b''.join([struct.pack('<hh', math.ceil((2.0**15-1) * d),0) for d in self.data[1]]))
 
 			f.flush()
 
@@ -272,7 +276,7 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 
 	@needs_commit
 	def sync_phase(self, ch):
-		""" Synchronizes the phase off the given channel to the other
+		""" Synchronizes the phase of the given channel to the other
 
 		:type ch: int; {1,2}
 		:param ch: Channel that is synced to the other
