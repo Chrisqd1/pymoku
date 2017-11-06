@@ -13,9 +13,6 @@ import logging
 import matplotlib
 import matplotlib.pyplot as plt
 
-logging.basicConfig(format='%(asctime)s:%(name)s:%(levelname)s::%(message)s')
-logging.getLogger('pymoku').setLevel(logging.DEBUG)
-
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')

@@ -33,8 +33,8 @@ try:
 	i.set_filter(1, sample_rate='high', filter_coefficients=filt_coeff)
 	i.set_filter(2, sample_rate='low',  filter_coefficients=filt_coeff)
 
-	# 1V offset for CH1, CH2 acts on the sum of input 1 and 2
-	i.set_offset_gain(1, input_offset=1)
+	# 0.1V offset for CH1, CH2 acts on the sum of input 1 and 2
+	i.set_offset_gain(1, input_offset=0.1)
 	i.set_offset_gain(2, matrix_scalar_ch1=0.5, matrix_scalar_ch2=0.5)
 
 	# Set up monitoring of the input and output of the second filter channel.
