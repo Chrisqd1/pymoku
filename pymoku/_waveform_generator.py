@@ -487,11 +487,14 @@ class WaveformGenerator(BasicWaveformGenerator):
 		## The internal trigger's duty cycle is only used in gated burst mode. Duty cycle is limited such that the duty period is not
 		## less than 8 ns and not greater than the trigger period minus 8 ns.
 
-		if (internal_trig_period - internal_trig_high) <= 8.0e-9:
-			internal_trig_high <= internal_trig_period - 10.0e-9
+		if internal_trig_high > internal_trig_period:
+			raise ValueOutOfRangeException("Internal trigger high must be less than or equal to the internal trigger period.")
 
-		internal_trig_increment = math.ceil((2**64)/(internal_trig_period*125*10**6))
-		internal_trig_dutytarget = round((2**64)*(internal_trig_high/internal_trig_period)) if mode == 'gated' else 2**63
+		if (internal_trig_period - internal_trig_high) <= 8.0e-9:
+			internal_trig_high = internal_trig_period - 10.0e-9
+
+		internal_trig_increment = math.ceil((2**64-1)/float((internal_trig_period*125*10**6)))
+		internal_trig_dutytarget = round((2**64-1)*(float(internal_trig_high)/float(internal_trig_period))) if mode == 'gated' else 2**63
 
 		if ch == 1:
 			self.trigger_select_ch1 = source
