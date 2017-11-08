@@ -90,7 +90,7 @@ class StreamBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuI
 		"""
 		if timeout and timeout <= 0:
 			raise ValueOutOfRangeException("Timeout must be positive or 'None'")
-		if n <= -1:
+		if n < -1:
 			raise ValueOutOfRangeException("Invalid number of samples. Expected (n >= -1).")
 
 		# If no network session exists, can't get samples
@@ -115,8 +115,7 @@ class StreamBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuI
 		# for all enabled channels.
 		while ((n == -1) or
 			(self.ch1 and ((num_processed_samples[0] <= n) or (num_processed_samples[0] <= 0))) or
-			(self.ch2 and ((num_processed_samples[1] < n) or (num_processed_samples[1] <=0)))):
-
+			(self.ch2 and ((num_processed_samples[1] <= n) or (num_processed_samples[1] <= 0)))):
 			try:
 				self._stream_receive_samples(timeout)
 			except NoDataException:
