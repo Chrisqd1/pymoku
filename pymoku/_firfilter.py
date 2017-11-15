@@ -42,7 +42,7 @@ class FIRFilter(_CoreOscilloscope):
 	@needs_commit
 	def set_defaults(self):
 		super(FIRFilter, self).set_defaults()
-		self.input_scale1 = 0x0040
+		self.input_scale1 = 2**14-1#0x0040
 		self.input_offset1 = 0x0000
 		self.input_scale2 = 0x0040
 		self.input_offset2 = 0x0000

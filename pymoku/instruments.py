@@ -49,7 +49,7 @@ id_table = {
 	6: IIRFilterBox,
 	7: Datalogger,
 	8: LockInAmp,
-	9: BodeAnalyser,
+	9: BodeAnalyzer,
 	10: FIRFilter,
 	11: None,
 	12: None,
