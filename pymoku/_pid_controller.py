@@ -376,7 +376,7 @@ class PIDController(_CoreOscilloscope):
 
 			# Set gain factors
 			self.ch2_pid1_int_i_gain = i_gain
-			self.ch2_pid1_int_p_gain = math.sqrt(p_gain)
+			self.ch2_pid1_int_p_gain = p_gain
 			self.ch2_pid1_int_ifb_gain = i_fb
 			self.ch2_pid1_int_dc_pole = si is None
 
@@ -398,7 +398,7 @@ class PIDController(_CoreOscilloscope):
 				self.ch2_pid2_pidgain = gain_factor
 
 				self.ch2_pid2_int_i_gain = ii_gain
-				self.ch2_pid2_int_p_gain = math.sqrt(p_gain)
+				self.ch2_pid2_int_p_gain = 1
 				self.ch2_pid2_int_ifb_gain = i_fb
 				self.ch2_pid2_int_dc_pole = si is None
 
