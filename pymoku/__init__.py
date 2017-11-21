@@ -335,8 +335,10 @@ class Moku(object):
 
 	def _slot_packet(self, data, read=True):
 		packet_data = struct.pack("<BQB", 0x55, len(data), 0 if read else 1)
-		self._conn.send(packet_data + data)
-		ack = self._conn.recv()
+
+		with self._conn_lock:
+			self._conn.send(packet_data + data)
+			ack = self._conn.recv()
 
 		t, _, c = struct.unpack("<BQQ", ack[:17])
 
@@ -681,8 +683,9 @@ class Moku(object):
 				pkt += struct.pack("<QQ", i, len(data))
 				pkt += data
 
-				self._fs_send_generic(2, pkt)
-				self._fs_receive_generic(2)
+				with self._conn_lock:
+					self._fs_send_generic(2, pkt)
+					self._fs_receive_generic(2)
 
 				i += len(data)
 
@@ -713,9 +716,10 @@ class Moku(object):
 				pkt += qfname.encode('ascii')
 				pkt += struct.pack("<QQ", i, to_transfer)
 
-				self._fs_send_generic(1, pkt)
+				with self._conn_lock:
+					self._fs_send_generic(1, pkt)
+					reply = self._fs_receive_generic(1)
 
-				reply = self._fs_receive_generic(1)
 				dl = struct.unpack("<Q", reply[:8])[0]
 
 				f.write(reply[8:])
@@ -730,27 +734,35 @@ class Moku(object):
 
 		pkt = bytearray([len(fname)])
 		pkt += fname.encode('ascii')
-		self._fs_send_generic(3, pkt)
 
-		return struct.unpack("<I", self._fs_receive_generic(3))[0]
+		with self._conn_lock:
+			self._fs_send_generic(3, pkt)
+			rep = self._fs_receive_generic(3)
+		return struct.unpack("<I", rep)[0]
 
 	def _fs_sha(self, mp, fname):
 		fname = mp + ":" + fname
 
 		pkt = bytearray([len(fname)])
 		pkt += fname.encode('ascii')
-		self._fs_send_generic(10, pkt)
 
-		return self._fs_receive_generic(10).decode('ascii')
+		with self._conn_lock:
+			self._fs_send_generic(10, pkt)
+			rep = self._fs_receive_generic(10)
+
+		return rep.decode('ascii')
 
 	def _fs_size(self, mp, fname):
 		fname = mp + ":" + fname
 
 		pkt = bytearray([len(fname)])
 		pkt += fname.encode('ascii')
-		self._fs_send_generic(4, pkt)
 
-		return struct.unpack("<Q", self._fs_receive_generic(4))[0]
+		with self._conn_lock:
+			self._fs_send_generic(4, pkt)
+			rep = self._fs_receive_generic(4)
+
+		return struct.unpack("<Q", rep)[0]
 
 	def _fs_list(self, mp, calculate_crc=False, calculate_sha=False):
 		flags = 0
@@ -759,9 +771,10 @@ class Moku(object):
 
 		data = mp.encode('ascii')
 		data += bytearray([flags])
-		self._fs_send_generic(5, data)
 
-		reply = self._fs_receive_generic(5)
+		with self._conn_lock:
+			self._fs_send_generic(5, data)
+			reply = self._fs_receive_generic(5)
 
 		n = struct.unpack("<H", reply[:2])[0]
 		reply = reply[2:]
@@ -786,9 +799,11 @@ class Moku(object):
 		return names
 
 	def _fs_free(self, mp):
-		self._fs_send_generic(6, mp.encode('ascii'))
+		with self._conn_lock:
+			self._fs_send_generic(6, mp.encode('ascii'))
+			rep = self._fs_receive_generic(6)
 
-		t, f = struct.unpack("<QQ", self._fs_receive_generic(6))
+		t, f = struct.unpack("<QQ", rep)
 
 		return t, f
 
@@ -798,9 +813,9 @@ class Moku(object):
 		pkt += fname.encode('ascii')
 		pkt += struct.pack('<Q', fsize)
 
-		self._fs_send_generic(7, pkt)
-
-		reply = self._fs_receive_generic(7)
+		with self._conn_lock:
+			self._fs_send_generic(7, pkt)
+			self._fs_receive_generic(7)
 
 
 	def _fs_finalise_fromlocal(self, mp, localname, remotename=None):
@@ -820,20 +835,23 @@ class Moku(object):
 		flags = 1 if move else 0
 		pkt += bytearray([flags])
 
-		self._fs_send_generic(8, pkt)
+		with self._conn_lock:
+			self._fs_send_generic(8, pkt)
+			rep = self._fs_receive_generic(8)
 
-		return self._fs_receive_generic(8)
+		return rep
 
 
 	def _fs_rename_status(self):
-		self._fs_send_generic(9, b'')
 
-		try:
-			dat = self._fs_receive_generic(9)
-			stat = _ERR_OK
-		except MokuBusy as e:
-			dat = e.dat
-			stat = _ERR_BUSY
+		with self._conn_lock:
+			self._fs_send_generic(9, b'')
+			try:
+				dat = self._fs_receive_generic(9)
+				stat = _ERR_OK
+			except MokuBusy as e:
+				dat = e.dat
+				stat = _ERR_BUSY
 
 		size, pc = struct.unpack("<QB", dat)
 
