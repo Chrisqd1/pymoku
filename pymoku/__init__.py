@@ -252,9 +252,19 @@ class Moku(object):
 		packet_data = struct.pack("<BBB", t, len(name) + 1, flags) + name.encode('ascii')
 		with self._conn_lock:
 			self._conn.send(packet_data)
-			ack = self._conn.recv()
+			rep = self._conn.recv()
 
-		return ack[1] == 1
+		t, plen, own = struct.unpack("<BBB", rep[:3])
+		rep = rep[3:]
+
+		last_seen = None
+		if t == 0x41:
+			last_seen = struct.unpack("<I", rep[:4])
+			rep = rep[4:]
+
+		owner = rep
+
+		return own, owner, last_seen
 
 	def take_ownership(self):
 		"""
@@ -262,7 +272,7 @@ class Moku(object):
 
 		Having ownership enables you to send commands to and receive data from the corresponding Moku:Lab.
 		"""
-		return self._ownership(0x40, 1)
+		return self._ownership(0x40, 1)[0] == 2 # 2 is "owner is me"
 
 	def relinquish_ownership(self):
 		"""
@@ -270,14 +280,34 @@ class Moku(object):
 
 		This will allow other clients to connect immedaitely rather than waiting for a timeout
 		"""
-		return self._ownership(0x40, 0)
+		self._ownership(0x40, 0)
+
+	def is_owned(self):
+		""" Checks whether the Moku:Lab device is currently owned by another user.
+
+		:rtype: bool
+		:return: True if someone, including you, currently owns the Moku:Lab device
+		"""
+		return self._ownership(0x41, 0)[0] != 0
+
+	def owned_by(self):
+		""" Return the name of the device that currently owns the Moku:Lab.
+
+		This will be the iPad name or PC hostname of the device that most recently took
+		ownership of the Moku:Lab. This will be the current PC's hostname if
+		:any:`is_owner` returns *True*.
+
+		:rtype: str
+		:return: String name of current owner
+		"""
+		return self._ownership(0x41, 0)[1]
 
 	def is_owner(self):
 		"""	Checks if you are the current owner of the Moku:Lab device.
 
 		:rtype: bool
 		:return: True if you are the owner of the device."""
-		return self._ownership(0x41, 0)
+		return self._ownership(0x41, 0)[0] == 2
 
 
 	def _read_regs(self, commands):
