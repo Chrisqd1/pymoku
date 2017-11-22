@@ -12,7 +12,7 @@ log = logging.getLogger(__name__)
 try:
 	from .finders import BonjourFinder
 except Exception as e:
-	log.warning("Can't import the Bonjour libraries, I won't be able to automatically detect Mokus ({:s}).  Please install DNSSD libraries (e.g. libavahi-dnssd-compat on Linux)".format(str(e)))
+	print("Can't import the Bonjour libraries, I won't be able to automatically detect Mokus ({:s}).  Please install DNSSD libraries (e.g. libavahi-dnssd-compat on Linux)".format(str(e)))
 
 from . import dataparser
 
