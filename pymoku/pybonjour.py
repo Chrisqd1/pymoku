@@ -2050,8 +2050,8 @@ class TXTRecord(object):
         txt = cls(strict=strict)
 
         while data:
-            length = ord(data[0])
-            item = data[1:length+1].split('=', 1)
+            length = bytearray(data)[0]
+            item = data[1:length+1].decode().split('=', 1)
 
             # Add the item only if the name is non-empty and there are
             # no existing items with the same name
