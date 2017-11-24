@@ -156,8 +156,8 @@ class PIDController(_CoreOscilloscope):
 
 		if ii_xover :
 			if i_xover :
-				ki = math.sqrt(cross_over_gain) * i_xover
-				kii = math.sqrt(cross_over_gain) * ii_xover
+				ki = cross_over_gain * i_xover
+				kii = ii_xover #math.sqrt(cross_over_gain) * ii_xover
 			else:
 				ki = kii = 0
 		else:
@@ -169,6 +169,10 @@ class PIDController(_CoreOscilloscope):
 
 		kd = cross_over_gain / d_xover if d_xover else 0
 		si = si / best_gain if si else None
+
+		# if ii_xover :
+		# 	si = math.sqrt(si)
+
 		sd = sd / best_gain if sd else None
 
 		return best_gain, kp, ki, kd, kii, si, sd
@@ -188,7 +192,7 @@ class PIDController(_CoreOscilloscope):
 
 		if double_integrator:
 			gain_factor = math.sqrt(g / 16.0 / 1000.0 / self._dac_gains()[ch - 1])
-			p_gain = math.sqrt(kp)
+			p_gain = kp
 		else :
 			gain_factor = g / 16.0 / 1000.0 / self._dac_gains()[ch - 1]
 			p_gain = kp
@@ -350,7 +354,7 @@ class PIDController(_CoreOscilloscope):
 				self.ch1_pid2_pidgain = gain_factor
 
 				self.ch1_pid2_int_i_gain = ii_gain
-				self.ch1_pid2_int_p_gain = p_gain
+				self.ch1_pid2_int_p_gain = 1
 				self.ch1_pid2_int_ifb_gain = i_fb
 				self.ch1_pid2_int_dc_pole = si is None
 
@@ -394,7 +398,7 @@ class PIDController(_CoreOscilloscope):
 				self.ch2_pid2_pidgain = gain_factor
 
 				self.ch2_pid2_int_i_gain = ii_gain
-				self.ch2_pid2_int_p_gain = p_gain
+				self.ch2_pid2_int_p_gain = 1
 				self.ch2_pid2_int_ifb_gain = i_fb
 				self.ch2_pid2_int_dc_pole = si is None
 
