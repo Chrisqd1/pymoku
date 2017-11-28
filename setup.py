@@ -34,8 +34,11 @@ lr_ext = Extension(
 	extra_compile_args=['-std=c99'],
 )
 
+# The canonical way to do this is to put this instruction in the extensions list below,
+# but it only returns distutils.Extension, not setuptools.Extension, so we have to craft
+# those objects ourselves below. TODO: Move to a build extension so it doesn't happen with
+# every invocation
 cythonize('pymoku/*.pyx')
-bd_ext = Extension('pymoku._bodeanalyzer_data', ['pymoku/_bodeanalyzer_data.c'])
 
 setup(
 	name='pymoku',
@@ -75,7 +78,9 @@ setup(
 
 	ext_modules=[
 		lr_ext,
-		bd_ext,
+		Extension('pymoku._bodeanalyzer_data', ['pymoku/_bodeanalyzer_data.c']),
+		Extension('pymoku._oscilloscope_data', ['pymoku/_oscilloscope_data.c']),
+		Extension('pymoku._specan_data', ['pymoku/_specan_data.c']),
 	],
 
 	zip_safe=False, # Due to bitstream download

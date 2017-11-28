@@ -12,3 +12,4 @@ lr.*
 .cache/
 pymoku/data/10.*
 pymoku/data/20.*
+pymoku/*.c
