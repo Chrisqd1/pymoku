@@ -78,6 +78,7 @@ setup(
 
 	ext_modules=[
 		lr_ext,
+		Extension('pymoku._frame_instrument_data', ['pymoku/_frame_instrument_data.c']),
 		Extension('pymoku._bodeanalyzer_data', ['pymoku/_bodeanalyzer_data.c']),
 		Extension('pymoku._oscilloscope_data', ['pymoku/_oscilloscope_data.c']),
 		Extension('pymoku._specan_data', ['pymoku/_specan_data.c']),
