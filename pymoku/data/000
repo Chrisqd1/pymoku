@@ -1,0 +1,9 @@
+#   ****  Generated on 2017-11-27 13:14:37.116802 by pyzmq  ****
+#   ZeroMQ CURVE Public Certificate
+#   Exchange securely, or use a secure mechanism to verify the contents
+#   of this file after exchange. Store public certificates in your home
+#   directory, in the .curve subdirectory.
+
+metadata
+curve
+    public-key = "G8&2Q3?P%G96BqbQ=H>87cfHia4R{nK%/NoZjC8L"

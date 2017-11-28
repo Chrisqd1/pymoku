@@ -1,6 +1,6 @@
 import socket, select, struct, logging
 import os, os.path
-import zmq
+import zmq, zmq.auth
 import pymoku.version
 
 import pkg_resources
@@ -88,11 +88,13 @@ class Moku(object):
 		:type ip_addr: string
 		:param ip_addr: The address to connect to. This should be in IPv4 dotted notation.
 
-		:type load_instruments: bool
-		:param load_instruments: Leave *True* unless you know what you're doing.
+		:type load_instruments: bool or None
+		:param load_instruments: Leave default (*None*) unless you know what you're doing.
 
 		:type force: bool
-		:param force: Ignore firmware compatibility checks and force the instrument to deploy.
+		:param force: Ignore firmware and network compatibility checks and force the instrument
+		to deploy. This is dangerous on many levels, leave *False* unless you know what you're doing.
+
 		"""
 		self._ip = ip_addr
 		self._seq = 0
@@ -101,13 +103,35 @@ class Moku(object):
 
 		self._ctx = zmq.Context.instance()
 		self._conn_lock = threading.RLock()
-		self._conn = self._ctx.socket(zmq.REQ)
-		self._conn.setsockopt(zmq.LINGER, 5000)
-		self._conn.connect("tcp://%s:%d" % (self._ip, Moku.PORT))
 
-		self._set_timeout()
+		try:
+			self._conn = self._ctx.socket(zmq.REQ)
+			self._conn.setsockopt(zmq.LINGER, 5000)
+			self._conn.curve_publickey, self._conn.curve_secretkey = zmq.curve_keypair()
+			self._conn.curve_serverkey, _ = zmq.auth.load_certificate(os.path.join(data_folder, '000'))
+			self._conn.connect("tcp://%s:%d" % (self._ip, Moku.PORT))
 
-		self.serial = self.get_serial()
+			# Getting the serial should be fairly quick; it's a simple operation. More importantly we
+			# don't wait to block the fall-back operation for too long
+			self._conn.setsockopt(zmq.SNDTIMEO, 1000)
+			self._conn.setsockopt(zmq.RCVTIMEO, 1000)
+
+			self.serial = self.get_serial()
+			self._set_timeout()
+		except zmq.error.Again:
+			if not force:
+				print("Connection failed, either the Moku cannot be reached or the firmware is out of date")
+				raise
+
+			# If we're force-connecting, try falling back to non-encrypted.
+			self._conn = self._ctx.socket(zmq.REQ)
+			self._conn.setsockopt(zmq.LINGER, 5000)
+			self._conn.connect("tcp://%s:%d" % (self._ip, Moku.PORT))
+
+			self._set_timeout()
+
+			self.serial = self.get_serial()
+
 		self.name = None
 		self.led = None
 		self.led_colours = None
