@@ -1,4 +1,3 @@
-
 import math
 import logging
 import os
@@ -55,12 +54,10 @@ class FIRFilter(_CoreOscilloscope):
 		coeffs = list(coeffs)
 		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
 		assert len(coeffs) <= _FIR_NUM_BLOCKS * _FIR_BLOCK_SIZE
-		L = int(math.floor(float(len(coeffs))/_FIR_NUM_BLOCKS))
+		L = int(math.ceil(float(len(coeffs))/_FIR_NUM_BLOCKS))
 		blocks = [coeffs[x:x+L] for x in range(0, len(coeffs), L)]
-		print L
 		blocks += [[]] * (_FIR_NUM_BLOCKS - len(blocks))
 
-		print map(len, blocks)
 		if not os.path.exists('.lutdata.dat'):
 			open('.lutdata.dat', 'w').close()
 
