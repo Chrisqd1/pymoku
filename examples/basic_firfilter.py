@@ -11,10 +11,14 @@ FS = 125e6 / 500
 length = 500000
 amp = 2**12
 f0 = 1e3
+dec = 256
 
 #filt1 = signal.firls(101, [0.0, 50.0e3, 50.0e3, 100.0e3, 100.0e3, FS/2.0], [0.1, 0.1, 1.0, 1.0, 0.1, 0.1], fs=FS)
 #filt1 = [1.0, 0.0, 0.0, 0.0] + [0.0,0.0,0.0,0.0]*4
-filt1 = [1.0] + [0.0]*42 + [0.0]
+
+filt1 = [0.5] + [0.0]*(dec*44-3) + [0.5]*2
+#filt1 = [1.0] + [0.0]*(dec*44-1)
+
 #filt2 = signal.firls(101, [0.0, 50.0e3, 50.0e3, 100.0e3, 100.0e3, FS/2.0], [0.1, 0.1, 1.0, 1.0, 0.1, 0.1], fs=FS)
 #filt2 = [1.0, 0.0, 0.0, 0.0]
 # filt2 = [-1.0] + [0.0]*20000 + [-1.0]
@@ -29,7 +33,7 @@ filt2 = [1e-5] * 404
 
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
-m = Moku('192.168.69.65', load_instruments=True, force = True)
+m = Moku('192.168.69.66', load_instruments=True, force = True)
 
 # Prepare the ArbWaveformGenerator instrument
 i = FIRFilter()
@@ -65,11 +69,14 @@ try:
 	i.set_source(1, 'in')
 	i.set_source(2, 'out')
 
-	i.decimation2 = 8
-	i.decimation1 = 8
-	i.upsampling1 = int(floor(2.0**17 / ((i.decimation1+1))))
+	i.set_offset_gain(ch = 1)
+	i.set_samplerate(ch = 1, decimation_factor=dec)
+
+	i.decimation2 = dec
+	i.decimation1 = dec
+	#i.upsampling1 = int(floor(2.0**17 / ((i.decimation1+1))))
 	i.write_coeffs(1, filt1)
-	i.upsampling2 = int(floor(2.0**17 / ((i.decimation2+1))))
+	#i.upsampling2 = int(floor(2.0**17 / ((i.decimation2+1))))
 	i.write_coeffs(2, filt2)
 
 	i.link = True
