@@ -11,8 +11,8 @@ from . import _utils
 
 log = logging.getLogger(__name__)
 
-REG_FIR_DECIMATION1 = 96
-REG_FIR_DECIMATION2 = 97
+#REG_FIR_DECIMATION1 = 96
+#REG_FIR_DECIMATION2 = 97
 REG_FIR_IN_SCALE1 = 98
 REG_FIR_IN_SCALE2 = 99
 REG_FIR_IN_OFFSET1 = 100
@@ -25,16 +25,16 @@ REG_FIR_UPSAMPLING1 = 106
 REG_FIR_UPSAMPLING2 = 107
 REG_FIR_LINK = 108
 
-REG_INTERPOLATION_CH0_WDFRATES 	= 109
-REG_INTERPOLATION_CH0_CICRATES 	= 110
-REG_INTERPOLATION_CH0_CTRL 		= 111
+REG_FIR_INTERPOLATION_CH0_WDFRATES 	= 109
+REG_FIR_INTERPOLATION_CH0_CICRATES 	= 110
+REG_FIR_INTERPOLATION_CH0_CTRL 		= 111
 
-REG_INTERPOLATION_CH1_WDFRATES 	= 112
-REG_INTERPOLATION_CH1_CICRATES 	= 113
-REG_INTERPOLATION_CH1_CTRL 		= 114
+REG_FIR_INTERPOLATION_CH1_WDFRATES 	= 112
+REG_FIR_INTERPOLATION_CH1_CICRATES 	= 113
+REG_FIR_INTERPOLATION_CH1_CTRL 		= 114
 
-REG_DECIMATION_CH0		= 124
-REG_DECIMATION_CH1		= 125
+REG_FIR_DECIMATION_CH0		= 124
+REG_FIR_DECIMATION_CH1		= 125
 
 _FIR_NUM_BLOCKS = 44
 _FIR_BLOCK_SIZE = 511
@@ -188,30 +188,12 @@ class FIRFilter(_CoreOscilloscope):
 			self.int_bitshift_cic1_2 = i_bitshift_cic1
 			self.int_bitshift_cic2_2 = i_bitshift_cic2
 
-		self.dec_wdfmuxsel = 1
-		self.dec_outmuxsel = 2
-		self.dec_cic1_dec = 4
-		self.dec_cic1_bitshift = 6
-		self.dec_cic2_dec = 2
-		self.dec_cic2_bitshift = 9
-		self.temp1 = 0
-		self.temp2 = 0
-
-		self.int_muxsel = 3
-		self.int_highrate_wdf1 = 7
-		self.int_highrate_wdf2 = 3
-		self.int_ratechange_cic1 = 4
-		self.int_ratechange_cic2 = 1
-		self.int_interprate_cic1 = 0
-		self.int_interprate_cic2 = 0
-		self.int_bitshift_cic1 = 4
-		self.int_bitshift_cic2 = 2
 
 	def write_coeffs(self, ch, coeffs):
 		coeffs = list(coeffs)
 		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
 		assert len(coeffs) <= _FIR_NUM_BLOCKS * _FIR_BLOCK_SIZE
-		L = int(math.floor(float(len(coeffs))/_FIR_NUM_BLOCKS))
+		L = int(math.ceil(float(len(coeffs))/_FIR_NUM_BLOCKS))
 		blocks = [coeffs[x:x+L] for x in range(0, len(coeffs), L)]
 		print L
 		blocks += [[]] * (_FIR_NUM_BLOCKS - len(blocks))
@@ -242,7 +224,7 @@ class FIRFilter(_CoreOscilloscope):
 				b.reverse()
 				for j, c in enumerate(b):
 					f.seek(offset + (i * (_FIR_BLOCK_SIZE+1) * 4) + (j * 4))
-					f.write(struct.pack('<i', math.ceil((2.0**17-1) * c)))
+					f.write(struct.pack('<i', round((2.0**17-1) * c)))
 				f.seek(offset + (i * (_FIR_BLOCK_SIZE+1) * 4) + (_FIR_BLOCK_SIZE * 4))
 				f.write(struct.pack('<I', len(b)))
 
@@ -267,37 +249,37 @@ _fir_reg_handlers = {
 	'upsampling2':			(REG_FIR_UPSAMPLING2,		to_reg_unsigned(0, 14), from_reg_unsigned(0, 14)),
 	'link':			(REG_FIR_LINK,		to_reg_bool(0), from_reg_bool(0)),
 
-	'dec_wdfmuxsel_1':	(REG_DECIMATION_CH0,		to_reg_unsigned(0, 2), from_reg_unsigned(0, 2)),
-	'dec_outmuxsel_1':	(REG_DECIMATION_CH0,		to_reg_unsigned(2, 2), from_reg_unsigned(2, 2)),
-	'dec_cic1_bitshift_1':		(REG_DECIMATION_CH0,		to_reg_unsigned(4, 4), from_reg_unsigned(4, 4)),
-	'dec_cic2_bitshift_1':		(REG_DECIMATION_CH0,		to_reg_unsigned(8, 4), from_reg_unsigned(8, 4)),
-	'dec_cic1_dec_1':		(REG_DECIMATION_CH0,		to_reg_unsigned(12, 5), from_reg_unsigned(12, 5)),
-	'dec_cic2_dec_1':		(REG_DECIMATION_CH0,		to_reg_unsigned(17, 5), from_reg_unsigned(17, 5)),
+	'dec_wdfmuxsel_1':	(REG_FIR_DECIMATION_CH0,		to_reg_unsigned(0, 2), from_reg_unsigned(0, 2)),
+	'dec_outmuxsel_1':	(REG_FIR_DECIMATION_CH0,		to_reg_unsigned(2, 2), from_reg_unsigned(2, 2)),
+	'dec_cic1_bitshift_1':		(REG_FIR_DECIMATION_CH0,		to_reg_unsigned(4, 4), from_reg_unsigned(4, 4)),
+	'dec_cic2_bitshift_1':		(REG_FIR_DECIMATION_CH0,		to_reg_unsigned(8, 4), from_reg_unsigned(8, 4)),
+	'dec_cic1_dec_1':		(REG_FIR_DECIMATION_CH0,		to_reg_unsigned(12, 5), from_reg_unsigned(12, 5)),
+	'dec_cic2_dec_1':		(REG_FIR_DECIMATION_CH0,		to_reg_unsigned(17, 5), from_reg_unsigned(17, 5)),
 
-	'dec_wdfmuxsel_2':	(REG_DECIMATION_CH1,		to_reg_unsigned(0, 2), from_reg_unsigned(0, 2)),
-	'dec_outmuxsel_2':	(REG_DECIMATION_CH1,		to_reg_unsigned(2, 2), from_reg_unsigned(2, 2)),
-	'dec_cic1_bitshift_2':		(REG_DECIMATION_CH1,		to_reg_unsigned(4, 4), from_reg_unsigned(4, 4)),
-	'dec_cic2_bitshift_2':		(REG_DECIMATION_CH1,		to_reg_unsigned(8, 4), from_reg_unsigned(8, 4)),
-	'dec_cic1_dec_2':		(REG_DECIMATION_CH1,		to_reg_unsigned(12, 5), from_reg_unsigned(12, 5)),
-	'dec_cic2_dec_2':		(REG_DECIMATION_CH1,		to_reg_unsigned(17, 5), from_reg_unsigned(17, 5)),
+	'dec_wdfmuxsel_2':	(REG_FIR_DECIMATION_CH1,		to_reg_unsigned(0, 2), from_reg_unsigned(0, 2)),
+	'dec_outmuxsel_2':	(REG_FIR_DECIMATION_CH1,		to_reg_unsigned(2, 2), from_reg_unsigned(2, 2)),
+	'dec_cic1_bitshift_2':		(REG_FIR_DECIMATION_CH1,		to_reg_unsigned(4, 4), from_reg_unsigned(4, 4)),
+	'dec_cic2_bitshift_2':		(REG_FIR_DECIMATION_CH1,		to_reg_unsigned(8, 4), from_reg_unsigned(8, 4)),
+	'dec_cic1_dec_2':		(REG_FIR_DECIMATION_CH1,		to_reg_unsigned(12, 5), from_reg_unsigned(12, 5)),
+	'dec_cic2_dec_2':		(REG_FIR_DECIMATION_CH1,		to_reg_unsigned(17, 5), from_reg_unsigned(17, 5)),
 
-	'int_highrate_wdf1_1': 	(REG_INTERPOLATION_CH0_WDFRATES, 	to_reg_unsigned(0,16), from_reg_unsigned(0,16)),
-	'int_highrate_wdf2_1': 	(REG_INTERPOLATION_CH0_WDFRATES, 	to_reg_unsigned(16,16), from_reg_unsigned(16,16)),
-	'int_interprate_cic1_1': 	(REG_INTERPOLATION_CH0_CICRATES, 	to_reg_unsigned(0,16), from_reg_unsigned(0,16)),
-	'int_interprate_cic2_1': 	(REG_INTERPOLATION_CH0_CICRATES, 	to_reg_unsigned(16,16), from_reg_unsigned(16,16)),
-	'int_muxsel_1': 			(REG_INTERPOLATION_CH0_CTRL, 	to_reg_unsigned(0,3), from_reg_unsigned(0,3)),
-	'int_ratechange_cic1_1':	(REG_INTERPOLATION_CH0_CTRL, 	to_reg_unsigned(3,5), from_reg_unsigned(3,5)),
-	'int_ratechange_cic2_1':	(REG_INTERPOLATION_CH0_CTRL, 	to_reg_unsigned(8,5), from_reg_unsigned(8,5)),
-	'int_bitshift_cic1_1':	(REG_INTERPOLATION_CH0_CTRL, 	to_reg_unsigned(13,4), from_reg_unsigned(13,4)),
-	'int_bitshift_cic2_1':	(REG_INTERPOLATION_CH0_CTRL, 	to_reg_unsigned(17,5), from_reg_unsigned(17,5)),
+	'int_highrate_wdf1_1': 	(REG_FIR_INTERPOLATION_CH0_WDFRATES, 	to_reg_unsigned(0,16), from_reg_unsigned(0,16)),
+	'int_highrate_wdf2_1': 	(REG_FIR_INTERPOLATION_CH0_WDFRATES, 	to_reg_unsigned(16,16), from_reg_unsigned(16,16)),
+	'int_interprate_cic1_1': 	(REG_FIR_INTERPOLATION_CH0_CICRATES, 	to_reg_unsigned(0,16), from_reg_unsigned(0,16)),
+	'int_interprate_cic2_1': 	(REG_FIR_INTERPOLATION_CH0_CICRATES, 	to_reg_unsigned(16,16), from_reg_unsigned(16,16)),
+	'int_muxsel_1': 			(REG_FIR_INTERPOLATION_CH0_CTRL, 	to_reg_unsigned(0,3), from_reg_unsigned(0,3)),
+	'int_ratechange_cic1_1':	(REG_FIR_INTERPOLATION_CH0_CTRL, 	to_reg_unsigned(3,5), from_reg_unsigned(3,5)),
+	'int_ratechange_cic2_1':	(REG_FIR_INTERPOLATION_CH0_CTRL, 	to_reg_unsigned(8,5), from_reg_unsigned(8,5)),
+	'int_bitshift_cic1_1':	(REG_FIR_INTERPOLATION_CH0_CTRL, 	to_reg_unsigned(13,4), from_reg_unsigned(13,4)),
+	'int_bitshift_cic2_1':	(REG_FIR_INTERPOLATION_CH0_CTRL, 	to_reg_unsigned(17,4), from_reg_unsigned(17,4)),
 
-	'int_highrate_wdf1_2': 	(REG_INTERPOLATION_CH1_WDFRATES, 	to_reg_unsigned(0,16), from_reg_unsigned(0,16)),
-	'int_highrate_wdf2_2': 	(REG_INTERPOLATION_CH1_WDFRATES, 	to_reg_unsigned(16,16), from_reg_unsigned(16,16)),
-	'int_interprate_cic1_2': 	(REG_INTERPOLATION_CH1_CICRATES, 	to_reg_unsigned(0,16), from_reg_unsigned(0,16)),
-	'int_interprate_cic2_2': 	(REG_INTERPOLATION_CH1_CICRATES, 	to_reg_unsigned(16,16), from_reg_unsigned(16,16)),
-	'int_muxsel_2': 			(REG_INTERPOLATION_CH1_CTRL, 	to_reg_unsigned(0,3), from_reg_unsigned(0,3)),
-	'int_ratechange_cic1_2':	(REG_INTERPOLATION_CH1_CTRL, 	to_reg_unsigned(3,5), from_reg_unsigned(3,5)),
-	'int_ratechange_cic2_2':	(REG_INTERPOLATION_CH1_CTRL, 	to_reg_unsigned(8,5), from_reg_unsigned(8,5)),
-	'int_bitshift_cic1_2':	(REG_INTERPOLATION_CH1_CTRL, 	to_reg_unsigned(13,4), from_reg_unsigned(13,4)),
-	'int_bitshift_cic2_2':	(REG_INTERPOLATION_CH1_CTRL, 	to_reg_unsigned(17,5), from_reg_unsigned(17,5))
+	'int_highrate_wdf1_2': 	(REG_FIR_INTERPOLATION_CH1_WDFRATES, 	to_reg_unsigned(0,16), from_reg_unsigned(0,16)),
+	'int_highrate_wdf2_2': 	(REG_FIR_INTERPOLATION_CH1_WDFRATES, 	to_reg_unsigned(16,16), from_reg_unsigned(16,16)),
+	'int_interprate_cic1_2': 	(REG_FIR_INTERPOLATION_CH1_CICRATES, 	to_reg_unsigned(0,16), from_reg_unsigned(0,16)),
+	'int_interprate_cic2_2': 	(REG_FIR_INTERPOLATION_CH1_CICRATES, 	to_reg_unsigned(16,16), from_reg_unsigned(16,16)),
+	'int_muxsel_2': 			(REG_FIR_INTERPOLATION_CH1_CTRL, 	to_reg_unsigned(0,3), from_reg_unsigned(0,3)),
+	'int_ratechange_cic1_2':	(REG_FIR_INTERPOLATION_CH1_CTRL, 	to_reg_unsigned(3,5), from_reg_unsigned(3,5)),
+	'int_ratechange_cic2_2':	(REG_FIR_INTERPOLATION_CH1_CTRL, 	to_reg_unsigned(8,5), from_reg_unsigned(8,5)),
+	'int_bitshift_cic1_2':	(REG_FIR_INTERPOLATION_CH1_CTRL, 	to_reg_unsigned(13,4), from_reg_unsigned(13,4)),
+	'int_bitshift_cic2_2':	(REG_FIR_INTERPOLATION_CH1_CTRL, 	to_reg_unsigned(17,4), from_reg_unsigned(17,4))
 }

@@ -11,13 +11,19 @@ FS = 125e6 / 500
 length = 500000
 amp = 2**12
 f0 = 1e3
-dec = 256
+dec = 128
 
 #filt1 = signal.firls(101, [0.0, 50.0e3, 50.0e3, 100.0e3, 100.0e3, FS/2.0], [0.1, 0.1, 1.0, 1.0, 0.1, 0.1], fs=FS)
 #filt1 = [1.0, 0.0, 0.0, 0.0] + [0.0,0.0,0.0,0.0]*4
 
-filt1 = [0.5] + [0.0]*(dec*44-3) + [0.5]*2
+filt_coeff = []
+with open('FIRKernal.csv', 'r') as csv:
+	for l in csv:
+		filt_coeff.append(map(float,  [x.strip() for x in l.split(',')] ))
+
 #filt1 = [1.0] + [0.0]*(dec*44-1)
+filt1 = filt_coeff[0]
+print(len(filt1))
 
 #filt2 = signal.firls(101, [0.0, 50.0e3, 50.0e3, 100.0e3, 100.0e3, FS/2.0], [0.1, 0.1, 1.0, 1.0, 0.1, 0.1], fs=FS)
 #filt2 = [1.0, 0.0, 0.0, 0.0]
@@ -62,14 +68,14 @@ m.deploy_instrument(i)
 try:
 
 	i.set_defaults()
-	i._set_frontend(1, fiftyr=True, atten=False, ac=False)
+	i._set_frontend(1, fiftyr=False, atten=False, ac=False)
 	i.set_trigger('in1', 'rising', 0.00, hysteresis=True)
 	i.set_timebase(-25e-6,400e-6)
 
 	i.set_source(1, 'in')
 	i.set_source(2, 'out')
 
-	i.set_offset_gain(ch = 1)
+	i.set_offset_gain(ch = 1, output_scale = 0.5)
 	i.set_samplerate(ch = 1, decimation_factor=dec)
 
 	i.decimation2 = dec
