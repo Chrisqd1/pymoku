@@ -122,9 +122,13 @@ class InstrumentData(object):
 		# For historical reasons the data length is 1026 while there are only 1024
 		# valid samples. Trim the fat.
 		if chan == 0:
+			if self._chs_valid[0]:
+				log.debug("CH1 rec'd without matching")
 			self._chs_valid[0] = True
 			self._raw1 = packet[hdr_len:-8]
 		else:
+			if self._chs_valid[1]:
+				log.debug("CH2 rec'd without matching")
 			self._chs_valid[1] = True
 			self._raw2 = packet[hdr_len:-8]
 
@@ -162,6 +166,8 @@ class FrameBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuIn
 		self._buflen = 1
 		self._queue = FrameQueue(maxsize=self._buflen)
 		self._hb_forced = False
+
+		self.skt, self.mon_skt = None, None
 
 		# Tracks whether the waveformid of frames received so far has wrapped
 		self._data_syncd = False
@@ -360,26 +366,64 @@ class FrameBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuIn
 		elif not state and prev_state:
 			self._fr_worker.join()
 
+	def _mon_worker(self, skt):
+		import zmq.utils.monitor as _mon
+
+		while self._running:
+			if skt in zmq.select([skt], [], [], 1.0)[0]:
+				log.debug(_mon.recv_monitor_message(skt))
+
+	def _make_frame_socket(self):
+
+		if self.skt:
+			self.skt.close()
+		if self.mon_skt:
+			self.mon_skt.close()
+
+		ctx = zmq.Context.instance()
+		self.skt = ctx.socket(zmq.SUB)
+		self.skt.connect("tcp://%s:27185" % self._moku._ip)
+		self.skt.setsockopt_string(zmq.SUBSCRIBE, u'')
+		self.skt.setsockopt(zmq.RCVHWM, 2)
+		self.skt.setsockopt(zmq.LINGER, 0)
+
+		# skt.setsockopt(zmq.TCP_KEEPALIVE, 1)
+		# skt.setsockopt(zmq.TCP_KEEPALIVE_IDLE, 2)
+		# skt.setsockopt(zmq.TCP_KEEPALIVE_CNT, 3)
+		# skt.setsockopt(zmq.TCP_KEEPALIVE_INTVL, 1)
+
+		# self.skt.monitor('inproc://frame-monitor')
+		# self.mon_skt = zmq.Context.instance().socket(zmq.PAIR)
+		# self.mon_skt.connect('inproc://frame-monitor')
+		# self.mon_skt.setsockopt(zmq.LINGER, 0)
+
+		# mt = threading.Thread(target=self._mon_worker, args=(self.mon_skt,))
+		# mt.daemon = True
+		# mt.start()
 
 	def _frame_worker(self):
+		connected = False
 		if(getattr(self, '_frame_class', None)):
-			ctx = zmq.Context.instance()
-			skt = ctx.socket(zmq.SUB)
-			skt.connect("tcp://%s:27185" % self._moku._ip)
-			skt.setsockopt_string(zmq.SUBSCRIBE, u'')
-			skt.setsockopt(zmq.RCVHWM, 8)
-			skt.setsockopt(zmq.LINGER, 5000)
+			self._make_frame_socket()
 
 			fr = self._frame_class(**self._frame_kwargs)
 
 			try:
 				while self._running:
-					if skt in zmq.select([skt], [], [], 1.0)[0]:
-						d = skt.recv()
+					if self.skt in zmq.select([self.skt], [], [], 1.0)[0]:
+						connected = True
+						d = self.skt.recv()
 						fr.add_packet(d)
 
 						if fr._complete:
 							self._queue.put_nowait(fr)
 							fr = self._frame_class(**self._frame_kwargs)
+					else:
+						if connected:
+							connected = False
+							log.info("Frame socket reconnecting")
+							self._make_frame_socket()
+			except Exception as e:
+				log.exception("Closed Frame worker")
 			finally:
-				skt.close()
+				self.skt.close()
