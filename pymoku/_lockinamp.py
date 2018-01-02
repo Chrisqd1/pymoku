@@ -146,7 +146,7 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		"""
 		Configures the main (Channel 1) and auxillary (Channel 2) output signals of the Lock-In.
 
-		.. note:
+		.. note::
 		  When 'external' demodulation is used (that is, without a PLL), the Lock-in Amplifier doesn't know the frequency and therefore
 		  can't form the quadrature for full I/Q demodulation. This in turn means it can't distinguish I from Q, X from Y,
 		  or form R/Theta. This limits the choices for signals that can be output on the AUX channel to ones not from the
@@ -451,7 +451,7 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 			- **external** : to directly use an external signal for demodulation (Note: Q is not selectable in this mode)
 			- **external_pll** : to use an external signal for demodulation after running it through an internal PLL.
 
-		.. note:
+		.. note::
 		  When 'external' is used (that is, without a PLL), the Lock-in Amplifier doesn't know the frequency and therefore
 		  can't form the quadrature for full I/Q demodulation. This in turn means it can't distinguish I from Q, X from Y,
 		  or form R/Theta. This limits the choices for signals that can be output on the Main and AUX channels to ones not
