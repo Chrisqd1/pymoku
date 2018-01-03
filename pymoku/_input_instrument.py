@@ -168,6 +168,8 @@ class InputInstrument(_instrument.MokuInstrument):
 
 		- **csv** -- CSV file
 		- **bin** -- LI Binary file
+		- **mat** -- MATLAB file
+		- **npy** -- NPY (Numpy) data file
 		- **net** -- Log to network, retrieve data with :any:`_stream_receive_samples`
 		"""
 		if (not ch1) and (not ch2):

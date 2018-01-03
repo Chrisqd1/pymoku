@@ -166,7 +166,7 @@ class StreamBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuI
 		:type use_sd: bool
 		:param use_sd: Whether to log to the SD card, else the internal Moku filesystem.
 		:type filetype: string
-		:param filetype: Log file type, one of {'csv','bin'} for CSV or Binary respectively.
+		:param filetype: Log file type, one of {'csv','bin','mat','npy'} for CSV, Binary, MATLAB or NPY (Numpy Data) respectively.
 
 		:raises ValueError: if invalid channel enable parameter
 		:raises ValueOutOfRangeException: if duration is invalid
@@ -175,7 +175,7 @@ class StreamBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuI
 		_utils.check_parameter_valid('bool', ch2, desc='log channel 2')
 		_utils.check_parameter_valid('bool', use_sd, desc='log to SD card')
 		_utils.check_parameter_valid('float', duration, desc='log duration', units='sec')
-		_utils.check_parameter_valid('set', filetype, ['csv','mat', 'bin','npy'], 'log filetype')
+		_utils.check_parameter_valid('set', filetype, ['csv', 'mat', 'bin', 'npy'], 'log filetype')
 
 		if self.check_uncommitted_state():
 			raise UncommittedSettings("Can't start a logging session due to uncommitted device settings.")
