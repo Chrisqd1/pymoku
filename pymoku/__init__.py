@@ -641,7 +641,7 @@ class Moku(object):
 			self._conn.send(hdr + pkt)
 			reply = self._conn.recv()
 
-		hdr, seq, ae, stat = struct.unpack("<BBBB", reply[:4])
+		hdr, l, seq, ae, stat = struct.unpack("<BIBBB", reply[:8])
 
 		if stat not in [ 1, 2 ]:
 			raise StreamException("Stream start exception %d" % stat, stat)
@@ -652,7 +652,7 @@ class Moku(object):
 			self._conn.send(pkt)
 			reply = self._conn.recv()
 
-		hdr, seq, ae, stat = struct.unpack("<BBBB", reply[:4])
+		hdr, l, seq, ae, stat = struct.unpack("<BIBBB", reply[:8])
 
 		return stat
 
@@ -662,7 +662,7 @@ class Moku(object):
 			self._conn.send(pkt)
 			reply = self._conn.recv()
 
-		hdr, seq, ae, stat, bt = struct.unpack("<BBBBQ", reply[:12])
+		hdr, l, seq, ae, stat, bt = struct.unpack("<BIBBBQ", reply[:16])
 
 		return stat
 
@@ -672,8 +672,8 @@ class Moku(object):
 			self._conn.send(pkt)
 			reply = self._conn.recv()
 
-		hdr, seq, ae, stat, bt, trems, treme, flags, fname_len = struct.unpack("<BBBBQiiBH", reply[:23])
-		fname = reply[23:23 + fname_len].decode('ascii')
+		hdr, l, seq, ae, stat, bt, trems, treme, flags, fname_len = struct.unpack("<BIBBBQiiBH", reply[:27])
+		fname = reply[27:27 + fname_len].decode('ascii')
 		return stat, bt, trems, treme, fname
 
 	def _fs_send_generic(self, action, data):
