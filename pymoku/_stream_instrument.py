@@ -175,7 +175,7 @@ class StreamBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuI
 		_utils.check_parameter_valid('bool', ch2, desc='log channel 2')
 		_utils.check_parameter_valid('bool', use_sd, desc='log to SD card')
 		_utils.check_parameter_valid('float', duration, desc='log duration', units='sec')
-		_utils.check_parameter_valid('set', filetype, ['csv','bin'], 'log filetype')
+		_utils.check_parameter_valid('set', filetype, ['csv','mat', 'bin','npy'], 'log filetype')
 
 		if self.check_uncommitted_state():
 			raise UncommittedSettings("Can't start a logging session due to uncommitted device settings.")

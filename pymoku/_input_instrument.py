@@ -115,19 +115,19 @@ class InputInstrument(_instrument.MokuInstrument):
 
 		if self.nch == 2:
 			if(use_sd):
-				maxrates = { 'bin' : 150e3, 'csv' : 1e3, 'net' : 20e3, 'plot' : 10}
+				maxrates = { 'bin': 150e3, 'csv': 1e3, 'mat': 1e3, 'net': 20e3, 'npy': 1e3}
 			else:
-				maxrates = { 'bin' : 500e3, 'csv' : 1e3, 'net' : 20e3, 'plot' : 10}
+				maxrates = { 'bin': 500e3, 'csv': 1e3, 'mat': 1e3, 'net': 20e3, 'npy': 1e3}
 		else:
 			if(use_sd):
-				maxrates = { 'bin' : 250e3, 'csv' : 3e3, 'net' : 40e3, 'plot' : 10}
+				maxrates = { 'bin': 250e3, 'csv': 3e3, 'mat': 3e3, 'net': 40e3, 'npy': 3e3}
 			else:
-				maxrates = { 'bin' : 1e6, 'csv' : 3e3, 'net' : 40e3, 'plot' : 10}
+				maxrates = { 'bin': 1e6, 'csv': 3e3, 'mat': 3e3, 'net': 40e3, 'npy': 3e3}
 
 		return maxrates[filetype] / record_length
 
 	def _estimate_logsize(self, ch1, ch2, duration, filetype):
-		if filetype is 'bin':
+		if filetype in ['bin', 'mat', 'npy']:
 			# The record length in the dataparser is in bits, convert to bytes
 			record_length = math.ceil(dataparser.LIDataParser.record_length(self.binstr) / 8.0)
 			sample_size_bytes = record_length * (ch1 + ch2)
@@ -219,7 +219,9 @@ class InputInstrument(_instrument.MokuInstrument):
 				if f < logsize:
 					raise InsufficientSpace("Insufficient disk space for requested log file (require %d kB, available %d kB)" % (logsize/(2**10), f/(2**10)))
 				elif logsize > 4 * 1024 * 1024 * 1024:
-					raise InsufficientSpace("SD Cards cannot hold files larger than 4GB, estimated log size %d MB", logsize / (2014 * 1024))
+					raise InsufficientSpace("SD Cards cannot hold files larger than 4GB, estimated log size %d MB", logsize / (1024 * 1024))
+				elif logsize > 250 * 1024 * 1024 and filetype == 'mat':
+					raise InsufficientSpace("MAT format cannot exceed 250MB, estimated %d MB", logsize / 1024 / 1024)
 			except MPReadOnly as e:
 				if use_sd:
 					raise MPReadOnly("SD Card is read only.")

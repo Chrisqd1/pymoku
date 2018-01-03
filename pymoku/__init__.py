@@ -600,7 +600,7 @@ class Moku(object):
 			raise ValueOutOfRangeException("Invalid start/end times: %s/%s" %(str(start), str(end)))
 
 		try:
-			ftype = { 'bin' : 0, 'csv' : 1, 'net' : 3, 'plot' : 4 }[ftype]
+			ftype = { 'bin': 0, 'csv': 1, 'mat': 2, 'net': 3, 'npy': 4}[ftype]
 		except KeyError:
 			raise ValueOutOfRangeException("Invalid file type %s" % ftype)
 
@@ -609,7 +609,7 @@ class Moku(object):
 		flags |= int(ch2) << 1
 		flags |= int(ch1)
 
-		pkt = struct.pack("<BBB", 0x53, 0, 1) #TODO: Proper sequence number
+		pkt = struct.pack("<BB", 0, 1) #TODO: Proper sequence number
 		pkt += tag.encode('ascii')
 		pkt += mp.encode('ascii')
 		pkt += struct.pack("<IIdBd", start, end, offset, flags, timestep)
@@ -635,8 +635,10 @@ class Moku(object):
 		pkt += struct.pack("<H", len(hdrstr))
 		pkt += hdrstr.encode('ascii')
 
+		hdr = struct.pack("<BI", 0x53, len(pkt))
+
 		with self._conn_lock:
-			self._conn.send(pkt)
+			self._conn.send(hdr + pkt)
 			reply = self._conn.recv()
 
 		hdr, seq, ae, stat = struct.unpack("<BBBB", reply[:4])
@@ -645,7 +647,7 @@ class Moku(object):
 			raise StreamException("Stream start exception %d" % stat, stat)
 
 	def _stream_start(self):
-		pkt = struct.pack("<BBB", 0x53, 0, 4)
+		pkt = struct.pack("<BIBB", 0x53, 2, 0, 4)
 		with self._conn_lock:
 			self._conn.send(pkt)
 			reply = self._conn.recv()
@@ -655,7 +657,7 @@ class Moku(object):
 		return stat
 
 	def _stream_stop(self):
-		pkt = struct.pack("<BBB", 0x53, 0, 2)
+		pkt = struct.pack("<BIBB", 0x53, 2, 0, 2)
 		with self._conn_lock:
 			self._conn.send(pkt)
 			reply = self._conn.recv()
@@ -665,7 +667,7 @@ class Moku(object):
 		return stat
 
 	def _stream_status(self):
-		pkt = struct.pack("<BBB", 0x53, 0, 3)
+		pkt = struct.pack("<BIBB", 0x53, 2, 0, 3)
 		with self._conn_lock:
 			self._conn.send(pkt)
 			reply = self._conn.recv()
