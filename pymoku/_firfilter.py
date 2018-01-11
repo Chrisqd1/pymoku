@@ -24,7 +24,7 @@ REG_FIR_UPSAMPLING1 = 106
 REG_FIR_UPSAMPLING2 = 107
 REG_FIR_LINK = 108
 
-_FIR_NUM_BLOCKS = 44
+_FIR_NUM_BLOCKS = 29
 _FIR_BLOCK_SIZE = 511
 
 class FIRFilter(_CoreOscilloscope):
@@ -83,7 +83,7 @@ class FIRFilter(_CoreOscilloscope):
 				b.reverse()
 				for j, c in enumerate(b):
 					f.seek(offset + (i * (_FIR_BLOCK_SIZE+1) * 4) + (j * 4))
-					f.write(struct.pack('<i', math.ceil((2.0**17-1) * c)))
+					f.write(struct.pack('<i', math.ceil((2.0**24-1) * c)))
 				f.seek(offset + (i * (_FIR_BLOCK_SIZE+1) * 4) + (_FIR_BLOCK_SIZE * 4))
 				f.write(struct.pack('<I', len(b)))
 
