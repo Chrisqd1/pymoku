@@ -11,30 +11,51 @@ from . import _utils
 
 log = logging.getLogger(__name__)
 
-#REG_FIR_DECIMATION1 = 96
-#REG_FIR_DECIMATION2 = 97
+REG_FIR_DECIMATION_CH0 = 96
 REG_FIR_IN_SCALE1 = 98
-REG_FIR_IN_SCALE2 = 99
 REG_FIR_IN_OFFSET1 = 100
-REG_FIR_IN_OFFSET2 = 101
 REG_FIR_OUT_SCALE1 = 102
-REG_FIR_OUT_SCALE2 = 103
 REG_FIR_OUT_OFFSET1 = 104
+REG_FIR_INTERPOLATION_CH0_WDFRATES 	= 106
+REG_FIR_INTERPOLATION_CH0_CICRATES 	= 107
+REG_FIR_INTERPOLATION_CH0_CTRL 		= 108
+
+REG_FIR_DECIMATION_CH1 = 97
+REG_FIR_IN_SCALE2 = 99
+REG_FIR_IN_OFFSET2 = 101
+REG_FIR_OUT_SCALE2 = 103
 REG_FIR_OUT_OFFSET2 = 105
-REG_FIR_UPSAMPLING1 = 106
-REG_FIR_UPSAMPLING2 = 107
-REG_FIR_LINK = 108
+REG_FIR_INTERPOLATION_CH1_WDFRATES 	= 109
+REG_FIR_INTERPOLATION_CH1_CICRATES 	= 110
+REG_FIR_INTERPOLATION_CH1_CTRL 		= 111
 
-REG_FIR_INTERPOLATION_CH0_WDFRATES 	= 109
-REG_FIR_INTERPOLATION_CH0_CICRATES 	= 110
-REG_FIR_INTERPOLATION_CH0_CTRL 		= 111
+REG_FIR_LINK = 112
 
-REG_FIR_INTERPOLATION_CH1_WDFRATES 	= 112
-REG_FIR_INTERPOLATION_CH1_CICRATES 	= 113
-REG_FIR_INTERPOLATION_CH1_CTRL 		= 114
 
-REG_FIR_DECIMATION_CH0		= 124
-REG_FIR_DECIMATION_CH1		= 125
+# #REG_FIR_DECIMATION1 = 96
+# #REG_FIR_DECIMATION2 = 97
+# REG_FIR_IN_SCALE1 = 98
+# REG_FIR_IN_SCALE2 = 99
+# REG_FIR_IN_OFFSET1 = 100
+# REG_FIR_IN_OFFSET2 = 101
+# REG_FIR_OUT_SCALE1 = 102
+# REG_FIR_OUT_SCALE2 = 103
+# REG_FIR_OUT_OFFSET1 = 104
+# REG_FIR_OUT_OFFSET2 = 105
+# #REG_FIR_UPSAMPLING1 = 106
+# #REG_FIR_UPSAMPLING2 = 107
+# REG_FIR_LINK = 108
+
+# REG_FIR_INTERPOLATION_CH0_WDFRATES 	= 109
+# REG_FIR_INTERPOLATION_CH0_CICRATES 	= 110
+# REG_FIR_INTERPOLATION_CH0_CTRL 		= 111
+
+# REG_FIR_INTERPOLATION_CH1_WDFRATES 	= 112
+# REG_FIR_INTERPOLATION_CH1_CICRATES 	= 113
+# REG_FIR_INTERPOLATION_CH1_CTRL 		= 114
+
+# REG_FIR_DECIMATION_CH0		= 124
+# REG_FIR_DECIMATION_CH1		= 125
 
 _FIR_NUM_BLOCKS = 44
 _FIR_BLOCK_SIZE = 511
@@ -84,8 +105,8 @@ class FIRFilter(_CoreOscilloscope):
 	@needs_commit
 	def set_offset_gain(self, ch, input_scale = 1, output_scale = 1, input_offset = 0, output_offset = 0):
 		if ch == 1:
-			self.input_scale1 = input_scale * 0x0100
-			self.output_scale1 = output_scale * 0x0100
+			self.input_scale1 = input_scale * 0x0008
+			self.output_scale1 = output_scale * 0x0040
 			self.input_offset1 = input_offset
 			self.output_offset1 = output_offset
 		else:
@@ -125,6 +146,10 @@ class FIRFilter(_CoreOscilloscope):
 			i_muxsel = 2
 			i_highrate_wdf1 = decimation_factor/2 - 1
 			i_highrate_wdf2 = 0
+			# d_wdfmuxsel = 0
+			# d_outmuxsel = 1
+			# i_muxsel = 1
+			# i_highrate_wdf1 = 0
 		elif 8 <= decimation_factor <= 64:
 			d_wdfmuxsel = 1
 			d_outmuxsel = 2
@@ -235,8 +260,8 @@ class FIRFilter(_CoreOscilloscope):
 		self._set_mmap_access(False)
 
 _fir_reg_handlers = {
-	'decimation1':			(REG_FIR_DECIMATION1,		to_reg_unsigned(0, 32), from_reg_unsigned(0, 32)),
-	'decimation2':			(REG_FIR_DECIMATION2,		to_reg_unsigned(0, 32), from_reg_unsigned(0, 32)),
+	# 'decimation1':			(REG_FIR_DECIMATION1,		to_reg_unsigned(0, 32), from_reg_unsigned(0, 32)),
+	# 'decimation2':			(REG_FIR_DECIMATION2,		to_reg_unsigned(0, 32), from_reg_unsigned(0, 32)),
 	'input_scale1':			(REG_FIR_IN_SCALE1,		to_reg_unsigned(0, 18), from_reg_unsigned(0, 18)),
 	'input_scale2':			(REG_FIR_IN_SCALE2,		to_reg_unsigned(0, 18), from_reg_unsigned(0, 18)),
 	'input_offset1':			(REG_FIR_IN_OFFSET1,		to_reg_unsigned(0, 16), from_reg_unsigned(0, 16)),
@@ -245,8 +270,8 @@ _fir_reg_handlers = {
 	'output_scale2':			(REG_FIR_OUT_SCALE2,		to_reg_unsigned(0, 18), from_reg_unsigned(0, 18)),
 	'output_offset1':			(REG_FIR_OUT_OFFSET1,		to_reg_unsigned(0, 16), from_reg_unsigned(0, 16)),
 	'output_offset2':			(REG_FIR_OUT_OFFSET2,		to_reg_unsigned(0, 16), from_reg_unsigned(0, 16)),
-	'upsampling1':			(REG_FIR_UPSAMPLING1,		to_reg_unsigned(0, 14), from_reg_unsigned(0, 14)),
-	'upsampling2':			(REG_FIR_UPSAMPLING2,		to_reg_unsigned(0, 14), from_reg_unsigned(0, 14)),
+	# 'upsampling1':			(REG_FIR_UPSAMPLING1,		to_reg_unsigned(0, 14), from_reg_unsigned(0, 14)),
+	# 'upsampling2':			(REG_FIR_UPSAMPLING2,		to_reg_unsigned(0, 14), from_reg_unsigned(0, 14)),
 	'link':			(REG_FIR_LINK,		to_reg_bool(0), from_reg_bool(0)),
 
 	'dec_wdfmuxsel_1':	(REG_FIR_DECIMATION_CH0,		to_reg_unsigned(0, 2), from_reg_unsigned(0, 2)),
