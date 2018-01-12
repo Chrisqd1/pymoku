@@ -206,12 +206,48 @@ class VoltsData(_frame_instrument.InstrumentData):
 		""" Function suitable to use as argument to a matplotlib FuncFormatter for Y (voltage) coordinate """
 		return self._get_yaxis_fmt(y,None)['ycoord']
 
+class Trigger(object):
+
+	# with Control(0).Value(3 downto 0) select TriggerType <=
+	# 	EDGE when "0000",
+	# 	PULSE_WIDTH when others;
+
+	# with Control(0).Value(8 downto 7) select PulseWidthType <=
+	# 	MIN_WIDTH when "00",
+	# 	MAX_WIDTH when others;
+
+	REG_CONFIG = 0
+	REG_LEVEL = 1
+	REG_HYSTERESIS = 2
+	REG_DURATION = 3
+	REG_HOLDOFF = 4
+	REG_NTRIGGER = 5
+	REG_TIMER = 6
+
+	def __init__(self, instr, reg_base):
+		self._instr = instr
+		self.reg_base = reg_base
+
+		# self._trig_mode = mode
+		# self._trig_volts = level # Save the desired trigger voltage
+
+	@property
+	def trig_edge(self):
+		return self._instr._accessor_get(self.reg_base + Trigger.REG_CONFIG, from_reg_unsigned(4, 2))
+
+	@trig_edge.setter
+	def trig_edge(self, value):
+		self._instr._accessor_set(self.reg_base + Trigger.REG_CONFIG,
+			                      to_reg_unsigned(4, 2, allow_set=[_OSC_EDGE_RISING, _OSC_EDGE_FALLING, _OSC_EDGE_BOTH]),	#TODO bring these into trigger
+			                      value)
 
 class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 
 	def __init__(self):
 		super(_CoreOscilloscope, self).__init__()
 		self._register_accessors(_osc_reg_handlers)
+
+		self._trigger = Trigger(self, 68)
 
 		self.id = 1
 		self.type = "oscilloscope"
@@ -507,11 +543,11 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		mode = _utils.str_to_val(_str_to_trigger_mode, mode,'trigger mode')
 
 		self.trig_ch = source
-		self.trig_edge = edge
+		self._trigger.trig_edge = edge
 
 		self.hf_reject = hf_reject
-		self.trig_mode = mode
-		self.trig_volts = level # Save the desired trigger voltage
+		self._trigger.trig_mode = mode
+		self._trigger.trig_volts = level # Save the desired trigger voltage
 
 	@needs_commit
 	def set_source(self, ch, source, lmode='round'):
@@ -749,12 +785,6 @@ _osc_reg_handlers = {
 	'source_ch2':		(REG_OSC_OUTSEL,	to_reg_unsigned(1, 1, allow_set=[_OSC_SOURCE_ADC, _OSC_SOURCE_DAC]),
 											from_reg_unsigned(1, 1)),
 
-	'trig_mode':		(REG_OSC_TRIGMODE,	to_reg_unsigned(0, 2, allow_set=[_OSC_TRIG_AUTO, _OSC_TRIG_NORMAL, _OSC_TRIG_SINGLE]),
-											from_reg_unsigned(0, 2)),
-
-	'trig_edge':		(REG_OSC_TRIGCTL,	to_reg_unsigned(0, 2, allow_set=[_OSC_EDGE_RISING, _OSC_EDGE_FALLING, _OSC_EDGE_BOTH]),
-											from_reg_unsigned(0, 2)),
-
 	'trig_ch':			(REG_OSC_TRIGCTL,	to_reg_unsigned(4, 6, allow_set=[_OSC_TRIG_CH1, _OSC_TRIG_CH2, _OSC_TRIG_DA1, _OSC_TRIG_DA2, _OSC_TRIG_EXT]),
 											from_reg_unsigned(4, 6)),
 
@@ -762,7 +792,6 @@ _osc_reg_handlers = {
 	'hysteresis':		(REG_OSC_TRIGCTL,	to_reg_unsigned(16, 16),	from_reg_unsigned(16, 16)),
 	# The conversion of trigger level value to register value is dependent on the trigger source
 	# and therefore is performed in the _trigger_level() function above.
-	'trigger_level':	(REG_OSC_TRIGLVL,	to_reg_signed(0, 32),		from_reg_signed(0, 32)),
 
 	'loopback_mode_ch1':	(REG_OSC_ACTL,	to_reg_unsigned(0, 1, allow_set=[_OSC_LB_CLIP, _OSC_LB_ROUND]),
 											from_reg_unsigned(0, 1)),
