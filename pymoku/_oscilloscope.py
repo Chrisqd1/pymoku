@@ -7,6 +7,7 @@ from ._instrument import *
 from . import _frame_instrument
 from . import _waveform_generator
 from . import _utils
+from ._trigger import Trigger
 
 log = logging.getLogger(__name__)
 
@@ -16,21 +17,11 @@ REG_OSC_ACTL		= 66
 REG_OSC_DECIMATION	= 65
 
 ### Every constant that starts with OSC_ will become an attribute of pymoku.instruments ###
-
-# REG_OSC_TRIGMODE constants
-_OSC_TRIG_AUTO		= 0
-_OSC_TRIG_NORMAL	= 1
-_OSC_TRIG_SINGLE	= 2
-
 _OSC_SOURCE_CH1		= 0
 _OSC_SOURCE_CH2		= 1
 _OSC_SOURCE_DA1		= 2
 _OSC_SOURCE_DA2		= 3
 _OSC_SOURCE_EXT		= 4
-
-_OSC_EDGE_RISING	= 0
-_OSC_EDGE_FALLING	= 1
-_OSC_EDGE_BOTH		= 2
 
 _OSC_ROLL			= ROLL
 _OSC_SWEEP			= SWEEP
@@ -199,49 +190,6 @@ class VoltsData(_frame_instrument.InstrumentData):
 		""" Function suitable to use as argument to a matplotlib FuncFormatter for Y (voltage) coordinate """
 		return self._get_yaxis_fmt(y,None)['ycoord']
 
-class Trigger(object):
-
-	# with Control(0).Value(3 downto 0) select TriggerType <=
-	# 	EDGE when "0000",
-	# 	PULSE_WIDTH when others;
-
-	# with Control(0).Value(8 downto 7) select PulseWidthType <=
-	# 	MIN_WIDTH when "00",
-	# 	MAX_WIDTH when others;
-
-	REG_CONFIG = 0
-	REG_LEVEL = 1
-	REG_HYSTERESIS = 2
-	REG_DURATION = 3
-	REG_HOLDOFF = 4
-	REG_NTRIGGER = 5
-	REG_TIMER = 6
-
-	def __init__(self, instr, reg_base):
-		self._instr = instr
-		self.reg_base = reg_base
-
-		# self._trig_mode = mode
-		# self._trig_volts = level # Save the desired trigger voltage
-
-	@property
-	def trig_edge(self):
-		return self._instr._accessor_get(self.reg_base + Trigger.REG_CONFIG, from_reg_unsigned(4, 2))
-
-	@trig_edge.setter
-	def trig_edge(self, value):
-		self._instr._accessor_set(self.reg_base + Trigger.REG_CONFIG,
-			                      to_reg_unsigned(4, 2, allow_set=[_OSC_EDGE_RISING, _OSC_EDGE_FALLING, _OSC_EDGE_BOTH]),	#TODO bring these into trigger
-			                      value)
-
-	@property
-	def hysteresis(self):
-		return self._instr._accessor_get(self.reg_base + Trigger.REG_HYSTERESIS, from_reg_unsigned(0, 16))
-
-	@hysteresis.setter
-	def hysteresis(self, value):
-		self._instr._accessor_set(self.reg_base + Trigger.REG_HYSTERESIS, to_reg_unsigned(0, 16), value)
-
 class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 
 	def __init__(self):
@@ -261,7 +209,7 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 
 		# Define any (non-register-mapped) properties that are used when committing
 		# as a commit is called when the instrument is set running
-		self._trigger.trig_volts = 0
+		self._trigger.level = 0
 		#self.hysteresis_volts = 0
 
 		# All instruments need a binstr, procstr and format string.
@@ -509,6 +457,7 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		_utils.check_parameter_valid('bool', hysteresis, desc="enable hysteresis")
 		_utils.check_parameter_valid('range', level, [_OSC_TRIGLVL_MIN, _OSC_TRIGLVL_MAX], 'trigger level', 'Volts')
 		_utils.check_parameter_valid('bool', hf_reject, 'High-frequency reject enable')
+		_utils.check_parameter_valid('set', mode, ['auto', 'normal'], desc='mode')
 
 		# External trigger source is only available on Moku 20
 		if (self._moku.get_hw_version() == 1.0) and source == 'ext':
@@ -522,6 +471,13 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		# TODO: Enable setting hysteresis level. For now we use the iPad LSB values for ON/OFF.
 		self._trigger.hysteresis = 25 if hysteresis else 5
 
+		if mode == 'auto':
+			self._trigger.timer = 20.0
+			self._trigger.auto_holdoff = 5
+		elif mode == 'normal':
+			self._trigger.timer = 0.0
+			self._trigger.auto_holdoff = 0
+
 		_str_to_trigger_source = {
 			'in1' : _OSC_SOURCE_CH1,
 			'in2' : _OSC_SOURCE_CH2,
@@ -530,25 +486,19 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 			'ext' : _OSC_SOURCE_EXT
 		}
 		_str_to_edge = {
-			'rising' : _OSC_EDGE_RISING,
-			'falling' : _OSC_EDGE_FALLING,
-			'both'	: _OSC_EDGE_BOTH
-		}
-		_str_to_trigger_mode = {
-			'auto' : _OSC_TRIG_AUTO,
-			'normal' : _OSC_TRIG_NORMAL
-			#'single' : _OSC_TRIG_SINGLE
+			'rising' : Trigger.EDGE_RISING,
+			'falling' : Trigger.EDGE_FALLING,
+			'both'	: Trigger.EDGE_BOTH
 		}
 		source = _utils.str_to_val(_str_to_trigger_source, source, 'trigger source')
 		edge = _utils.str_to_val(_str_to_edge, edge, 'edge type')
-		mode = _utils.str_to_val(_str_to_trigger_mode, mode,'trigger mode')
 
 		self.trig_ch = source
-		self._trigger.trig_edge = edge
+		self._trigger.edge = edge
 
 		self.hf_reject = hf_reject
-		self._trigger.trig_mode = mode
-		self._trigger.trig_volts = level # Save the desired trigger voltage
+		self._trigger.mode = mode
+		self._trigger.level = level
 
 	@needs_commit
 	def set_source(self, ch, source, lmode='round'):
@@ -660,7 +610,7 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 
 	def _update_dependent_regs(self, scales):
 		# Trigger level must be scaled depending on the current relay settings and chosen trigger source
-		self.trigger_level = self._trigger.trig_volts / self._source_volts_per_bit(self.trig_ch, scales)
+		self.trigger_level = self._trigger.level / self._source_volts_per_bit(self.trig_ch, scales)
 		#self.hysteresis = self.hysteresis_volts / self._source_volts_per_bit(self.trig_ch, scales)
 
 	def _update_datalogger_params(self):
