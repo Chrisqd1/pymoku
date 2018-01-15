@@ -498,7 +498,7 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 
 		self.hf_reject = hf_reject
 		self._trigger.mode = mode
-		self._trigger.level = level
+		self._trigger.level = trigger_level #TODO need to figure out where the conversion happens
 
 	@needs_commit
 	def set_source(self, ch, source, lmode='round'):
