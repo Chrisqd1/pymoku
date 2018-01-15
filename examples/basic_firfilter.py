@@ -11,7 +11,7 @@ FS = 125e6 / 500
 length = 500000
 amp = 2**12
 f0 = 1e3
-dec = 512
+dec = 8
 
 #filt1 = signal.firls(101, [0.0, 50.0e3, 50.0e3, 100.0e3, 100.0e3, FS/2.0], [0.1, 0.1, 1.0, 1.0, 0.1, 0.1], fs=FS)
 #filt1 = [1.0, 0.0, 0.0, 0.0] + [0.0,0.0,0.0,0.0]*4
@@ -21,7 +21,10 @@ with open('FIRKernal.csv', 'r') as csv:
 	for l in csv:
 		filt_coeff.append(map(float,  [x.strip() for x in l.split(',')] ))
 
-filt1 = [1.0] + [0.0]*(dec/2*44-1)
+#filt1 = [1.0] + [0.0]*(dec*29-1)
+a = 190
+filt1 = [1.0/a]*a #+ [0.0]*(dec*29-a)
+#filt1 = [2.0/dec]*(dec*29)
 #filt1 = filt_coeff[0]
 print(len(filt1))
 
@@ -79,14 +82,14 @@ try:
 	i.set_samplerate(ch = 1, decimation_factor=dec)
 
 	i.write_coeffs(1, filt1)
-	i.write_coeffs(2, filt2)
+	#i.write_coeffs(2, filt2)
 
 	i.link = True
 	i.commit()
 
-	i._set_mmap_access(True)
-	error = i._moku._receive_file('j', '.lutdata_moku.dat', 511 * 40 * 4 * 2)
-	i._set_mmap_access(False)
+	# i._set_mmap_access(True)
+	# error = i._moku._receive_file('j', '.lutdata_moku.dat', 511 * 40 * 4 * 2)	
+	# i._set_mmap_access(False)
 
 	data = i.get_realtime_data()
 	# Set up the plotting parameters
