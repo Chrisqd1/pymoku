@@ -2,6 +2,7 @@ from pymoku import Moku
 from pymoku.instruments import FIRFilter
 import numpy as np
 from scipy import signal
+import time
 
 import matplotlib
 import matplotlib.pyplot as plt
@@ -11,10 +12,7 @@ FS = 125e6 / 500
 length = 500000
 amp = 2**12
 f0 = 1e3
-dec = 8
-
-#filt1 = signal.firls(101, [0.0, 50.0e3, 50.0e3, 100.0e3, 100.0e3, FS/2.0], [0.1, 0.1, 1.0, 1.0, 0.1, 0.1], fs=FS)
-#filt1 = [1.0, 0.0, 0.0, 0.0] + [0.0,0.0,0.0,0.0]*4
+dec = 32
 
 filt_coeff = []
 with open('FIRKernal.csv', 'r') as csv:
@@ -22,23 +20,9 @@ with open('FIRKernal.csv', 'r') as csv:
 		filt_coeff.append(map(float,  [x.strip() for x in l.split(',')] ))
 
 #filt1 = [1.0] + [0.0]*(dec*29-1)
-a = 190
-filt1 = [1.0/a]*a #+ [0.0]*(dec*29-a)
-#filt1 = [2.0/dec]*(dec*29)
-#filt1 = filt_coeff[0]
+#filt1 = [1.0/(dec*29)]*(dec*29)
+filt1 = filt_coeff[0]
 print(len(filt1))
-
-#filt2 = signal.firls(101, [0.0, 50.0e3, 50.0e3, 100.0e3, 100.0e3, FS/2.0], [0.1, 0.1, 1.0, 1.0, 0.1, 0.1], fs=FS)
-#filt2 = [1.0, 0.0, 0.0, 0.0]
-# filt2 = [-1.0] + [0.0]*20000 + [-1.0]
-filt2 = [1e-5] * 404
-# filt = [0.5**9]*8
-# filt2 = filt2 * 2.0**2
-# plt.plot(filt1)
-# plt.plot(filt2)
-# plt.show()
-# print filt
-# exit(0)
 
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
@@ -48,30 +32,10 @@ m = Moku('192.168.69.53', load_instruments=True, force = True)
 i = FIRFilter()
 m.deploy_instrument(i)
 
-
-
-# filt = [int(round(2.0**17 * x)) for x in filt]
-# print filt
-# plt.plot(filt)
-
-# sig = np.random.random_integers(-amp, amp-1, length)
-# sig_filt = signal.convolve(sig, filt, mode='same', method='direct')
-
-# plt.plot(sig, 'b')
-# plt.plot(sig_filt, 'r')
-
-# psd = np.abs(np.fft.fft([x / 1.0 for x in sig_filt]))**2
-# plt.loglog(psd[0:len(psd)/2], 'r')
-
-# plt.loglog(psd[0], psd[1])
-# print sig_filt[:100]
-# plt.show()
-
-
 try:
 
 	i.set_defaults()
-	i._set_frontend(1, fiftyr=False, atten=False, ac=False)
+	i._set_frontend(1, fiftyr=True, atten=False, ac=False)
 	i.set_trigger('in1', 'rising', 0.00, hysteresis=True)
 	i.set_timebase(-25e-6,400e-6)
 
@@ -82,21 +46,23 @@ try:
 	i.set_samplerate(ch = 1, decimation_factor=dec)
 
 	i.write_coeffs(1, filt1)
-	#i.write_coeffs(2, filt2)
-
-	i.link = True
+	i.commit()
+	i.write_coeffs(2, filt2)
 	i.commit()
 
-	# i._set_mmap_access(True)
-	# error = i._moku._receive_file('j', '.lutdata_moku.dat', 511 * 40 * 4 * 2)	
-	# i._set_mmap_access(False)
+	i._set_mmap_access(True)
+	error = i._moku._receive_file('j', '.lutdata_moku.dat', 511 * 40 * 4 * 2)	
+	i._set_mmap_access(False)
+
+	i.link = False
+	i.commit()
 
 	data = i.get_realtime_data()
 	# Set up the plotting parameters
 	plt.ion()
 	plt.show()
 	plt.grid(b=True)
-	plt.ylim([-0.1,0.1])
+	plt.ylim([-2,2])
 	plt.xlim([data.time[0], data.time[-1]])
 
 	line1, = plt.plot([])

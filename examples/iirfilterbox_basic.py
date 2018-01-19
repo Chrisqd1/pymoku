@@ -20,7 +20,7 @@ filt_coeff = 	[[1.0],
 				[1.0000000000,0.1301131088,0.1223154629,0.1301131088,-0.7955572476,0.1780989281]]
 
 
-m = Moku.get_by_name('Moku')
+m = Moku('192.168.69.53', load_instruments=True, force = True)
 i = IIRFilterBox()
 m.deploy_instrument(i)
 

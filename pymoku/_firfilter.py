@@ -31,32 +31,8 @@ REG_FIR_INTERPOLATION_CH1_CICRATES 	= 110
 REG_FIR_INTERPOLATION_CH1_CTRL 		= 111
 
 REG_FIR_LINK = 112
-
-
-# #REG_FIR_DECIMATION1 = 96
-# #REG_FIR_DECIMATION2 = 97
-# REG_FIR_IN_SCALE1 = 98
-# REG_FIR_IN_SCALE2 = 99
-# REG_FIR_IN_OFFSET1 = 100
-# REG_FIR_IN_OFFSET2 = 101
-# REG_FIR_OUT_SCALE1 = 102
-# REG_FIR_OUT_SCALE2 = 103
-# REG_FIR_OUT_OFFSET1 = 104
-# REG_FIR_OUT_OFFSET2 = 105
-# #REG_FIR_UPSAMPLING1 = 106
-# #REG_FIR_UPSAMPLING2 = 107
-# REG_FIR_LINK = 108
-
-# REG_FIR_INTERPOLATION_CH0_WDFRATES 	= 109
-# REG_FIR_INTERPOLATION_CH0_CICRATES 	= 110
-# REG_FIR_INTERPOLATION_CH0_CTRL 		= 111
-
-# REG_FIR_INTERPOLATION_CH1_WDFRATES 	= 112
-# REG_FIR_INTERPOLATION_CH1_CICRATES 	= 113
-# REG_FIR_INTERPOLATION_CH1_CTRL 		= 114
-
-# REG_FIR_DECIMATION_CH0		= 124
-# REG_FIR_DECIMATION_CH1		= 125
+REG_FIR_RESET_CH1 = 113
+REG_FIR_RESET_CH2 = 114
 
 _FIR_NUM_BLOCKS = 29
 _FIR_BLOCK_SIZE = 511
@@ -81,7 +57,7 @@ class FIRFilter(_CoreOscilloscope):
 		self.input_offset2 = 0x0000
 		self.output_scale1 = 0x0000
 		self.output_offset1 = 0x0000
-		self.output_scale2 = 0x0020
+		self.output_scale2 = 0x0000
 		self.output_offset2 = 0x0000
 
 		self.dec_wdfmuxsel = 1
@@ -102,31 +78,29 @@ class FIRFilter(_CoreOscilloscope):
 		self.int_interprate_cic2 = 0
 		self.int_bitshift_cic1 = 4
 		self.int_bitshift_cic2 = 2
+		self._channel_reset(1)
+		self._channel_reset(2)
 
 	@needs_commit
 	def set_offset_gain(self, ch, input_scale = 1, output_scale = 1, input_offset = 0, output_offset = 0):
-		if ch == 1:			
-
-			# use for all pass coeffs
-			self.input_scale1 = input_scale * 0x0400
-			#self.output_scale1 = output_scale * 0x8000	
-			self.output_scale1 = output_scale * 0x8000
-
-			# use for full length moving average filter
-			# self.input_scale1 = input_scale * 0x0100
-			# #self.output_scale1 = output_scale * 0x1000
-			# self.output_scale1 = output_scale * 0x0080				
-
+		self._channel_reset(ch)
+		if ch == 1:	
+			self.input_scale1 = input_scale * 0x1000
+			self.output_scale1 = output_scale * 0x0100
 			self.input_offset1 = input_offset
 			self.output_offset1 = output_offset
 		else:
-			self.input_scale2 = input_scale * 0x0100
+			self.input_scale2 = input_scale * 0x1000
 			self.output_scale2 = output_scale * 0x0100
 			self.input_offset2 = input_offset
 			self.output_offset2 = output_offset
 
+		self.tempscale = 2**15*0.5
+
 	@needs_commit
 	def set_samplerate(self, ch, decimation_factor = 8):
+		self._channel_reset(ch)
+
 		d_wdfmuxsel = 0
 		d_outmuxsel = 0	
 		d_cic1_dec = 0
@@ -156,10 +130,6 @@ class FIRFilter(_CoreOscilloscope):
 			i_muxsel = 2
 			i_highrate_wdf1 = decimation_factor/2 - 1
 			i_highrate_wdf2 = 0
-			# d_wdfmuxsel = 0
-			# d_outmuxsel = 1
-			# i_muxsel = 1
-			# i_highrate_wdf1 = 0
 		elif 8 <= decimation_factor <= 64:
 			d_wdfmuxsel = 1
 			d_outmuxsel = 2
@@ -223,6 +193,11 @@ class FIRFilter(_CoreOscilloscope):
 			self.int_bitshift_cic1_2 = i_bitshift_cic1
 			self.int_bitshift_cic2_2 = i_bitshift_cic2
 
+	def _channel_reset(self, ch):
+		if ch == 1:
+			self.reset_ch1 = 1 if self.reset_ch1 == 0 else 0
+		else:
+			self.reset_ch2 = 1 if self.reset_ch2 == 0 else 0
 
 	def write_coeffs(self, ch, coeffs):
 		coeffs = list(coeffs)
@@ -232,49 +207,45 @@ class FIRFilter(_CoreOscilloscope):
 		blocks = [coeffs[x:x+L] for x in range(0, len(coeffs), L)]
 		print L
 		blocks += [[]] * (_FIR_NUM_BLOCKS - len(blocks))
-		#print(blocks)
+		print(blocks)
 
-		# print map(len, blocks)
-		# if not os.path.exists('.lutdata.dat'):
-		# 	open('.lutdata.dat', 'w').close()
+		print map(len, blocks)
+		if not os.path.exists('.lutdata.dat'):
+			open('.lutdata.dat', 'w').close()
 
-		# with open('.lutdata.dat', 'r+b') as f:
-		# 	#first check and make the file the right size
-		# 	f.seek(0, os.SEEK_END)
-		# 	size = f.tell()
-		# 	f.write('\0'.encode(encoding='UTF-8') * (2**16 * 4  - size))
-		# 	f.flush()
+		with open('.lutdata.dat', 'r+b') as f:
+			#first check and make the file the right size
+			f.seek(0, os.SEEK_END)
+			size = f.tell()
+			f.write('\0'.encode(encoding='UTF-8') * (2**16 * 4  - size))
+			f.flush()
 
-		# 	#Leave the previous data file so we just rewite the new part,
-		# 	#as we have to upload both channels at once.
-		# 	if ch == 1:
-		# 		offset = 0
-		# 	else:
-		# 		offset = 2**15 * 4
+			#Leave the previous data file so we just rewite the new part,
+			#as we have to upload both channels at once.
+			if ch == 1:
+				offset = 0
+			else:
+				offset = 2**15 * 4
 
-		# 	#clear the current contents
-		# 	f.seek(offset)
-		# 	f.write('\x00\x00\x00\x00' * _FIR_BLOCK_SIZE * _FIR_NUM_BLOCKS)
+			#clear the current contents
+			f.seek(offset)
+			f.write('\x00\x00\x00\x00' * _FIR_BLOCK_SIZE * _FIR_NUM_BLOCKS)
 
-		# 	for i, b in enumerate(blocks):
-		# 		b.reverse()
-		# 		for j, c in enumerate(b):
-		# 			f.seek(offset + (i * (_FIR_BLOCK_SIZE+1) * 4) + (j * 4))
-		# 			f.write(struct.pack('<i', round((2.0**24-1) * c)))
-		# 		f.seek(offset + (i * (_FIR_BLOCK_SIZE+1) * 4) + (_FIR_BLOCK_SIZE * 4))
-		# 		f.write(struct.pack('<I', len(b)))
+			for i, b in enumerate(blocks):
+				b.reverse()
+				for j, c in enumerate(b):
+					f.seek(offset + (i * (_FIR_BLOCK_SIZE+1) * 4) + (j * 4))
+					f.write(struct.pack('<i', round((2.0**24-1) * c)))
+				f.seek(offset + (i * (_FIR_BLOCK_SIZE+1) * 4) + (_FIR_BLOCK_SIZE * 4))
+				f.write(struct.pack('<I', len(b)))
 
-		# 	f.flush()			
-
-		#print(f)
+			f.flush()	
 
 		self._set_mmap_access(True)
 		error = self._moku._send_file('j', '.lutdata.dat')
 		self._set_mmap_access(False)
 
 _fir_reg_handlers = {
-	# 'decimation1':			(REG_FIR_DECIMATION1,		to_reg_unsigned(0, 32), from_reg_unsigned(0, 32)),
-	# 'decimation2':			(REG_FIR_DECIMATION2,		to_reg_unsigned(0, 32), from_reg_unsigned(0, 32)),
 	'input_scale1':			(REG_FIR_IN_SCALE1,		to_reg_unsigned(0, 18), from_reg_unsigned(0, 18)),
 	'input_scale2':			(REG_FIR_IN_SCALE2,		to_reg_unsigned(0, 18), from_reg_unsigned(0, 18)),
 	'input_offset1':			(REG_FIR_IN_OFFSET1,		to_reg_unsigned(0, 16), from_reg_unsigned(0, 16)),
@@ -283,8 +254,6 @@ _fir_reg_handlers = {
 	'output_scale2':			(REG_FIR_OUT_SCALE2,		to_reg_unsigned(0, 18), from_reg_unsigned(0, 18)),
 	'output_offset1':			(REG_FIR_OUT_OFFSET1,		to_reg_unsigned(0, 16), from_reg_unsigned(0, 16)),
 	'output_offset2':			(REG_FIR_OUT_OFFSET2,		to_reg_unsigned(0, 16), from_reg_unsigned(0, 16)),
-	# 'upsampling1':			(REG_FIR_UPSAMPLING1,		to_reg_unsigned(0, 14), from_reg_unsigned(0, 14)),
-	# 'upsampling2':			(REG_FIR_UPSAMPLING2,		to_reg_unsigned(0, 14), from_reg_unsigned(0, 14)),
 	'link':			(REG_FIR_LINK,		to_reg_bool(0), from_reg_bool(0)),
 
 	'dec_wdfmuxsel_1':	(REG_FIR_DECIMATION_CH0,		to_reg_unsigned(0, 2), from_reg_unsigned(0, 2)),
@@ -319,5 +288,8 @@ _fir_reg_handlers = {
 	'int_ratechange_cic1_2':	(REG_FIR_INTERPOLATION_CH1_CTRL, 	to_reg_unsigned(3,5), from_reg_unsigned(3,5)),
 	'int_ratechange_cic2_2':	(REG_FIR_INTERPOLATION_CH1_CTRL, 	to_reg_unsigned(8,5), from_reg_unsigned(8,5)),
 	'int_bitshift_cic1_2':	(REG_FIR_INTERPOLATION_CH1_CTRL, 	to_reg_unsigned(13,4), from_reg_unsigned(13,4)),
-	'int_bitshift_cic2_2':	(REG_FIR_INTERPOLATION_CH1_CTRL, 	to_reg_unsigned(17,4), from_reg_unsigned(17,4))
+	'int_bitshift_cic2_2':	(REG_FIR_INTERPOLATION_CH1_CTRL, 	to_reg_unsigned(17,4), from_reg_unsigned(17,4)),
+
+	'reset_ch1':	(REG_FIR_RESET_CH1, to_reg_unsigned(0,1), from_reg_unsigned(0,1)),
+	'reset_ch2':	(REG_FIR_RESET_CH2, to_reg_unsigned(0,1), from_reg_unsigned(0,1))
 }
