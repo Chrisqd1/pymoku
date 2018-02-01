@@ -1,89 +1,43 @@
+# pymoku example: Basic IIR Filter Box
+#
+# This example demonstrates how you can configure the FIR Filter instrument.
+#
+# (c) 2018 Liquid Instruments Pty. Ltd.
+#
 from pymoku import Moku
 from pymoku.instruments import FIRFilter
-import numpy as np
-from scipy import signal
 import time
 
-import matplotlib
-import matplotlib.pyplot as plt
-from math import floor
+# This script provides a basic example showing how to load coefficients from an array into the FIRFilterBox.
 
-FS = 125e6 / 500
-length = 500000
-amp = 2**12
-f0 = 1e3
-dec = 32
+# The following two example arrays are simple rectangular FIR kernels with 50 and 400 taps respectively. Produce xfer function with..
+# FIR kernels must have a normalised power of <= 1.0, so the value of each tap is the inverse of the total number of taps. 
 
-filt_coeff = []
-with open('FIRKernal.csv', 'r') as csv:
-	for l in csv:
-		filt_coeff.append(map(float,  [x.strip() for x in l.split(',')] ))
+filt_coeff1 = [1.0 / 29] * 29
+filt_coeff2 = [1.0 / 10] * 29
 
-#filt1 = [1.0] + [0.0]*(dec*29-1)
-#filt1 = [1.0/(dec*29)]*(dec*29)
-filt1 = filt_coeff[0]
-print(len(filt1))
-
-# Connect to your Moku by its device name
-# Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
-m = Moku('192.168.69.53', load_instruments=True, force = True)
-
-# Prepare the ArbWaveformGenerator instrument
+m = Moku('192.168.69.245', load_instruments=True, force = True)
 i = FIRFilter()
 m.deploy_instrument(i)
 
 try:
+	i.link = False #change this to be inside a function
+	i.commit()	
 
-	i.set_defaults()
 	i._set_frontend(1, fiftyr=True, atten=False, ac=False)
-	i.set_trigger('in1', 'rising', 0.00, hysteresis=True)
-	i.set_timebase(-25e-6,400e-6)
+	i._set_frontend(2, fiftyr=True, atten=False, ac=False)
 
-	i.set_source(1, 'in')
-	i.set_source(2, 'out')
-
-	i.set_offset_gain(ch = 1, output_scale = 0.5)
-	i.set_samplerate(ch = 1, decimation_factor=dec)
-
-	i.write_coeffs(1, filt1)
-	i.commit()
-	i.write_coeffs(2, filt2)
-	i.commit()
+	# To implement 50 FIR taps we need a sample rate of 125 MHz / 2. To implement 400 FIR taps we need a sample rate of 125 MHz / 16.
+	# Sample rate is configured according to: Fs = 125 MHz / 2^decimation_factor.
+	i.set_filter(1, decimation_factor = 4, filter_coefficients = filt_coeff1, on_off = 'on')
+	i.set_filter(2, decimation_factor = 4, filter_coefficients = filt_coeff2, on_off = 'on')
 
 	i._set_mmap_access(True)
-	error = i._moku._receive_file('j', '.lutdata_moku.dat', 511 * 40 * 4 * 2)	
+	error = i._moku._receive_file('j', '.lutdata_moku.dat', 511 * 29 * 4 * 2)	
 	i._set_mmap_access(False)
 
-	i.link = False
-	i.commit()
-
-	data = i.get_realtime_data()
-	# Set up the plotting parameters
-	plt.ion()
-	plt.show()
-	plt.grid(b=True)
-	plt.ylim([-2,2])
-	plt.xlim([data.time[0], data.time[-1]])
-
-	line1, = plt.plot([])
-	line2, = plt.plot([])
-
-	# This loops continuously updates the plot with new data
-	while True:
-		# Get new data
-		data = i.get_realtime_data()
-
-		# Update the plot
-		# psd = signal.welch(data.ch1, fs=FS)
-		# line1.set_ydata(psd[1])
-		# line1.set_xdata(psd[0])
-
-		line1.set_ydata(data.ch1)
-		line2.set_ydata(data.ch2)
-		line1.set_xdata(data.time)
-		line2.set_xdata(data.time)
-		plt.pause(0.001)
-
-
+	# Both channels have unity I/O scalars and no offsets. Channel 1 acts on ADC1 and channel 2 acts on ADC2.
+	i.set_offset_gain(ch = 1, input_scale = 1.0, output_scale = 1.0, matrix_scalar_ch1 = 1.0, matrix_scalar_ch2 = 0.0)
+	i.set_offset_gain(ch = 2, input_scale = 1.0, output_scale = 1.0, matrix_scalar_ch1 = 0.0, matrix_scalar_ch2 = 1.0)
 finally:
 	m.close()
