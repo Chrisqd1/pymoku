@@ -58,7 +58,7 @@ class FIRFilter(_CoreOscilloscope):
 		self.set_offset_gain(2, input_scale = 0, output_scale = 0, input_offset = 0, output_offset = 0, matrix_scalar_ch1=None, matrix_scalar_ch2=None)
 
 	@needs_commit
-	def set_offset_gain(self, ch, input_scale = 1, output_scale = 1, input_offset = 0, output_offset = 0, matrix_scalar_ch1=None, matrix_scalar_ch2=None):
+	def set_offset_gain(self, ch, input_scale = 1.0, output_scale = 1.0, input_offset = 0, output_offset = 0, matrix_scalar_ch1=None, matrix_scalar_ch2=None):
 		"""
 		Configure pre- and post-filter scales, offsets and input mixing for a channel.
 
@@ -324,8 +324,8 @@ class FIRFilter(_CoreOscilloscope):
 _fir_reg_handlers = {
 	'input_scale1':			(REG_FIR_IN_SCALE1,		to_reg_unsigned(0, 18), from_reg_unsigned(0, 18)),
 	'input_scale2':			(REG_FIR_IN_SCALE2,		to_reg_unsigned(0, 18), from_reg_unsigned(0, 18)),
-	'input_offset1':			(REG_FIR_IN_OFFSET1,		to_reg_unsigned(0, 16), from_reg_unsigned(0, 16)),
-	'input_offset2':			(REG_FIR_IN_OFFSET2,		to_reg_unsigned(0, 16), from_reg_unsigned(0, 16)),
+	'input_offset1':			(REG_FIR_IN_OFFSET1,		to_reg_signed(0, 16), from_reg_signed(0, 16)),
+	'input_offset2':			(REG_FIR_IN_OFFSET2,		to_reg_signed(0, 16), from_reg_signed(0, 16)),
 	'output_scale1':			(REG_FIR_OUT_SCALE1,		to_reg_unsigned(0, 18), from_reg_unsigned(0, 18)),
 	'output_scale2':			(REG_FIR_OUT_SCALE2,		to_reg_unsigned(0, 18), from_reg_unsigned(0, 18)),
 	'output_offset1':			(REG_FIR_OUT_OFFSET1,		to_reg_unsigned(0, 16), from_reg_unsigned(0, 16)),
