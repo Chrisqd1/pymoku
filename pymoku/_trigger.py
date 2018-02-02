@@ -5,15 +5,6 @@ _CLK_FREQ = 125e6
 _TIMER_ACCUM = 2.0**32
 
 class Trigger(object):
-
-	# with Control(0).Value(3 downto 0) select TriggerType <=
-	# 	EDGE when "0000",
-	# 	PULSE_WIDTH when others;
-
-	# with Control(0).Value(8 downto 7) select PulseWidthType <=
-	# 	MIN_WIDTH when "00",
-	# 	MAX_WIDTH when others;
-
 	_REG_CONFIG = 0
 	_REG_LEVEL = 1
 	_REG_HYSTERESIS = 2
@@ -22,16 +13,32 @@ class Trigger(object):
 	_REG_NTRIGGER = 5
 	_REG_TIMER = 6
 
+	TYPE_EDGE = 0
+	TYPE_PULSE = 1
+
 	EDGE_RISING	= 0
 	EDGE_FALLING = 1
 	EDGE_BOTH = 2
 
-	def __init__(self, instr, reg_base):
+	PULSE_MIN = 0
+	PULSE_MAX = 1
+
+	def __init__(self, instr, reg_base, timestep):
 		self._instr = instr
 		self.reg_base = reg_base
 
-		# self.mode = mode
-		# self.level = level # Save the desired trigger voltage
+		self._duration = 0.0 #pulse width in samples
+		self._timestep = timestep	#width of each sample in seconds
+
+	@property
+	def trigtype(self):
+		r = self.reg_base + Trigger._REG_CONFIG
+		return self._instr._accessor_get(r, from_reg_unsigned(0, 4))
+
+	@trigtype.setter
+	def trigtype(self, value):
+		r = self.reg_base + Trigger._REG_CONFIG
+		self._instr._accessor_set(r, to_reg_unsigned(0, 4, allow_set=[Trigger.TYPE_EDGE, Trigger.TYPE_PULSE]), value)
 
 	@property
 	def edge(self):
@@ -42,6 +49,16 @@ class Trigger(object):
 	def edge(self, value):
 		r = self.reg_base + Trigger._REG_CONFIG
 		self._instr._accessor_set(r, to_reg_unsigned(4, 2, allow_set=[Trigger.EDGE_RISING, Trigger.EDGE_FALLING, Trigger.EDGE_BOTH]), value)
+
+	@property
+	def pulsetype(self):
+		r = self.reg_base + Trigger._REG_CONFIG
+		return self._instr._accessor_get(r, from_reg_unsigned(7, 2))
+
+	@pulsetype.setter
+	def pulsetype(self, value):
+		r = self.reg_base + Trigger._REG_CONFIG
+		self._instr._accessor_set(r, to_reg_unsigned(7, 2, allow_set=[Trigger.PULSE_MIN, Trigger.PULSE_MAX]), value)
 
 	@property
 	def hysteresis(self):
@@ -113,9 +130,32 @@ class Trigger(object):
 
 	@level.setter
 	def level(self, value):
-		print value
 		_utils.check_parameter_valid('range', value, allowed=[-2**31, 2**31-1], desc='level')
 		r = self.reg_base + Trigger._REG_LEVEL
 		self._instr._accessor_set(r, to_reg_unsigned(0, 32), value)
 
+	@property
+	def duration(self):
+		return self._duration
+
+	@duration.setter
+	def duration(self, value):
+		self._duration = value
+		self._write_duration_samples()
+
+	@property
+	def timestep(self):
+		return self._timestep
+
+	@timestep.setter
+	def timestep(self, value):
+		''' Duration depends on timestep '''
+		self._timestep = value
+		self._write_duration_samples()
+
+	def _write_duration_samples(self):
+		''' Convert duration from seconds to samples based on timestep '''
+		r = self.reg_base + Trigger._REG_DURATION
+		s = int(round(self._duration / self._timestep))
+		self._instr._accessor_set(r, to_reg_unsigned(0, 32), s)
 
