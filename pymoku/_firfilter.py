@@ -139,7 +139,7 @@ class FIRFilter(_CoreOscilloscope):
 			self.matrixscale_ch2_ch1 = control_matrix_ch1
 			self.matrixscale_ch2_ch2 = control_matrix_ch2
 
-	def set_filter(self, ch, decimation_factor, filter_coefficients=None, on_off = 'on'):	
+	def set_filter(self, ch, decimation_factor, filter_coefficients=None, enable = True, link = False):	
 		"""
 		Set FIR filter sample rate and coefficients and toggle channel output on/off. 
 
@@ -154,19 +154,24 @@ class FIRFilter(_CoreOscilloscope):
 		"""
 
 		_utils.check_parameter_valid('set', ch, [1,2],'filter channel')
+		_utils.check_parameter_valid('set', enable, [True,False],'channel output enable')
+		_utils.check_parameter_valid('set', link, [True,False],'channel link')
 		_utils.check_parameter_valid('set', decimation_factor, [0,1,2,3,4,5,6,7,8,9,10],'decimation factor')
 		_utils.check_parameter_valid('range', len(filter_coefficients), [0,29*2**decimation_factor],'filter coefficient array length')
 		for x in range(0, len(filter_coefficients)):
 			_utils.check_parameter_valid('range', filter_coefficients[x], [-1.0,1.0],'normalised coefficient value')
 
+		self._set_output_link(ch, enable, link)
+		self._set_samplerate(ch,2**decimation_factor)
+		self._write_coeffs(ch, filter_coefficients)
+
+	@needs_commit
+	def _set_output_link(self, ch, enable, link):
+		self.link = 1 if link == True else 0
 		if ch == 1:
-			self.ch1_output = 1 if on_off == 'on' else 0
-			self._set_samplerate(1,2**decimation_factor)
-			self._write_coeffs(1, filter_coefficients)
+			self.ch1_output = 1 if enable == True else 0
 		else:
-			self.ch2_output = 1 if on_off == 'on' else 0
-			self._set_samplerate(2,2**decimation_factor)	
-			self._write_coeffs(2, filter_coefficients)
+			self.ch2_output = 1 if enable == True else 0
 
 	@needs_commit
 	def _set_samplerate(self, ch, decimation_factor = 8):
