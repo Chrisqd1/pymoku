@@ -1,109 +1,40 @@
+# pymoku example: Basic IIR Filter Box
+#
+# This example demonstrates how you can configure the FIR Filter instrument.
+#
+# (c) 2018 Liquid Instruments Pty. Ltd.
+#
 from pymoku import Moku
 from pymoku.instruments import FIRFilter
-import numpy as np
-from scipy import signal
+import time
 
-import matplotlib
-import matplotlib.pyplot as plt
-from math import floor
+# This script provides a basic example showing how to load coefficients from an array into the FIRFilterBox.
 
-FS = 125e6 / 500
-length = 500000
-amp = 2**12
-f0 = 1e3
+# The following two example arrays are simple rectangular FIR kernels with 50 and 400 taps respectively. A rectangular kernel produces a sinc shaped transfer function with width
+# inversely  proportional to the length of the kernel. FIR kernels must have a normalised power of <= 1.0, so the value of each tap is the inverse of the total number of taps. 
 
-filt1 = signal.firls(101, [0.0, 50.0e3, 50.0e3, 100.0e3, 100.0e3, FS/2.0], [0.1, 0.1, 1.0, 1.0, 0.1, 0.1], fs=FS)
-# filt1 = [1.0] + [0.0]*20000 + [1.0]
-filt2 = signal.firls(101, [0.0, 50.0e3, 50.0e3, 100.0e3, 100.0e3, FS/2.0], [0.1, 0.1, 1.0, 1.0, 0.1, 0.1], fs=FS)
-# filt2 = [-1.0] + [0.0]*20000 + [-1.0]
-# filt2 = [1e-5] * 404
-# filt = [0.5**9]*8
-# filt2 = filt2 * 2.0**2
-# plt.plot(filt1)
-# plt.plot(filt2)
-# plt.show()
-# print filt
-# exit(0)
+filt_coeff1 = [1.0 / 50] * 50
+filt_coeff2 = [1.0 / 400] * 400
 
-# Connect to your Moku by its device name
-# Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
-m = Moku('192.168.69.181', load_instruments=False)
-
-# Prepare the ArbWaveformGenerator instrument
+m = Moku('192.168.69.245', load_instruments=True, force = True)
 i = FIRFilter()
 m.deploy_instrument(i)
 
-
-
-# filt = [int(round(2.0**17 * x)) for x in filt]
-# print filt
-# plt.plot(filt)
-
-# sig = np.random.random_integers(-amp, amp-1, length)
-# sig_filt = signal.convolve(sig, filt, mode='same', method='direct')
-
-# plt.plot(sig, 'b')
-# plt.plot(sig_filt, 'r')
-
-# psd = np.abs(np.fft.fft([x / 1.0 for x in sig_filt]))**2
-# plt.loglog(psd[0:len(psd)/2], 'r')
-
-# plt.loglog(psd[0], psd[1])
-# print sig_filt[:100]
-# plt.show()
-
-
 try:
-
-	i.set_defaults()
 	i._set_frontend(1, fiftyr=True, atten=False, ac=False)
-	i.set_trigger('in1', 'rising', 0.00, hysteresis=True)
-	i.set_timebase(-25e-6,400e-6)
+	i._set_frontend(2, fiftyr=True, atten=False, ac=False)
 
-	i.set_source(1, 'in')
-	i.set_source(2, 'out')
-
-	i.decimation2 = 100
-	i.decimation1 = 100
-	i.upsampling1 = int(floor(2.0**17 / ((i.decimation1+1))))
-	i.write_coeffs(1, filt1)
-	i.upsampling2 = int(floor(2.0**17 / ((i.decimation2+1))))
-	i.write_coeffs(2, filt2)
-
-	i.link = True
-	i.commit()
+	# To implement 50 FIR taps we need a sample rate of 125 MHz / 2. To implement 400 FIR taps we need a sample rate of 125 MHz / 16.
+	# Sample rate is configured according to: Fs = 125 MHz / 2^decimation_factor.
+	i.set_filter(1, decimation_factor = 1, filter_coefficients = filt_coeff1, enable = True)
+	i.set_filter(2, decimation_factor = 4, filter_coefficients = filt_coeff2, enable = True)
 
 	i._set_mmap_access(True)
-	error = i._moku._receive_file('j', '.lutdata_moku.dat', 511 * 40 * 4 * 2)
+	error = i._moku._receive_file('j', '.lutdata_moku.dat', 511 * 29 * 4 * 2)	
 	i._set_mmap_access(False)
 
-	data = i.get_realtime_data()
-	# Set up the plotting parameters
-	plt.ion()
-	plt.show()
-	plt.grid(b=True)
-	plt.ylim([-0.1,0.1])
-	plt.xlim([data.time[0], data.time[-1]])
-
-	line1, = plt.plot([])
-	line2, = plt.plot([])
-
-	# This loops continuously updates the plot with new data
-	while True:
-		# Get new data
-		data = i.get_realtime_data()
-
-		# Update the plot
-		# psd = signal.welch(data.ch1, fs=FS)
-		# line1.set_ydata(psd[1])
-		# line1.set_xdata(psd[0])
-
-		line1.set_ydata(data.ch1)
-		line2.set_ydata(data.ch2)
-		line1.set_xdata(data.time)
-		line2.set_xdata(data.time)
-		plt.pause(0.001)
-
-
+	# Both channels have unity I/O scalars and no offsets. Channel 1 acts on ADC1 and channel 2 acts on ADC2.
+	i.set_offset_gain(ch = 1, input_scale = 1.0, output_scale = 1.0, matrix_scalar_ch1 = 1.0, matrix_scalar_ch2 = 0.0)
+	i.set_offset_gain(ch = 2, input_scale = 1.0, output_scale = 1.0, matrix_scalar_ch1 = 0.0, matrix_scalar_ch2 = 1.0)
 finally:
 	m.close()
