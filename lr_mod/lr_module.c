@@ -55,40 +55,45 @@ lr_get_data(PyObject *self, PyObject *args)
     result = li_get(reader, LI_RECORD_F64V, 0, li_array_begin(double)(&doubles), li_array_size(double)(&doubles) * sizeof(double));
 
     if (result == LI_SMALL_SRC) {
+        li_array_dtor(double)(&doubles);
         Py_RETURN_NONE;
     } else if (result != LI_SUCCESS) {
         PyErr_Format(PyExc_Exception, "LiquidReader error %d", result);
+        li_array_dtor(double)(&doubles);
         return NULL;
     }
 
     // FIXME: Macros or direct manipulation using PyList_*
     d = doubles.begin;
+    PyObject* r;
 
     if (chs == 1 || chs == 2) {
         switch(count){
-            case 0:    Py_RETURN_NONE;
-            case 1:    return Py_BuildValue("d", d[0]);
-            case 2:    return Py_BuildValue("(dd)", d[0], d[1]);
-            case 3:    return Py_BuildValue("(ddd)", d[0], d[1], d[2]);
-            case 4:    return Py_BuildValue("(dddd)", d[0], d[1], d[2], d[3]);
-            case 5:    return Py_BuildValue("(ddddd)", d[0], d[1], d[2], d[3], d[4]);
-            case 6:    return Py_BuildValue("(dddddd)", d[0], d[1], d[2], d[3], d[4], d[5]);
-            case 7:    return Py_BuildValue("(ddddddd)", d[0], d[1], d[2], d[3], d[4], d[5], d[6]);
-            default:   PyErr_Format(PyExc_Exception, "Unknown record count %d for ch %d", count, chs); return NULL;
+            case 0:    li_array_dtor(double)(&doubles); Py_RETURN_NONE;
+            case 1:    r = Py_BuildValue("d", d[0]); break;
+            case 2:    r = Py_BuildValue("(dd)", d[0], d[1]); break;
+            case 3:    r = Py_BuildValue("(ddd)", d[0], d[1], d[2]); break;
+            case 4:    r = Py_BuildValue("(dddd)", d[0], d[1], d[2], d[3]); break;
+            case 5:    r = Py_BuildValue("(ddddd)", d[0], d[1], d[2], d[3], d[4]); break;
+            case 6:    r = Py_BuildValue("(dddddd)", d[0], d[1], d[2], d[3], d[4], d[5]); break;
+            case 7:    r = Py_BuildValue("(ddddddd)", d[0], d[1], d[2], d[3], d[4], d[5], d[6]); break;
+            default:   li_array_dtor(double)(&doubles); PyErr_Format(PyExc_Exception, "Unknown record count %d for ch %d", count, chs); return NULL;
         }
     } else { // Both channels active, need to split the record in half
         switch(count){
-            case 0:    Py_RETURN_NONE;
-            case 2:    return Py_BuildValue("(dd)", d[0], d[1]);
-            case 4:    return Py_BuildValue("((dd)(dd))", d[0], d[1], d[2], d[3]);
-            case 6:    return Py_BuildValue("((ddd)(ddd)", d[0], d[1], d[2], d[3], d[4], d[5]);
-            case 8:    return Py_BuildValue("((dddd)(dddd))", d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]);
-            case 10:   return Py_BuildValue("((ddddd)(ddddd))", d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9]);
-            case 12:   return Py_BuildValue("((dddddd)(dddddd))", d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9], d[10], d[11]);
-            case 14:   return Py_BuildValue("((dddddd)(dddddd))", d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9], d[10], d[11], d[12], d[13]);
-            default:   PyErr_Format(PyExc_Exception, "Unknown record count %d for ch %d", count, chs); return NULL;
+            case 0:    li_array_dtor(double)(&doubles); Py_RETURN_NONE;
+            case 2:    r = Py_BuildValue("(dd)", d[0], d[1]); break;
+            case 4:    r = Py_BuildValue("((dd)(dd))", d[0], d[1], d[2], d[3]); break;
+            case 6:    r = Py_BuildValue("((ddd)(ddd)", d[0], d[1], d[2], d[3], d[4], d[5]); break;
+            case 8:    r = Py_BuildValue("((dddd)(dddd))", d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7]); break;
+            case 10:   r = Py_BuildValue("((ddddd)(ddddd))", d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9]); break;
+            case 12:   r = Py_BuildValue("((dddddd)(dddddd))", d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9], d[10], d[11]); break;
+            case 14:   r = Py_BuildValue("((dddddd)(dddddd))", d[0], d[1], d[2], d[3], d[4], d[5], d[6], d[7], d[8], d[9], d[10], d[11], d[12], d[13]); break;
+            default:   li_array_dtor(double)(&doubles); PyErr_Format(PyExc_Exception, "Unknown record count %d for ch %d", count, chs); return NULL;
         }
     }
+    li_array_dtor(double)(&doubles);
+    return r;
 }
 
 static PyObject * lr_restart(PyObject *self, PyObject *args)
