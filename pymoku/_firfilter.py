@@ -53,11 +53,11 @@ class FIRFilter(_CoreOscilloscope):
 	@needs_commit
 	def set_defaults(self):
 		super(FIRFilter, self).set_defaults()
-		self.set_offset_gain(1, input_scale = 0, output_scale = 0, input_offset = 0, output_offset = 0, matrix_scalar_ch1=None, matrix_scalar_ch2=None)
-		self.set_offset_gain(2, input_scale = 0, output_scale = 0, input_offset = 0, output_offset = 0, matrix_scalar_ch1=None, matrix_scalar_ch2=None)
+		self.set_offset_gain(1)
+		self.set_offset_gain(2)
 
 	@needs_commit
-	def set_offset_gain(self, ch, input_scale = 1.0, output_scale = 1.0, input_offset = 0, output_offset = 0, matrix_scalar_ch1=None, matrix_scalar_ch2=None):
+	def set_offset_gain(self, ch, input_scale=1.0, output_scale=1.0, input_offset=0, output_offset=0, matrix_scalar_ch1=None, matrix_scalar_ch2=None):
 		"""
 		Configure pre- and post-filter scales, offsets and input mixing for a channel.
 
@@ -111,7 +111,7 @@ class FIRFilter(_CoreOscilloscope):
 			matrix_scalar_ch2 = 1 if ch == 2 else 0
 
 		control_matrix_ch1 = int(round(matrix_scalar_ch1 * 3750.0 * adc_calibration * 2**10 / atten)) #scalar in units, default reference calibration, current calibration, normalised hdl 1.0, front/end attenuation
-		control_matrix_ch2 = int(round(matrix_scalar_ch2 * adc_calibration * 2**10 / atten))
+		control_matrix_ch2 = int(round(matrix_scalar_ch2 * 3750.0 * adc_calibration * 2**10 / atten))
 
 		## Calculate input/output scale values
 		input_scale_bits = int(round(input_scale * 0x0200)) # not 0100 to account for strange extra div/2 in ScaleOffset. ADC calibration added in control matrix scalar
@@ -152,25 +152,25 @@ class FIRFilter(_CoreOscilloscope):
 		:param filter_coefficients : array of max 2^n * 29 FIR filter coefficients. The array format can be seen in the class documentation above.
 		"""
 
-		_utils.check_parameter_valid('set', ch, [1,2],'filter channel')
-		_utils.check_parameter_valid('set', enable, [True,False],'channel output enable')
-		_utils.check_parameter_valid('set', link, [True,False],'channel link')
-		_utils.check_parameter_valid('set', decimation_factor, [0,1,2,3,4,5,6,7,8,9,10],'decimation factor')
-		_utils.check_parameter_valid('range', len(filter_coefficients), [0,29*2**decimation_factor],'filter coefficient array length')
+		_utils.check_parameter_valid('set', ch, [1, 2],'filter channel')
+		_utils.check_parameter_valid('set', enable, [True, False],'channel output enable')
+		_utils.check_parameter_valid('set', link, [True, False],'channel link')
+		_utils.check_parameter_valid('set', decimation_factor, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 'decimation factor')
+		_utils.check_parameter_valid('range', len(filter_coefficients), [0, _FIR_NUM_BLOCKS * 2**decimation_factor], 'filter coefficient array length')
 		for x in range(0, len(filter_coefficients)):
-			_utils.check_parameter_valid('range', filter_coefficients[x], [-1.0,1.0],'normalised coefficient value')
+			_utils.check_parameter_valid('range', filter_coefficients[x], [-1.0, 1.0],'normalised coefficient value')
 
 		self._set_output_link(ch, enable, link)
-		self._set_samplerate(ch,2**decimation_factor)
+		self._set_samplerate(ch, 2**decimation_factor)
 		self._write_coeffs(ch, filter_coefficients)
 
 	@needs_commit
 	def _set_output_link(self, ch, enable, link):
-		self.link = 1 if link == True else 0
+		self.link = link
 		if ch == 1:
-			self.ch1_output = 1 if enable == True else 0
+			self.ch1_output = enable
 		else:
-			self.ch2_output = 1 if enable == True else 0
+			self.ch2_output = enable
 
 	@needs_commit
 	def _set_samplerate(self, ch, decimation_factor = 8):
@@ -276,12 +276,11 @@ class FIRFilter(_CoreOscilloscope):
 
 	def _write_coeffs(self, ch, coeffs):
 		coeffs = list(coeffs)
-		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
+		_utils.check_parameter_valid('set', ch, [1,2], 'output channel')
 		assert len(coeffs) <= _FIR_NUM_BLOCKS * _FIR_BLOCK_SIZE
 		L = int(math.ceil(float(len(coeffs))/_FIR_NUM_BLOCKS))
 		blocks = [coeffs[x:x+L] for x in range(0, len(coeffs), L)]
 		blocks += [[]] * (_FIR_NUM_BLOCKS - len(blocks))
-		print(blocks)
 
 		if not os.path.exists('.lutdata.dat'):
 			open('.lutdata.dat', 'w').close()
@@ -302,7 +301,7 @@ class FIRFilter(_CoreOscilloscope):
 
 			#clear the current contents
 			f.seek(offset)
-			f.write('\x00\x00\x00\x00' * _FIR_BLOCK_SIZE * _FIR_NUM_BLOCKS)
+			f.write('\x00\x00\x00\x00' * (_FIR_BLOCK_SIZE+1) * _FIR_NUM_BLOCKS)
 
 			for i, b in enumerate(blocks):
 				b.reverse()
@@ -370,6 +369,6 @@ _fir_reg_handlers = {
 
 	'reset_ch1':	(REG_FIR_RESET_CH1, to_reg_unsigned(0,1), from_reg_unsigned(0,1)),
 	'reset_ch2':	(REG_FIR_RESET_CH2, to_reg_unsigned(0,1), from_reg_unsigned(0,1)),
-	'ch1_output':		(REG_FIR_OUTPUTENABLE,			to_reg_unsigned(0,1), from_reg_unsigned(0,1)),
-	'ch2_output':		(REG_FIR_OUTPUTENABLE,			to_reg_unsigned(1,1), from_reg_unsigned(1,1))
+	'ch1_output':		(REG_FIR_OUTPUTENABLE,			to_reg_bool(0), from_reg_bool(0)),
+	'ch2_output':		(REG_FIR_OUTPUTENABLE,			to_reg_bool(1), from_reg_bool(1))
 }
