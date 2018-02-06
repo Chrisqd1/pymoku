@@ -15,6 +15,8 @@ from . import _instrument, _get_autocommit, _input_instrument
 
 from ._instrument import needs_commit
 
+from _frame_instrument_data import InstrumentData
+
 log = logging.getLogger(__name__)
 
 class FrameQueue(Queue):
@@ -60,101 +62,6 @@ class FrameQueue(Queue):
 	def _init(self, maxsize):
 		self.queue = deque(maxlen=maxsize)
 
-class InstrumentData(object):
-	"""
-	Superclass representing a full frame of some kind of data. This class is never used directly,
-	but rather it is subclassed depending on the type of data contained and the instrument from
-	which it originated. For example, the :any:`Oscilloscope` instrument will generate :any:`VoltsData`
-	objects, where :any:`VoltsData` is a subclass of :any:`InstrumentData`.
-	"""
-	def __init__(self, instrument):
-		#: A reference to the parent instrument that generates this data object
-		self._instrument = instrument
-
-		self._complete = False
-		self._chs_valid = [False, False]
-
-		#: Channel 1 raw data array. Present whether or not the channel is enabled, but the contents
-		#: are undefined in the latter case.
-		self._raw1 = []
-
-		#: Channel 2 raw data array.
-		self._raw2 = []
-
-		self._stateid = None
-		self._trigstate = None
-
-		#: Frame number. Increments monotonically but wraps at 16-bits.
-		self._frameid = 0
-
-		#: Incremented once per trigger event. Wraps at 32-bits.
-		self.waveformid = 0
-
-		#: True if at least one trigger event has occured, synchronising the data across all channels.
-		self.synchronised = False
-
-		self._flags = None
-
-	def add_packet(self, packet):
-		hdr_len = 15
-		if len(packet) <= hdr_len:
-			# Should be a higher priority but actually seems unexpectedly common. Revisit.
-			log.debug("Corrupt frame recevied, len %d", len(packet))
-			return
-
-		data = struct.unpack('<BHBBBBBIBH', packet[:hdr_len])
-		frameid = data[1]
-		instrid = data[2]
-		chan = (data[3] >> 4) & 0x0F
-
-		self._stateid = data[4]
-		self._trigstate = data[5]
-		self._flags = data[6]
-		self.waveformid = data[7]
-		self._source_serial = data[8]
-
-		if self._frameid != frameid:
-			self._frameid = frameid
-			self._chs_valid = [False, False]
-
-		log.debug("AP ch %d, f %d, w %d", chan, frameid, self.waveformid)
-
-		# For historical reasons the data length is 1026 while there are only 1024
-		# valid samples. Trim the fat.
-		if chan == 0:
-			self._chs_valid[0] = True
-			self._raw1 = packet[hdr_len:-8]
-		else:
-			self._chs_valid[1] = True
-			self._raw2 = packet[hdr_len:-8]
-
-		self._complete = all(self._chs_valid)
-
-		if self._complete:
-			if not self.process_complete():
-				self._complete = False
-				self._chs_valid = [False, False]
-
-	def process_complete(self):
-		# Update the waveform ID latch of the parent instrument as soon as waveform ID increments
-		self._instrument._data_syncd |= self.waveformid > 0
-
-		# We can't be sure the channels have synchronised in the channel buffers until the first
-		# triggered waveform is received.
-		if not self._instrument._data_syncd:
-			log.debug("Waveform ID 0 detected. Waiting for channel data to synchronise.")
-			self._raw1 = struct.pack('<i',-0x80000000)*int(len(self._raw1)/4)
-			self._raw2 = struct.pack('<i',-0x80000000)*int(len(self._raw2)/4)
-		else:
-			self.synchronised = True
-
-		return True
-
-	def process_buffer(self):
-		# Designed to be overridden by subclasses needing to add x-axis to buffer data etc.
-		return True
-
-
 # Revisit: Should this be a Mixin? Are there more instrument classifications of this type, recording ability, for example?
 class FrameBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuInstrument):
 	def __init__(self):
@@ -162,6 +69,8 @@ class FrameBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuIn
 		self._buflen = 1
 		self._queue = FrameQueue(maxsize=self._buflen)
 		self._hb_forced = False
+
+		self.skt, self.mon_skt = None, None
 
 		# Tracks whether the waveformid of frames received so far has wrapped
 		self._data_syncd = False
@@ -360,26 +269,64 @@ class FrameBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuIn
 		elif not state and prev_state:
 			self._fr_worker.join()
 
+	def _mon_worker(self, skt):
+		import zmq.utils.monitor as _mon
+
+		while self._running:
+			if skt in zmq.select([skt], [], [], 1.0)[0]:
+				log.debug(_mon.recv_monitor_message(skt))
+
+	def _make_frame_socket(self):
+
+		if self.skt:
+			self.skt.close()
+		if self.mon_skt:
+			self.mon_skt.close()
+
+		ctx = zmq.Context.instance()
+		self.skt = ctx.socket(zmq.SUB)
+		self.skt.connect("tcp://%s:27185" % self._moku._ip)
+		self.skt.setsockopt_string(zmq.SUBSCRIBE, u'')
+		self.skt.setsockopt(zmq.RCVHWM, 2)
+		self.skt.setsockopt(zmq.LINGER, 0)
+
+		# skt.setsockopt(zmq.TCP_KEEPALIVE, 1)
+		# skt.setsockopt(zmq.TCP_KEEPALIVE_IDLE, 2)
+		# skt.setsockopt(zmq.TCP_KEEPALIVE_CNT, 3)
+		# skt.setsockopt(zmq.TCP_KEEPALIVE_INTVL, 1)
+
+		# self.skt.monitor('inproc://frame-monitor')
+		# self.mon_skt = zmq.Context.instance().socket(zmq.PAIR)
+		# self.mon_skt.connect('inproc://frame-monitor')
+		# self.mon_skt.setsockopt(zmq.LINGER, 0)
+
+		# mt = threading.Thread(target=self._mon_worker, args=(self.mon_skt,))
+		# mt.daemon = True
+		# mt.start()
 
 	def _frame_worker(self):
+		connected = False
 		if(getattr(self, '_frame_class', None)):
-			ctx = zmq.Context.instance()
-			skt = ctx.socket(zmq.SUB)
-			skt.connect("tcp://%s:27185" % self._moku._ip)
-			skt.setsockopt_string(zmq.SUBSCRIBE, u'')
-			skt.setsockopt(zmq.RCVHWM, 8)
-			skt.setsockopt(zmq.LINGER, 5000)
+			self._make_frame_socket()
 
 			fr = self._frame_class(**self._frame_kwargs)
 
 			try:
 				while self._running:
-					if skt in zmq.select([skt], [], [], 1.0)[0]:
-						d = skt.recv()
+					if self.skt in zmq.select([self.skt], [], [], 1.0)[0]:
+						connected = True
+						d = self.skt.recv()
 						fr.add_packet(d)
 
 						if fr._complete:
 							self._queue.put_nowait(fr)
 							fr = self._frame_class(**self._frame_kwargs)
+					else:
+						if connected:
+							connected = False
+							log.info("Frame socket reconnecting")
+							self._make_frame_socket()
+			except Exception as e:
+				log.exception("Closed Frame worker")
 			finally:
-				skt.close()
+				self.skt.close()

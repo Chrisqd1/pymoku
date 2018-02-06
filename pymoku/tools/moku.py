@@ -17,6 +17,7 @@ subparsers = parser.add_subparsers(title="action", description="Action to take")
 parser.add_argument('--serial', default=None, help="Serial Number of the Moku to connect to")
 parser.add_argument('--name', default=None, help="Name of the Moku to connect to")
 parser.add_argument('--ip', default=None, help="IP Address of the Moku to connect to")
+parser.add_argument('--force', action='store_true', help="Bypass compatibility checks with the target Moku. Don't touch unless you know what you're doing.")
 
 # View and load new instrument bitstreams
 def instrument(args):
@@ -49,17 +50,12 @@ def package(args):
 	try:
 		moku = connect(args)
 		if args.action == 'load':
-			if not args.file or not args.file.endswith('hgp'):
+			if not args.file or not args.file.endswith(('hgp', 'hgp.aes')):
 				print('Package load requires an HGP file to be specified')
 				return
 
 			fname = os.path.basename(args.file)
 			moku._send_file('f', args.file)
-
-			if os.path.exists(args.file + '.sha256'):
-				moku._send_file('f', args.file + '.sha256')
-			else:
-				print("WARNING: No signing information found, this package might not run correctly on your Moku.")
 
 			print("Successfully loaded new package {}".format(fname))
 		else:
@@ -119,6 +115,7 @@ def main():
 	args.func(args)
 
 def connect(args, force=False):
+	force = force or args.force
 	if args.serial:
 		moku = Moku.get_by_serial(args.serial, force=force)
 		print(moku.get_name())

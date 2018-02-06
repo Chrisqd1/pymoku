@@ -1,9 +1,10 @@
 import socket, select, struct, logging
 import os, os.path
-import zmq
+import zmq, zmq.auth
 import pymoku.version
 
 import pkg_resources
+import threading
 
 from pymoku.tools import compat as cp
 
@@ -87,11 +88,13 @@ class Moku(object):
 		:type ip_addr: string
 		:param ip_addr: The address to connect to. This should be in IPv4 dotted notation.
 
-		:type load_instruments: bool
-		:param load_instruments: Leave *True* unless you know what you're doing.
+		:type load_instruments: bool or None
+		:param load_instruments: Leave default (*None*) unless you know what you're doing.
 
 		:type force: bool
-		:param force: Ignore firmware compatibility checks and force the instrument to deploy.
+		:param force: Ignore firmware and network compatibility checks and force the instrument
+		to deploy. This is dangerous on many levels, leave *False* unless you know what you're doing.
+
 		"""
 		self._ip = ip_addr
 		self._seq = 0
@@ -99,13 +102,36 @@ class Moku(object):
 		self._known_mokus = []
 
 		self._ctx = zmq.Context.instance()
-		self._conn = self._ctx.socket(zmq.REQ)
-		self._conn.setsockopt(zmq.LINGER, 5000)
-		self._conn.connect("tcp://%s:%d" % (self._ip, Moku.PORT))
+		self._conn_lock = threading.RLock()
 
-		self._set_timeout()
+		try:
+			self._conn = self._ctx.socket(zmq.REQ)
+			self._conn.setsockopt(zmq.LINGER, 5000)
+			self._conn.curve_publickey, self._conn.curve_secretkey = zmq.curve_keypair()
+			self._conn.curve_serverkey, _ = zmq.auth.load_certificate(os.path.join(data_folder, '000'))
+			self._conn.connect("tcp://%s:%d" % (self._ip, Moku.PORT))
 
-		self.serial = self.get_serial()
+			# Getting the serial should be fairly quick; it's a simple operation. More importantly we
+			# don't wait to block the fall-back operation for too long
+			self._conn.setsockopt(zmq.SNDTIMEO, 1000)
+			self._conn.setsockopt(zmq.RCVTIMEO, 1000)
+
+			self.serial = self.get_serial()
+			self._set_timeout()
+		except zmq.error.Again:
+			if not force:
+				print("Connection failed, either the Moku cannot be reached or the firmware is out of date")
+				raise
+
+			# If we're force-connecting, try falling back to non-encrypted.
+			self._conn = self._ctx.socket(zmq.REQ)
+			self._conn.setsockopt(zmq.LINGER, 5000)
+			self._conn.connect("tcp://%s:%d" % (self._ip, Moku.PORT))
+
+			self._set_timeout()
+
+			self.serial = self.get_serial()
+
 		self.name = None
 		self.led = None
 		self.led_colours = None
@@ -247,12 +273,22 @@ class Moku(object):
 
 	def _ownership(self, t, flags):
 		name = socket.gethostname()[:255]
-		#packet_data = struct.pack("<BBB", t, len(name) + 1, flags) + name.encode('ascii')
-		packet_data = struct.pack("<BB", t, flags)
-		self._conn.send(packet_data)
+		packet_data = struct.pack("<BBB", t, len(name) + 1, flags) + name.encode('ascii')
+		with self._conn_lock:
+			self._conn.send(packet_data)
+			rep = self._conn.recv()
 
-		ack = self._conn.recv()
-		return ack[1] == 1
+		t, plen, own = struct.unpack("<BBB", rep[:3])
+		rep = rep[3:]
+
+		last_seen = None
+		if t == 0x41:
+			last_seen = struct.unpack("<I", rep[:4])
+			rep = rep[4:]
+
+		owner = rep
+
+		return own, owner, last_seen
 
 	def take_ownership(self):
 		"""
@@ -260,7 +296,7 @@ class Moku(object):
 
 		Having ownership enables you to send commands to and receive data from the corresponding Moku:Lab.
 		"""
-		return self._ownership(0x40, 1)
+		return self._ownership(0x40, 1)[0] == 2 # 2 is "owner is me"
 
 	def relinquish_ownership(self):
 		"""
@@ -268,22 +304,43 @@ class Moku(object):
 
 		This will allow other clients to connect immedaitely rather than waiting for a timeout
 		"""
-		return self._ownership(0x40, 0)
+		self._ownership(0x40, 0)
+
+	def is_owned(self):
+		""" Checks whether the Moku:Lab device is currently owned by another user.
+
+		:rtype: bool
+		:return: True if someone, including you, currently owns the Moku:Lab device
+		"""
+		return self._ownership(0x41, 0)[0] != 0
+
+	def owned_by(self):
+		""" Return the name of the device that currently owns the Moku:Lab.
+
+		This will be the iPad name or PC hostname of the device that most recently took
+		ownership of the Moku:Lab. This will be the current PC's hostname if
+		:any:`is_owner` returns *True*.
+
+		:rtype: str
+		:return: String name of current owner
+		"""
+		return self._ownership(0x41, 0)[1]
 
 	def is_owner(self):
 		"""	Checks if you are the current owner of the Moku:Lab device.
 
 		:rtype: bool
 		:return: True if you are the owner of the device."""
-		return self._ownership(0x41, 0)
+		return self._ownership(0x41, 0)[0] == 2
 
 
 	def _read_regs(self, commands):
 		packet_data = bytearray([0x47, 0x00, len(commands)])
 		packet_data += b''.join([struct.pack('<B', x) for x in commands])
 
-		self._conn.send(packet_data)
-		ack = self._conn.recv()
+		with self._conn_lock:
+			self._conn.send(packet_data)
+			ack = self._conn.recv()
 
 		t, err, l = struct.unpack('<BBB', ack[:3])
 
@@ -297,8 +354,9 @@ class Moku(object):
 		packet_data = bytearray([0x47, 0x00, len(commands)])
 		packet_data += b''.join([struct.pack('<BI', x[0] + 0x80, x[1]) for x in commands])
 
-		self._conn.send(packet_data)
-		ack = self._conn.recv()
+		with self._conn_lock:
+			self._conn.send(packet_data)
+			ack = self._conn.recv()
 
 		t, err, l = struct.unpack('<BBB', ack[:3])
 
@@ -330,8 +388,10 @@ class Moku(object):
 
 	def _slot_packet(self, data, read=True):
 		packet_data = struct.pack("<BQB", 0x55, len(data), 0 if read else 1)
-		self._conn.send(packet_data + data)
-		ack = self._conn.recv()
+
+		with self._conn_lock:
+			self._conn.send(packet_data + data)
+			ack = self._conn.recv()
 
 		t, _, c = struct.unpack("<BQQ", ack[:17])
 
@@ -364,8 +424,9 @@ class Moku(object):
 
 		flags = (sub_index << 2) | (int(is_partial) << 1) | int(use_external)
 
-		self._conn.send(bytearray([0x43, self._instrument.id, flags]))
-		ack = self._conn.recv()
+		with self._conn_lock:
+			self._conn.send(bytearray([0x43, self._instrument.id, flags]))
+			ack = self._conn.recv()
 
 		self._set_timeout(short=True)
 
@@ -381,17 +442,19 @@ class Moku(object):
 
 
 	def _reset_instrument(self):
-		self._conn.send(bytearray([0x48, self._get_seq()]))
-		self._conn.recv()
-
+		with self._conn_lock:
+			self._conn.send(bytearray([0x48, self._get_seq()]))
+			self._conn.recv()
 
 	def _set_clock_source(self, use_external=False):
-		self._conn.send(struct.pack("<BBB", 0x54, 0x01, use_external))
-		self._conn.recv()
+		with self._conn_lock:
+			self._conn.send(struct.pack("<BBB", 0x54, 0x01, use_external))
+			self._conn.recv()
 
 	def _get_clock_source(self):
-		self._conn.send(bytearray([0x54, 0x02]))
-		ack = self._conn.recv()
+		with self._conn_lock:
+			self._conn.send(bytearray([0x54, 0x02]))
+			ack = self._conn.recv()
 		status = struct.unpack("<BBB", ack)[2]
 
 		return bool(status & 0x02), bool(status & 0x01)
@@ -415,14 +478,15 @@ class Moku(object):
 			pkt += p.encode('ascii')
 			pkt += bytearray([0]) # No data for reads
 
-		self._conn.send(pkt)
-		reply = self._conn.recv()
+		with self._conn_lock:
+			self._conn.send(pkt)
+			reply = self._conn.recv()
 
 		hdr, seq, stat, nr = struct.unpack("<BBBB", reply[:4])
 		reply = reply[4:]
 
-		if hdr != 0x46 or seq != self._seq:
-			raise NetworkError("Bad header %d or sequence %d/%d" %(hdr, seq, self._seq))
+		if hdr != 0x46:
+			raise NetworkError("Bad header %d" % hdr)
 
 		p, d = '', ''
 		for n in range(nr):
@@ -452,13 +516,14 @@ class Moku(object):
 		pkt += section.encode('ascii')
 		pkt += bytearray([0]) # No data for reads
 
-		self._conn.send(pkt)
-		reply = self._conn.recv()
+		with self._conn_lock:
+			self._conn.send(pkt)
+			reply = self._conn.recv()
 		hdr, seq, stat, nr = struct.unpack("<BBBB", reply[:4])
 		reply = reply[4:]
 
-		if hdr != 0x46 or seq != self._seq:
-			raise NetworkError("Bad header %d or sequence %d/%d" %(hdr, seq, self._seq))
+		if hdr != 0x46:
+			raise NetworkError("Bad header %d" % hdr)
 
 		p, d = '',''
 		for n in range(nr):
@@ -495,13 +560,14 @@ class Moku(object):
 			pkt += bytearray([len(d)])
 			pkt += d.encode('ascii')
 
-		self._conn.send(pkt)
-		reply = self._conn.recv()
+		with self._conn_lock:
+			self._conn.send(pkt)
+			reply = self._conn.recv()
 		hdr, seq, stat, nr = struct.unpack("<BBBB", reply[:4])
 		reply = reply[4:]
 
-		if hdr != 0x46 or seq != self._seq:
-			raise NetworkError("Bad header %d or sequence %d/%d" %(hdr, seq, self._seq))
+		if hdr != 0x46:
+			raise NetworkError("Bad header %d" % hdr)
 
 		for n in range(nr):
 			plen = ord(reply[:1]); reply = reply[1:]
@@ -569,8 +635,9 @@ class Moku(object):
 		pkt += struct.pack("<H", len(hdrstr))
 		pkt += hdrstr.encode('ascii')
 
-		self._conn.send(pkt)
-		reply = self._conn.recv()
+		with self._conn_lock:
+			self._conn.send(pkt)
+			reply = self._conn.recv()
 
 		hdr, seq, ae, stat = struct.unpack("<BBBB", reply[:4])
 
@@ -579,8 +646,9 @@ class Moku(object):
 
 	def _stream_start(self):
 		pkt = struct.pack("<BBB", 0x53, 0, 4)
-		self._conn.send(pkt)
-		reply = self._conn.recv()
+		with self._conn_lock:
+			self._conn.send(pkt)
+			reply = self._conn.recv()
 
 		hdr, seq, ae, stat = struct.unpack("<BBBB", reply[:4])
 
@@ -588,8 +656,9 @@ class Moku(object):
 
 	def _stream_stop(self):
 		pkt = struct.pack("<BBB", 0x53, 0, 2)
-		self._conn.send(pkt)
-		reply = self._conn.recv()
+		with self._conn_lock:
+			self._conn.send(pkt)
+			reply = self._conn.recv()
 
 		hdr, seq, ae, stat, bt = struct.unpack("<BBBBQ", reply[:12])
 
@@ -597,8 +666,9 @@ class Moku(object):
 
 	def _stream_status(self):
 		pkt = struct.pack("<BBB", 0x53, 0, 3)
-		self._conn.send(pkt)
-		reply = self._conn.recv()
+		with self._conn_lock:
+			self._conn.send(pkt)
+			reply = self._conn.recv()
 
 		hdr, seq, ae, stat, bt, trems, treme, flags, fname_len = struct.unpack("<BBBBQiiBH", reply[:23])
 		fname = reply[23:23 + fname_len].decode('ascii')
@@ -666,8 +736,9 @@ class Moku(object):
 				pkt += struct.pack("<QQ", i, len(data))
 				pkt += data
 
-				self._fs_send_generic(2, pkt)
-				self._fs_receive_generic(2)
+				with self._conn_lock:
+					self._fs_send_generic(2, pkt)
+					self._fs_receive_generic(2)
 
 				i += len(data)
 
@@ -698,9 +769,10 @@ class Moku(object):
 				pkt += qfname.encode('ascii')
 				pkt += struct.pack("<QQ", i, to_transfer)
 
-				self._fs_send_generic(1, pkt)
+				with self._conn_lock:
+					self._fs_send_generic(1, pkt)
+					reply = self._fs_receive_generic(1)
 
-				reply = self._fs_receive_generic(1)
 				dl = struct.unpack("<Q", reply[:8])[0]
 
 				f.write(reply[8:])
@@ -715,27 +787,35 @@ class Moku(object):
 
 		pkt = bytearray([len(fname)])
 		pkt += fname.encode('ascii')
-		self._fs_send_generic(3, pkt)
 
-		return struct.unpack("<I", self._fs_receive_generic(3))[0]
+		with self._conn_lock:
+			self._fs_send_generic(3, pkt)
+			rep = self._fs_receive_generic(3)
+		return struct.unpack("<I", rep)[0]
 
 	def _fs_sha(self, mp, fname):
 		fname = mp + ":" + fname
 
 		pkt = bytearray([len(fname)])
 		pkt += fname.encode('ascii')
-		self._fs_send_generic(10, pkt)
 
-		return self._fs_receive_generic(10).decode('ascii')
+		with self._conn_lock:
+			self._fs_send_generic(10, pkt)
+			rep = self._fs_receive_generic(10)
+
+		return rep.decode('ascii')
 
 	def _fs_size(self, mp, fname):
 		fname = mp + ":" + fname
 
 		pkt = bytearray([len(fname)])
 		pkt += fname.encode('ascii')
-		self._fs_send_generic(4, pkt)
 
-		return struct.unpack("<Q", self._fs_receive_generic(4))[0]
+		with self._conn_lock:
+			self._fs_send_generic(4, pkt)
+			rep = self._fs_receive_generic(4)
+
+		return struct.unpack("<Q", rep)[0]
 
 	def _fs_list(self, mp, calculate_crc=False, calculate_sha=False):
 		flags = 0
@@ -744,9 +824,10 @@ class Moku(object):
 
 		data = mp.encode('ascii')
 		data += bytearray([flags])
-		self._fs_send_generic(5, data)
 
-		reply = self._fs_receive_generic(5)
+		with self._conn_lock:
+			self._fs_send_generic(5, data)
+			reply = self._fs_receive_generic(5)
 
 		n = struct.unpack("<H", reply[:2])[0]
 		reply = reply[2:]
@@ -771,9 +852,11 @@ class Moku(object):
 		return names
 
 	def _fs_free(self, mp):
-		self._fs_send_generic(6, mp.encode('ascii'))
+		with self._conn_lock:
+			self._fs_send_generic(6, mp.encode('ascii'))
+			rep = self._fs_receive_generic(6)
 
-		t, f = struct.unpack("<QQ", self._fs_receive_generic(6))
+		t, f = struct.unpack("<QQ", rep)
 
 		return t, f
 
@@ -783,9 +866,9 @@ class Moku(object):
 		pkt += fname.encode('ascii')
 		pkt += struct.pack('<Q', fsize)
 
-		self._fs_send_generic(7, pkt)
-
-		reply = self._fs_receive_generic(7)
+		with self._conn_lock:
+			self._fs_send_generic(7, pkt)
+			self._fs_receive_generic(7)
 
 
 	def _fs_finalise_fromlocal(self, mp, localname, remotename=None):
@@ -805,20 +888,23 @@ class Moku(object):
 		flags = 1 if move else 0
 		pkt += bytearray([flags])
 
-		self._fs_send_generic(8, pkt)
+		with self._conn_lock:
+			self._fs_send_generic(8, pkt)
+			rep = self._fs_receive_generic(8)
 
-		return self._fs_receive_generic(8)
+		return rep
 
 
 	def _fs_rename_status(self):
-		self._fs_send_generic(9, b'')
 
-		try:
-			dat = self._fs_receive_generic(9)
-			stat = _ERR_OK
-		except MokuBusy as e:
-			dat = e.dat
-			stat = _ERR_BUSY
+		with self._conn_lock:
+			self._fs_send_generic(9, b'')
+			try:
+				dat = self._fs_receive_generic(9)
+				stat = _ERR_OK
+			except MokuBusy as e:
+				dat = e.dat
+				stat = _ERR_BUSY
 
 		size, pc = struct.unpack("<QB", dat)
 
@@ -871,8 +957,9 @@ class Moku(object):
 
 	def _trigger_fwload(self):
 		self._set_timeout(seconds=20)
-		self._conn.send(bytearray([0x52, 0x01]))
-		hdr, reply = struct.unpack("<BB", self._conn.recv())
+		with self._conn_lock:
+			self._conn.send(bytearray([0x52, 0x01]))
+			hdr, reply = struct.unpack("<BB", self._conn.recv())
 		self._set_timeout()
 		if reply:
 			raise InvalidOperationException("Firmware update failure %d" % reply)
@@ -1084,6 +1171,7 @@ class Moku(object):
 			self._instrument._set_running(False)
 
 		self.relinquish_ownership()
-		self._conn.close()
+		with self._conn_lock:
+			self._conn.close()
 		# Don't clobber the ZMQ context as it's global to the interpretter, if the user has multiple Moku
 		# objects then we don't want to mess with that.
