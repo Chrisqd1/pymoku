@@ -10,36 +10,31 @@ from . import _frame_instrument
 from . import _waveform_generator
 from pymoku._oscilloscope import _CoreOscilloscope
 from . import _utils
+from ._trigger import Trigger
+from ._sweep_generator import SweepGenerator
 
 log = logging.getLogger(__name__)
 
-REG_ARB_SETTINGS = 96
-REG_ARB_PHASE_STEP1_L = 97
-REG_ARB_PHASE_STEP1_H = 98
-REG_ARB_PHASE_OFFSET1_L = 101
-REG_ARB_PHASE_OFFSET1_H = 102
-REG_ARB_AMPLITUDE1 = 105
-REG_ARB_PHASE_MOD1_L = 107
-REG_ARB_PHASE_MOD1_H = 108
-REG_ARB_DEAD_VALUE1 = 111
-REG_ARB_LUT_LENGTH1 = 113
-REG_ARB_OFFSET1 = 115
+REG_ARB_SETTINGS1 = 88
+REG_ARB_LUT_LENGTH1 = 105
+REG_ARB_AMPLITUDE1 = 106
+REG_ARB_OFFSET1 = 107
 
-REG_ARB_PHASE_STEP2_L = 99
-REG_ARB_PHASE_STEP2_H = 100
-REG_ARB_PHASE_OFFSET2_L = 103
-REG_ARB_PHASE_OFFSET2_H = 104
-REG_ARB_AMPLITUDE2 = 106
-REG_ARB_PHASE_MOD2_L = 109
-REG_ARB_PHASE_MOD2_H = 110
-REG_ARB_DEAD_VALUE2 = 112
-REG_ARB_LUT_LENGTH2 = 114
-REG_ARB_OFFSET2 = 116
+REG_ARB_SETTINGS2 = 108
+REG_ARB_LUT_LENGTH2 = 125
+REG_ARB_AMPLITUDE2 = 126
+REG_ARB_OFFSET2 = 127
 
 _ARB_MODE_1000 = 0x0
 _ARB_MODE_500 = 0x1
 _ARB_MODE_250 = 0x2
 _ARB_MODE_125 = 0x3
+
+_ARB_SOURCE_CH1		= 0
+_ARB_SOURCE_CH2		= 1
+_ARB_SOURCE_DA1		= 2
+_ARB_SOURCE_DA2		= 3
+_ARB_SOURCE_EXT		= 4
 
 _ARB_AMPSCALE = 2.0**16 - 1
 _ARB_VOLTSCALE = 2.0**15
@@ -59,6 +54,10 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		self._register_accessors(_arb_reg_handlers)
 		self.id = 15
 		self.type = "arbitrarywavegen"
+		self._trigger1 = Trigger(self, 89, 1.0/500e6)
+		self._trigger2 = Trigger(self, 109, 1.0/500e6)
+		self._sweep1 = SweepGenerator(self, 96)
+		self._sweep2 = SweepGenerator(self, 116)
 
 	@needs_commit
 	def set_defaults(self):
@@ -67,10 +66,10 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		self.lut_length1 = _ARB_LUT_LENGTH
 		self.mode2 = _ARB_MODE_125
 		self.lut_length2 = _ARB_LUT_LENGTH
-		self.phase_modulo1 = 2**42
-		self.phase_modulo2 = 2**42
-		self.phase_step1 = _ARB_LUT_LSB
-		self.phase_step2 = _ARB_LUT_LSB
+		self._sweep1.stop = 2**42
+		self._sweep2.stop = 2**42
+		self._sweep1.step = _ARB_LUT_LSB
+		self._sweep2.step = _ARB_LUT_LSB
 		self.dead_value1 = 0x0000
 		self.dead_value2 = 0x0000
 		self.interpolation1 = False
@@ -81,9 +80,10 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		self.amplitude2 = 1.0
 		self.offset1 = 0.0
 		self.offset2 = 0.0
+		self._sweep1.waveform = SweepGenerator.WAVE_TYPE_SAWTOOTH
+		self._sweep2.waveform = SweepGenerator.WAVE_TYPE_SAWTOOTH
 
 		self.data = [[0], [0]]
-
 
 	@needs_commit
 	def _set_mode(self, ch, mode, length):
@@ -251,10 +251,10 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 			self.interpolation1 = interpolation
 			phase_modulo = (self.lut_length1 + 1) * _ARB_LUT_INTERPLOATION_LENGTH
 			update_rate = _ARB_MODE_RATE[self.mode1]
-			self.phase_step1 = freq / update_rate * phase_modulo
+			self._sweep1.step = freq / update_rate * phase_modulo
 			phase_modulo = phase_modulo * dead_time if dead_time > 0 else phase_modulo
-			self.phase_modulo1 = phase_modulo
-			self.phase_offset1 = (phase / 360) * phase_modulo if dead_time == 0 else 0
+			self._sweep1.stop = phase_modulo
+			self._sweep1.start = (phase / 360) * phase_modulo if dead_time == 0 else 0
 			self.dead_value1 = dead_voltage
 			self.amplitude1 = amplitude
 			self.offset1 = offset
@@ -265,10 +265,10 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 			self.interpolation2 = interpolation
 			phase_modulo = (self.lut_length2 + 1) * _ARB_LUT_INTERPLOATION_LENGTH
 			update_rate = _ARB_MODE_RATE[self.mode2]
-			self.phase_step2 = freq / update_rate * phase_modulo
+			self._sweep2.step = freq / update_rate * phase_modulo
 			phase_modulo = phase_modulo * dead_time if dead_time > 0 else phase_modulo
-			self.phase_modulo2 = phase_modulo
-			self.phase_offset2 = (phase / 360) * phase_modulo if dead_time > 0 else 0
+			self._sweep2.stop = phase_modulo
+			self._sweep2.start = (phase / 360) * phase_modulo if dead_time > 0 else 0
 			self.dead_value2 = dead_voltage
 			self.amplitude2 = amplitude
 			self.offset2 = offset
@@ -276,7 +276,7 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 
 	@needs_commit
 	def sync_phase(self, ch):
-		""" Synchronizes the phase of the given channel to the other
+		""" DEPRECATED Synchronizes the phase of the given channel to the other
 
 		:type ch: int; {1,2}
 		:param ch: Channel that is synced to the other
@@ -285,10 +285,8 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		"""
 		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
 
-		if ch == 1:
-			self.phase_sync1 = True
-		elif ch ==2:
-			self.phase_sync2 = True
+		self.reset_phase(1)
+		self.reset_phase(2)
 
 	@needs_commit
 	def reset_phase(self, ch):
@@ -319,10 +317,10 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 
 		if ch == 1:
 			update_rate = _ARB_MODE_RATE[self.mode1]
-			return (self.phase_step1 / self.phase_modulo1) * update_rate
+			return (self._sweep1.step / self._sweep1.stop) * update_rate
 		if ch == 2:
 			update_rate = _ARB_MODE_RATE[self.mode2]
-			return (self.phase_step2 / self.phase_modulo2) * update_rate
+			return (self._sweep2.step / self._sweep2.stop) * update_rate
 
 	@needs_commit
 	def gen_off(self, ch=None):
@@ -347,40 +345,30 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 
 
 _arb_reg_handlers = {
-	'enable1':			(REG_ARB_SETTINGS,		to_reg_bool(16),		from_reg_bool(16)),
-	'phase_rst1':		(REG_ARB_SETTINGS,		to_reg_bool(20),		from_reg_bool(20)),
-	'phase_sync1':		(REG_ARB_SETTINGS,		to_reg_bool(22),		from_reg_bool(22)),
-	'mode1':			(REG_ARB_SETTINGS,		to_reg_unsigned(0, 2, allow_set=[_ARB_MODE_125, _ARB_MODE_250, _ARB_MODE_500, _ARB_MODE_1000]),
-												from_reg_unsigned(0, 2)),
-	'interpolation1':	(REG_ARB_SETTINGS,		to_reg_bool(4),			from_reg_bool(4)),
+	'enable1':			(REG_ARB_SETTINGS1,		to_reg_bool(0),			from_reg_bool(0)),
+	'phase_rst1':		(REG_ARB_SETTINGS1,		to_reg_bool(1),			from_reg_bool(1)),
+	'mode1':			(REG_ARB_SETTINGS1,		to_reg_unsigned(2, 2, allow_set=[_ARB_MODE_125, _ARB_MODE_250, _ARB_MODE_500, _ARB_MODE_1000]),
+												from_reg_unsigned(2, 2)),
+	'interpolation1':	(REG_ARB_SETTINGS1,		to_reg_bool(4),			from_reg_bool(4)),
+	'trig_source1':		(REG_ARB_SETTINGS1,		to_reg_unsigned(5, 5, allow_set=[_ARB_SOURCE_CH1, _ARB_SOURCE_CH2, _ARB_SOURCE_DA1, _ARB_SOURCE_DA2, _ARB_SOURCE_EXT]),
+												from_reg_unsigned(5, 5)),
 	'lut_length1':		(REG_ARB_LUT_LENGTH1,	to_reg_unsigned(0, 16), from_reg_signed(0, 16)),
-	'dead_value1':		(REG_ARB_DEAD_VALUE1,	to_reg_signed(0, 16), 	from_reg_signed(0, 16)),
+	'dead_value1':		(REG_ARB_LUT_LENGTH1,	to_reg_signed(16, 16), 	from_reg_signed(16, 16)),
 	'amplitude1':		(REG_ARB_AMPLITUDE1,	to_reg_signed(0, 18, xform=lambda obj, r: r * _ARB_AMPSCALE),
 	                                            from_reg_signed(0, 18, xform=lambda obj, r: r / _ARB_AMPSCALE)),
 	'offset1':			(REG_ARB_OFFSET1,		to_reg_signed(0, 16, xform=lambda obj, r: r * _ARB_VOLTSCALE),
 	                                            from_reg_signed(0, 16, xform=lambda obj, r: r / _ARB_VOLTSCALE)),
-	'phase_modulo1':	((REG_ARB_PHASE_MOD1_H, REG_ARB_PHASE_MOD1_L),
-												to_reg_unsigned(0, 64), from_reg_unsigned(0, 64)),
-	'phase_offset1':	((REG_ARB_PHASE_OFFSET1_H, REG_ARB_PHASE_OFFSET1_L),
-												to_reg_unsigned(0, 64), from_reg_unsigned(0, 64)),
-	'phase_step1':		((REG_ARB_PHASE_STEP1_H, REG_ARB_PHASE_STEP1_L),
-												to_reg_unsigned(0, 64), from_reg_unsigned(0, 64)),
-	'enable2':			(REG_ARB_SETTINGS,		to_reg_bool(17),		from_reg_bool(17)),
-	'phase_rst2':		(REG_ARB_SETTINGS,		to_reg_bool(21),		from_reg_bool(21)),
-	'phase_sync2':		(REG_ARB_SETTINGS,		to_reg_bool(23),		from_reg_bool(23)),
-	'mode2':			(REG_ARB_SETTINGS,		to_reg_unsigned(8, 2, allow_set=[_ARB_MODE_125, _ARB_MODE_250, _ARB_MODE_500, _ARB_MODE_1000]),
-												from_reg_unsigned(8, 2)),
-	'interpolation2':	(REG_ARB_SETTINGS,		to_reg_bool(12),			from_reg_bool(12)),
+	'enable2':			(REG_ARB_SETTINGS2,		to_reg_bool(0),			from_reg_bool(0)),
+	'phase_rst2':		(REG_ARB_SETTINGS2,		to_reg_bool(1),			from_reg_bool(1)),
+	'mode2':			(REG_ARB_SETTINGS2,		to_reg_unsigned(2, 2, allow_set=[_ARB_MODE_125, _ARB_MODE_250, _ARB_MODE_500, _ARB_MODE_1000]),
+												from_reg_unsigned(2, 2)),
+	'interpolation2':	(REG_ARB_SETTINGS2,		to_reg_bool(4),			from_reg_bool(4)),
+	'trig_source2':		(REG_ARB_SETTINGS2,		to_reg_unsigned(5, 5, allow_set=[_ARB_SOURCE_CH1, _ARB_SOURCE_CH2, _ARB_SOURCE_DA1, _ARB_SOURCE_DA2, _ARB_SOURCE_EXT]),
+												from_reg_unsigned(5, 5)),
 	'lut_length2':		(REG_ARB_LUT_LENGTH2,	to_reg_unsigned(0, 16), from_reg_signed(0, 16)),
-	'dead_value2':		(REG_ARB_DEAD_VALUE2,	to_reg_signed(0, 16), 	from_reg_signed(0, 16)),
+	'dead_value2':		(REG_ARB_LUT_LENGTH2,	to_reg_signed(16, 16), 	from_reg_signed(16, 16)),
 	'amplitude2':		(REG_ARB_AMPLITUDE2,	to_reg_signed(0, 18, xform=lambda obj, r: r * _ARB_AMPSCALE),
 	                                            from_reg_signed(0, 18, xform=lambda obj, r: r / _ARB_AMPSCALE)),
 	'offset2':			(REG_ARB_OFFSET2,		to_reg_signed(0, 16, xform=lambda obj, r: r * _ARB_VOLTSCALE),
-	                                            from_reg_signed(0, 16, xform=lambda obj, r: r / _ARB_VOLTSCALE)),
-	'phase_modulo2':	((REG_ARB_PHASE_MOD2_H, REG_ARB_PHASE_MOD2_L),
-												to_reg_unsigned(0, 64), from_reg_unsigned(0, 64)),
-	'phase_offset2':	((REG_ARB_PHASE_OFFSET2_H, REG_ARB_PHASE_OFFSET2_L),
-												to_reg_unsigned(0, 64), from_reg_unsigned(0, 64)),
-	'phase_step2':		((REG_ARB_PHASE_STEP2_H, REG_ARB_PHASE_STEP2_L),
-												to_reg_unsigned(0, 64), from_reg_unsigned(0, 64))
+	                                            from_reg_signed(0, 16, xform=lambda obj, r: r / _ARB_VOLTSCALE))
 }
