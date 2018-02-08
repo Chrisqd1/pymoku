@@ -298,10 +298,10 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		:param level: Trigger level
 
 		:type minwidth: float, seconds
-		:param minwidth: Minimum Pulse Width. Can't be used with maxwidth
+		:param minwidth: Minimum Pulse Width. 0 <= minwidth < 2^32 * timestep. Can't be used with maxwidth
 
 		:type maxwidth: float, seconds
-		:param maxwidth: Maximum Pulse Width. Can't be used with minwidth
+		:param maxwidth: Maximum Pulse Width. 0 <= maxwidth < 2^32 * timestep. Can't be used with minwidth
 
 		:type hysteresis: bool
 		:param hysteresis: Enable Hysteresis around trigger point.
@@ -444,7 +444,7 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 	def _calculate_scales(self):
 		g1, g2 = self._adc_gains()
 		d1, d2 = self._dac_gains()
-		gains = [g1, g2, d1, d2, 1.0] #TODO figure out the scale for Ext
+		gains = [g1, g2, d1, d2, 2.0**-11]
 
 		l1 = self.loopback_mode_ch1
 		l2 = self.loopback_mode_ch2
