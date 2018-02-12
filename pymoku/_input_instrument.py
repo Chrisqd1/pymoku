@@ -115,14 +115,14 @@ class InputInstrument(_instrument.MokuInstrument):
 
 		if self.nch == 2:
 			if(use_sd):
-				maxrates = { 'bin': 150e3, 'csv': 1e3, 'mat': 1e3, 'net': 20e3, 'npy': 1e3}
+				maxrates = { 'bin': 150e3, 'csv': 10e3, 'mat': 10e3, 'net': 20e3, 'npy': 10e3}
 			else:
-				maxrates = { 'bin': 500e3, 'csv': 1e3, 'mat': 1e3, 'net': 20e3, 'npy': 1e3}
+				maxrates = { 'bin': 500e3, 'csv': 10e3, 'mat': 10e3, 'net': 20e3, 'npy': 50e3}
 		else:
 			if(use_sd):
-				maxrates = { 'bin': 250e3, 'csv': 3e3, 'mat': 3e3, 'net': 40e3, 'npy': 3e3}
+				maxrates = { 'bin': 250e3, 'csv': 10e3, 'mat': 10e3, 'net': 40e3, 'npy': 20e3}
 			else:
-				maxrates = { 'bin': 1e6, 'csv': 3e3, 'mat': 3e3, 'net': 40e3, 'npy': 3e3}
+				maxrates = { 'bin': 1e6, 'csv': 10e3, 'mat': 10e3, 'net': 40e3, 'npy': 100e3}
 
 		return maxrates[filetype] / record_length
 
