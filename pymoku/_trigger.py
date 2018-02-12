@@ -23,12 +23,9 @@ class Trigger(object):
 	PULSE_MIN = 0
 	PULSE_MAX = 1
 
-	def __init__(self, instr, reg_base, timestep):
+	def __init__(self, instr, reg_base):
 		self._instr = instr
 		self.reg_base = reg_base
-
-		self._duration = 0.0 #pulse width in samples
-		self._timestep = timestep	#width of each sample in seconds
 
 	@property
 	def trigtype(self):
@@ -126,36 +123,20 @@ class Trigger(object):
 	@property
 	def level(self):
 		r = self.reg_base + Trigger._REG_LEVEL
-		return self._instr._accessor_get(r, from_reg_unsigned(0, 32))
+		return self._instr._accessor_get(r, from_reg_signed(0,32))
 
 	@level.setter
 	def level(self, value):
-		_utils.check_parameter_valid('range', value, allowed=[-2**31, 2**31-1], desc='level')
 		r = self.reg_base + Trigger._REG_LEVEL
-		self._instr._accessor_set(r, to_reg_unsigned(0, 32), value)
+		self._instr._accessor_set(r, to_reg_signed(0, 32), value)
 
 	@property
 	def duration(self):
-		return self._duration
+		r = self.reg_base + Trigger._REG_DURATION
+		return self._instr._accessor_get(r, from_reg_unsigned(0, 32))
 
 	@duration.setter
 	def duration(self, value):
-		self._duration = value
-		self._write_duration_samples()
-
-	@property
-	def timestep(self):
-		return self._timestep
-
-	@timestep.setter
-	def timestep(self, value):
-		''' Duration depends on timestep '''
-		self._timestep = value
-		self._write_duration_samples()
-
-	def _write_duration_samples(self):
-		''' Convert duration from seconds to samples based on timestep '''
 		r = self.reg_base + Trigger._REG_DURATION
-		s = int(round(self._duration / self._timestep))
-		self._instr._accessor_set(r, to_reg_unsigned(0, 32), s)
+		self._instr._accessor_set(r, to_reg_unsigned(0, 32), value)
 

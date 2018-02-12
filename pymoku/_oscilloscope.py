@@ -9,7 +9,7 @@ from . import _waveform_generator
 from . import _utils
 from ._trigger import Trigger
 
-from ._oscilloscope_data import VoltsData
+from ._oscilloscope_data import VoltsData, _OSC_SCREEN_WIDTH
 
 log = logging.getLogger(__name__)
 
@@ -54,7 +54,7 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		super(_CoreOscilloscope, self).__init__()
 		self._register_accessors(_osc_reg_handlers)
 
-		self._trigger = Trigger(self, reg_base=68, timestep=1.0/_OSC_ADC_SMPS)
+		self._trigger = Trigger(self, reg_base=68)
 
 		self.id = 1
 		self.type = "oscilloscope"
@@ -64,11 +64,6 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		# on deploy_instrument(). No point setting them here.
 		self.scales = {}
 		self._set_frame_class(VoltsData, instrument=self, scales=self.scales)
-
-		# Define any (non-register-mapped) properties that are used when committing
-		# as a commit is called when the instrument is set running
-		self._trigger.level = 0
-		#self.hysteresis_volts = 0
 
 		# All instruments need a binstr, procstr and format string.
 		self.logname = "MokuOscilloscopeData"
@@ -93,7 +88,6 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		deci = math.ceil(ADC_SMP_RATE * buffer_span / _OSC_BUFLEN)
 
 		return deci
-
 
 	def _calculate_render_downsample(self, t1, t2, decimation):
 		# Calculate how much to render downsample
@@ -177,7 +171,6 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		self.render_deci = render_decimation
 		self.pretrigger = buffer_offset
 		self.offset = frame_offset
-		self._trigger.timestep = (decimation if self.is_precision_mode() else 1.0) / _OSC_ADC_SMPS
 
 	def _source_volts_per_bit(self, source, scales):
 		"""
@@ -226,7 +219,6 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		self.render_deci = 1
 		# The render offset needs to be corrected for cubic downsampling (even with unity decimation)
 		self.offset = - round(trigger_offset) + self.render_deci
-		self._trigger.timestep = (decimation if self.is_precision_mode() else 1.0) / _OSC_ADC_SMPS
 
 	def get_samplerate(self):
 		""" :return: The current instrument sample rate (Hz) """
@@ -270,8 +262,6 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		#	raise InvalidConfigurationException("Precision mode and Hysteresis can't be set at the same time.")
 		self.ain_mode = _OSC_AIN_DECI if state else _OSC_AIN_DDS
 
-		self._trigger.timestep =  (self.decimation_rate if state else 1.0) / _OSC_ADC_SMPS
-
 	def is_precision_mode(self):
 		return self.ain_mode is _OSC_AIN_DECI
 
@@ -279,29 +269,23 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 	def set_trigger(self, source, edge, level, minwidth=None, maxwidth=None, hysteresis=False, hf_reject=False, mode='auto'):
 		""" Sets trigger source and parameters.
 
-		The hysteresis value changes behaviour based on aquisition mode, due to hardware limitations.  If the
-		Oscilloscope is in precision mode, hysteresis must be 0 or one of the strings 'auto' or 'noise'; an explicit,
-		non-zero value in volts can only be specified for normal aquisition (see
-		:any:`set_precision_mode <pymoku.instruments.Oscilloscope.set_precision_mode>`).  If hysteresis is 'auto' or
-		'noise', a small value will be automatically calulated based on decimation. Values 'auto' and 'noise' are suitable
-		for high- and low-SNR signals respectively.
-
 		:type source: string, {'in1','in2','out1','out2','ext'}
 		:param source: Trigger Source. May be either an input or output channel, or external. The output options allow
 				triggering off an internally-generated waveform. External refers to the back-panel connector of the same
 				name, allowing triggering from an externally-generated digital [LV]TTL or CMOS signal.
 
 		:type edge: string, {'rising','falling','both'}
-		:param edge: Which edge to trigger on.
+		:param edge: Which edge to trigger on. In Pulse Width modes this specifies whether the pulse is positive (rising)
+				or negative (falling), with the 'both' option being invalid.
 
 		:type level: float, [-10.0, 10.0] volts
 		:param level: Trigger level
 
 		:type minwidth: float, seconds
-		:param minwidth: Minimum Pulse Width. 0 <= minwidth < 2^32 * timestep. Can't be used with maxwidth
+		:param minwidth: Minimum Pulse Width. 0 <= minwidth < (2^32/samplerate). Can't be used with maxwidth.
 
 		:type maxwidth: float, seconds
-		:param maxwidth: Maximum Pulse Width. 0 <= maxwidth < 2^32 * timestep. Can't be used with minwidth
+		:param maxwidth: Maximum Pulse Width. 0 <= maxwidth < (2^32/samplerate). Can't be used with minwidth.
 
 		:type hysteresis: bool
 		:param hysteresis: Enable Hysteresis around trigger point.
@@ -327,19 +311,15 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		_utils.check_parameter_valid('bool', hf_reject, 'High-frequency reject enable')
 		_utils.check_parameter_valid('set', mode, ['auto', 'normal'], desc='mode')
 		if not (maxwidth is None or minwidth is None):
-			raise ValueOutOfRangeException("Can't set min and max pulse width at the same time")
+			raise InvalidConfigurationException("Can't set both 'minwidth' and 'maxwidth' for Pulse Width trigger mode. Choose one.")
+		if (maxwidth or minwidth) and (edge is 'both'):
+			raise InvalidConfigurationException("Can't set trigger edge type 'both' in Pulse Width trigger mode. Choose one of {'rising','falling'}.")
 
 		# External trigger source is only available on Moku 20
 		if (self._moku.get_hw_version() == 1.0) and source == 'ext':
 			raise ValueOutOfRangeException('External trigger source is not available on your hardware.')
 
-		# Precision mode should be off if hysteresis is being used
-		#if self.ain_mode == _OSC_AIN_DECI and hysteresis > 0:
-		#	raise InvalidConfigurationException("Precision mode and Hysteresis can't be set at the same time.")
-
-		# self.hysteresis_volts = hysteresis
-		# TODO: Enable setting hysteresis level. For now we use the iPad LSB values for ON/OFF.
-		self._trigger.hysteresis = 25 if hysteresis else 5
+		self.hf_reject = hf_reject
 
 		if mode == 'auto':
 			self._trigger.timer = 20.0
@@ -364,12 +344,11 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		edge = _utils.str_to_val(_str_to_edge, edge, 'edge type')
 
 		self.trig_ch = source
+		self.trig_level = level
+		self.trig_duration = minwidth or maxwidth or 0.0
+
 		self._trigger.edge = edge
-
-		self.hf_reject = hf_reject
 		self._trigger.mode = mode
-		self._trigger.level = level #TODO need to figure out where the conversion happens
-
 		if maxwidth:
 			self._trigger.trigtype = Trigger.TYPE_PULSE
 			self._trigger.pulsetype = Trigger.PULSE_MAX
@@ -379,7 +358,8 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		else:
 			self._trigger.trigtype = Trigger.TYPE_EDGE
 
-		self._trigger.duration = minwidth or maxwidth or 0.0
+		# TODO: Enable setting hysteresis level. For now we use the iPad LSB values for ON/OFF.
+		self._trigger.hysteresis = 25 if hysteresis else 5
 
 	@needs_commit
 	def set_source(self, ch, source, lmode='round'):
@@ -490,9 +470,9 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 				'buff_time_step': bts}
 
 	def _update_dependent_regs(self, scales):
-		# Trigger level must be scaled depending on the current relay settings and chosen trigger source
-		self.trigger_level = self._trigger.level / self._source_volts_per_bit(self.trig_ch, scales)
-		#self.hysteresis = self.hysteresis_volts / self._source_volts_per_bit(self.trig_ch, scales)
+		# Update trigger level and duration settings based on current trigger source and timebase
+		self._trigger.duration = self.trig_duration * _OSC_ADC_SMPS / (self.decimation_rate if self.is_precision_mode() else 1.0)
+		self._trigger.level = int(round(self.trig_level / self._source_volts_per_bit(self.trig_ch, scales)))
 
 	def _update_datalogger_params(self):
 		scales = self._calculate_scales()
@@ -548,12 +528,11 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		scales = self._calculate_scales()
 		self.scales[self._stateid] = scales
 
-		# Update internal state given new reg values. This is the inverse of update_dependent_regs
-		self._trigger.trig_volts = self._trigger.level * self._source_volts_per_bit(self.trig_ch, scales)
-		# self.hysteresis_volts = self.hysteresis * self._source_volts_per_bit(self.trig_ch, scales)
+		# Read back trigger settings into local variables
+		self.trig_duration = self._trigger.duration * (self.decimation_rate if self.is_precision_mode() else 1.0) / _OSC_ADC_SMPS
+		self.trig_level = self._trigger.level * self._source_volts_per_bit(self.trig_ch, scales)
 
 		self._update_datalogger_params()
-
 
 	def commit(self):
 		scales = self._calculate_scales()
@@ -608,8 +587,6 @@ _osc_reg_handlers = {
 											from_reg_unsigned(4, 6)),
 
 	'hf_reject':		(REG_OSC_TRIGCTL,	to_reg_bool(12),			from_reg_bool(12)),
-	# The conversion of trigger level value to register value is dependent on the trigger source
-	# and therefore is performed in the _trigger_level() function above.
 
 	'loopback_mode_ch1':	(REG_OSC_ACTL,	to_reg_unsigned(0, 1, allow_set=[_OSC_LB_CLIP, _OSC_LB_ROUND]),
 											from_reg_unsigned(0, 1)),
