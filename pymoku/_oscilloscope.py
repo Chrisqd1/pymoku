@@ -8,7 +8,7 @@ from . import _frame_instrument
 from . import _waveform_generator
 from . import _utils
 
-from ._oscilloscope_data import VoltsData
+from ._oscilloscope_data import VoltsData, _OSC_SCREEN_WIDTH
 
 log = logging.getLogger(__name__)
 
