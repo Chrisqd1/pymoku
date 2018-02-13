@@ -15,7 +15,7 @@ from . import _instrument, _get_autocommit, _input_instrument
 
 from ._instrument import needs_commit
 
-from _frame_instrument_data import InstrumentData
+from ._frame_instrument_data import InstrumentData
 
 log = logging.getLogger(__name__)
 

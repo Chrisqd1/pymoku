@@ -600,16 +600,16 @@ class Moku(object):
 			raise ValueOutOfRangeException("Invalid start/end times: %s/%s" %(str(start), str(end)))
 
 		try:
-			ftype = { 'bin' : 0, 'csv' : 1, 'net' : 3, 'plot' : 4 }[ftype]
+			ftype = { 'bin': 0, 'csv': 1, 'mat': 2, 'npy': 3, 'net': 31}[ftype]
 		except KeyError:
 			raise ValueOutOfRangeException("Invalid file type %s" % ftype)
 
 		# TODO: Support multiple file types simultaneously
-		flags = 1 << (2 + ftype)
+		flags = ftype << 2
 		flags |= int(ch2) << 1
 		flags |= int(ch1)
 
-		pkt = struct.pack("<BBB", 0x53, 0, 1) #TODO: Proper sequence number
+		pkt = struct.pack("<BB", 0, 1) #TODO: Proper sequence number
 		pkt += tag.encode('ascii')
 		pkt += mp.encode('ascii')
 		pkt += struct.pack("<IIdBd", start, end, offset, flags, timestep)
@@ -635,43 +635,45 @@ class Moku(object):
 		pkt += struct.pack("<H", len(hdrstr))
 		pkt += hdrstr.encode('ascii')
 
+		hdr = struct.pack("<BI", 0x53, len(pkt))
+
 		with self._conn_lock:
-			self._conn.send(pkt)
+			self._conn.send(hdr + pkt)
 			reply = self._conn.recv()
 
-		hdr, seq, ae, stat = struct.unpack("<BBBB", reply[:4])
+		hdr, l, seq, ae, stat = struct.unpack("<BIBBB", reply[:8])
 
 		if stat not in [ 1, 2 ]:
 			raise StreamException("Stream start exception %d" % stat, stat)
 
 	def _stream_start(self):
-		pkt = struct.pack("<BBB", 0x53, 0, 4)
+		pkt = struct.pack("<BIBB", 0x53, 2, 0, 4)
 		with self._conn_lock:
 			self._conn.send(pkt)
 			reply = self._conn.recv()
 
-		hdr, seq, ae, stat = struct.unpack("<BBBB", reply[:4])
+		hdr, l, seq, ae, stat = struct.unpack("<BIBBB", reply[:8])
 
 		return stat
 
 	def _stream_stop(self):
-		pkt = struct.pack("<BBB", 0x53, 0, 2)
+		pkt = struct.pack("<BIBB", 0x53, 2, 0, 2)
 		with self._conn_lock:
 			self._conn.send(pkt)
 			reply = self._conn.recv()
 
-		hdr, seq, ae, stat, bt = struct.unpack("<BBBBQ", reply[:12])
+		hdr, l, seq, ae, stat, bt = struct.unpack("<BIBBBQ", reply[:16])
 
 		return stat
 
 	def _stream_status(self):
-		pkt = struct.pack("<BBB", 0x53, 0, 3)
+		pkt = struct.pack("<BIBB", 0x53, 2, 0, 3)
 		with self._conn_lock:
 			self._conn.send(pkt)
 			reply = self._conn.recv()
 
-		hdr, seq, ae, stat, bt, trems, treme, flags, fname_len = struct.unpack("<BBBBQiiBH", reply[:23])
-		fname = reply[23:23 + fname_len].decode('ascii')
+		hdr, l, seq, ae, stat, bt, trems, treme, flags, fname_len = struct.unpack("<BIBBBQiiBH", reply[:27])
+		fname = reply[27:27 + fname_len].decode('ascii')
 		return stat, bt, trems, treme, fname
 
 	def _fs_send_generic(self, action, data):

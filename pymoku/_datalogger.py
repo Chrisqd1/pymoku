@@ -66,6 +66,7 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _waveform_generator.B
 		super(Datalogger, self).set_defaults()
 		self.x_mode = _DL_ROLL
 		self.set_samplerate(1e3)
+		self.framerate = 0
 
 		# Disable the waveform generator by default
 		# TODO: Disable without using a gen_ function
