@@ -131,6 +131,8 @@ class FIRFilter(_CoreOscilloscope):
 		super(FIRFilter, self).set_defaults()
 		self.set_offset_gain(1)
 		self.set_offset_gain(2)
+		self.mon1_source = 1
+		self.mon2_source = 4
 
 	@needs_commit
 	def set_offset_gain(self, ch, input_scale=1.0, output_scale=1.0, input_offset=0, output_offset=0, matrix_scalar_ch1=None, matrix_scalar_ch2=None):
@@ -315,6 +317,10 @@ _fir_reg_handlers = {
 	'link':					(REG_FIR_CONTROL,			to_reg_bool(4), from_reg_bool(4)),
 	'ch1_input':			(REG_FIR_CONTROL,			to_reg_bool(5), from_reg_bool(5)),
 	'ch2_input':			(REG_FIR_CONTROL,			to_reg_bool(6), from_reg_bool(6)),
+	'mon1_source':			(REG_FIR_CONTROL,			to_reg_unsigned(8, 3), from_reg_unsigned(8, 3)),
+	'mon2_source':			(REG_FIR_CONTROL,			to_reg_unsigned(12, 3), from_reg_unsigned(12, 3)),
+	'mon1_gain':			(REG_FIR_CONTROL,			to_reg_bool(11), from_reg_bool(11)),
+	'mon2_gain':			(REG_FIR_CONTROL,			to_reg_bool(15), from_reg_bool(15)),
 
 	'input_scale1':			(REG_FIR_IN_SCALE1,			to_reg_signed(0, 18), from_reg_signed(0, 18)),
 	'input_scale2':			(REG_FIR_IN_SCALE2,			to_reg_signed(0, 18), from_reg_signed(0, 18)),
