@@ -115,19 +115,19 @@ class InputInstrument(_instrument.MokuInstrument):
 
 		if self.nch == 2:
 			if(use_sd):
-				maxrates = { 'bin' : 150e3, 'csv' : 1e3, 'net' : 20e3, 'plot' : 10}
+				maxrates = { 'bin': 150e3, 'csv': 10e3, 'mat': 10e3, 'net': 20e3, 'npy': 10e3}
 			else:
-				maxrates = { 'bin' : 500e3, 'csv' : 1e3, 'net' : 20e3, 'plot' : 10}
+				maxrates = { 'bin': 500e3, 'csv': 10e3, 'mat': 10e3, 'net': 20e3, 'npy': 50e3}
 		else:
 			if(use_sd):
-				maxrates = { 'bin' : 250e3, 'csv' : 3e3, 'net' : 40e3, 'plot' : 10}
+				maxrates = { 'bin': 250e3, 'csv': 10e3, 'mat': 10e3, 'net': 40e3, 'npy': 20e3}
 			else:
-				maxrates = { 'bin' : 1e6, 'csv' : 3e3, 'net' : 40e3, 'plot' : 10}
+				maxrates = { 'bin': 1e6, 'csv': 10e3, 'mat': 10e3, 'net': 40e3, 'npy': 100e3}
 
 		return maxrates[filetype] / record_length
 
 	def _estimate_logsize(self, ch1, ch2, duration, filetype):
-		if filetype is 'bin':
+		if filetype in ['bin', 'mat', 'npy']:
 			# The record length in the dataparser is in bits, convert to bytes
 			record_length = math.ceil(dataparser.LIDataParser.record_length(self.binstr) / 8.0)
 			sample_size_bytes = record_length * (ch1 + ch2)
@@ -168,6 +168,8 @@ class InputInstrument(_instrument.MokuInstrument):
 
 		- **csv** -- CSV file
 		- **bin** -- LI Binary file
+		- **mat** -- MATLAB file
+		- **npy** -- NPY (Numpy) data file
 		- **net** -- Log to network, retrieve data with :any:`_stream_receive_samples`
 		"""
 		if (not ch1) and (not ch2):
@@ -202,7 +204,7 @@ class InputInstrument(_instrument.MokuInstrument):
 			maxrate = self._max_stream_rate(use_sd, filetype)
 			if math.floor(1.0 / self.timestep) > maxrate:
 				session_type = "Filetype: %s, #Channels: %d, SDCard: %s" % (filetype, self.nch, use_sd)
-				raise InvalidOperationException("Sample rate (%d smp/s) too high for datalogging session type (%s). Maximum rate is %d smp/s. " % (1.0 / self.timestep, session_type, maxrate))
+				#raise InvalidOperationException("Sample rate (%d smp/s) too high for datalogging session type (%s). Maximum rate is %d smp/s. " % (1.0 / self.timestep, session_type, maxrate))
 
 			if self.x_mode != _instrument.ROLL:
 				raise InvalidOperationException("Instrument must be in roll mode to perform data logging")
@@ -211,23 +213,25 @@ class InputInstrument(_instrument.MokuInstrument):
 			raise InvalidOperationException("Instrument currently doesn't support data logging")
 
 		# If not a network stream, we must check the mount point is available
-		if filetype is not 'net':
-			mp = 'e' if use_sd else 'i'
-			try:
-				t, f = self._moku._fs_free(mp)
-				logsize = self._estimate_logsize(ch1, ch2, duration, filetype)
-				if f < logsize:
-					raise InsufficientSpace("Insufficient disk space for requested log file (require %d kB, available %d kB)" % (logsize/(2**10), f/(2**10)))
-				elif logsize > 4 * 1024 * 1024 * 1024:
-					raise InsufficientSpace("SD Cards cannot hold files larger than 4GB, estimated log size %d MB", logsize / (2014 * 1024))
-			except MPReadOnly as e:
-				if use_sd:
-					raise MPReadOnly("SD Card is read only.")
-				raise e
-			except MPNotMounted as e:
-				if use_sd:
-					raise MPNotMounted("SD Card is unmounted.")
-				raise e
+		# if filetype is not 'net':
+		# 	mp = 'e' if use_sd else 'i'
+		# 	try:
+		# 		t, f = self._moku._fs_free(mp)
+		# 		logsize = self._estimate_logsize(ch1, ch2, duration, filetype)
+		# 		if f < logsize:
+		# 			raise InsufficientSpace("Insufficient disk space for requested log file (require %d kB, available %d kB)" % (logsize/(2**10), f/(2**10)))
+		# 		elif logsize > 4 * 1024 * 1024 * 1024:
+		# 			raise InsufficientSpace("SD Cards cannot hold files larger than 4GB, estimated log size %d MB", logsize / (1024 * 1024))
+		# 		elif logsize > 250 * 1024 * 1024 and filetype == 'mat':
+		# 			raise InsufficientSpace("MAT format cannot exceed 250MB, estimated %d MB", logsize / 1024 / 1024)
+		# 	except MPReadOnly as e:
+		# 		if use_sd:
+		# 			raise MPReadOnly("SD Card is read only.")
+		# 		raise e
+		# 	except MPNotMounted as e:
+		# 		if use_sd:
+		# 			raise MPNotMounted("SD Card is unmounted.")
+		# 		raise e
 
 		# We have to be in this mode anyway because of the above check, but rewriting this register and committing
 		# is necessary in order to reset the channel buffers on the device and flush them of old data.

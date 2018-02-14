@@ -9,6 +9,14 @@ from . import _utils
 
 log = logging.getLogger(__name__)
 
+REG_LIA_PM_BW1 			= 90
+REG_LIA_PM_AUTOA1 		= 91
+REG_LIA_PM_REACQ		= 92
+REG_LIA_PM_RESET		= 93
+REG_LIA_PM_OUTDEC 		= 94
+REG_LIA_PM_OUTSHIFT 	= 94
+REG_LIA_SIG_SELECT		= 95
+
 REG_LIA_ENABLES			= 96
 
 REG_LIA_PIDGAIN1		= 97
@@ -50,17 +58,6 @@ REG_LIA_SINEOUTOFF		= 126
 
 REG_LIA_MONSELECT		= 127
 
-REG_LIA_PM_CGAIN 		= 74
-REG_LIA_PM_INTSHIFT 	= 74
-REG_LIA_PM_CSHIFT 		= 74
-REG_LIA_PM_RESET		= 74
-REG_LIA_PM_OUTDEC 		= 75
-REG_LIA_PM_OUTSHIFT 	= 75
-REG_LIA_PM_BW1 			= 71
-REG_LIA_PM_AUTOA1 		= 72
-REG_LIA_PM_REACQ		= 73
-REG_LIA_SIG_SELECT		= 76
-
 _LIA_MON_NONE	= 0
 _LIA_MON_IN1	= 1
 _LIA_MON_I		= 2
@@ -93,6 +90,8 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		self.monitor_a = None
 		self.monitor_b = None
 		self.demod_mode = None
+		self.main_source = None
+		self.aux_source = None
 
 	@needs_commit
 	def set_defaults(self):
@@ -142,19 +141,28 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 	@needs_commit
 	def set_outputs(self, main, aux, main_offset=0.0, aux_offset=0.0):
 		"""
-			Configures the main (Channel 1) and auxillary (Channel 2) output signals of the Lock-In.
+		Configures the main (Channel 1) and auxillary (Channel 2) output signals of the Lock-In.
 
-			:type main: string; {'X','Y','I','Q','R','theta','offset','none'}
-			:param main: Main output signal
+		.. note::
+		  When 'external' demodulation is used (that is, without a PLL), the Lock-in Amplifier doesn't know the frequency and therefore
+		  can't form the quadrature for full I/Q demodulation. This in turn means it can't distinguish I from Q, X from Y,
+		  or form R/Theta. This limits the choices for signals that can be output on the AUX channel to ones not from the
+		  Lock-in logic (e.g. demodulation source, auxilliary sine wave etc).
 
-			:type aux: string; {'Y','Q','theta','sine','demod','offset','none'}
-			:param aux: Auxillary output signal
+		  An exception will be raised if you attempt to set the auxilliary channel to view aa signal from the Lock-in logic while
+		  external demodulation is enabled.
 
-			:type main_offset: float; [-1.0,1.0] V
-			:param main_offset: Main output offset
+		:type main: string; {'X','Y','I','Q','R','theta','offset','none'}
+		:param main: Main output signal
 
-			:type aux_offset: float; [-1.0,1.0] V
-			:param aux_offset: Auxillary output offset
+		:type aux: string; {'Y','Q','theta','sine','demod','offset','none'}
+		:param aux: Auxillary output signal
+
+		:type main_offset: float; [-1.0,1.0] V
+		:param main_offset: Main output offset
+
+		:type aux_offset: float; [-1.0,1.0] V
+		:param aux_offset: Auxillary output offset
 		"""
 		_utils.check_parameter_valid('string', main, desc="main output signal")
 		_utils.check_parameter_valid('string', aux, desc="auxillary output signal")
@@ -173,6 +181,12 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 			(main=='r' and aux in ['y','q']) or \
 		 	(aux in lia_signals and main in ['y','q','theta'])):
 			raise InvalidConfigurationException("Invalid output signal combination. Main - %s, Aux: %s" % (main, aux))
+
+		# I hate having this check here and its complement when trying to set modulation below, ideally they'd
+		# come in through a single interface
+		if self.demod_mode == 'external' and (
+		  aux in lia_signals or main in ['r', 'theta']):
+			raise InvalidConfigurationException("Can't use quadrature-related outputs when using external demodulation without a PLL.")
 
 		# Set up main output
 		self._set_main_out('ch1' if main in lia_signals else main, offset=main_offset)
@@ -226,6 +240,8 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 
 		self.main_offset = offset
 
+		self.main_source = sel
+
 		# Turn on the auxillary output
 		if sel == 'ch1':
 			self.ch1_signal_en = True
@@ -262,6 +278,10 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		# Turns on the auxillary output for most cases
 		self.ch2_out_en = True
 		self.ch2_signal_en = True
+
+		# Unfortunately need to remember this source so we can check for invalid output configuration
+		# when selecting demod source
+		self.aux_source = auxsel
 
 		if auxsel == 'sine':
 			self.aux_select = 0
@@ -428,6 +448,14 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 			- **external** : to directly use an external signal for demodulation (Note: Q is not selectable in this mode)
 			- **external_pll** : to use an external signal for demodulation after running it through an internal PLL.
 
+		.. note::
+		  When 'external' is used (that is, without a PLL), the Lock-in Amplifier doesn't know the frequency and therefore
+		  can't form the quadrature for full I/Q demodulation. This in turn means it can't distinguish I from Q, X from Y,
+		  or form R/Theta. This limits the choices for signals that can be output on the Main and AUX channels to ones not
+		  formed from the quadrature signal.
+
+		  An exception will be raised if you attempt to set the demodulation to 'external' while viewing one of these signals.
+
 		:type mode: string; {'internal', 'external', 'external_pll'}
 		:param mode: Demodulation mode
 
@@ -441,6 +469,10 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		_utils.check_parameter_valid('range', frequency, allowed=[0,200e6], desc="demodulation frequency", units="Hz")
 		_utils.check_parameter_valid('range', phase, allowed=[0,360], desc="demodulation phase", units="degrees")
 		_utils.check_parameter_valid('set', mode, allowed=['internal', 'external', 'external_pll'] )
+
+		if mode == 'external' and (
+		  self.aux_source == 'ch2' or self.main_source in ['r', 'theta']):
+			raise InvalidConfigurationException("Can't use external demodulation source without a PLL with quadrature-related outputs.")
 
 		self.autoacquire = 1
 		self.bandwidth = 0

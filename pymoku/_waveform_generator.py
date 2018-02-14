@@ -425,8 +425,6 @@ class WaveformGenerator(BasicWaveformGenerator):
 		- *sweep*: The trigger event starts the waveform generation at the *sweep_start_freq*, before automatically sweeping the
 		frequency to *sweep_end_freq* over the course of *sweep_duration* seconds.
 
-		Set the trigger mode to *'off'* to disable this feature.
-
 		:type ch : int
 		:param ch: target channel.
 
@@ -445,7 +443,7 @@ class WaveformGenerator(BasicWaveformGenerator):
 		:type sweep_duration : float, [0.0,1000.0], seconds
 		:param sweep_duration : sweep duration in seconds.
 
-		:type trigger_source: string {'external', 'adc', 'dac', 'internal'}
+		:type trigger_source: string {'external', 'in', 'out', 'internal'}
 		:param: defines which source should be used as triggering signal.
 
 		:type trigger_threshold: float, [-5, 5], volts
@@ -460,7 +458,7 @@ class WaveformGenerator(BasicWaveformGenerator):
 
 		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
 		_utils.check_parameter_valid('set', mode, ['gated','start','ncycle','sweep'],'trigger mode')
-		_utils.check_parameter_valid('set', trigger_source, ['external','adc','dac','internal'],'trigger source')
+		_utils.check_parameter_valid('set', trigger_source, ['external','in', 'out','adc','dac','internal'],'trigger source')
 		_utils.check_parameter_valid('range', ncycles, [0,1e6],'output channel','frequency')
 		_utils.check_parameter_valid('range', sweep_duration, [0.0,1000.0],'sweep duration','seconds')
 		_utils.check_parameter_valid('range', internal_trig_period, [100.0e-9,1000.0],'internal trigger period','seconds')
@@ -473,6 +471,8 @@ class WaveformGenerator(BasicWaveformGenerator):
 		_str_to_trigger_source = {
 			'external' : _SG_TRIG_EXT,
 			'adc' : _SG_TRIG_ADC,
+			'in': _SG_TRIG_ADC,
+			'out': _SG_TRIG_DAC,
 			'dac' : _SG_TRIG_DAC,
 			'internal' : _SG_TRIG_INTER
 		}
@@ -487,11 +487,14 @@ class WaveformGenerator(BasicWaveformGenerator):
 		## The internal trigger's duty cycle is only used in gated burst mode. Duty cycle is limited such that the duty period is not
 		## less than 8 ns and not greater than the trigger period minus 8 ns.
 
-		if (internal_trig_period - internal_trig_high) <= 8.0e-9:
-			internal_trig_high <= internal_trig_period - 10.0e-9
+		if internal_trig_high > internal_trig_period:
+			raise ValueOutOfRangeException("Internal trigger high must be less than or equal to the internal trigger period.")
 
-		internal_trig_increment = math.ceil((2**64)/(internal_trig_period*125*10**6))
-		internal_trig_dutytarget = round((2**64)*(internal_trig_high/internal_trig_period)) if mode == 'gated' else 2**63
+		if (internal_trig_period - internal_trig_high) <= 8.0e-9:
+			internal_trig_high = internal_trig_period - 10.0e-9
+
+		internal_trig_increment = math.ceil((2**64-1)/float((internal_trig_period*125*10**6)))
+		internal_trig_dutytarget = round((2**64-1)*(float(internal_trig_high)/float(internal_trig_period))) if mode == 'gated' else 2**63
 
 		if ch == 1:
 			self.trigger_select_ch1 = source
@@ -533,17 +536,8 @@ class WaveformGenerator(BasicWaveformGenerator):
 			'start' : _SG_TRIG_MODE_START,
 			'ncycle' : _SG_TRIG_MODE_NCYCLE,
 			'sweep'	: _SG_TRIG_MODE_SWEEP
-			#'off':	_SG_TRIG_MODE_OFF
 		}
 		mode = _utils.str_to_val(_str_to_trigger_mode, mode, 'trigger mode')
-
-		# # Exit early if mode = off
-		# if mode is _SG_TRIG_MODE_OFF:
-		# 	if ch == 1:
-		# 		self.trig_sweep_mode_ch1 = mode
-		# 	else:
-		# 		self.trig_sweep_mode_ch2 = mode
-		# 	return None
 
 		# Pulse waveform edge must be minimum for gated burst mode and sweep mode:
 		if (mode is _SG_TRIG_MODE_GATE or mode is _SG_TRIG_MODE_SWEEP) and waveform != 0: #'sine':

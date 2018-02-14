@@ -1,0 +1,3 @@
+include liquidreader/*.h
+include liquidreader/*.inc
+include lr_mod/*.h

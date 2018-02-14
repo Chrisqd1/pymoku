@@ -5,8 +5,7 @@ from ._instrument import *
 from . import _frame_instrument
 from . import _utils
 
-from bisect import bisect_right
-
+from ._specan_data import SpectrumData
 
 log = logging.getLogger(__name__)
 
@@ -131,208 +130,6 @@ _SA_ADC_FREQ_RESP_20 = [ 1.0000,
 	0.8051, 0.8018, 0.7992, 0.7970, 0.7952, 0.7929, 0.7914, 0.7902, 0.7888, 0.7865, 0.7839, 0.7815, 0.7778, 0.7739, 0.7696, 0.7652,
 	0.7595, 0.7526, 0.7453, 0.7387, 0.7310, 0.7228, 0.7139, 0.7054, 0.6965, 0.6872, 0.6786, 0.6702, 0.6619, 0.6538, 0.6452, 0.6385,
 	0.6320, 0.6270, 0.6211, 0.6158, 0.6107, 0.6061, 0.6016, 0.5972, 0.5929, 0.5895, 0.5863, 0.5832, 0.5814, 0.5794, 0.5780, 0.5765 ]
-
-class SpectrumData(_frame_instrument.InstrumentData):
-	"""
-	Object representing a frame of dual-channel frequency spectrum data (amplitude vs frequency in Hz).
-	Amplitude is in units of either dBm power or RMS Voltage, as indicated by the `dbm` attribute 
-	of the frame. The amplitude scale may be selected by calling :any:`set_dbmscale` on the relevant
-	:any:`SpectrumAnalyzer` instrument.
-
-	This is the native output format of the :any:`SpectrumAnalyzer` instrument.
-
-	This object should not be instantiated directly, but will be returned by a call to
-	:any:`get_data <pymoku.instruments.SpectrumAnalyzer.get_data>` on the associated :any:`SpectrumAnalyzer`
-	instrument.
-
-	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumData.ch1
-		:annotation: = [CH1_DATA]
-
-	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumData.ch2
-		:annotation: = [CH2_DATA]
-
-	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumData.frequency
-		:annotation: = [FREQ]
-
-	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumData.dbm
-		:annotation: = bool
-
-	.. autoinstanceattribute:: pymoku._frame_instrument.SpectrumData.waveformid
-		:annotation: = n
-	"""
-	def __init__(self, instrument, scales):
-		super(SpectrumData, self).__init__(instrument)
-
-		#: Channel 1 data array in units of power. Present whether or not the channel is enabled, but the
-		#: contents are undefined in the latter case.
-		self.ch1 = []
-
-		#: Channel 2 data array in units of power.
-		self.ch2 = []
-
-		#: The frequency range associated with both channels
-		self.frequency = []
-
-		#: Whether the data is in logarithmic (dBm) scale. The alternative is a linear scale.
-		self.dbm = None
-
-		#: Obtain all data scaling factors relevant to current SpectrumAnalyzer configuration
-		self._scales = scales
-
-	def __json__(self):
-		return { 'ch1' : self.ch1, 'ch2' : self.ch2, 'frequency' : self.frequency, 'dbm' : self.dbm, 'waveform_id' : self.waveformid }
-
-	# convert an RMS voltage to a power level (assuming 50Ohm load)
-	def _vrms_to_dbm(self, v):
-		return 10.0*math.log(v*v/50.0,10) + 30.0
-
-	def process_complete(self):
-		super(SpectrumData, self).process_complete()
-
-		if self._stateid not in self._scales:
-			log.error("Can't render SpectrumAnalyzer frame, haven't saved calibration data for state %d", self._stateid)
-			return
-
-		# Get scaling/correction factors based on current instrument configuration
-		scales = self._scales[self._stateid]
-		scale1 = scales['g1']
-		scale2 = scales['g2']
-		fs = scales['fs']
-		f1, f2 = scales['fspan']
-		fcorrs = scales['fcorrs']
-		dbmscale = scales['dbmscale']
-
-		try:
-			self.dbm = dbmscale
-
-			# Find the starting index for the valid frame data
-			# SpectrumAnalyzer generally gives more than we ask for due to integer decimations
-			start_index = bisect_right(fs,f1)
-
-			# Set the frequency range of valid data in the current frame (same for both channels)
-			self.frequency = fs[start_index:-1]
-
-			##################################
-			# Process Ch1 Data
-			##################################
-			smpls = int(len(self._raw1) / 4)
-			dat = struct.unpack('<' + 'i' * smpls, self._raw1)
-			dat = [ x if x != -0x80000000 else None for x in dat ]
-
-			# SpectrumAnalyzer data is backwards because $(EXPLETIVE), also remove zeros for the sake of common
-			# display on a log axis.
-			self._ch1_bits = [ max(float(x), 1) if x is not None else None for x in reversed(dat[:_SA_SCREEN_WIDTH]) ]
-
-			# Apply frequency dependent corrections
-			self.ch1 = [ self._vrms_to_dbm(a*c*scale1) if dbmscale else a*c*scale1 if a is not None else None for a,c in zip(self._ch1_bits, fcorrs)]
-
-			# Trim invalid part of frame
-			self.ch1 = self.ch1[start_index:-1]
-
-			##################################
-			# Process Ch2 Data
-			##################################
-			smpls = int(len(self._raw2) / 4)
-			dat = struct.unpack('<' + 'i' * smpls, self._raw2)
-			dat = [ x if x != -0x80000000 else None for x in dat ]
-
-			self._ch2_bits = [ max(float(x), 1) if x is not None else None for x in reversed(dat[:_SA_SCREEN_WIDTH]) ]
-
-			self.ch2 = [ self._vrms_to_dbm(a*c*scale2) if dbmscale else a*c*scale2 if a is not None else None for a,c in zip(self._ch2_bits, fcorrs)]
-			self.ch2 = self.ch2[start_index:-1]
-
-		except (IndexError, TypeError, struct.error):
-			# If the data is bollocksed, force a reinitialisation on next packet
-			log.exception("SpectrumAnalyzer packet")
-			self._frameid = None
-			self._complete = False
-
-		# A valid frame is there's at least one valid sample in each channel
-		return any(self.ch1) and any(self.ch2)
-
-	def process_buffer(self):
-		# Compute the x-axis of the buffer
-		if self._stateid not in self._scales:
-			log.error("Can't process buffer - haven't saved calibration for state %d", self._stateid)
-			return
-		scales = self._scales[self._stateid]
-		self.time = [scales['buff_time_min'] + (scales['buff_time_step'] * x) for x in range(_OSC_BUFLEN)]
-		self.dbm = scales['dbmscale']
-		return True
-
-	'''
-		Plotting helper functions
-	'''
-	def _get_freq_scale(self, f):
-		# Returns a scaling factor and units for frequency 'X'
-		if(f > 1e6):
-			scale_str = 'MHz'
-			scale_const = 1e-6
-		elif (f > 1e3):
-			scale_str = 'kHz'
-			scale_const = 1e-3
-		elif (f > 1):
-			scale_str = 'Hz'
-			scale_const = 1
-		elif (f > 1e-3):
-			scale_str = 'mHz'
-			scale_const = 1e3
-		else:
-			scale_str = 'uHz'
-			scale_const = 1e6
-
-		return [scale_str,scale_const]
-
-	def _get_xaxis_fmt(self,x,pos):
-		# This function returns a format string for the x-axis ticks and x-coordinates along the frequency scale
-		# Use this to set an x-axis format during plotting of SpectrumAnalyzer frames
-
-		if self._stateid not in self._scales:
-			log.error("Can't get x-axis format, haven't saved calibration data for state %d", self._stateid)
-			return
-
-		scales = self._scales[self._stateid]
-		f1, f2 = scales['fspan']
-
-		fscale_str, fscale_const = self._get_freq_scale(f2)
-
-		return {'xaxis': '%.1f %s' % (x*fscale_const, fscale_str), 'xcoord': '%.3f %s' % (x*fscale_const, fscale_str)}
-
-	def get_xaxis_fmt(self, x, pos):
-		""" Function suitable to use as argument to a matplotlib FuncFormatter for X (time) axis """
-		return self._get_xaxis_fmt(x,pos)['xaxis']
-
-	def get_xcoord_fmt(self, x):
-		""" Function suitable to use as argument to a matplotlib FuncFormatter for X (time) coordinate """
-		return self._get_xaxis_fmt(x,None)['xcoord']
-
-	def _get_yaxis_fmt(self,y,pos):
-
-		if self._stateid not in self._scales:
-			log.error("Can't get current frequency format, haven't saved calibration data for state %d", self._stateid)
-			return
-
-		scales = self._scales[self._stateid]
-		dbm = scales['dbmscale']
-
-		yfmt = {
-			'linear' : '%.1f %s' % (y,'V'),
-			'log' : '%.1f %s' % (y,'dBm')
-		}
-		ycoord = {
-			'linear' : '%.3f %s' % (y,'V'),
-			'log' : '%.3f %s' % (y,'dBm')
-		}
-
-		return {'yaxis': (yfmt['log'] if dbm else yfmt['linear']), 'ycoord': (ycoord['log'] if dbm else ycoord['linear'])}
-
-	def get_yaxis_fmt(self, y, pos):
-		""" Function suitable to use as argument to a matplotlib FuncFormatter for Y (voltage) axis """
-		return self._get_yaxis_fmt(y,pos)['yaxis']
-
-	def get_ycoord_fmt(self, y):
-		""" Function suitable to use as argument to a matplotlib FuncFormatter for Y (voltage) coordinate """
-		return self._get_yaxis_fmt(y,None)['ycoord']
 
 
 class SpectrumAnalyzer(_frame_instrument.FrameBasedInstrument):
@@ -496,7 +293,7 @@ class SpectrumAnalyzer(_frame_instrument.FrameBasedInstrument):
 
 		Rounding and quantization in the instrument limits the range of spans for which a full set of 1024
 		data points can be calculated. This means that the resultant number of data points in
-		:any:`SpectrumData` frames will vary with the set span. Note however that the associated frequencies are 
+		:any:`SpectrumData` frames will vary with the set span. Note however that the associated frequencies are
 		given with the frame containing the data.
 
 		:type f1: float
@@ -556,7 +353,7 @@ class SpectrumAnalyzer(_frame_instrument.FrameBasedInstrument):
 	def set_dbmscale(self,dbm=True):
 		""" Configures the scale of the Spectrum Analyzer amplitude data.
 		This can be either power in dBm, or RMS Voltage.
-		
+
 		:type dbm: bool
 		:param dbm: Enable dBm scale
 		"""
@@ -624,8 +421,8 @@ class SpectrumAnalyzer(_frame_instrument.FrameBasedInstrument):
 		return correction
 
 	def _calculate_cic_freq_resp(self, f, dec, order):
-		""" 
-		Calculate the CIC filter droop correction. 
+		"""
+		Calculate the CIC filter droop correction.
 		In this case 'f' is the frequency (Hz) relative to the demodulation frequency.
 		"""
 		freq = f/_SA_ADC_SMPS
