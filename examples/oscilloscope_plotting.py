@@ -29,10 +29,10 @@ try:
 	i.gen_sinewave(2, 0.5, 5, 0)
 
 	# Set the data source of Channel 1 to be Input 1
-	i.set_source(1, 'in')
+	i.set_source(1, 'in1')
 
 	# Set the data source of Channel 2 to the generated output sinewave
-	i.set_source(2, 'out')
+	i.set_source(2, 'out2')
 
 	# Get initial data frame to set up plotting parameters. This can be done once
 	# if we know that the axes aren't going to change (otherwise we'd do
