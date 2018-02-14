@@ -252,8 +252,10 @@ class FIRFilter(_CoreOscilloscope):
 	def _set_output_link(self, ch, enable, link):
 		self.link = link
 		if ch == 1:
+			self.ch1_input = enable
 			self.ch1_output = enable
-		else:
+		else
+			self.ch2_input = enable
 			self.ch2_output = enable
 
 	def _channel_reset(self, ch):
@@ -311,6 +313,8 @@ _fir_reg_handlers = {
 	'ch1_output':			(REG_FIR_CONTROL,			to_reg_bool(2), from_reg_bool(2)),
 	'ch2_output':			(REG_FIR_CONTROL,			to_reg_bool(3), from_reg_bool(3)),
 	'link':					(REG_FIR_CONTROL,			to_reg_bool(4), from_reg_bool(4)),
+	'ch1_input':			(REG_FIR_CONTROL,			to_reg_bool(5), from_reg_bool(5)),
+	'ch2_input':			(REG_FIR_CONTROL,			to_reg_bool(6), from_reg_bool(6)),
 
 	'input_scale1':			(REG_FIR_IN_SCALE1,			to_reg_signed(0, 18), from_reg_signed(0, 18)),
 	'input_scale2':			(REG_FIR_IN_SCALE2,			to_reg_signed(0, 18), from_reg_signed(0, 18)),
