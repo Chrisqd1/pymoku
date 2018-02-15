@@ -114,10 +114,6 @@ class LIDataFileReader(object):
 		except IndexError:
 			self.headers = []
 
-		log.debug("NCH: %d INSTR: %d INSTRV: %d DT: %d", self.nch, self.instr, self.instrv, self.deltat)
-		log.debug("B: %s P: %s F: %s H: %s", self.rec, self.proc, self.fmt, self.hdr)
-		log.debug("CAL: %s", self.cal)
-
 		self.records = [ [] for _ in range(self.nch)]
 
 		self.parser = FastDataParser(self.ch1, self.ch2, self.rec, self.proc, self.fmt, self.hdr, self.deltat, self.starttime, self.cal, self.startoffset)
@@ -136,23 +132,20 @@ class LIDataFileReader(object):
 		if (self.ch2):
 			self.nch += 1
 
-		log.debug("CHS %d NCH %d", self.chs, self.nch)
-
 		for i in range(self.nch):
 			self.cal.append(struct.unpack("<d", self.file.read(8))[0])
 
 		reclen = struct.unpack("<H", self.file.read(2))[0]
-		self.rec = self.file.read(reclen).decode('ascii'); log.debug("Rec %s (%d)", self.rec, reclen)
+		self.rec = self.file.read(reclen).decode('ascii')
 
 		for i in range(self.nch):
 			proclen = struct.unpack("<H", self.file.read(2))[0]
-			self.proc.append(self.file.read(proclen).decode('ascii'));
-			log.debug("PRead len %d, str %s", proclen, self.proc[-1])
+			self.proc.append(self.file.read(proclen).decode('ascii'))
 
 		fmtlen = struct.unpack("<H", self.file.read(2))[0]
-		self.fmt = self.file.read(fmtlen).decode('ascii'); log.debug("Fmt %s (%d)", self.fmt, fmtlen)
+		self.fmt = self.file.read(fmtlen).decode('ascii')
 		hdrlen = struct.unpack("<H", self.file.read(2))[0]
-		self.hdr = self.file.read(hdrlen).decode('ascii'); log.debug("Hdr %s (%d)", self.hdr, hdrlen)
+		self.hdr = self.file.read(hdrlen).decode('ascii')
 
 		if self.file.tell() != pkthdr_len + 5:
 			raise InvalidFileException("Incorrect File Header Length (expected %d got %d)" % (pkthdr_len + 5, self.file.tell()))
@@ -197,7 +190,6 @@ class LIDataFileReader(object):
 
 
 	def _parse_chunk(self):
-		log.debug("Parse")
 		if self.version == 1:
 			ch, d = self._parse_chunk_v1()
 		elif self.version == 2:
@@ -218,8 +210,6 @@ class LIDataFileReader(object):
 		ch, _len = struct.unpack("<BH", dhdr)
 
 		d = self.file.read(_len)
-
-		log.debug("V1 chunk of len %d", _len)
 
 		if len(d) != _len:
 			raise InvalidFileException("Unexpected EOF while reading data")
@@ -243,7 +233,6 @@ class LIDataFileReader(object):
 
 
 	def _process_chunk(self):
-		log.debug("Process")
 		ch = self._parse_chunk()
 
 		if ch is None:
@@ -261,7 +250,6 @@ class LIDataFileReader(object):
 		""" Read a single record from the file
 		:returns: [ch1_record, ...]
 		"""
-		log.debug("Read")
 		while not all([ len(r) >= 1 for r in self.records]):
 			if not self._process_chunk():
 				break
@@ -771,7 +759,6 @@ class FastDataParser(LIDataParser):
 	def init_liquidreader(self):
 		# This writes out effectively a version-1 LI file header so the underlying LI Reader
 		# doesn't need any modification (so long as it doesn't drop v1 support!)
-		log.debug("Ready to initialise LR")
 		chs = (int(self.ch2) << 1) | int(self.ch1)
 
 		hdr = struct.pack("<BBHdQ", chs, 0, 0, self.deltat, self.starttime)
@@ -814,7 +801,6 @@ class FastDataParser(LIDataParser):
 			self.backlog.append((data, ch, start_idx))
 			return
 
-		log.debug("Put %d bytes = %s", len(data), data)
 		lr.put(struct.pack("<BH", ch, len(data)) + data)
 
 		d = lr.get()
@@ -827,5 +813,3 @@ class FastDataParser(LIDataParser):
 				self.processed[0].append(d)
 
 			d = lr.get()
-
-		log.debug("Currently processed: %s", self.processed)
