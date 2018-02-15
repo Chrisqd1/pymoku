@@ -27,6 +27,9 @@ REG_FIR_MATRIXGAIN_CH2 = 114
 _FIR_NUM_BLOCKS = 29
 _FIR_BLOCK_SIZE = 511
 
+_ADC_DEFAULT_CALIBRATION = 3750.0								# Bits/V (No attenuation)
+_DAC_DEFAULT_CALIBRATION = _ADC_DEFAULT_CALIBRATION * 2.0**3	# Bits/V
+
 class _DecFilter(object):
 	REG_DECIMATION = 0
 	REG_INTERP_WDFRATES = 1
@@ -113,10 +116,20 @@ class _DecFilter(object):
 		self._instr._accessor_set(self.regbase + self.REG_INTERP_CTRL, to_reg_unsigned(17, 4), i_bitshift_cic2)
 
 class FIRFilter(_CoreOscilloscope):
-	"""
-	.. automethod:: pymoku.instruments.FIRFilter.__init__
-	"""
+	""" Finite Impulse Response (FIR) Filter instrument object.
 
+	To run a new FIRFilter instrument, this should be instantiated and deployed via a connected
+	:any:`Moku` object using :any:`deploy_instrument`. Alternatively, a pre-configured instrument object
+	can be obtained by discovering an already running FIRFilter instrument on a Moku:Lab device via
+	:any:`deploy_or_connect`.
+
+	.. automethod:: pymoku.instruments.FIRFilter.__init__
+
+	.. attribute:: type
+		:annotation: = "firfilter"
+
+		Name of this instrument.
+	"""
 	def __init__(self):
 		super(FIRFilter, self).__init__()
 		self._register_accessors(_fir_reg_handlers)
@@ -129,111 +142,104 @@ class FIRFilter(_CoreOscilloscope):
 	@needs_commit
 	def set_defaults(self):
 		super(FIRFilter, self).set_defaults()
-		self.set_offset_gain(1)
-		self.set_offset_gain(2)
+		self.set_gains_offsets(1)
+		self.set_gains_offsets(2)
+
+		# TODO: Set these registers in a monitor function instead
 		self.mon1_source = 1
 		self.mon2_source = 4
 
 	@needs_commit
-	def set_offset_gain(self, ch, input_scale=1.0, output_scale=1.0, input_offset=0, output_offset=0, matrix_scalar_ch1=None, matrix_scalar_ch2=None):
+	def set_control_matrix(self, ch, scale_in1, scale_in2):
 		"""
-		Configure pre- and post-filter scales, offsets and input mixing for a channel.
+		Configure the input control matrix specifying the input signal mixing for the specified filter channel.
 
-		Input mixing allows one filter to act on a linear combination of the two input signals. If *matrix_scalar_ch[12]* are left blank,
-		the input matrix is set to the identitiy; that is, filter channel 1 comes only from input channel 1 etc.
+		Input mixing allows a filter channel to act on a linear combination of the two input signals.
+
+		:type ch: int, {1,2}
+		:param ch: target filter channel
+
+		:type scale_in1: float, [-20,20]
+		:param scale_in1: linear scale factor of input 1 signal added to target filter channel input
+
+		:type scale_in2: float, [-20,20] 
+		:param scale_in2: linear scale factor of input 2 signal added to target filter channel input
+		"""
+		_utils.check_parameter_valid('set', ch, [1, 2], 'filter channel')
+		_utils.check_parameter_valid('range', scale_in1, [-20, 20], 'control matrix scale (ch1)', 'linear scalar')
+		_utils.check_parameter_valid('range', scale_in2, [-20, 20], 'control matrix scale (ch2)', 'linear scalar')
+
+		if ch == 1:
+			self.matrixscale_ch1_ch1 = scale_in1
+			self.matrixscale_ch1_ch2 = scale_in2
+		else:
+			self.matrixscale_ch2_ch1 = scale_in1
+			self.matrixscale_ch2_ch2 = scale_in2
+
+	@needs_commit
+	def set_gains_offsets(self, ch, input_gain=1.0, output_gain=1.0, input_offset=0, output_offset=0):
+		"""
+		Configure pre- and post-filter scales and offsets for a given filter channel.
 
 		.. note::
 			The overall output gain of the instrument is the product of the gain of the filter, set by the filter coefficients,
-			and the output stage gain set here.
+			and the input/output stage gain set here.
 
-		:type ch : int, {1,2}
-		:param ch : target channel
+		:type ch: int, {1,2}
+		:param ch: target filter channel
 
-		:type input_scale, output_scale : int, linear scalar, [0,100]
-		:param input_scale, output_scale : channel scalars before and after the IIR filter
+		:type input_gain, output_gain: float, linear scalar, [-100,100]
+		:param input_gain, output_gain: channel scalars before and after the FIR filter
 
-		:type input_offset : int, Volts, [-0.5,0.5]
-		:param input_offset, output_offset : channel offsets before and after the IIR filter
+		:type input_offset: float, volts, [-0.5,0.5]
+		:param input_offset: channel offset before the FIR filter
 
-		:type output_offset : int, Volts, [-1.0,1.0]
-		:param input_offset, output_offset : channel offsets before and after the IIR filter
-
-		:type matrix_scalar_ch1 : int, linear scalar, [0,20]
-		:param matrix_scalar_ch1 : scalar controlling proportion of signal coming from channel 1 that is added to the current filter channel
-
-		:type matrix_scalar_ch2 : int, linear scalar, [0,20]
-		:param matrix_scalar_ch2 : scalar controlling proportion of signal coming from channel 2 that is added to the current filter channel
+		:type output_offset: float, volts, [-1.0,1.0]
+		:param output_offset: channel offset after the FIR filter
 		"""
-		_utils.check_parameter_valid('set', ch, [1,2],'filter channel')
-		_utils.check_parameter_valid('range', input_scale, [0,100],'input scale','linear scalar')
-		_utils.check_parameter_valid('range', output_scale, [0,100],'output scale','linear scalar')
-		_utils.check_parameter_valid('range', input_offset, [-0.5,0.5],'input offset','Volts')
-		_utils.check_parameter_valid('range', output_offset, [-1.0,1.0],'output offset','Volts')
-		_utils.check_parameter_valid('range', matrix_scalar_ch1, [-20,20],'matrix ch1 scalar','linear scalar',allow_none=True)
-		_utils.check_parameter_valid('range', matrix_scalar_ch2, [-20,20],'matrix ch2 scalar','linear scalar',allow_none=True)
-
-		# Get calibration coefficients
-		a1, a2 = self._adc_gains()
-		d1, d2 = self._dac_gains()
-
-		front_end = self._get_frontend(channel = 1) if ch == 1 else self._get_frontend(channel = 2)
-		atten = 10.0 if front_end[1] else 1.0
-
-		adc_calibration = a1 if ch == 1 else a2
-		dac_calibration = d1 if ch == 1 else d2
-
-		if matrix_scalar_ch1 is None:
-			matrix_scalar_ch1 = 1 if ch == 1 else 0
-
-		if matrix_scalar_ch2 is None:
-			matrix_scalar_ch2 = 1 if ch == 2 else 0
-
-		control_matrix_ch1 = int(round(matrix_scalar_ch1 * 3750.0 * adc_calibration * 2**10 / atten)) #scalar in units, default reference calibration, current calibration, normalised hdl 1.0, front/end attenuation
-		control_matrix_ch2 = int(round(matrix_scalar_ch2 * 3750.0 * adc_calibration * 2**10 / atten))
-
-		## Calculate input/output scale values
-		input_scale_bits = int(round(input_scale * 0x0200)) # not 0100 to account for strange extra div/2 in ScaleOffset. ADC calibration added in control matrix scalar
-		output_scale_bits = int(round(output_scale * 0x0400 / 30000 / dac_calibration)) # not 0100 to account for ScaleOffset div/2 and to scale ADC>DAC (other *2 comes from +/- 1V range on ADCs vs +/- 2 V range on DACs) Don't know wehre /3750/8 comes from
-
-		## Calculate input/output offset values
-		input_offset_bits = int(round(input_offset * 2**12 * 3750.0 * adc_calibration / 0.5)) #is 2**12 ok, does it need to be 2**12-1? Will addition of scalar make it not saturate? Not sure why / 0.5 is needed
-		output_offset_bits = int(round(output_offset * 2**15 / 30000.0 / dac_calibration)) #same as above. /0.5 not needed?
-
-		self._channel_reset(ch)
+		_utils.check_parameter_valid('set', ch, [1, 2], 'filter channel')
+		_utils.check_parameter_valid('range', input_gain, [-100, 100], 'input gain', 'linear scalar')
+		_utils.check_parameter_valid('range', output_gain, [-100, 100], 'output gain', 'linear scalar')
+		_utils.check_parameter_valid('range', input_offset, [-0.5, 0.5], 'input offset', 'Volts')
+		_utils.check_parameter_valid('range', output_offset, [-1.0, 1.0], 'output offset', 'Volts')
 
 		if ch == 1:
-			self.input_scale1 = input_scale_bits
-			self.output_scale1 = output_scale_bits
-			self.input_offset1 = input_offset_bits
-			self.output_offset1 = output_offset_bits
-			self.matrixscale_ch1_ch1 = control_matrix_ch1
-			self.matrixscale_ch1_ch2 = control_matrix_ch2
+			self.input_scale1 = input_gain
+			self.output_scale1 = output_gain
+			self.input_offset1 = input_offset
+			self.output_offset1 = output_offset
 		else:
-			self.input_scale2 = input_scale_bits
-			self.output_scale2 = output_scale_bits
-			self.input_offset2 = input_offset_bits
-			self.output_offset2 = output_offset_bits
-			self.matrixscale_ch2_ch1 = control_matrix_ch1
-			self.matrixscale_ch2_ch2 = control_matrix_ch2
+			self.input_scale2 = input_gain
+			self.output_scale2 = output_gain
+			self.input_offset2 = input_offset
+			self.output_offset2 = output_offset
 
-	def set_filter(self, ch, decimation_factor, filter_coefficients, enable=True, link=False):
+		# Reset the channel's filtering loop for new settings to take effect immediately
+		self._channel_reset(ch)
+
+	@needs_commit
+	def set_filter(self, ch, decimation_factor, filter_coefficients):
 		"""
-		Set FIR filter sample rate and coefficients and toggle channel output on/off.
-
+		Set FIR filter sample rate and kernel coefficients. This will enable the specified channel output.
+ 
 		:type ch : int; {1,2}
 		:param ch : target channel.
 
-		:type decimation_factor : int; {0,1,2,3,4,5,6,7,8,9,10}
-		:param decimation_factor : integer respresenting the binary exponent n in the sample rate calculation formula: Fs = 125 MHz / 2^n.
+		:type decimation_factor : int; [0,10]
+		:param decimation_factor : the binary exponent *n* specifying the sample rate: Fs = 125 MHz / 2^n.
 
-		:type filter_coefficients : array;
+		:type filter_coefficients : float array;
 		:param filter_coefficients : array of max 2^n * 29 FIR filter coefficients. The array format can be seen in the class documentation above.
 		"""
+		# TODO: Document the quantization of array coefficients incurred
+		# TODO: The array format is NOT in the class documentation above...?
+
+
 
 		_utils.check_parameter_valid('set', ch, [1, 2],'filter channel')
 		_utils.check_parameter_valid('set', enable, [True, False],'channel output enable')
 		_utils.check_parameter_valid('set', link, [True, False],'channel link')
-		_utils.check_parameter_valid('set', decimation_factor, [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10], 'decimation factor')
+		_utils.check_parameter_valid('set', decimation_factor, range(11), 'decimation factor')
 		_utils.check_parameter_valid('range', len(filter_coefficients), [0, _FIR_NUM_BLOCKS * 2**decimation_factor], 'filter coefficient array length')
 		for x in range(0, len(filter_coefficients)):
 			_utils.check_parameter_valid('range', filter_coefficients[x], [-1.0, 1.0],'normalised coefficient value')
@@ -243,6 +249,18 @@ class FIRFilter(_CoreOscilloscope):
 		self._write_coeffs(ch, filter_coefficients)
 
 	@needs_commit
+	def disable_output(self, ch):
+		"""
+		Disables the output of the specified FIR filter channel.
+
+		:type ch : int; {1,2}
+		:param ch : target channel
+		"""
+		if ch == 1:
+			self.output_en1 = False
+		else:
+			self.output_en2 = False
+
 	def _set_samplerate(self, ch, factor):
 		if ch == 1:
 			self._decfilter1.set_samplerate(factor)
@@ -250,23 +268,14 @@ class FIRFilter(_CoreOscilloscope):
 			self._decfilter2.set_samplerate(factor)
 		self._channel_reset(ch)
 
-	@needs_commit
-	def _set_output_link(self, ch, enable, link):
-		self.link = link
-		if ch == 1:
-			self.ch1_input = enable
-			self.ch1_output = enable
-		else
-			self.ch2_input = enable
-			self.ch2_output = enable
-
 	def _channel_reset(self, ch):
 		if ch == 1:
-			self.reset_ch1 = 1 if self.reset_ch1 == 0 else 0
+			self.reset_ch1 = True
 		else:
-			self.reset_ch2 = 1 if self.reset_ch2 == 0 else 0
+			self.reset_ch2 = True
 
 	def _write_coeffs(self, ch, coeffs):
+		# TODO: Rewrite this to NOT use a temporary file
 		coeffs = list(coeffs)
 		_utils.check_parameter_valid('set', ch, [1,2], 'output channel')
 		assert len(coeffs) <= _FIR_NUM_BLOCKS * _FIR_BLOCK_SIZE
@@ -312,27 +321,53 @@ class FIRFilter(_CoreOscilloscope):
 _fir_reg_handlers = {
 	'reset_ch1':			(REG_FIR_CONTROL,			to_reg_bool(0), from_reg_bool(0)),
 	'reset_ch2':			(REG_FIR_CONTROL,			to_reg_bool(1), from_reg_bool(1)),
-	'ch1_output':			(REG_FIR_CONTROL,			to_reg_bool(2), from_reg_bool(2)),
-	'ch2_output':			(REG_FIR_CONTROL,			to_reg_bool(3), from_reg_bool(3)),
+	'output_en1':			(REG_FIR_CONTROL,			to_reg_bool(2), from_reg_bool(2)),
+	'output_en2':			(REG_FIR_CONTROL,			to_reg_bool(3), from_reg_bool(3)),
 	'link':					(REG_FIR_CONTROL,			to_reg_bool(4), from_reg_bool(4)),
-	'ch1_input':			(REG_FIR_CONTROL,			to_reg_bool(5), from_reg_bool(5)),
-	'ch2_input':			(REG_FIR_CONTROL,			to_reg_bool(6), from_reg_bool(6)),
+	'input_en1':			(REG_FIR_CONTROL,			to_reg_bool(5), from_reg_bool(5)),
+	'input_en2':			(REG_FIR_CONTROL,			to_reg_bool(6), from_reg_bool(6)),
 	'mon1_source':			(REG_FIR_CONTROL,			to_reg_unsigned(8, 3), from_reg_unsigned(8, 3)),
 	'mon2_source':			(REG_FIR_CONTROL,			to_reg_unsigned(12, 3), from_reg_unsigned(12, 3)),
 	'mon1_gain':			(REG_FIR_CONTROL,			to_reg_bool(11), from_reg_bool(11)),
 	'mon2_gain':			(REG_FIR_CONTROL,			to_reg_bool(15), from_reg_bool(15)),
 
-	'input_scale1':			(REG_FIR_IN_SCALE1,			to_reg_signed(0, 18), from_reg_signed(0, 18)),
-	'input_scale2':			(REG_FIR_IN_SCALE2,			to_reg_signed(0, 18), from_reg_signed(0, 18)),
-	'input_offset1':		(REG_FIR_IN_OFFSET1,		to_reg_signed(0, 32), from_reg_signed(0, 32)),
-	'input_offset2':		(REG_FIR_IN_OFFSET2,		to_reg_signed(0, 32), from_reg_signed(0, 32)),
-	'output_scale1':		(REG_FIR_OUT_SCALE1,		to_reg_signed(0, 18), from_reg_signed(0, 18)),
-	'output_scale2':		(REG_FIR_OUT_SCALE2,		to_reg_signed(0, 18), from_reg_signed(0, 18)),
-	'output_offset1':		(REG_FIR_OUT_OFFSET1,		to_reg_signed(0, 32), from_reg_signed(0, 32)),
-	'output_offset2':		(REG_FIR_OUT_OFFSET2,		to_reg_signed(0, 32), from_reg_signed(0, 32)),
+	'input_scale1':			(REG_FIR_IN_SCALE1,			to_reg_signed(0, 18, lambda obj, x: x * 2.0**9), 
+														from_reg_signed(0, 18, lambda obj, x : x / (2.0 **9))),
+	'input_scale2':			(REG_FIR_IN_SCALE2,			to_reg_signed(0, 18, lambda obj, x: x * 2.0**9), 
+														from_reg_signed(0, 18, lambda obj, x : x / (2.0 **9))),
 
-	'matrixscale_ch1_ch1':	(REG_FIR_MATRIXGAIN_CH1,	to_reg_signed(0, 16), from_reg_signed(0, 16)),
-	'matrixscale_ch1_ch2':	(REG_FIR_MATRIXGAIN_CH1,	to_reg_signed(16, 16), from_reg_signed(16, 16)),
-	'matrixscale_ch2_ch1':	(REG_FIR_MATRIXGAIN_CH2,	to_reg_signed(0, 16), from_reg_signed(0, 16)),
-	'matrixscale_ch2_ch2':	(REG_FIR_MATRIXGAIN_CH2,	to_reg_signed(16, 16), from_reg_signed(16, 16))
+	'input_offset1':		(REG_FIR_IN_OFFSET1,		to_reg_signed(0, 32, lambda obj, x: x * 2.0**12 * 2.0 * (_ADC_DEFAULT_CALIBRATION/(10.0 if obj.get_frontend(1)[1] else 1.0) * obj._adc_gains()[0])), 
+														from_reg_signed(0, 32, lambda obj, x: x / (_ADC_DEFAULT_CALIBRATION/(10.0 if obj.get_frontend(1)[1] else 1.0) * obj._adc_gains()[0]) / 2.0**12 / 2.0)),
+
+	'input_offset2':		(REG_FIR_IN_OFFSET2,		to_reg_signed(0, 32, lambda obj, x: x * 2.0**12 * 2.0 * (_ADC_DEFAULT_CALIBRATION/(10.0 if obj.get_frontend(2)[1] else 1.0) * obj._adc_gains()[1])), 
+														from_reg_signed(0, 32, lambda obj, x: x / (_ADC_DEFAULT_CALIBRATION/(10.0 if obj.get_frontend(2)[1] else 1.0) * obj._adc_gains()[1]) / 2.0**12 / 2.0)),
+
+	'output_scale1':		(REG_FIR_OUT_SCALE1,		to_reg_signed(0, 18, lambda obj, x: int(round(x * 2.0**10 / (_DAC_DEFAULT_CALIBRATION * obj._dac_gains()[0]) / 2.0**3))), 
+														from_reg_signed(0, 18, lambda obj, x: x * 2.0**3 * (_DAC_DEFAULT_CALIBRATION * obj._dac_gains()[0]) / 2.0**10)),
+
+	'output_scale2':		(REG_FIR_OUT_SCALE2,		to_reg_signed(0, 18, lambda obj, x: int(round(x * 2.0**10 / (_DAC_DEFAULT_CALIBRATION * obj._dac_gains()[1]) / 2.0**3))), 
+														from_reg_signed(0, 18, lambda obj, x: x * 2.0**3 * (_DAC_DEFAULT_CALIBRATION * obj._dac_gains()[1]) / 2.0**10)),
+
+	'output_offset1':		(REG_FIR_OUT_OFFSET1,		to_reg_signed(0, 32, lambda obj, x: int(round(x * 2.0**15 * (_DAC_DEFAULT_CALIBRATION * obj._dac_gains()[1]) / 2.0**3))), 
+														from_reg_signed(0, 32, lambda obj, x: x / (_DAC_DEFAULT_CALIBRATION*obj._dac_gains()[1])/ 2.0**15 / 2.0**3)),
+
+	'output_offset2':		(REG_FIR_OUT_OFFSET2,		to_reg_signed(0, 32, lambda obj, x: int(round(x * 2.0**15 * (_DAC_DEFAULT_CALIBRATION * obj._dac_gains()[1]) / 2.0**3))), 
+														from_reg_signed(0, 32, lambda obj, x: x / (_DAC_DEFAULT_CALIBRATION*obj._dac_gains()[1])/ 2.0**15 / 2.0**3)),
+
+	'matrixscale_ch1_ch1':	(REG_FIR_MATRIXGAIN_CH1,	to_reg_signed(0, 16, 
+															xform=lambda obj, x: int(round(x * (_ADC_DEFAULT_CALIBRATION / (10.0 if obj.get_frontend(1)[1] else 1.0)) * obj._adc_gains()[0] * 2.0**10))), 
+														from_reg_signed(0, 16,
+															xform=lambda obj, x: x * ((10.0 if obj.get_frontend(1)[1] else 1.0) / _ADC_DEFAULT_CALIBRATION) / obj._adc_gains()[0] / 2.0**10)),
+	'matrixscale_ch1_ch2':	(REG_FIR_MATRIXGAIN_CH1,	to_reg_signed(16, 16, 
+															xform=lambda obj, x: int(round(x * (_ADC_DEFAULT_CALIBRATION / (10.0 if obj.get_frontend(2)[1] else 1.0)) * obj._adc_gains()[1] * 2.0**10))), 
+														from_reg_signed(16, 16,
+															xform=lambda obj, x: x * ((10.0 if obj.get_frontend(2)[1] else 1.0) / _ADC_DEFAULT_CALIBRATION) / obj._adc_gains()[1] / 2.0**10)),
+	'matrixscale_ch2_ch1':	(REG_FIR_MATRIXGAIN_CH2,	to_reg_signed(0, 16, 
+															xform=lambda obj, x: int(round(x * (_ADC_DEFAULT_CALIBRATION / (10.0 if obj.get_frontend(2)[1] else 1.0)) * obj._adc_gains()[1] * 2.0**10))), 
+														from_reg_signed(0, 16,
+															xform=lambda obj, x: x * ((10.0 if obj.get_frontend(2)[1] else 1.0) / _ADC_DEFAULT_CALIBRATION) / obj._adc_gains()[1] / 2.0**10)),
+	'matrixscale_ch2_ch2':	(REG_FIR_MATRIXGAIN_CH2,	to_reg_signed(16, 16, 
+															xform=lambda obj, x: int(round(x * (_ADC_DEFAULT_CALIBRATION / (10.0 if obj.get_frontend(1)[1] else 1.0)) * obj._adc_gains()[0] * 2.0**10))), 
+														from_reg_signed(16, 16,
+															xform=lambda obj, x: x * ((10.0 if obj.get_frontend(1)[1] else 1.0) / _ADC_DEFAULT_CALIBRATION) / obj._adc_gains()[0] / 2.0**10))
 }
