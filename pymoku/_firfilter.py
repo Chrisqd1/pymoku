@@ -293,7 +293,7 @@ class FIRFilter(_CoreOscilloscope):
 
 			#clear the current contents
 			f.seek(offset)
-			f.write('\x00\x00\x00\x00' * (_FIR_BLOCK_SIZE+1) * _FIR_NUM_BLOCKS)
+			f.write(b'\x00\x00\x00\x00' * (_FIR_BLOCK_SIZE+1) * _FIR_NUM_BLOCKS)
 
 			for i, b in enumerate(blocks):
 				b.reverse()
@@ -301,7 +301,7 @@ class FIRFilter(_CoreOscilloscope):
 				f.write(struct.pack('<I', len(b)))
 				for j, c in enumerate(b):
 					f.seek(offset + (i * (_FIR_BLOCK_SIZE+1) * 4) + ((j+1) * 4))
-					f.write(struct.pack('<i', round((2.0**24-1) * c)))
+					f.write(struct.pack('<i', int(round((2.0**24-1) * c))))
 
 			f.flush()
 
