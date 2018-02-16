@@ -11,11 +11,11 @@ from pymoku.tools import compat as cp
 log = logging.getLogger(__name__)
 
 try:
-	from .finders import BonjourFinder
+	from pymoku.finders import BonjourFinder
 except Exception as e:
 	print("Can't import the Bonjour libraries, I won't be able to automatically detect Mokus ({:s}).  Please install DNSSD libraries (e.g. libavahi-dnssd-compat on Linux)".format(str(e)))
 
-from . import dataparser
+from pymoku import dataparser
 
 class MokuException(Exception):	"""Base class for other Exceptions""";	pass
 class MokuNotFound(MokuException): """Can't find Moku. Raised from discovery factory functions."""; pass
@@ -1052,21 +1052,33 @@ class Moku(object):
 
 	def deploy_instrument(self, instrument, set_default=True, use_external=False):
 		"""
-		Attaches a :any:`MokuInstrument` subclass to the Moku, deploying and activating an instrument.
+		Attaches a :any:`MokuInstrument` to the Moku, deploying and activating an instrument.
 
-		Either this function or :any:`discover_instrument` must be called before an instrument can be manipulated.
+		Either this function, :any:`deploy_or_connect` or :any:`discover_instrument` must be called before an
+		instrument can be manipulated.
 
-		:type instrument: :any:`MokuInstrument` subclass
+		The *instrument* parameter can be a class or object. In the former case, the class is instantiated
+		before being deployed, and the resulting object is returned.
+
+		:type instrument: :any:`MokuInstrument` subclass or instantiation thereof
 		:param instrument: The instrument instance to attach.
 		:type set_default: bool
 		:param set_default: Set the instrument to its default config upon connection, overwriting user changes before this point.
 		:type use_external: bool
 		:param use_external: Attempt to lock to an external reference clock.
+
+		:return: Instrument object that has been deployed
+		:rtype: :any:`MokuInstrument` object
 		"""
+		from pymoku.instruments import MokuInstrument
 		self.external_reference = use_external
 
 		if self._instrument:
 			self.detach_instrument()
+
+		# Instrument accepts a class or object, instantiate in the former case
+		if not isinstance(instrument, MokuInstrument):
+			instrument = instrument()
 
 		self.take_ownership()
 		self._instrument = instrument

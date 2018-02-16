@@ -18,11 +18,8 @@ def from_dB(dB):
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name("Moku")
 
-# Prepare the PID Controller instrument
-i = PIDController()
-
 # Deploy the PID Controller to the Moku:Lab
-m.deploy_instrument(i)
+i = m.deploy_instrument(PIDController)
 
 try:
 

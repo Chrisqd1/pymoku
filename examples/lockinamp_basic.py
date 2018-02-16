@@ -11,9 +11,7 @@ from pymoku.instruments import LockInAmp
 
 # Use Moku.get_by_serial() or get_by_name() if you don't know the IP
 m = Moku.get_by_name('Moku')
-
-i = LockInAmp()
-m.deploy_instrument(i)
+i = m.deploy_instrument(LockInAmp)
 
 try:
     # Configure the two DAC outputs to provide the R (magnitude) and

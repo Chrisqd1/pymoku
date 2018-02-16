@@ -13,11 +13,8 @@ from pymoku.instruments import SpectrumAnalyzer
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
 
-# Prepare the Spectrum Analyzer instrument
-i = SpectrumAnalyzer()
-
 # Deploy the Spectrum Analyzer to your Moku
-m.deploy_instrument(i)
+i = m.deploy_instrument(SpectrumAnalyzer)
 
 try:
 	# DC to 10MHz span

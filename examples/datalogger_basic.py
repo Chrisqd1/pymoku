@@ -14,11 +14,8 @@ import time
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
 
-# Prepare the Datalogger instrument
-i = Datalogger()
-
 # Deploy the Datalogger to your Moku
-m.deploy_instrument(i)
+i = m.deploy_instrument(Datalogger)
 
 try:
 	# 100 samples per second
