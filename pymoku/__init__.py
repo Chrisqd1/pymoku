@@ -1171,6 +1171,8 @@ class Moku(object):
 		except KeyError:
 			return None
 
+		self.detach_instrument()
+
 		running = instr()
 		running.attach_moku(self)
 		running._sync_registers()
