@@ -54,8 +54,8 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		self._register_accessors(_arb_reg_handlers)
 		self.id = 15
 		self.type = "arbitrarywavegen"
-		self._trigger1 = Trigger(self, 89, 1.0/500e6)
-		self._trigger2 = Trigger(self, 109, 1.0/500e6)
+		self._trigger1 = Trigger(self, 89)
+		self._trigger2 = Trigger(self, 109)
 		self._sweep1 = SweepGenerator(self, 96)
 		self._sweep2 = SweepGenerator(self, 116)
 

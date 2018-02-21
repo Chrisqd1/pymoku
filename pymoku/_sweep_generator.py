@@ -84,3 +84,23 @@ class SweepGenerator(object):
 		r1 = self.reg_base + SweepGenerator._REG_DURATION_LSB
 		r2 = self.reg_base + SweepGenerator._REG_DURATION_MSB
 		self._instr._accessor_set((r2, r1), to_reg_unsigned(0, 64), value)
+
+	@property
+	def wait_for_trig(self):
+		r = self.reg_base + SweepGenerator._REG_CONFIG
+		return self._instr._accessor_get(r, from_reg_bool(2))
+
+	@wait_for_trig.setter
+	def wait_for_trig(self, value):
+		r = self.reg_base + SweepGenerator._REG_CONFIG
+		self._instr._accessor_set(r, to_reg_bool(2), value)
+
+	@property
+	def hold_last(self):
+		r = self.reg_base + SweepGenerator._REG_CONFIG
+		return self._instr._accessor_get(r, from_reg_bool(3))
+
+	@hold_last.setter
+	def hold_last(self, value):
+		r = self.reg_base + SweepGenerator._REG_CONFIG
+		self._instr._accessor_set(r, to_reg_bool(3), value)
