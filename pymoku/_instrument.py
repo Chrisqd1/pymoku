@@ -607,9 +607,6 @@ class MokuInstrument(object):
 	def _set_mmap_access(self, access):
 		self.mmap_access = access
 
-
-
-
 _instr_reg_handlers = {
 	# Name : Register, set-transform (user to register), get-transform (register to user); either None is W/R-only
 	'instr_id':			(REG_ID1, 		None, 						from_reg_unsigned(0, 8)),

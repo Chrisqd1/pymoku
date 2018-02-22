@@ -36,8 +36,11 @@ try:
 
 	# Channel 1 has default instrument settings and acts soley on ADC1. 
 	# Channel 2 has an input scaling of 0.5, output scaling of 2.0, input offset of -0.1 V, ADC1 and ADC2 scale coefficients of 0.5 and an output scaling of 2.0.
-	i.set_offset_gain(ch = 1, matrix_scalar_ch1 = 1.0, matrix_scalar_ch2 = 0.0)
-	i.set_offset_gain(ch = 2, input_scale = 0.5, output_scale = 2.0, input_offset = -0.1, matrix_scalar_ch1 = 0.5, matrix_scalar_ch2 = 0.5)
+
+	ch, input_gain=1.0, output_gain=1.0, input_offset=0, output_offset=0
+	i.set_gains_offsets(ch = 1, matrix_scalar_ch1 = 1.0, matrix_scalar_ch2 = 0.0)
+	i.set_gains_offsets(ch = 2, input_gain = 0.5, output_gain = 2.0, input_offset = -0.1, matrix_scalar_ch1 = 0.5, matrix_scalar_ch2 = 0.5)
+	i.set_control_matrix(1, )
 
 	## Quantise FIR kernel for analysis, calculate filter transfer function and plot the results:
 	taps_quantized = [round(taps[x]*2.0**24-1) / (2**24 - 1) for x in range(0,len(taps))]

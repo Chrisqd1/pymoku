@@ -26,6 +26,7 @@ REG_FIR_MATRIXGAIN_CH2 = 114
 
 _FIR_NUM_BLOCKS = 29
 _FIR_BLOCK_SIZE = 511
+_FIR_MMAP_BLOCK_SIZE = 2**17
 
 _ADC_DEFAULT_CALIBRATION = 3750.0								# Bits/V (No attenuation)
 _DAC_DEFAULT_CALIBRATION = _ADC_DEFAULT_CALIBRATION * 2.0**3	# Bits/V
@@ -217,7 +218,6 @@ class FIRFilter(_CoreOscilloscope):
 		# Reset the channel's filtering loop for new settings to take effect immediately
 		self._channel_reset(ch)
 
-	@needs_commit
 	def set_filter(self, ch, decimation_factor, filter_coefficients):
 		"""
 		Set FIR filter sample rate and kernel coefficients. This will enable the specified channel output.
@@ -233,20 +233,29 @@ class FIRFilter(_CoreOscilloscope):
 		"""
 		# TODO: Document the quantization of array coefficients incurred
 		# TODO: The array format is NOT in the class documentation above...?
-
-
-
 		_utils.check_parameter_valid('set', ch, [1, 2],'filter channel')
-		_utils.check_parameter_valid('set', enable, [True, False],'channel output enable')
-		_utils.check_parameter_valid('set', link, [True, False],'channel link')
 		_utils.check_parameter_valid('set', decimation_factor, range(11), 'decimation factor')
 		_utils.check_parameter_valid('range', len(filter_coefficients), [0, _FIR_NUM_BLOCKS * 2**decimation_factor], 'filter coefficient array length')
-		for x in range(0, len(filter_coefficients)):
-			_utils.check_parameter_valid('range', filter_coefficients[x], [-1.0, 1.0],'normalised coefficient value')
+		# Check that all coefficients are between -1.0 and 1.0
+		if not all(map(lambda x: abs(x) <= 1.0, filter_coefficients)):
+			raise ValueOutOfRangeException("set_filter filter coefficients must be in the range [-1.0, 1.0].")
 
-		self._set_output_link(ch, enable, link)
-		self._set_samplerate(ch, 2**decimation_factor)
 		self._write_coeffs(ch, filter_coefficients)
+		self._set_samplerate(ch, 2.0**decimation_factor)
+
+		# Enable the output and input of the set channel
+		if ch==1:
+			self.output_en1 = True
+			self.input_en1 = True
+		else:
+			self.output_en2 = True
+			self.input_en2 = True
+
+		self._channel_reset(ch)
+
+		# Manually commit all outstanding registers as this function does not use needs_commit
+		# This is because the mmap_access register muts be committed when writing coefficients.
+		self.commit()
 
 	@needs_commit
 	def disable_output(self, ch):
@@ -266,7 +275,6 @@ class FIRFilter(_CoreOscilloscope):
 			self._decfilter1.set_samplerate(factor)
 		else:
 			self._decfilter2.set_samplerate(factor)
-		self._channel_reset(ch)
 
 	def _channel_reset(self, ch):
 		if ch == 1:
@@ -275,48 +283,34 @@ class FIRFilter(_CoreOscilloscope):
 			self.reset_ch2 = True
 
 	def _write_coeffs(self, ch, coeffs):
-		# TODO: Rewrite this to NOT use a temporary file
+		assert ch in [1,2], "Invalid channel"
+		assert len(coeffs) <= _FIR_NUM_BLOCKS * _FIR_BLOCK_SIZE, "Invalid number of filter coefficients."
+
 		coeffs = list(coeffs)
-		_utils.check_parameter_valid('set', ch, [1,2], 'output channel')
-		assert len(coeffs) <= _FIR_NUM_BLOCKS * _FIR_BLOCK_SIZE
-		L = int(math.ceil(float(len(coeffs))/_FIR_NUM_BLOCKS))
-		blocks = [coeffs[x:x+L] for x in range(0, len(coeffs), L)]
+
+		# Create a list of coefficients in each FIR block
+		n = int(math.ceil(len(coeffs)/float(_FIR_NUM_BLOCKS)))
+		blocks = [coeffs[x:x+n] for x in range(0, len(coeffs), n)]
 		blocks += [[]] * (_FIR_NUM_BLOCKS - len(blocks))
 
-		if not os.path.exists('.lutdata.dat'):
-			open('.lutdata.dat', 'w').close()
+		# Construct a bytearray from the FIR block contents
+		coeff_bytes = bytearray()
+		for b in blocks:
+			b.reverse()
+			coeff_bytes += bytearray(struct.pack('<I', len(b)))
+			coeff_bytes += bytearray(struct.pack('<' + 'i'*len(b), *[int(round((2.0**24-1) * c)) for c in b]))
+			coeff_bytes += bytearray('\x00'*4*(_FIR_BLOCK_SIZE-len(b)))
 
-		with open('.lutdata.dat', 'r+b') as f:
-			#first check and make the file the right size
-			f.seek(0, os.SEEK_END)
-			size = f.tell()
-			f.write('\0'.encode(encoding='UTF-8') * (2**16 * 4  - size))
-			f.flush()
+		# Sanity check the coefficient byte array length
+		assert len(coeff_bytes) == (_FIR_BLOCK_SIZE+1) * _FIR_NUM_BLOCKS * 4, "Invalid length for FIR coefficient memory map."
 
-			#Leave the previous data file so we just rewite the new part,
-			#as we have to upload both channels at once.
-			if ch == 1:
-				offset = 0
-			else:
-				offset = 2**15 * 4
-
-			#clear the current contents
-			f.seek(offset)
-			f.write(b'\x00\x00\x00\x00' * (_FIR_BLOCK_SIZE+1) * _FIR_NUM_BLOCKS)
-
-			for i, b in enumerate(blocks):
-				b.reverse()
-				f.seek(offset + (i * (_FIR_BLOCK_SIZE+1) * 4))
-				f.write(struct.pack('<I', len(b)))
-				for j, c in enumerate(b):
-					f.seek(offset + (i * (_FIR_BLOCK_SIZE+1) * 4) + ((j+1) * 4))
-					f.write(struct.pack('<i', int(round((2.0**24-1) * c))))
-
-			f.flush()
-
+		# Write the coefficients to the FIR coefficient memory map
 		self._set_mmap_access(True)
-		error = self._moku._send_file('j', '.lutdata.dat')
+		self._moku._send_file_bytes('j', '', coeff_bytes, offset=_FIR_MMAP_BLOCK_SIZE*(ch-1))
 		self._set_mmap_access(False)
+
+		# Release the memory map "file" to other resources
+		self._moku._fs_finalise('j', '', _FIR_MMAP_BLOCK_SIZE*2)
 
 _fir_reg_handlers = {
 	'reset_ch1':			(REG_FIR_CONTROL,			to_reg_bool(0), from_reg_bool(0)),
