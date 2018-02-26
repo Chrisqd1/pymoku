@@ -146,6 +146,9 @@ class FIRFilter(_CoreOscilloscope):
 		self.set_gains_offsets(1)
 		self.set_gains_offsets(2)
 
+		self.set_control_matrix(1,1.0,0.0)
+		self.set_control_matrix(2,0.0,1.0)
+
 		# TODO: Set these registers in a monitor function instead
 		self.mon1_source = 1
 		self.mon2_source = 4
