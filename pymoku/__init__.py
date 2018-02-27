@@ -966,6 +966,13 @@ class Moku(object):
 		if reply:
 			raise InvalidOperationException("Firmware update failure %d" % reply)
 
+	def _restart_board(self):
+		with self._conn_lock:
+			self._conn.send(bytearray([0x52, 0x02]))
+			hdr, reply = struct.unpack("<BB", self._conn.recv())
+		if reply:
+			raise InvalidOperationException("Reboot failed %d" % reply)
+
 	def _load_firmware(self, path):
 		"""
 		Updates the firmware on the Moku.
