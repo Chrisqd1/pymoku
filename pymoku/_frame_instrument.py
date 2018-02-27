@@ -272,7 +272,7 @@ class FrameBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuIn
 	def _mon_worker(self, skt):
 		import zmq.utils.monitor as _mon
 
-		while self._running:
+		while self._running and not skt.closed:
 			if skt in zmq.select([skt], [], [], 1.0)[0]:
 				log.debug(_mon.recv_monitor_message(skt))
 
@@ -290,19 +290,14 @@ class FrameBasedInstrument(_input_instrument.InputInstrument, _instrument.MokuIn
 		self.skt.setsockopt(zmq.RCVHWM, 2)
 		self.skt.setsockopt(zmq.LINGER, 0)
 
-		# skt.setsockopt(zmq.TCP_KEEPALIVE, 1)
-		# skt.setsockopt(zmq.TCP_KEEPALIVE_IDLE, 2)
-		# skt.setsockopt(zmq.TCP_KEEPALIVE_CNT, 3)
-		# skt.setsockopt(zmq.TCP_KEEPALIVE_INTVL, 1)
+		self.skt.monitor('inproc://frame-monitor')
+		self.mon_skt = zmq.Context.instance().socket(zmq.PAIR)
+		self.mon_skt.connect('inproc://frame-monitor')
+		self.mon_skt.setsockopt(zmq.LINGER, 0)
 
-		# self.skt.monitor('inproc://frame-monitor')
-		# self.mon_skt = zmq.Context.instance().socket(zmq.PAIR)
-		# self.mon_skt.connect('inproc://frame-monitor')
-		# self.mon_skt.setsockopt(zmq.LINGER, 0)
-
-		# mt = threading.Thread(target=self._mon_worker, args=(self.mon_skt,))
-		# mt.daemon = True
-		# mt.start()
+		mt = threading.Thread(target=self._mon_worker, args=(self.mon_skt,))
+		mt.daemon = True
+		mt.start()
 
 	def _frame_worker(self):
 		connected = False
