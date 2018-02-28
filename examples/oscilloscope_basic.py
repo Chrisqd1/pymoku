@@ -13,11 +13,8 @@ from pymoku.instruments import Oscilloscope
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
 
-# Prepare the Oscilloscope instrument
-i = Oscilloscope()
-
 # Deploy the Oscilloscope to your Moku
-m.deploy_instrument(i)
+i = m.deploy_instrument(Oscilloscope)
 
 try:
 	# Span from -1s to 1s i.e. trigger point centred

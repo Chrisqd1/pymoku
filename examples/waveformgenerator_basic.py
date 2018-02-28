@@ -15,11 +15,9 @@ import time
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
 
-# Prepare the Signal Generator instrument
-i = WaveformGenerator()
-
 # Deploy the Signal Generator to your Moku
-m.deploy_instrument(i)
+i = m.deploy_instrument(WaveformGenerator)
+
 try:
 	# Generate a 1.0Vpp 1MHz Sinewave on Channel 1
 	i.gen_sinewave(1, 1.0, 1e6)

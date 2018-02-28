@@ -1,7 +1,7 @@
 import threading, collections, time, struct, socket, logging, decorator
 
-from . import *
-from . import _get_autocommit, _set_autocommit
+from pymoku import *
+from pymoku import _get_autocommit, _set_autocommit
 
 REG_CTL 	= 0
 REG_STAT	= 1

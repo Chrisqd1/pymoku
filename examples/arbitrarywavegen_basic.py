@@ -29,8 +29,7 @@ not_sq = not_sq / max(not_sq)
 m = Moku.get_by_name('Moku')
 
 # Prepare the ArbitraryWaveGen instrument
-i = ArbitraryWaveGen()
-m.deploy_instrument(i)
+i = m.deploy_instrument(ArbitraryWaveGen)
 
 try:
 	# Load the waveforms to the device. This doesn't yet generate an output as we haven't

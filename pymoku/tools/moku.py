@@ -92,6 +92,9 @@ def firmware(args):
 				print("Unable to determine compatibility, perhaps you're running a development or pre-release build?")
 			else:
 				print("Compatible" if compat else "Firmware version %s incompatible with Pymoku v%s, please update firmware to one of versions: %s." % (moku.get_firmware_build(), str(moku.get_version()), list_compatible_firmware()))
+		elif args.action == 'restart':
+			moku._restart_board()
+			print("Moku rebooted.")
 		else:
 			exit(1)
 	finally:
@@ -101,7 +104,7 @@ def firmware(args):
 			pass # Firmware update can stop us being able to close
 
 parser_firmware = subparsers.add_parser('firmware', help="Check and load new firmware for your Moku.")
-parser_firmware.add_argument('action', help='Action to perform', choices=['version', 'load', 'check_compat'])
+parser_firmware.add_argument('action', help='Action to perform', choices=['version', 'load', 'check_compat', 'restart'])
 parser_firmware.add_argument('file', nargs='?', default=None, help="Path to local firmware file, if any")
 parser_firmware.set_defaults(func=firmware)
 

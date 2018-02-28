@@ -1,5 +1,8 @@
 import struct
 
+import logging
+log = logging.getLogger('frdat')
+
 class InstrumentData(object):
 	"""
 	Superclass representing a full frame of some kind of data. This class is never used directly,
@@ -36,34 +39,24 @@ class InstrumentData(object):
 		self._flags = None
 
 	def add_packet(self, packet):
-		hdr_len = 15
-		if len(packet) <= hdr_len:
-			# Should be a higher priority but actually seems unexpectedly common. Revisit.
-			return
+		hdr_len = 8
+		meta_len = 8 * 4
 
-		data = struct.unpack('<BHBBBBBIBH', packet[:hdr_len])
-		frameid = data[1]
-		instrid = data[2]
-		chan = (data[3] >> 4) & 0x0F
+		stateid, trigstate, chan, instrid, waveformid = struct.unpack('<BBBBI', packet[:hdr_len])
+		self._metadata = packet[hdr_len: hdr_len + meta_len]
 
-		self._stateid = data[4]
-		self._trigstate = data[5]
-		self._flags = data[6]
-		self.waveformid = data[7]
-		self._source_serial = data[8]
-
-		if self._frameid != frameid:
-			self._frameid = frameid
+		if self.waveformid != waveformid or self._stateid != stateid or self._trigstate != trigstate:
+			self.waveformid = waveformid
+			self._stateid = stateid
+			self._trigstate = trigstate
 			self._chs_valid = [False, False]
 
-		# For historical reasons the data length is 1026 while there are only 1024
-		# valid samples. Trim the fat.
 		if chan == 0:
 			self._chs_valid[0] = True
-			self._raw1 = packet[hdr_len:-8]
+			self._raw1 = packet[hdr_len + meta_len:]
 		else:
 			self._chs_valid[1] = True
-			self._raw2 = packet[hdr_len:-8]
+			self._raw2 = packet[hdr_len + meta_len:]
 
 		self._complete = all(self._chs_valid)
 

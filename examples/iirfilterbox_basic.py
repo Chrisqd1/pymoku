@@ -21,8 +21,7 @@ filt_coeff = 	[[1.0],
 
 
 m = Moku.get_by_name('Moku')
-i = IIRFilterBox()
-m.deploy_instrument(i)
+i = m.deploy_instrument(IIRFilterBox)
 
 try:
 	i.set_frontend(1, fiftyr=True, atten=False, ac=False)

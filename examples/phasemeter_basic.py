@@ -15,12 +15,9 @@ import time
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
 
-# Prepare a new Phasemeter instrument to be deployed
-i = Phasemeter()
-
 # Deploy the new Phasemeter instrument to the Moku:Lab
 # Also, try to synchronise the Moku:Lab to an external 10MHz reference
-m.deploy_instrument(i, use_external=True)
+i = m.deploy_instrument(Phasemeter, use_external=True)
 
 try:
 	# Set the Channel 1 seed frequency to 10MHz and a sample rate of ~30Hz

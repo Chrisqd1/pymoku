@@ -11,13 +11,11 @@ from pymoku.instruments import WaveformGenerator
 
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
-m = Moku.get_by_name('Moku') 
-
-# Prepare the Signal Generator instrument
-i = WaveformGenerator()
+m = Moku.get_by_name('Moku')
 
 # Deploy the Signal Generator to your Moku
-m.deploy_instrument(i)
+i = m.deploy_instrument(WaveformGenerator)
+
 try:
 	# Channel 1 generates a 1.0Vpp 5Hz Sinewave
 	i.gen_sinewave(1, 1.0, 5)
