@@ -43,7 +43,7 @@ _OSC_TRIGLVL_MAX = 10.0 # V
 _OSC_TRIGLVL_MIN = -10.0 # V
 
 _OSC_SAMPLERATE_MIN = 10 # smp/s
-_OSC_SAMPLERATE_MAX = _OSC_ADC_SMPS
+#_OSC_SAMPLERATE_MAX = _OSC_ADC_SMPS
 
 _OSC_PRETRIGGER_MAX = (2**12)-1
 _OSC_POSTTRIGGER_MAX = -2**28
@@ -59,6 +59,10 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		self.id = 1
 		self.type = "oscilloscope"
 		self.calibration = None
+
+		# Defines the samplerate as seen at the input of the instrument
+		# This value should be overwritten by all child instruments inheriting the Oscilloscope
+		self._input_samplerate = _OSC_ADC_SMPS
 
 		# NOTE: Register mapped properties will be overwritten in sync registers call
 		# on deploy_instrument(). No point setting them here.
@@ -198,7 +202,7 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		a trigger offset in number of samples. This interface is useful for datalogging and capturing
 		of data frames.
 
-		:type samplerate: float; *0 < samplerate <= 500 Msmp/s*
+		:type samplerate: float; *0 < samplerate <= MAX_SAMPLERATE smp/s*
 		:param samplerate: Target samples per second. Will get rounded to the nearest allowable unit.
 
 		:type trigger_offset: int; *-2^16 < trigger_offset < 2^31*
@@ -209,10 +213,10 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		_utils.check_parameter_valid('range', samplerate, [_OSC_SAMPLERATE_MIN,_OSC_SAMPLERATE_MAX], 'samplerate', 'smp/s')
 		_utils.check_parameter_valid('range', trigger_offset, [-2**16 + 1, 2**31 - 1], 'trigger offset', 'samples')
 
-		decimation = _OSC_ADC_SMPS / samplerate
+		decimation = self._input_samplerate / float(samplerate)
 
 		self.decimation_rate = decimation
-		self.timestep = 1.0/(_OSC_ADC_SMPS/self.decimation_rate)
+		self.timestep = 1.0/(self._input_samplerate/self.decimation_rate)
 		# Ensure the buffer offset is large enough to incorporate the desired pretrigger/posttrigger data
 		self.pretrigger = - math.ceil(trigger_offset/4.0) if trigger_offset > 0 else - math.floor(trigger_offset/4.0)
 		# We don't want any rendering as each sample is already at the desired samplerate
@@ -224,8 +228,8 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		""" :return: The current instrument sample rate (Hz) """
 		if(self.decimation_rate == 0):
 			log.info("Decimation rate appears to be unset.")
-			return _OSC_ADC_SMPS
-		return _OSC_ADC_SMPS / float(self.decimation_rate)
+			return self._input_samplerate
+		return self._input_samplerate / float(self.decimation_rate)
 
 	@needs_commit
 	def set_xmode(self, xmode):
@@ -471,7 +475,7 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 
 	def _update_dependent_regs(self, scales):
 		# Update trigger level and duration settings based on current trigger source and timebase
-		self._trigger.duration = self.trig_duration * _OSC_ADC_SMPS / (self.decimation_rate if self.is_precision_mode() else 1.0)
+		self._trigger.duration = self.trig_duration * self._input_samplerate / (self.decimation_rate if self.is_precision_mode() else 1.0)
 		self._trigger.level = int(round(self.trig_level / self._source_volts_per_bit(self.trig_ch, scales)))
 
 	def _update_datalogger_params(self):
@@ -521,15 +525,15 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		# This function is used to update any local variables when a Moku has
 		# had its registers synchronised with the current instrument
 		if self.decimation_rate == 0:
-			self.timestep = 1.0/(_OSC_ADC_SMPS)
+			self.timestep = 1.0/(self._input_samplerate)
 		else:
-			self.timestep = float(self.decimation_rate) / _OSC_ADC_SMPS
+			self.timestep = float(self.decimation_rate) / self._input_samplerate
 
 		scales = self._calculate_scales()
 		self.scales[self._stateid] = scales
 
 		# Read back trigger settings into local variables
-		self.trig_duration = self._trigger.duration * (self.decimation_rate if self.is_precision_mode() else 1.0) / _OSC_ADC_SMPS
+		self.trig_duration = self._trigger.duration * (self.decimation_rate if self.is_precision_mode() else 1.0) / self._input_samplerate
 		self.trig_level = self._trigger.level * self._source_volts_per_bit(self.trig_ch, scales)
 
 		self._update_datalogger_params()

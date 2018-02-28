@@ -28,6 +28,16 @@ _FIR_NUM_BLOCKS = 29
 _FIR_BLOCK_SIZE = 511
 _FIR_MMAP_BLOCK_SIZE = 2**17
 
+_FIR_MON_NONE = 0
+_FIR_MON_ADC1 = 1
+_FIR_MON_IN1 = 2
+_FIR_MON_OUT1 = 3
+_FIR_MON_ADC2 = 4
+_FIR_MON_IN2 = 5
+_FIR_MON_OUT2 = 6
+
+_FIR_INPUT_SMPS = ADC_SMP_RATE/4
+
 _ADC_DEFAULT_CALIBRATION = 3750.0								# Bits/V (No attenuation)
 _DAC_DEFAULT_CALIBRATION = _ADC_DEFAULT_CALIBRATION * 2.0**3	# Bits/V
 
@@ -137,6 +147,9 @@ class FIRFilter(_CoreOscilloscope):
 		self.id = 10
 		self.type = "firfilter"
 
+		# Monitor samplerate
+		self._input_samplerate = _FIR_INPUT_SMPS
+
 		self._decfilter1 = _DecFilter(self, 97)
 		self._decfilter2 = _DecFilter(self, 101)
 
@@ -146,12 +159,11 @@ class FIRFilter(_CoreOscilloscope):
 		self.set_gains_offsets(1)
 		self.set_gains_offsets(2)
 
-		self.set_control_matrix(1,1.0,0.0)
-		self.set_control_matrix(2,0.0,1.0)
+		self.set_control_matrix(1, 1.0, 0.0)
+		self.set_control_matrix(2, 0.0, 1.0)
 
-		# TODO: Set these registers in a monitor function instead
-		self.mon1_source = 1
-		self.mon2_source = 4
+		self.set_monitor('a','out1')
+		self.set_monitor('b','out2')
 
 	@needs_commit
 	def set_control_matrix(self, ch, scale_in1, scale_in2):
@@ -261,6 +273,60 @@ class FIRFilter(_CoreOscilloscope):
 		self.commit()
 
 	@needs_commit
+	def set_monitor(self, ch, source, clip=False):
+		"""
+		Configures the specified monitor channel to view the desired filterbox signal.
+
+		There are two 12-bit monitoring channels available, 'a' and 'b'; each of these can 
+		be assigned to source signals from any of the internal filterbox monitoring points. 
+		Signals larger than 12-bits must be either truncated or clipped to the allowed size.
+
+		The source is one of:
+			- **adc1**	: Channel 1 ADC input
+			- **in1**	: Filter Channel 1 input (after mixing, offset and scaling)
+			- **out1**	: Filter Channel 1 output
+			- **adc2**	: Channel 2 ADC Input
+			- **in2**	: Filter Channel 2 input (after mixing, offset and scaling)
+			- **out2**	: Filter Channel 2 output
+
+		:type ch: str; {'a','b'}
+		:param ch: Monitor channel
+
+		:type source: str; {'adc1', 'in1', 'out1', 'adc2', 'in2', 'out2'}
+		:param source: Signal to connect to the monitor channel
+
+		:type clip: bool;
+		:param clip: Enable signal clipping to the allowed size (truncate is default).
+		"""
+		ch = ch.lower()
+		source = source.lower()
+
+		_utils.check_parameter_valid('string', ch, desc="monitor channel")
+		_utils.check_parameter_valid('string', source, desc="monitor signal")
+		_utils.check_parameter_valid('set', ch, allowed=['a','b'], desc="monitor channel")
+		_utils.check_parameter_valid('set', source, allowed=['adc1', 'in1', 'out1', 'adc2', 'in2', 'out2'], desc="monitor source")
+		_utils.check_parameter_valid('bool', clip, desc="clip enable")
+
+		_str_to_mon_source = {
+			'none': _FIR_MON_NONE,
+			'adc1': _FIR_MON_ADC1,
+			'in1':	_FIR_MON_IN1,
+			'out1': _FIR_MON_OUT1,
+			'adc2': _FIR_MON_ADC2,
+			'in2':	_FIR_MON_IN2,
+			'out2':	_FIR_MON_OUT2
+		}
+
+		source = _utils.str_to_val(_str_to_mon_source, source, 'monitor source')
+
+		if ch == 'a':
+			self.mon1_source = source
+			self.mon1_clip = clip
+		else:
+			self.mon2_source = source
+			self.mon2_clip = clip
+
+	@needs_commit
 	def disable_output(self, ch):
 		"""
 		Disables the output of the specified FIR filter channel.
@@ -315,6 +381,28 @@ class FIRFilter(_CoreOscilloscope):
 		# Release the memory map "file" to other resources
 		self._moku._fs_finalise('j', '', _FIR_MMAP_BLOCK_SIZE*2)
 
+	def _calculate_scales(self):
+		scales = super(FIRFilter, self)._calculate_scales()
+
+		gain_adc1 = scales['gain_adc1'] # Volts/bit
+		gain_adc2 = scales['gain_adc2'] # Volts/bit
+
+		monitor_source_gains = {
+			_FIR_MON_NONE 	: 1.0,
+			_FIR_MON_ADC1 	: 1.0, # gain_adc1 / 4.0, 
+			_FIR_MON_IN1 	: gain_adc1 / 2.0**10 / 4.0, 
+			_FIR_MON_OUT1 	: 1.0, # TODO: Apply correct output gain factor
+			_FIR_MON_ADC2 	: 1.0, #gain_adc2 / 4.0,
+			_FIR_MON_IN2 	: gain_adc2 / 2.0**10 / 4.0,
+			_FIR_MON_OUT2	: 1.0, # TODO: Apply correct output gain factor
+		}
+
+		# Scales for frame channel data
+		scales['scale_ch1'] = monitor_source_gains[self.mon1_source] * (1.0 if self.mon1_clip else 2.0) # Y1 * scale_ch1
+		scales['scale_ch2'] = monitor_source_gains[self.mon2_source] * (1.0 if self.mon2_clip else 2.0) # Y2 * scale_ch2
+
+		return scales
+
 _fir_reg_handlers = {
 	'reset_ch1':			(REG_FIR_CONTROL,			to_reg_bool(0), from_reg_bool(0)),
 	'reset_ch2':			(REG_FIR_CONTROL,			to_reg_bool(1), from_reg_bool(1)),
@@ -325,8 +413,8 @@ _fir_reg_handlers = {
 	'input_en2':			(REG_FIR_CONTROL,			to_reg_bool(6), from_reg_bool(6)),
 	'mon1_source':			(REG_FIR_CONTROL,			to_reg_unsigned(8, 3), from_reg_unsigned(8, 3)),
 	'mon2_source':			(REG_FIR_CONTROL,			to_reg_unsigned(12, 3), from_reg_unsigned(12, 3)),
-	'mon1_gain':			(REG_FIR_CONTROL,			to_reg_bool(11), from_reg_bool(11)),
-	'mon2_gain':			(REG_FIR_CONTROL,			to_reg_bool(15), from_reg_bool(15)),
+	'mon1_clip':			(REG_FIR_CONTROL,			to_reg_bool(11), from_reg_bool(11)),
+	'mon2_clip':			(REG_FIR_CONTROL,			to_reg_bool(15), from_reg_bool(15)),
 
 	'input_scale1':			(REG_FIR_IN_SCALE1,			to_reg_signed(0, 18, xform=lambda obj, x: x * 2.0**9), 
 														from_reg_signed(0, 18, xform=lambda obj, x : x / (2.0 **9))),
