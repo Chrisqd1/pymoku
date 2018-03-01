@@ -3,7 +3,6 @@ import logging
 import os
 
 from ._instrument import *
-CHN_BUFLEN = 2**13
 from . import _frame_instrument
 from pymoku._oscilloscope import _CoreOscilloscope
 from . import _utils
@@ -37,6 +36,7 @@ _FIR_MON_IN2 = 5
 _FIR_MON_OUT2 = 6
 
 _FIR_INPUT_SMPS = ADC_SMP_RATE/4
+_FIR_CHN_BUFLEN = 2**13
 
 _ADC_DEFAULT_CALIBRATION = 3750.0								# Bits/V (No attenuation)
 _DAC_DEFAULT_CALIBRATION = _ADC_DEFAULT_CALIBRATION * 2.0**3	# Bits/V
@@ -148,7 +148,8 @@ class FIRFilter(_CoreOscilloscope):
 		self.type = "firfilter"
 
 		# Monitor samplerate
-		self._input_samplerate = _FIR_INPUT_SMPS
+		self._input_samplerate 	= _FIR_INPUT_SMPS
+		self._chn_buffer_len 	= _FIR_CHN_BUFLEN
 
 		self._decfilter1 = _DecFilter(self, 97)
 		self._decfilter2 = _DecFilter(self, 101)
@@ -164,6 +165,9 @@ class FIRFilter(_CoreOscilloscope):
 
 		self.set_monitor('a','out1')
 		self.set_monitor('b','out2')
+
+		self.input_en1 = True
+		self.input_en2 = True
 
 	@needs_commit
 	def set_control_matrix(self, ch, scale_in1, scale_in2):
@@ -388,19 +392,24 @@ class FIRFilter(_CoreOscilloscope):
 		gain_adc2 = scales['gain_adc2'] # Volts/bit
 
 		monitor_source_gains = {
-			_FIR_MON_NONE 	: 1.0,
-			_FIR_MON_ADC1 	: 1.0, # gain_adc1 / 4.0, 
-			_FIR_MON_IN1 	: gain_adc1 / 2.0**10 / 4.0, 
-			_FIR_MON_OUT1 	: 1.0, # TODO: Apply correct output gain factor
-			_FIR_MON_ADC2 	: 1.0, #gain_adc2 / 4.0,
-			_FIR_MON_IN2 	: gain_adc2 / 2.0**10 / 4.0,
-			_FIR_MON_OUT2	: 1.0, # TODO: Apply correct output gain factor
+			str(_FIR_MON_NONE) 	: 1.0,
+			str(_FIR_MON_ADC1) 	: gain_adc1 / 4.0, 
+			str(_FIR_MON_IN1) 	: 10 * gain_adc1 / 2.0**10 / 4.0, 
+			str(_FIR_MON_OUT1) 	: 1.0, # TODO: Apply correct output gain factor
+			str(_FIR_MON_ADC2) 	: gain_adc2 / 4.0,
+			str(_FIR_MON_IN2) 	: gain_adc2 / 2.0**10 / 4.0,
+			str(_FIR_MON_OUT2)	: 1.0, # TODO: Apply correct output gain factor
 		}
 
-		# Scales for frame channel data
-		scales['scale_ch1'] = monitor_source_gains[self.mon1_source] * (1.0 if self.mon1_clip else 2.0) # Y1 * scale_ch1
-		scales['scale_ch2'] = monitor_source_gains[self.mon2_source] * (1.0 if self.mon2_clip else 2.0) # Y2 * scale_ch2
+		#print self._deci_gain()
+		#if self.ain_mode == _OSC_AIN_DECI:
+		#	scale_ch1 /= self._deci_gain()
+		#	scale_ch2 /= self._deci_gain()
 
+		# Scales for frame channel data
+		scales['scale_ch1'] = monitor_source_gains[str(self.mon1_source)] * (1.0 if self.mon1_clip else 2.0) # Y1 * scale_ch1
+		scales['scale_ch2'] = monitor_source_gains[str(self.mon2_source)] * (1.0 if self.mon2_clip else 2.0) # Y2 * scale_ch2
+		print scales['scale_ch1'], scales['scale_ch2']
 		return scales
 
 _fir_reg_handlers = {

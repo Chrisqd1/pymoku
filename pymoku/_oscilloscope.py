@@ -43,7 +43,6 @@ _OSC_TRIGLVL_MAX = 10.0 # V
 _OSC_TRIGLVL_MIN = -10.0 # V
 
 _OSC_SAMPLERATE_MIN = 10 # smp/s
-#_OSC_SAMPLERATE_MAX = _OSC_ADC_SMPS
 
 _OSC_PRETRIGGER_MAX = (2**12)-1
 _OSC_POSTTRIGGER_MAX = -2**28
@@ -62,7 +61,8 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 
 		# Defines the samplerate as seen at the input of the instrument
 		# This value should be overwritten by all child instruments inheriting the Oscilloscope
-		self._input_samplerate = _OSC_ADC_SMPS
+		self._input_samplerate 	= _OSC_ADC_SMPS
+		self._chn_buffer_len 	= _OSC_BUFLEN
 
 		# NOTE: Register mapped properties will be overwritten in sync registers call
 		# on deploy_instrument(). No point setting them here.
@@ -89,7 +89,7 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		else:
 			buffer_span = float(t2 - t1)
 
-		deci = math.ceil(ADC_SMP_RATE * buffer_span / _OSC_BUFLEN)
+		deci = math.ceil(ADC_SMP_RATE * buffer_span / self._chn_buffer_len)
 
 		return deci
 
@@ -97,7 +97,7 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		# Calculate how much to render downsample
 		tspan = float(t2) - float(t1)
 		buffer_smp_rate = ADC_SMP_RATE/float(decimation)
-		buffer_time_span = _OSC_BUFLEN/buffer_smp_rate
+		buffer_time_span = self._chn_buffer_len/buffer_smp_rate
 
 		def _cubic_int_to_scale(integer):
 			# Integer to cubic scaling ratio (see Wiki)
