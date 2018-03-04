@@ -4,9 +4,9 @@ from . import _stream_instrument
 from . import _waveform_generator
 from . import _utils
 
-REG_DL_OUTSEL		= 65
-REG_DL_ACTL			= 69
-REG_DL_DECIMATION	= 70
+REG_DL_OUTSEL		= 64
+REG_DL_ACTL			= 66
+REG_DL_DECIMATION	= 65
 
 # REG_DL_OUTSEL constants
 _DL_SOURCE_ADC	= 0
