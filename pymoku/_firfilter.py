@@ -393,23 +393,26 @@ class FIRFilter(_CoreOscilloscope):
 
 		monitor_source_gains = {
 			str(_FIR_MON_NONE) 	: 1.0,
-			str(_FIR_MON_ADC1) 	: gain_adc1 / 4.0, 
-			str(_FIR_MON_IN1) 	: 10 * gain_adc1 / 2.0**10 / 4.0, 
+			str(_FIR_MON_ADC1) 	: gain_adc1 / 2.0, 
+			str(_FIR_MON_IN1) 	: gain_adc1 / 2.0, 
 			str(_FIR_MON_OUT1) 	: 1.0, # TODO: Apply correct output gain factor
-			str(_FIR_MON_ADC2) 	: gain_adc2 / 4.0,
-			str(_FIR_MON_IN2) 	: gain_adc2 / 2.0**10 / 4.0,
+			str(_FIR_MON_ADC2) 	: gain_adc2 / 2.0,
+			str(_FIR_MON_IN2) 	: gain_adc2 / 2.0,
 			str(_FIR_MON_OUT2)	: 1.0, # TODO: Apply correct output gain factor
 		}
 
-		#print self._deci_gain()
-		#if self.ain_mode == _OSC_AIN_DECI:
-		#	scale_ch1 /= self._deci_gain()
-		#	scale_ch2 /= self._deci_gain()
-
 		# Scales for frame channel data
-		scales['scale_ch1'] = monitor_source_gains[str(self.mon1_source)] * (1.0 if self.mon1_clip else 2.0) # Y1 * scale_ch1
-		scales['scale_ch2'] = monitor_source_gains[str(self.mon2_source)] * (1.0 if self.mon2_clip else 2.0) # Y2 * scale_ch2
-		print scales['scale_ch1'], scales['scale_ch2']
+		scale_ch1 = monitor_source_gains[str(self.mon1_source)] * (1.0 if self.mon1_clip else 2.0) # Y1 * scale_ch1
+		scale_ch2 = monitor_source_gains[str(self.mon2_source)] * (1.0 if self.mon2_clip else 2.0) # Y2 * scale_ch2
+
+		# Account for decimation gain in precision mode
+		if self.is_precision_mode():
+			scale_ch1 /= self._deci_gain()
+			scale_ch2 /= self._deci_gain()
+
+		scales['scale_ch1'] = scale_ch1
+		scales['scale_ch2'] = scale_ch2
+
 		return scales
 
 _fir_reg_handlers = {
