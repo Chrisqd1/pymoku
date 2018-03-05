@@ -5,6 +5,7 @@ from copy import deepcopy
 from pymoku._oscilloscope import _CoreOscilloscope
 from ._instrument import *
 from . import _utils
+from ._dec_filter import DecFilter
 
 
 log = logging.getLogger(__name__)
@@ -91,6 +92,9 @@ class IIRFilterBox(_CoreOscilloscope):
 		# Remembers monitor source choice
 		self.monitor_a = None
 		self.monitor_b = None
+
+		self._decfilter1 = DecFilter(self, 103)
+		self._decfilter2 = DecFilter(self, 107)
 
 	def set_defaults(self):
 		""" Reset the Oscilloscope to sane defaults. """
@@ -224,12 +228,11 @@ class IIRFilterBox(_CoreOscilloscope):
 
 	@needs_commit
 	def _set_output_samplerate(self, ch, sample_rate):
+		factor = 8 if sample_rate == 'high' else 1024
 		if ch == 1:
-			self.ch1_output = True
-			self.ch1_sampling_freq = 0 if sample_rate == 'high' else 1
+			self._decfilter1.set_samplerate(factor)
 		else:
-			self.ch2_output = True
-			self.ch2_sampling_freq = 0 if sample_rate == 'high' else 1
+			self._decfilter2.set_samplerate(factor)
 
 	@needs_commit
 	def set_offset_gain(self, ch, input_scale=1, output_scale=1, input_offset=0, output_offset=0, matrix_scalar_ch1=None, matrix_scalar_ch2=None):
@@ -288,10 +291,10 @@ class IIRFilterBox(_CoreOscilloscope):
 		## Calculate input/output scale values
 		output_gain_factor = 1 / 3750.0 / 8 / dac_calibration
 		input_scale_bits = int(round(input_scale*2**9))
-		output_scale_bits = int(round(output_scale*2**6*output_gain_factor))
+		output_scale_bits = int(round(output_scale*2**9*output_gain_factor))
 
 		## Calculate input/output offset values
-		input_offset_bits = int(round(375.0 * round(input_offset) / 0.5))
+		input_offset_bits = int(round(atten / adc_calibration * input_offset / 0.5))
 		output_offset_bits = int(round(1 / dac_calibration / 2 * output_offset / 0.5))
 
 		if ch == 1:
@@ -409,11 +412,11 @@ class IIRFilterBox(_CoreOscilloscope):
 
 		monitor_source_gains = {
 			'none'	: 1.0,
+			'adc1'	: scales['gain_adc1']*(10.0 if atten1[1] else 1.0),
 			'in1'	: scales['gain_adc1']*(10.0 if atten1[1] else 1.0),
-			'inch1'	: scales['gain_adc1']*(10.0 if atten1[1] else 1.0),
 			'out1'	: (scales['gain_dac1']*(2**4)), # 12bit ADC - 16bit DAC
+			'adc2'	: scales['gain_adc2']*(10.0 if atten2[1] else 1.0),
 			'in2'	: scales['gain_adc2']*(10.0 if atten2[1] else 1.0),
-			'inch2'	: scales['gain_adc2']*(10.0 if atten2[1] else 1.0),
 			'out2'	: (scales['gain_dac2']*(2**4))
 		}
 

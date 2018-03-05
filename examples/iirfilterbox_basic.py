@@ -40,6 +40,10 @@ try:
 	i.set_monitor('a', 'in2')
 	i.set_monitor('b', 'out2')
 
+	i.ch1_output = True
+	i.ch2_output = True
+	i.commit()
+
 	# Capture and print one set of time-domain input and output points
 	d = i.get_data()
 	print(d.ch1, d.ch2)
