@@ -372,7 +372,7 @@ class FIRFilter(_CoreOscilloscope):
 			b.reverse()
 			coeff_bytes += bytearray(struct.pack('<I', len(b)))
 			coeff_bytes += bytearray(struct.pack('<' + 'i'*len(b), *[int(round((2.0**24-1) * c)) for c in b]))
-			coeff_bytes += bytearray('\x00'*4*(_FIR_BLOCK_SIZE-len(b)))
+			coeff_bytes += bytearray(b'\x00'*4*(_FIR_BLOCK_SIZE-len(b)))
 
 		# Sanity check the coefficient byte array length
 		assert len(coeff_bytes) == (_FIR_BLOCK_SIZE+1) * _FIR_NUM_BLOCKS * 4, "Invalid length for FIR coefficient memory map."
