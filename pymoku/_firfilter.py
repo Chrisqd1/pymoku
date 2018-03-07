@@ -439,17 +439,17 @@ _fir_reg_handlers = {
 	'input_offset2':		(REG_FIR_IN_OFFSET2,		to_reg_signed(0, 32, xform=lambda obj, x: x * 2.0**12 * 2.0 * (_ADC_DEFAULT_CALIBRATION/(10.0 if obj.get_frontend(2)[1] else 1.0) * obj._adc_gains()[1])), 
 														from_reg_signed(0, 32, xform=lambda obj, x: x / (_ADC_DEFAULT_CALIBRATION/(10.0 if obj.get_frontend(2)[1] else 1.0) * obj._adc_gains()[1]) / 2.0**12 / 2.0)),
 
-	'output_scale1':		(REG_FIR_OUT_SCALE1,		to_reg_signed(0, 18, xform=lambda obj, x: int(round(x * 2.0**10 / (_DAC_DEFAULT_CALIBRATION * obj._dac_gains()[0]) / 2.0**3))), 
-														from_reg_signed(0, 18, xform=lambda obj, x: x * 2.0**3 * (_DAC_DEFAULT_CALIBRATION * obj._dac_gains()[0]) / 2.0**9)),
+	'output_scale1':		(REG_FIR_OUT_SCALE1,		to_reg_signed(0, 18, xform=lambda obj, x: int(round(x * 2.0**9 / (_DAC_DEFAULT_CALIBRATION * obj._dac_gains()[0])))), 
+														from_reg_signed(0, 18, xform=lambda obj, x: x * (_DAC_DEFAULT_CALIBRATION * obj._dac_gains()[0]) / 2.0**9)),
 
-	'output_scale2':		(REG_FIR_OUT_SCALE2,		to_reg_signed(0, 18, xform=lambda obj, x: int(round(x * 2.0**10 / (_DAC_DEFAULT_CALIBRATION * obj._dac_gains()[1]) / 2.0**3))), 
-														from_reg_signed(0, 18, xform=lambda obj, x: x * 2.0**3 * (_DAC_DEFAULT_CALIBRATION * obj._dac_gains()[1]) / 2.0**9)),
+	'output_scale2':		(REG_FIR_OUT_SCALE2,		to_reg_signed(0, 18, xform=lambda obj, x: int(round(x * 2.0**9 / (_DAC_DEFAULT_CALIBRATION * obj._dac_gains()[1])))), 
+														from_reg_signed(0, 18, xform=lambda obj, x: x * (_DAC_DEFAULT_CALIBRATION * obj._dac_gains()[1]) / 2.0**9)),
 
-	'output_offset1':		(REG_FIR_OUT_OFFSET1,		to_reg_signed(0, 32, xform=lambda obj, x: int(round(x * 2.0**15 * (_DAC_DEFAULT_CALIBRATION * obj._dac_gains()[1]) / 2.0**3))), 
-														from_reg_signed(0, 32, xform=lambda obj, x: x / (_DAC_DEFAULT_CALIBRATION*obj._dac_gains()[1])/ 2.0**15 / 2.0**3)),
+	'output_offset1':		(REG_FIR_OUT_OFFSET1,		to_reg_signed(0, 32, xform=lambda obj, x: int(round(x * 2.0**15 * (_DAC_DEFAULT_CALIBRATION * obj._dac_gains()[0])))), 
+														from_reg_signed(0, 32, xform=lambda obj, x: x / (_DAC_DEFAULT_CALIBRATION*obj._dac_gains()[1])/ 2.0**15)),
 
-	'output_offset2':		(REG_FIR_OUT_OFFSET2,		to_reg_signed(0, 32, xform=lambda obj, x: int(round(x * 2.0**15 * (_DAC_DEFAULT_CALIBRATION * obj._dac_gains()[1]) / 2.0**3))), 
-														from_reg_signed(0, 32, xform=lambda obj, x: x / (_DAC_DEFAULT_CALIBRATION*obj._dac_gains()[1])/ 2.0**15 / 2.0**3)),
+	'output_offset2':		(REG_FIR_OUT_OFFSET2,		to_reg_signed(0, 32, xform=lambda obj, x: int(round(x * 2.0**15 * (_DAC_DEFAULT_CALIBRATION * obj._dac_gains()[1])))), 
+														from_reg_signed(0, 32, xform=lambda obj, x: x / (_DAC_DEFAULT_CALIBRATION*obj._dac_gains()[1])/ 2.0**15)),
 
 	'matrixscale_ch1_ch1':	(REG_FIR_MATRIXGAIN_CH1,	to_reg_signed(0, 16, 
 															xform=lambda obj, x: int(round(x * (_ADC_DEFAULT_CALIBRATION / (10.0 if obj.get_frontend(1)[1] else 1.0)) * obj._adc_gains()[0] * 2.0**10))), 
