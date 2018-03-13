@@ -30,17 +30,18 @@ _ARB_MODE_500 = 0x1
 _ARB_MODE_250 = 0x2
 _ARB_MODE_125 = 0x3
 
-_ARB_SOURCE_CH1		= 0
-_ARB_SOURCE_CH2		= 1
-_ARB_SOURCE_DA1		= 2
-_ARB_SOURCE_DA2		= 3
-_ARB_SOURCE_EXT		= 4
-
 _ARB_AMPSCALE = 2.0**16 - 1
 _ARB_VOLTSCALE = 2.0**15
 _ARB_LUT_LENGTH = 8192
 _ARB_LUT_LSB = 2.0**32
 _ARB_LUT_INTERPLOATION_LENGTH = 2**32
+
+_ARB_SOURCE_CH1 = 0
+_ARB_SOURCE_CH2 = 1
+_ARB_SOURCE_EXT = 4
+
+_ARB_TRIG_TYPE_SINGLE 	= 0
+_ARB_TRIG_TYPE_CONT		= 2
 
 _ARB_MODE_RATE = [1.0e9, 500.0e6, 250.0e6, 125.0e6] #1GS, 500MS, 250MS, 125MS
 
@@ -275,6 +276,143 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 			self.enable2 = True
 
 	@needs_commit
+	def set_waveform_trigger(self, ch, trigger_source, edge, level, minwidth=None, maxwidth=None, mode='auto'):
+		""" Sets trigger source and parameters.
+
+		:type source: string, {'in1','in2','ext'}
+		:param source: Trigger Source. May be either an input or output channel, or external. The output options allow
+				triggering off an internally-generated waveform. External refers to the back-panel connector of the same
+				name, allowing triggering from an externally-generated digital [LV]TTL or CMOS signal.
+
+		:type edge: string, {'rising','falling','both'}
+		:param edge: Which edge to trigger on. In Pulse Width modes this specifies whether the pulse is positive (rising)
+				or negative (falling), with the 'both' option being invalid.
+
+		:type level: float, [-10.0, 10.0] volts
+		:param level: Trigger level
+
+		:type minwidth: float, seconds
+		:param minwidth: Minimum Pulse Width. 0 <= minwidth < (2^32/samplerate). Can't be used with maxwidth.
+
+		:type maxwidth: float, seconds
+		:param maxwidth: Maximum Pulse Width. 0 <= maxwidth < (2^32/samplerate). Can't be used with minwidth.
+
+		:type hysteresis: bool
+		:param hysteresis: Enable Hysteresis around trigger point.
+
+		:type mode: string, {'auto', 'normal'}
+		:param mode: Trigger mode.
+
+		.. note::
+			Traditional Oscilloscopes have a "Single Trigger" mode that captures an event then
+			pauses the instrument. In pymoku, there is no need to pause the instrument as you
+			can simply choose to continue using the last captured frame.  That is, set trigger
+			``mode='normal'`` then retrieve a single frame using :any:`get_data <pymoku.instruments.Oscilloscope.get_data>`
+			or :any:`get_realtime_data <pymoku.instruments.Oscilloscope.get_realtime_data>`
+			with ``wait=True``.
+
+		"""
+		# Convert the input parameter strings to bit-value mappings
+		_utils.check_parameter_valid('set', ch, [1,2], 'channel')
+		_utils.check_parameter_valid('range', level, [_ARB_TRIGLVL_MIN, _ARB_TRIGLVL_MAX], 'trigger level', 'Volts')
+		_utils.check_parameter_valid('set', mode, ['auto', 'normal'], desc='mode')
+		_utils.check_parameter_valid('set', trig_type, ['single', 'continuous'])
+
+		trig_channels = [_trigger1, _trigger2]
+	
+
+		if not (maxwidth is None or minwidth is None):
+			raise InvalidConfigurationException("Can't set both 'minwidth' and 'maxwidth' for Pulse Width trigger mode. Choose one.")
+		if (maxwidth or minwidth) and (edge is 'both'):
+			raise InvalidConfigurationException("Can't set trigger edge type 'both' in Pulse Width trigger mode. Choose one of {'rising','falling'}.")
+
+		# External trigger source is only available on Moku 20
+		if (self._moku.get_hw_version() == 1.0) and source == 'ext':
+			raise ValueOutOfRangeException('External trigger source is not available on your hardware.')
+
+		if mode == 'auto':
+			self.trig_channels[ch-1].timer = 20.0
+			self.trig_channels[ch-1].auto_holdoff = 5
+		elif mode == 'normal':
+			self.trig_channels[ch-1].timer = 0.0
+			self.trig_channels[ch-1].auto_holdoff = 0
+
+
+		_str_to_trigger_source = {
+			'in1' : _ARB_SOURCE_CH1,
+			'in2' : _ARB_SOURCE_CH2,
+			'ext' : _ARB_SOURCE_EXT
+		}
+
+		_str_to_edge = {
+			'rising' : Trigger.EDGE_RISING,
+			'falling' : Trigger.EDGE_FALLING,
+			'both'	: Trigger.EDGE_BOTH
+		}
+
+		source = _utils.str_to_val(_str_to_trigger_source, source, 'trigger source')
+		edge = _utils.str_to_val(_str_to_edge, edge, 'edge type')
+
+		if ch == 1:
+			self.trig_source1 = source
+			self.trig_level1 = level
+		elif ch == 2:
+			self.trig_source2 = source
+			self.trig_level2 = level
+		else:
+			raise ValueOutOfRangeException("Incorrect channel number %d", ch)
+
+		self.trig_channels[ch-1].edge = edge
+		self.trig_channels[ch-1].mode = mode
+		self.trig_channels[ch-1].duration = minwidth or maxwidth or 0.0
+		
+		if maxwidth:
+			self.trig_channels[ch-1].trigtype = Trigger.TYPE_PULSE
+			self.trig_channels[ch-1].pulsetype = Trigger.PULSE_MAX
+		elif minwidth:
+			self.trig_channels[ch-1].trigtype = Trigger.TYPE_PULSE
+			self.trig_channels[ch-1].pulsetype = Trigger.PULSE_MIN
+		else:
+			self.trig_channels[ch-1].trigtype = Trigger.TYPE_EDGE
+
+		# TODO: Enable setting hysteresis level. For now we use the iPad LSB values for ON/OFF.
+		self.trig_channels[ch-1].hysteresis = 25
+
+	def set_trigger_type(self, ch, trig_en = 0, trig_type = 'single'):
+		""" Sets the trigger mode (what to do with a trigger)
+
+		:type ch: int; {1,2}
+		:param ch: channel that uses tthe trigger
+
+		:type trig_en: bool;
+		:param trig_en: enables the trigger response
+
+		:type trig_type: string; {'single', 'continuous'}
+		:param trig_type; select the mode (how the waveform behaves) when w trigger arrives
+		"""
+		# Convert the input parameter strings to bit-value mappings
+		_utils.check_parameter_valid('set', ch, [1,2], 'channel')
+		_utils.check_parameter_valid('bool', trig_en, 'trig_en')
+		_utils.check_parameter_valid('set', trig_mode, ['single', 'continuous'])
+
+		sweep_channels = [_sweep1, _sweep2]
+
+		sweep_channels[ch-1].wait_for_trig = en
+
+		_str_to_wavform = {
+			'single' : 		_ARB_TRIG_TYPE_SINGLE,
+			'continuous' : 	_ARB_TRIG_TYPE_CONT
+		}
+
+		sweep_channels[ch-1].waveform = _utils.str_to_val(_str_to_waveform, trig_type, 'trig_type')
+
+
+	def _update_dependent_regs(self, scales):
+		super(ArbitraryWaveGen, self)._update_dependent_regs(scales)
+		self._trigger1.level = int(round(self.trig_level1 / self._source_volts_per_bit(self.trig_source1, scales)))
+		self._trigger2.level = int(round(self.trig_level2 / self._source_volts_per_bit(self.trig_source2, scales)))
+
+	@needs_commit
 	def sync_phase(self, ch):
 		""" DEPRECATED Synchronizes the phase of the given channel to the other
 
@@ -350,7 +488,7 @@ _arb_reg_handlers = {
 	'mode1':			(REG_ARB_SETTINGS1,		to_reg_unsigned(2, 2, allow_set=[_ARB_MODE_125, _ARB_MODE_250, _ARB_MODE_500, _ARB_MODE_1000]),
 												from_reg_unsigned(2, 2)),
 	'interpolation1':	(REG_ARB_SETTINGS1,		to_reg_bool(4),			from_reg_bool(4)),
-	'trig_source1':		(REG_ARB_SETTINGS1,		to_reg_unsigned(5, 5, allow_set=[_ARB_SOURCE_CH1, _ARB_SOURCE_CH2, _ARB_SOURCE_DA1, _ARB_SOURCE_DA2, _ARB_SOURCE_EXT]),
+	'trig_source1':		(REG_ARB_SETTINGS1,		to_reg_unsigned(5, 5, allow_set=[_ARB_SOURCE_CH1, _ARB_SOURCE_CH2, _ARB_SOURCE_EXT]),
 												from_reg_unsigned(5, 5)),
 	'lut_length1':		(REG_ARB_LUT_LENGTH1,	to_reg_unsigned(0, 16), from_reg_signed(0, 16)),
 	'dead_value1':		(REG_ARB_LUT_LENGTH1,	to_reg_signed(16, 16), 	from_reg_signed(16, 16)),
@@ -363,7 +501,7 @@ _arb_reg_handlers = {
 	'mode2':			(REG_ARB_SETTINGS2,		to_reg_unsigned(2, 2, allow_set=[_ARB_MODE_125, _ARB_MODE_250, _ARB_MODE_500, _ARB_MODE_1000]),
 												from_reg_unsigned(2, 2)),
 	'interpolation2':	(REG_ARB_SETTINGS2,		to_reg_bool(4),			from_reg_bool(4)),
-	'trig_source2':		(REG_ARB_SETTINGS2,		to_reg_unsigned(5, 5, allow_set=[_ARB_SOURCE_CH1, _ARB_SOURCE_CH2, _ARB_SOURCE_DA1, _ARB_SOURCE_DA2, _ARB_SOURCE_EXT]),
+	'trig_source2':		(REG_ARB_SETTINGS2,		to_reg_unsigned(5, 5, allow_set=[_ARB_SOURCE_CH1, _ARB_SOURCE_CH2, _ARB_SOURCE_EXT]),
 												from_reg_unsigned(5, 5)),
 	'lut_length2':		(REG_ARB_LUT_LENGTH2,	to_reg_unsigned(0, 16), from_reg_signed(0, 16)),
 	'dead_value2':		(REG_ARB_LUT_LENGTH2,	to_reg_signed(16, 16), 	from_reg_signed(16, 16)),
