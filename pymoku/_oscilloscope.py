@@ -89,14 +89,14 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		else:
 			buffer_span = float(t2 - t1)
 
-		deci = math.ceil(ADC_SMP_RATE * buffer_span / self._chn_buffer_len)
+		deci = math.ceil(self._input_samplerate * buffer_span / self._chn_buffer_len)
 
 		return deci
 
 	def _calculate_render_downsample(self, t1, t2, decimation):
 		# Calculate how much to render downsample
 		tspan = float(t2) - float(t1)
-		buffer_smp_rate = ADC_SMP_RATE/float(decimation)
+		buffer_smp_rate = self._input_samplerate/float(decimation)
 		buffer_time_span = self._chn_buffer_len/buffer_smp_rate
 
 		def _cubic_int_to_scale(integer):
@@ -104,7 +104,7 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 			return float(integer/(2.0**7)) + 1
 
 		# Enforce a maximum ADC sampling rate
-		screen_smp_rate = min(_OSC_SCREEN_WIDTH/tspan, ADC_SMP_RATE)
+		screen_smp_rate = min(_OSC_SCREEN_WIDTH/tspan, self._input_samplerate)
 
 		# Clamp the render downsampling ratio between 1.0 and ~16.0
 		render_downsample = min(max(buffer_smp_rate/screen_smp_rate, 1.0), _cubic_int_to_scale(0x077E))
@@ -112,7 +112,7 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 
 	def _calculate_buffer_offset(self, t1, decimation):
 		# Calculate the number of pretrigger samples and offset it by an additional (CubicRatio) samples
-		buffer_smp_rate = ADC_SMP_RATE/decimation
+		buffer_smp_rate = self._input_samplerate/decimation
 		buffer_offset_secs = -1.0 * t1
 		buffer_offset = math.ceil(min(max(math.ceil(buffer_offset_secs * buffer_smp_rate / 4.0), _OSC_POSTTRIGGER_MAX), _OSC_PRETRIGGER_MAX))
 
@@ -127,13 +127,13 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		return buffer_offset * 4.0
 
 	def _calculate_frame_start_time(self, decimation, render_decimation, frame_offset):
-		return (render_decimation - frame_offset) * decimation/ADC_SMP_RATE
+		return (render_decimation - frame_offset) * decimation/self._input_samplerate
 
 	def _calculate_frame_timestep(self, decimation, render_decimation):
-		return decimation*render_decimation/ADC_SMP_RATE
+		return decimation*render_decimation/self._input_samplerate
 
 	def _calculate_buffer_timestep(self, decimation):
-		return float(decimation)/float(ADC_SMP_RATE)
+		return float(decimation)/float(self._input_samplerate)
 
 	def _calculate_buffer_start_time(self, decimation, buffer_offset):
 		return self._calculate_buffer_timestep(decimation) * (-1.0 * buffer_offset) * 4.0
