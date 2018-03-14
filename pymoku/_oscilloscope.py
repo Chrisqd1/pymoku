@@ -428,6 +428,8 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 	def _calculate_scales(self):
 		g1, g2 = self._adc_gains()
 		d1, d2 = self._dac_gains()
+		a1 = self.get_frontend(1)[1]
+		a2 = self.get_frontend(2)[1]
 		gains = [g1, g2, d1, d2, 2.0**-11]
 
 		l1 = self.loopback_mode_ch1
@@ -464,6 +466,8 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 				'gain_adc2': g2,
 				'gain_dac1': d1,
 				'gain_dac2': d2,
+				'atten_ch1': a1,
+				'atten_ch2': a2,
 				'source_ch1': s1,
 				'source_ch2': s2,
 				'gain_loopback1': l1,

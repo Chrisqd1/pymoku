@@ -388,17 +388,19 @@ class FIRFilter(_CoreOscilloscope):
 	def _calculate_scales(self):
 		scales = super(FIRFilter, self)._calculate_scales()
 
-		gain_adc1 = scales['gain_adc1'] # Volts/bit
-		gain_adc2 = scales['gain_adc2'] # Volts/bit
+		atten_ch1 = scales['atten_ch1']
+		atten_ch2 = scales['atten_ch2']
+		gain_adc1 = scales['gain_adc1'] / (10.0 if atten_ch1 else 1.0) # Volts/bit
+		gain_adc2 = scales['gain_adc2'] / (10.0 if atten_ch2 else 1.0) # Volts/bit
 
 		monitor_source_gains = {
 			str(_FIR_MON_NONE) 	: 1.0,
 			str(_FIR_MON_ADC1) 	: gain_adc1 / 2.0, 
 			str(_FIR_MON_IN1) 	: gain_adc1 / 2.0, 
-			str(_FIR_MON_OUT1) 	: 1.0, # TODO: Apply correct output gain factor
+			str(_FIR_MON_OUT1) 	: 1.0 / _ADC_DEFAULT_CALIBRATION,
 			str(_FIR_MON_ADC2) 	: gain_adc2 / 2.0,
 			str(_FIR_MON_IN2) 	: gain_adc2 / 2.0,
-			str(_FIR_MON_OUT2)	: 1.0, # TODO: Apply correct output gain factor
+			str(_FIR_MON_OUT2)	: 1.0 / _ADC_DEFAULT_CALIBRATION
 		}
 
 		# Scales for frame channel data
@@ -414,6 +416,13 @@ class FIRFilter(_CoreOscilloscope):
 		scales['scale_ch2'] = scale_ch2
 
 		return scales
+
+	def _update_dependent_regs(self, scales):
+		super(FIRFilter, self)._update_dependent_regs(scales)
+
+		# TODO: All matrix and gain scaling factors need to be updated depending on front-end settings
+		pass
+
 
 _fir_reg_handlers = {
 	'reset_ch1':			(REG_FIR_CONTROL,			to_reg_bool(0), from_reg_bool(0)),
