@@ -40,6 +40,9 @@ _ARB_SOURCE_CH1 = 0
 _ARB_SOURCE_CH2 = 1
 _ARB_SOURCE_EXT = 4
 
+_ARB_TRIGLVL_MIN = -10.0
+_ARB_TRIGLVL_MAX = 10.0
+
 _ARB_TRIG_TYPE_SINGLE 	= 0
 _ARB_TRIG_TYPE_CONT		= 2
 
@@ -59,6 +62,8 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		self._trigger2 = Trigger(self, 109)
 		self._sweep1 = SweepGenerator(self, 96)
 		self._sweep2 = SweepGenerator(self, 116)
+		self.trig_level1 = 0
+		self.trig_level2 = 0
 
 	@needs_commit
 	def set_defaults(self):
@@ -276,7 +281,7 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 			self.enable2 = True
 
 	@needs_commit
-	def set_waveform_trigger(self, ch, trigger_source, edge, level, minwidth=None, maxwidth=None, mode='auto'):
+	def set_waveform_trigger(self, ch, trigger_source, edge, level, minwidth=None, maxwidth=None, mode='normal'):
 		""" Sets trigger source and parameters.
 
 		:type source: string, {'in1','in2','ext'}
@@ -316,9 +321,8 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		_utils.check_parameter_valid('set', ch, [1,2], 'channel')
 		_utils.check_parameter_valid('range', level, [_ARB_TRIGLVL_MIN, _ARB_TRIGLVL_MAX], 'trigger level', 'Volts')
 		_utils.check_parameter_valid('set', mode, ['auto', 'normal'], desc='mode')
-		_utils.check_parameter_valid('set', trig_type, ['single', 'continuous'])
 
-		trig_channels = [_trigger1, _trigger2]
+		trig_channels = [self._trigger1, self._trigger2]
 	
 
 		if not (maxwidth is None or minwidth is None):
@@ -331,11 +335,11 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 			raise ValueOutOfRangeException('External trigger source is not available on your hardware.')
 
 		if mode == 'auto':
-			self.trig_channels[ch-1].timer = 20.0
-			self.trig_channels[ch-1].auto_holdoff = 5
+			trig_channels[ch-1].timer = 20.0
+			trig_channels[ch-1].auto_holdoff = 5
 		elif mode == 'normal':
-			self.trig_channels[ch-1].timer = 0.0
-			self.trig_channels[ch-1].auto_holdoff = 0
+			trig_channels[ch-1].timer = 0.0
+			trig_channels[ch-1].auto_holdoff = 0
 
 
 		_str_to_trigger_source = {
@@ -350,7 +354,7 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 			'both'	: Trigger.EDGE_BOTH
 		}
 
-		source = _utils.str_to_val(_str_to_trigger_source, source, 'trigger source')
+		source = _utils.str_to_val(_str_to_trigger_source, trigger_source, 'trigger source')
 		edge = _utils.str_to_val(_str_to_edge, edge, 'edge type')
 
 		if ch == 1:
@@ -362,23 +366,23 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		else:
 			raise ValueOutOfRangeException("Incorrect channel number %d", ch)
 
-		self.trig_channels[ch-1].edge = edge
-		self.trig_channels[ch-1].mode = mode
-		self.trig_channels[ch-1].duration = minwidth or maxwidth or 0.0
+		trig_channels[ch-1].edge = edge
+		trig_channels[ch-1].mode = mode
+		trig_channels[ch-1].duration = minwidth or maxwidth or 0.0
 		
 		if maxwidth:
-			self.trig_channels[ch-1].trigtype = Trigger.TYPE_PULSE
-			self.trig_channels[ch-1].pulsetype = Trigger.PULSE_MAX
+			trig_channels[ch-1].trigtype = Trigger.TYPE_PULSE
+			trig_channels[ch-1].pulsetype = Trigger.PULSE_MAX
 		elif minwidth:
-			self.trig_channels[ch-1].trigtype = Trigger.TYPE_PULSE
-			self.trig_channels[ch-1].pulsetype = Trigger.PULSE_MIN
+			trig_channels[ch-1].trigtype = Trigger.TYPE_PULSE
+			trig_channels[ch-1].pulsetype = Trigger.PULSE_MIN
 		else:
-			self.trig_channels[ch-1].trigtype = Trigger.TYPE_EDGE
+			trig_channels[ch-1].trigtype = Trigger.TYPE_EDGE
 
 		# TODO: Enable setting hysteresis level. For now we use the iPad LSB values for ON/OFF.
-		self.trig_channels[ch-1].hysteresis = 25
+		trig_channels[ch-1].hysteresis = 25
 
-	def set_trigger_type(self, ch, trig_en = 0, trig_type = 'single'):
+	def set_trigger_type(self, ch, trig_en = True, trig_type = 'single', duration = 0.0, start = 0, stop = 2**64-1, hold_last = False):
 		""" Sets the trigger mode (what to do with a trigger)
 
 		:type ch: int; {1,2}
@@ -389,25 +393,46 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 
 		:type trig_type: string; {'single', 'continuous'}
 		:param trig_type; select the mode (how the waveform behaves) when w trigger arrives
+
+		:type duration: float;
+		:param duration: select the time that the triggered functionality is active. (Set to 0 to run continuously)
+
+		:type hold_last: bool
+		:param hold_last: set to hold the last value of the waveform for the duration of the triggered functionality
+
+		:type  start: float;
+		:param start: determines when in the waveform cycle to start generating signal once a trigger event has occurs.
+
+		:type stop: float;
+		:param stop; determines when in the waveform cycle to stop generating signal once a trigger event occurs 
 		"""
+
 		# Convert the input parameter strings to bit-value mappings
 		_utils.check_parameter_valid('set', ch, [1,2], 'channel')
 		_utils.check_parameter_valid('bool', trig_en, 'trig_en')
-		_utils.check_parameter_valid('set', trig_mode, ['single', 'continuous'])
+		_utils.check_parameter_valid('set', trig_type, ['single', 'continuous'])
+		_utils.check_parameter_valid('float', duration, 'duration')
+		_utils.check_parameter_valid('bool', hold_last, 'hold_last')
+		_utils.check_parameter_valid('int', start, 'start')
+		_utils.check_parameter_valid('int', stop, 'stop')		
 
-		sweep_channels = [_sweep1, _sweep2]
+		sweep_channels = [self._sweep1, self._sweep2]
 
-		sweep_channels[ch-1].wait_for_trig = en
+		sweep_channels[ch-1].wait_for_trig = trig_en
 
-		_str_to_wavform = {
+		_str_to_waveform = {
 			'single' : 		_ARB_TRIG_TYPE_SINGLE,
 			'continuous' : 	_ARB_TRIG_TYPE_CONT
 		}
 
 		sweep_channels[ch-1].waveform = _utils.str_to_val(_str_to_waveform, trig_type, 'trig_type')
-
+		sweep_channels[ch-1].hold_last = hold_last
+		sweep_channels[ch-1].duration = int(round(duration * 125e6 / 8))
+		sweep_channels[ch-1].start = start #(int(round(start * (2**48 - 1))) << 16) + (2**15-1)
+		sweep_channels[ch-1].stop = stop #(int(round(stop * (2**48 - 1))) << 16) + (2**15-1)
 
 	def _update_dependent_regs(self, scales):
+
 		super(ArbitraryWaveGen, self)._update_dependent_regs(scales)
 		self._trigger1.level = int(round(self.trig_level1 / self._source_volts_per_bit(self.trig_source1, scales)))
 		self._trigger2.level = int(round(self.trig_level2 / self._source_volts_per_bit(self.trig_source2, scales)))
