@@ -56,7 +56,6 @@ try:
 	i.set_timebase(-5e-3, 5e-3)
 	i.set_monitor('a', 'in1')
 	i.set_monitor('b', 'out1')
-	# TODO: Trigger settings
 
 	# Calculate and plot the quantized FIR kernel and transfer function for 
 	# reference.
