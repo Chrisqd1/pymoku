@@ -1,14 +1,17 @@
 #!/usr/bin/env python
 
 from argparse import ArgumentParser
-import os, os.path, shutil, tempfile
-import requests
+import os, os.path, shutil, tempfile, urllib, tarfile
+import requests, pkg_resources
 
 from pymoku import *
 from pymoku.tools.compat import *
 
 import logging
-logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(format='%(message)s', level=logging.INFO)
+
+version = pkg_resources.get_distribution("pymoku").version
+DATAURL = 'http://liquidinstruments.com/mokudata-%s.tar.gz' % version
 
 parser = ArgumentParser()
 subparsers = parser.add_subparsers(title="action", description="Action to take")
@@ -17,6 +20,25 @@ subparsers = parser.add_subparsers(title="action", description="Action to take")
 parser.add_argument('--serial', default=None, help="Serial Number of the Moku to connect to")
 parser.add_argument('--name', default=None, help="Name of the Moku to connect to")
 parser.add_argument('--ip', default=None, help="IP Address of the Moku to connect to")
+
+# View and load new instrument bitstreams
+def fetchdata(args):
+	url = args.url
+	logging.info("Fetching data pack from: %s" % url)
+	urllib.urlretrieve(url, 'mokudata.tar.gz')
+	pkg_path = pkg_resources.get_distribution("pymoku").location + '/data'
+	try:
+		logging.info("installing to %s" % pkg_path)
+		tarfile.open('mokudata.tar.gz').extractall(path=pkg_path + '/data')
+		with open(pkg_path + '/data/data_version', 'w') as f:
+			f.write(version)
+	except:
+		logging.exception("Couldn't install data pack")
+	os.remove('mokudata.tar.gz')
+
+parser_fetchdata = subparsers.add_parser('fetchdata', help="Check and update instruments on the Moku.")
+parser_fetchdata.add_argument('--url', help='Override location of data pack', default=DATAURL)
+parser_fetchdata.set_defaults(func=fetchdata)
 
 # View and load new instrument bitstreams
 def instrument(args):
@@ -110,15 +132,16 @@ parser_firmware.add_argument('file', nargs='?', default=None, help="Path to loca
 parser_firmware.set_defaults(func=firmware)
 
 def main():
+	logging.info("PyMoku %s" % version)
 	args = parser.parse_args()
+	args.func(args)
 
+def connect(args, force=False):
 	if len([ x for x in (args.serial, args.name, args.ip) if x]) != 1:
 		print("Please specify exactly one of serial, name or IP address of target Moku")
 		exit(1)
 
-	args.func(args)
-
-def connect(args, force=False):
+	force = force or args.force
 	if args.serial:
 		moku = Moku.get_by_serial(args.serial, force=force)
 		print(moku.get_name())

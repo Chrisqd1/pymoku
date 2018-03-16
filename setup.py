@@ -1,5 +1,5 @@
 from setuptools import setup
-import os.path
+import os.path, urllib, tarfile
 
 with open('pymoku/version.txt') as f:
 	version = f.read().strip()
