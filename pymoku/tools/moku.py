@@ -1,7 +1,7 @@
 #!/usr/bin/env python
 
 from argparse import ArgumentParser
-import os, os.path, shutil, tempfile, urllib, tarfile
+import os, os.path, shutil, tempfile, tarfile
 import requests, pkg_resources
 
 from pymoku import *
@@ -10,12 +10,18 @@ from pymoku.tools.compat import *
 import logging
 logging.basicConfig(format='%(message)s', level=logging.INFO)
 
+try:
+	from urllib import urlretrieve
+except ImportError:
+	from urllib.request import urlretrieve
+
 data_path = os.path.expanduser(os.environ.get('PYMOKU_INSTR_PATH', None) or pkg_resources.resource_filename('pymoku', 'data'))
 version = pkg_resources.get_distribution("pymoku").version
 DATAURL = 'http://updates.liquidinstruments.com/static/mokudata-%s.tar.gz' % '471'
 
 parser = ArgumentParser()
-subparsers = parser.add_subparsers(title="action", description="Action to take")
+subparsers = parser.add_subparsers(title="action", dest='action', description="Action to take")
+subparsers.required = True
 
 # Global arguments
 parser.add_argument('--serial', default=None, help="Serial Number of the Moku to connect to")
@@ -27,7 +33,7 @@ parser.add_argument('--force', action='store_true', help="Bypass compatibility c
 def fetchdata(args):
 	url = args.url
 	logging.info("Fetching data pack from: %s" % url)
-	urllib.urlretrieve(url, data_path + '/mokudata.tar.gz')
+	urlretrieve(url, data_path + '/mokudata.tar.gz')
 	try:
 		logging.info("installing to %s" % data_path)
 		tarfile.open(data_path + '/mokudata.tar.gz').extractall(path=data_path)
