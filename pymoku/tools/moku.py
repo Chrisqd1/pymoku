@@ -10,8 +10,9 @@ from pymoku.tools.compat import *
 import logging
 logging.basicConfig(format='%(message)s', level=logging.INFO)
 
+data_path = os.path.expanduser(os.environ.get('PYMOKU_INSTR_PATH', None) or pkg_resources.resource_filename('pymoku', 'data'))
 version = pkg_resources.get_distribution("pymoku").version
-DATAURL = 'http://liquidinstruments.com/mokudata-%s.tar.gz' % version
+DATAURL = 'http://updates.liquidinstruments.com/static/mokudata-%s.tar.gz' % '471'
 
 parser = ArgumentParser()
 subparsers = parser.add_subparsers(title="action", description="Action to take")
@@ -26,16 +27,15 @@ parser.add_argument('--force', action='store_true', help="Bypass compatibility c
 def fetchdata(args):
 	url = args.url
 	logging.info("Fetching data pack from: %s" % url)
-	urllib.urlretrieve(url, 'mokudata.tar.gz')
-	pkg_path = pkg_resources.get_distribution("pymoku").location + '/data'
+	urllib.urlretrieve(url, data_path + '/mokudata.tar.gz')
 	try:
-		logging.info("installing to %s" % pkg_path)
-		tarfile.open('mokudata.tar.gz').extractall(path=pkg_path + '/data')
-		with open(pkg_path + '/data/data_version', 'w') as f:
+		logging.info("installing to %s" % data_path)
+		tarfile.open(data_path + '/mokudata.tar.gz').extractall(path=data_path)
+		with open(data_path + '/data_version', 'w') as f:
 			f.write(version)
 	except:
 		logging.exception("Couldn't install data pack")
-	os.remove('mokudata.tar.gz')
+	os.remove(data_path + '/mokudata.tar.gz')
 
 parser_fetchdata = subparsers.add_parser('fetchdata', help="Check and update instruments on the Moku.")
 parser_fetchdata.add_argument('--url', help='Override location of data pack', default=DATAURL)
