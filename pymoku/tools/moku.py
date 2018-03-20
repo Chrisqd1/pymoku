@@ -10,11 +10,6 @@ from pymoku.tools.compat import *
 import logging
 logging.basicConfig(format='%(message)s', level=logging.INFO)
 
-try:
-	from urllib import urlretrieve
-except ImportError:
-	from urllib.request import urlretrieve
-
 data_path = os.path.expanduser(os.environ.get('PYMOKU_INSTR_PATH', None) or pkg_resources.resource_filename('pymoku', 'data'))
 version = pkg_resources.get_distribution("pymoku").version
 DATAURL = 'http://updates.liquidinstruments.com/static/mokudata-%s.tar.gz' % '471'
@@ -33,7 +28,9 @@ parser.add_argument('--force', action='store_true', help="Bypass compatibility c
 def fetchdata(args):
 	url = args.url
 	logging.info("Fetching data pack from: %s" % url)
-	urlretrieve(url, data_path + '/mokudata.tar.gz')
+	r = requests.get(url)
+	with open(data_path + '/mokudata.tar.gz', 'w') as f:
+		f.write(r.content)
 	try:
 		logging.info("installing to %s" % data_path)
 		tarfile.open(data_path + '/mokudata.tar.gz').extractall(path=data_path)
