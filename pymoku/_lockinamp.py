@@ -58,6 +58,8 @@ REG_LIA_SINEOUTOFF		= 126
 
 REG_LIA_MONSELECT		= 127
 
+_LIA_INPUT_SMPS = ADC_SMP_RATE
+
 _LIA_MON_NONE	= 0
 _LIA_MON_IN1	= 1
 _LIA_MON_I		= 2
@@ -81,6 +83,9 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 
 		self.id = 8
 		self.type = "lockinamp"
+
+		# Monitor samplerate
+		self._input_samplerate = _LIA_INPUT_SMPS
 
 		# Remember gains per channel
 		self._g_aux = 1.0

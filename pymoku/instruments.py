@@ -14,6 +14,7 @@ from . import _frame_instrument
 from . import _input_instrument
 from . import _pid_controller
 from . import _iirfilterbox
+from . import _firfilter
 
 ''' Preferred import point. Aggregates the separate instruments and helper classes
     to flatten the import heirarchy (e.g. pymoku.instruments.Oscilloscope rather
@@ -37,6 +38,7 @@ BodeAnalyzer = _bodeanalyzer.BodeAnalyzer
 PIDController = _pid_controller.PIDController
 ArbitraryWaveGen = _arbwavegen.ArbitraryWaveGen
 IIRFilterBox = _iirfilterbox.IIRFilterBox
+FIRFilter = _firfilter.FIRFilter
 
 id_table = {
 	1: Oscilloscope,
@@ -48,7 +50,7 @@ id_table = {
 	7: Datalogger,
 	8: LockInAmp,
 	9: BodeAnalyzer,
-	10: None,
+	10: FIRFilter,
 	11: None,
 	12: None,
 	13: None,

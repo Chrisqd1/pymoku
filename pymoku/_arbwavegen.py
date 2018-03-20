@@ -5,7 +5,6 @@ import re
 import os
 
 from ._instrument import *
-CHN_BUFLEN = 2**13
 from . import _frame_instrument
 from . import _waveform_generator
 from pymoku._oscilloscope import _CoreOscilloscope
@@ -49,6 +48,9 @@ _ARB_LUT_INTERPLOATION_LENGTH = 2**32
 
 _ARB_MODE_RATE = [1.0e9, 500.0e6, 250.0e6, 125.0e6] #1GS, 500MS, 250MS, 125MS
 
+_ARB_INPUT_SMPS = ADC_SMP_RATE
+_ARB_CHN_BUFLEN = 2**13
+
 class ArbitraryWaveGen(_CoreOscilloscope):
 	"""
 	.. automethod:: pymoku.instruments.WaveformGenerator.__init__
@@ -59,6 +61,11 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		self._register_accessors(_arb_reg_handlers)
 		self.id = 15
 		self.type = "arbitrarywavegen"
+
+		# Monitor samplerate
+		# TODO: Check this rate is correct for the AWG
+		self._input_samplerate	= _ARB_INPUT_SMPS
+		self._chn_buffer_len	= _ARB_CHN_BUFLEN
 
 	@needs_commit
 	def set_defaults(self):

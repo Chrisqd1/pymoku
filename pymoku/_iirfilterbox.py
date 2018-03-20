@@ -35,6 +35,8 @@ _IIR_MON_INCH2 		= 5
 _IIR_MON_OUT2 		= 6
 _IIR_COEFFWIDTH = 48
 
+_IIR_INPUT_SMPS = ADC_SMP_RATE/4
+
 class IIRFilterBox(_CoreOscilloscope):
 	r"""
 
@@ -82,6 +84,9 @@ class IIRFilterBox(_CoreOscilloscope):
 
 		self.id = 6
 		self.type = "iirfilterbox"
+
+		# Monitor samplerate
+		self._input_samplerate = _IIR_INPUT_SMPS
 
 		# Remembers monitor source choice
 		self.monitor_a = None

@@ -13,6 +13,6 @@ The IIR Filter Box Class
 -----------------------
 
 .. autoclass:: pymoku.instruments.IIRFilterBox
-
-	.. Don't use :members: as it doesn't handle instance attributes well. Directives in the source code list required attributes directly.
+	:members:
+	:inherited-members:
 
