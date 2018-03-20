@@ -20,7 +20,7 @@ filt_coeff = 	[[1.0],
 				[1.0000000000,0.1301131088,0.1223154629,0.1301131088,-0.7955572476,0.1780989281]]
 
 
-m = Moku.get_by_name('Moku')
+m = Moku('192.168.69.120',force=True, load_instruments=False)
 i = m.deploy_instrument(IIRFilterBox)
 
 try:
@@ -39,10 +39,6 @@ try:
 	# Set up monitoring of the input and output of the second filter channel.
 	i.set_monitor('a', 'in2')
 	i.set_monitor('b', 'out2')
-
-	i.ch1_output = True
-	i.ch2_output = True
-	i.commit()
 
 	# Capture and print one set of time-domain input and output points
 	d = i.get_data()
