@@ -1,6 +1,6 @@
 import struct
 
-import _frame_instrument
+from . import _frame_instrument
 
 _OSC_SCREEN_WIDTH	= 1024
 

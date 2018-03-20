@@ -1,7 +1,7 @@
 import struct
 import math
 
-import _instrument, _frame_instrument
+from . import _instrument, _frame_instrument
 
 from bisect import bisect_right
 
