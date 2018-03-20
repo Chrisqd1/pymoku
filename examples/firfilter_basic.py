@@ -32,11 +32,12 @@ try:
 	# the maximum number of filter kernel coefficients (N) for the channel.
 	# The defining equations are given by:
 	#
-	# 	Fs = 125 MHz / 2^decimation_factor
-	# 	N  = 2^(decimation_factor) * 29
+	#   3 <= decimation_factor <= 10,
+	# 	Fs = 125 MHz / 2^decimation_factor,
+	# 	N  = 2^(decimation_factor) * 29.
 	#
-	# To implement 50 FIR taps, N = 2^(1) * 29 = 58 > 50
-	i.set_filter(1, decimation_factor=1, filter_coefficients=filt_coeff1)
+	# To implement 50 FIR taps, N = 2^(3) * 29 = 232 > 50
+	i.set_filter(1, decimation_factor=3, filter_coefficients=filt_coeff1)
 	# To implement 400 FIR taps, N = 2^(4) * 29 = 464 > 400
 	i.set_filter(2, decimation_factor=4, filter_coefficients=filt_coeff2)
 

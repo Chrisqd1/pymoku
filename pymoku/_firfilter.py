@@ -244,7 +244,7 @@ class FIRFilter(_CoreOscilloscope):
 		:type ch : int; {1,2}
 		:param ch : target channel.
 
-		:type decimation_factor : int; [0,10]
+		:type decimation_factor : int; [3,10]
 		:param decimation_factor : the binary exponent *n* specifying the sample rate: Fs = 125 MHz / 2^n.
 
 		:type filter_coefficients : float array;
@@ -253,7 +253,7 @@ class FIRFilter(_CoreOscilloscope):
 		# TODO: Document the quantization of array coefficients incurred
 		# TODO: The array format is NOT in the class documentation above...?
 		_utils.check_parameter_valid('set', ch, [1, 2],'filter channel')
-		_utils.check_parameter_valid('int', decimation_factor, range(11), 'decimation factor')
+		_utils.check_parameter_valid('int', decimation_factor, range(3,11), 'decimation factor')
 		_utils.check_parameter_valid('range', len(filter_coefficients), [0, _FIR_NUM_BLOCKS * 2**decimation_factor], 'filter coefficient array length')
 		# Check that all coefficients are between -1.0 and 1.0
 		if not all(map(lambda x: abs(x) <= 1.0, filter_coefficients)):
