@@ -735,7 +735,7 @@ class LIDataParser(object):
 			else:
 				raise DataIntegrityException("Data loss detected on stream interface")
 try:
-	import lr
+	import liquidreader as lr
 
 	class FastDataParser(LIDataParser):
 		# This class does the binary parsing and processing in the external liquidreader C module for about a 10x
