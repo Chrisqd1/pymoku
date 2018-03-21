@@ -5,6 +5,7 @@ import os, os.path, shutil, tempfile, urllib, tarfile
 import requests, pkg_resources
 
 from pymoku import *
+from pymoku.version import compat_fw
 from pymoku.tools.compat import *
 
 import logging
@@ -12,7 +13,7 @@ logging.basicConfig(format='%(message)s', level=logging.INFO)
 
 data_path = os.path.expanduser(os.environ.get('PYMOKU_INSTR_PATH', None) or pkg_resources.resource_filename('pymoku', 'data'))
 version = pkg_resources.get_distribution("pymoku").version
-DATAURL = 'http://updates.liquidinstruments.com/static/mokudata-%s.tar.gz' % '471'
+DATAURL = 'http://updates.liquidinstruments.com/static/mokudata-%d.tar.gz' % compat_fw[0]
 
 parser = ArgumentParser()
 subparsers = parser.add_subparsers(title="action", description="Action to take")

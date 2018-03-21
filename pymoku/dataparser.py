@@ -9,8 +9,6 @@ import os, os.path, time, datetime, math
 import logging
 import re, struct
 
-import lr
-
 log = logging.getLogger(__name__)
 
 try:
