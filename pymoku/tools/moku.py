@@ -44,6 +44,41 @@ parser_fetchdata = subparsers.add_parser('fetchdata', help="Check and update ins
 parser_fetchdata.add_argument('--url', help='Override location of data pack', default=DATAURL)
 parser_fetchdata.set_defaults(func=fetchdata)
 
+def listmokus(args):
+	mokus = pymoku.BonjourFinder().find_all(timeout=2.0)
+	mokus.sort()
+	print("{: <20} {: >6} {: >15}".format('Name', 'Serial', 'IP'))
+	print("-" * (20 + 6 + 15 + 2))
+
+	for m in mokus:
+		x = None
+		try:
+			x = Moku(m)
+			print("{: <20} {: 06d} {: >15}".format(x.get_name()[:20], int(x.get_serial()), m))
+		except:
+			print("Couldn't query IP %s" % m)
+		finally:
+			if x: x.close()
+
+parser_list = subparsers.add_parser('list', help="List Moku:Labs on the network.")
+parser_list.set_defaults(func=listmokus)
+
+def query_property(args):
+	moku = None
+	try:
+		moku = connect(args, force=True)
+		if args.value:
+			moku._set_property_single(args.property, args.value)
+		print("%s = %s" % (args.property, moku._get_property_single(args.property)))
+	finally:
+		if moku:
+			moku.close()
+
+parser_set = subparsers.add_parser('property', help="Set Moku:Lab property.")
+parser_set.add_argument('property', help='Property to query')
+parser_set.add_argument('value', help='Value to write to property', nargs='?')
+parser_set.set_defaults(func=query_property)
+
 # View and load new instrument bitstreams
 def instrument(args):
 	moku = None
