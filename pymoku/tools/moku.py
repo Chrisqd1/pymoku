@@ -29,7 +29,7 @@ def fetchdata(args):
 	url = args.url
 	logging.info("Fetching data pack from: %s" % url)
 	r = requests.get(url)
-	with open(data_path + '/mokudata.tar.gz', 'w') as f:
+	with open(data_path + '/mokudata.tar.gz', 'wb') as f:
 		f.write(r.content)
 	try:
 		logging.info("installing to %s" % data_path)
