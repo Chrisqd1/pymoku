@@ -20,7 +20,7 @@ filt_coeff = 	[[1.0],
 				[1.0000000000,0.1301131088,0.1223154629,0.1301131088,-0.7955572476,0.1780989281]]
 
 
-m = Moku('192.168.69.120',force=True, load_instruments=False)
+m = Moku.get_by_name('Moku')
 i = m.deploy_instrument(IIRFilterBox)
 
 try:
@@ -32,16 +32,20 @@ try:
 	i.set_filter(1, sample_rate='high', filter_coefficients=filt_coeff)
 	i.set_filter(2, sample_rate='low',  filter_coefficients=filt_coeff)
 
-	# 0.1V offset for CH1, CH2 acts on the sum of input 1 and 2
-	i.set_offset_gain(1, input_offset=0.1)
-	i.set_offset_gain(2, matrix_scalar_ch1=0.5, matrix_scalar_ch2=0.5)
+	# Offset filter channel 1 input by 0.1V
+	i.set_gains_offsets(1, input_offset = 0.1)
+	# Filter channel 2 acts on sum of input 1 and 2
+	i.set_control_matrix(2, scale_in1 = 0.5, scale_in2 = 0.5)
+
+	# Set the monitor timebase to +-1msec
+	i.set_timebase(-1e-3, 1e-3)
 
 	# Set up monitoring of the input and output of the second filter channel.
 	i.set_monitor('a', 'in2')
 	i.set_monitor('b', 'out2')
 
 	# Capture and print one set of time-domain input and output points
-	d = i.get_data()
+	d = i.get_realtime_data()
 	print(d.ch1, d.ch2)
 finally:
 	m.close()

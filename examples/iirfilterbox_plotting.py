@@ -27,7 +27,7 @@ filt_coeff = 	[[1.0],
 
 
 m = Moku.get_by_name('Moku')
-i = m.deploy_instrument(iIIRFilterBox)
+i = m.deploy_instrument(IIRFilterBox)
 
 try:
 	i.set_frontend(1, fiftyr=True, atten=False, ac=False)
@@ -38,9 +38,9 @@ try:
 	i.set_filter(1, sample_rate='high', filter_coefficients=filt_coeff)
 	i.set_filter(2, sample_rate='low',  filter_coefficients=filt_coeff)
 
-	# # Filter channel 1 acts solely on the data from ADC CH1. Filter channel 2 acts solely on ADC CH 2.
-	i.set_offset_gain(1, matrix_scalar_ch1=1, matrix_scalar_ch2=0)
-	i.set_offset_gain(2, matrix_scalar_ch1=0, matrix_scalar_ch2=1)
+	# Filter channel 1 acts solely on the data from ADC CH1. Filter channel 2 acts solely on ADC CH 2.
+	i.set_control_matrix(1, scale_in1 = 1.0, scale_in2 = 0.0)
+	i.set_control_matrix(2, scale_in1 = 0.0, scale_in2 = 1.0)
 
 	# Set up monitoring on the input and output of the first filter channel.
 	i.set_monitor('a', 'in1')
@@ -50,7 +50,7 @@ try:
 	i.set_trigger('a', 'rising', 0)
 
 	# View +/- 1 microsecond with the trigger point centered
-	i.set_timebase(-1e-6, 1e-6)
+	i.set_timebase(-1e-3, 1e-3)
 
 	# Get initial data frame to set up plotting parameters.
 	data = i.get_realtime_data()
