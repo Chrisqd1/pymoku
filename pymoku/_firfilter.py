@@ -220,8 +220,8 @@ class FIRFilter(_CoreOscilloscope):
 		_utils.check_parameter_valid('set', ch, [1, 2], 'filter channel')
 		_utils.check_parameter_valid('range', input_gain, [-100, 100], 'input gain', 'linear scalar')
 		_utils.check_parameter_valid('range', output_gain, [-100, 100], 'output gain', 'linear scalar')
-		_utils.check_parameter_valid('range', input_offset, [-0.5, 0.5], 'input offset', 'Volts')
-		_utils.check_parameter_valid('range', output_offset, [-1.0, 1.0], 'output offset', 'Volts')
+		_utils.check_parameter_valid('range', input_offset, [-1.0, 1.0], 'input offset', 'Volts')
+		_utils.check_parameter_valid('range', output_offset, [-2.0, 2.0], 'output offset', 'Volts')
 
 		if ch == 1:
 			self.input_scale1 = input_gain
