@@ -9,6 +9,11 @@ Example Usage
 
 For the following example code and a wide range of other pymoku demo scripts, see the `pymoku example repository <https://anaconda.org/liquidinstruments/pymoku-examples>`_.
 
+.. literalinclude:: ../examples/iirfilterbox_basic.py
+	:language: python
+	:caption: iirfilterbox_basic.py
+
+
 The IIR Filter Box Class
 -----------------------
 

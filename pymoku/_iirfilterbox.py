@@ -5,6 +5,7 @@ from copy import deepcopy
 from pymoku._oscilloscope import _CoreOscilloscope
 from ._instrument import *
 from . import _utils
+from ._dec_filter import DecFilter
 
 
 log = logging.getLogger(__name__)
@@ -36,11 +37,12 @@ _IIR_MON_OUT2 		= 6
 _IIR_COEFFWIDTH = 48
 
 _IIR_INPUT_SMPS = ADC_SMP_RATE/4
+_IIR_CHN_BUFLEN = 2**13
 
 class IIRFilterBox(_CoreOscilloscope):
 	r"""
 
-	The IIR Filter Box implements infinite impulse resposne (IIR) filters using 4 cascaded Direct Form 1 second-order stages
+	The IIR Filter Box implements infinite impulse response (IIR) filters using 4 cascaded Direct Form 1 second-order stages
 	with a final output gain stage. The total transfer function can be written:
 
 	.. math::
@@ -69,14 +71,12 @@ class IIRFilterBox(_CoreOscilloscope):
 
 	.. note::
 		The overall output gain of the instrument is the product of the gain of the filter, set in the coefficient matrix, and the output stage
-		gain set using :any:`set_offset_gain`.
+		gain set using :any:`set_gains_offsets`.
 
 	.. warning::
 		Some coefficients may result in overflow or underflow, which degrade filter performance. Filter responses should be checked prior to use.
 
 	"""
-
-
 	def __init__(self):
 		"""Create a new IIR FilterBox instrument, ready to be attached to a Moku."""
 		super(IIRFilterBox, self).__init__()
@@ -87,40 +87,43 @@ class IIRFilterBox(_CoreOscilloscope):
 
 		# Monitor samplerate
 		self._input_samplerate = _IIR_INPUT_SMPS
+		self._chn_buffer_len = _IIR_CHN_BUFLEN
 
 		# Remembers monitor source choice
 		self.monitor_a = None
 		self.monitor_b = None
 
+		self._decfilter1 = DecFilter(self, 103)
+		self._decfilter2 = DecFilter(self, 107)
+
+	@needs_commit
 	def set_defaults(self):
-		""" Reset the Oscilloscope to sane defaults. """
+		""" Reset the IIR to sane defaults. """
 		super(IIRFilterBox, self).set_defaults()
 
-		# #Default values
-		self.ch1_input = True
-		self.ch1_output = False
-		self.ch2_input = True
-		self.ch2_output = False
+		# Default values
+		self.input_en1 = True
+		self.output_en1 = False
+		self.input_en2 = True
+		self.output_en2 = False
 
-		self.ch0_ch0gain = 0.0
-		self.ch0_ch1gain = 0.0
-		self.ch1_ch0gain = 0.0
-		self.ch1_ch1gain = 0.0
+		self.set_control_matrix(1, 1.0, 0.0)
+		self.set_control_matrix(2, 0.0, 1.0)
 
 		self.ch1_sampling_freq = 0
 		self.ch2_sampling_freq = 0
 
 		self.filter_reset = 0
 
-		self.inputscale_ch1 = 0
-		self.inputscale_ch2 = 0
-		self.outputscale_ch1 = 0
-		self.outputscale_ch2 = 0
+		self.input_scale1 = 0
+		self.input_scale2 = 0
+		self.output_scale1 = 0
+		self.output_scale2 = 0
 
-		self.inputoffset_ch1 = 0
-		self.inputoffset_ch2 = 0
-		self.outputoffset_ch1 = 0
-		self.outputoffset_ch2 = 0
+		self.input_offset1 = 0
+		self.input_offset2 = 0
+		self.output_offset1 = 0
+		self.output_offset2 = 0
 
 		# initialize filter coefficient arrays as all pass filters
 		b = [1.0,1.0,0.0,0.0,0.0,0.0]
@@ -132,38 +135,84 @@ class IIRFilterBox(_CoreOscilloscope):
 		self.set_frontend(2,fiftyr=True, atten=False, ac=False)
 
 		# Default unity gain, zero offset, identity mixing matrix.
-		self.set_offset_gain(1)
-		self.set_offset_gain(2)
+		self.set_gains_offsets(1)
+		self.set_gains_offsets(2)
 
-	def set_filter(self, ch, sample_rate, filter_coefficients=None):
+	@needs_commit
+	def set_control_matrix(self, ch, scale_in1, scale_in2):
 		"""
-		Set SOS filter sample rate and filter coefficients.
+		Configure the input control matrix specifying the input signal mixing for the specified filter channel.
 
-		:type ch : int; {1,2}
-		:param ch : target channel
+		Input mixing allows a filter channel to act on a linear combination of the two input signals.
 
-		:type sample_rate : string; {'high','low'}
-		:param sample_rate : filter sample rate. High = 15.625 MHz, low = 122.070 KHz
+		:type ch: int, {1,2}
+		:param ch: target filter channel
 
-		:type filter_coefficients : array;
-		:param filter_coefficients : array containing SOS filter coefficients. The array format can be seen in the class documentation above
+		:type scale_in1: float, [-20,20]
+		:param scale_in1: linear scale factor of input 1 signal added to target filter channel input.
+			To avoid quantization, use at most one decimal place.
+
+		:type scale_in2: float, [-20,20] 
+		:param scale_in2: linear scale factor of input 2 signal added to target filter channel input.
+			To avoid quantization, use at most one decimal place.
 		"""
+		_utils.check_parameter_valid('set', ch, [1, 2], 'filter channel')
+		_utils.check_parameter_valid('range', scale_in1, [-20, 20], 'control matrix scale (ch1)', 'linear scalar')
+		_utils.check_parameter_valid('range', scale_in2, [-20, 20], 'control matrix scale (ch2)', 'linear scalar')
+		if (scale_in1/0.1)%1 or (scale_in2/0.1)%1:
+			log.warning("Control matrix scalars should contain one decimal place to avoid quantization effects.")
 
-		_utils.check_parameter_valid('set', ch, [1,2],'filter channel')
-		_utils.check_parameter_valid('set', sample_rate, ['high','low'],'sample rate')
+		# Get calibration coefficients
+		a1, a2 = self._adc_gains()
+		d1, d2 = self._dac_gains()
 
-		# needs seperate function call with @needs_commit as we make use of _set_mmap_access below in this function
-		self._set_output_samplerate(ch, sample_rate)
+		front_end = self._get_frontend(channel = 1) if ch == 1 else self._get_frontend(channel = 2)
+		atten = 10.0 if front_end[1] else 1.0
 
-		## The following converts the input filter coefficient array into a format required by the memory map to correctly configure the HDL.
-		## We don't use this modified format for the input array to reduce the amount of coefficient manipulation a user must perform after generating them in Matlab/Scipy, etc.
+		adc_calibration = a1 if ch == 1 else a2
+		dac_calibration = d1 if ch == 1 else d2
 
+		control_matrix_ch1 = int(round(scale_in1 * 3750.0 * adc_calibration * 2**10 / atten))
+		control_matrix_ch2 = int(round(scale_in2 * 3750.0 * adc_calibration * 2**10 / atten))
+
+		if ch == 1:
+			self.matrixscale_ch1_ch1 = control_matrix_ch1
+			self.matrixscale_ch1_ch2 = control_matrix_ch2
+		else:
+			self.matrixscale_ch2_ch1 = control_matrix_ch1
+			self.matrixscale_ch2_ch2 = control_matrix_ch2
+
+	# NOTE: This function avoids @needs_commit because it calls _set_mmap_access which requires an immediate commit
+	def set_filter(self, ch, sample_rate, filter_coefficients):
+		"""
+		Set SOS filter sample rate and filter coefficients. This also enables the input and outputs of the specified Moku:Lab channel.
+
+		:type ch: int; {1,2}
+		:param ch: target channel
+
+		:type sample_rate: string; {'high','low'}
+		:param sample_rate: filter sample rate where 'high' ~ 15.625 MHz and 'low' ~ 122.070 kHz.
+
+		:type filter_coefficients: array;
+		:param filter_coefficients: array containing SOS filter coefficients. Format is described in class documentation above.
+		"""
+		_utils.check_parameter_valid('set', ch, [1, 2], 'filter channel')
+		_utils.check_parameter_valid('set', sample_rate, ['high', 'low'], 'filter sample rate')
+
+		# Set the filter input samplerate
+		factor = (8 if sample_rate == 'high' else 1024)
+		if ch == 1:
+			self._decfilter1.set_samplerate(factor)
+		else:
+			self._decfilter2.set_samplerate(factor)
+
+		# Conversion of input array (typically generated by Scipy/Matlab) to HDL memory map format
 		if filter_coefficients != None:
 
-			# deep copy the filter coefficient array as it is modified below and potentially used by further set_filter_settings function calls
+			# Deep copy to avoid modifying user's original input array 
 			intermediate_filter = deepcopy(filter_coefficients)
 
-			# check filter array dimensions
+			# Array dimension check
 			if len(filter_coefficients) != 5:
 				_utils.check_parameter_valid('set', len(filter_coefficients), [5],'number of coefficient array rows')
 			for m in range(4):
@@ -174,7 +223,7 @@ class IIRFilterBox(_CoreOscilloscope):
 					if len(filter_coefficients[m]) != 6:
 						_utils.check_parameter_valid('set', len(filter_coefficients[m]), [6],("number of columns in coefficient array row %s"%(m)))
 
-			# check if filter array values are within required bounds:
+			# Array values check
 			_utils.check_parameter_valid('range', filter_coefficients[0][0], [-8e6,8e6 - 2**(-24)],("coefficient array entry m = %s, n = %s"%(0,0)))
 			for m in range(1, 5):
 				for n in range(6):
@@ -222,51 +271,58 @@ class IIRFilterBox(_CoreOscilloscope):
 		self._set_mmap_access(False)
 		os.remove('.data.dat')
 
-	@needs_commit
-	def _set_output_samplerate(self, ch, sample_rate):
-		if ch == 1:
-			self.ch1_output = True
-			self.ch1_sampling_freq = 0 if sample_rate == 'high' else 1
+		# Enable the output and input of the set channel
+		if ch==1:
+			self.output_en1 = True
+			self.input_en1 = True
 		else:
-			self.ch2_output = True
-			self.ch2_sampling_freq = 0 if sample_rate == 'high' else 1
+			self.output_en2 = True
+			self.input_en2 = True
+
+		# Manually commit the above register settings as @needs_commit is not used in this function
+		self.commit()
 
 	@needs_commit
-	def set_offset_gain(self, ch, input_scale=1, output_scale=1, input_offset=0, output_offset=0, matrix_scalar_ch1=None, matrix_scalar_ch2=None):
+	def disable_output(self, ch):
 		"""
-		Configure pre- and post-filter scales, offsets and input mixing for a channel.
+		Disables the output of the specified IIR filter channel.
 
-		Input mixing allows one filter to act on a linear combination of the two input signals. If *matrix_scalar_ch[12]* are left blank,
-		the input matrix is set to the identitiy; that is, filter channel 1 comes only from input channel 1 etc.
+		:type ch: int; {1,2}
+		:param ch: target channel
+		"""
+		if ch == 1:
+			self.output_en1 = False
+		else:
+			self.output_en2 = False
+
+	@needs_commit
+	def set_gains_offsets(self, ch, input_gain=1.0, output_gain=1.0, input_offset=0, output_offset=0):
+		"""
+		Configure pre- and post-filter scales and offsets for a given filter channel.
 
 		.. note::
 			The overall output gain of the instrument is the product of the gain of the filter, set by the filter coefficients,
-			and the output stage gain set here.
+			and the input/output stage gain set here.
 
-		:type ch : int, {1,2}
-		:param ch : target channel
+		:type ch: int, {1,2}
+		:param ch: target filter channel
 
-		:type input_scale, output_scale : int, linear scalar, [0,100]
-		:param input_scale, output_scale : channel scalars before and after the IIR filter
+		:type input_gain, output_gain: float, [-100,100] scalar
+		:param input_gain, output_gain: channel scalars before and after the FIR filter
 
-		:type input_offset, output_offset : int, Volts, [-0.5,0.5]
-		:param input_offset, output_offset : channel offsets before and after the IIR filter
+		:type input_offset: float, [-1.0,1.0] Volts
+		:param input_offset: channel offset before the FIR filter
 
-		:type matrix_scalar_ch1 : int, linear scalar, [0,20]
-		:param matrix_scalar_ch1 : scalar controlling proportion of signal coming from channel 1 that is added to the current filter channel
-
-		:type matrix_scalar_ch2 : int, linear scalar, [0,20]
-		:param matrix_scalar_ch2 : scalar controlling proportion of signal coming from channel 2 that is added to the current filter channel
+		:type output_offset: float, [-2.0,2.0] Volts
+		:param output_offset: channel offset after the FIR filter
 		"""
 		_utils.check_parameter_valid('set', ch, [1,2],'filter channel')
-		_utils.check_parameter_valid('range', input_scale, [0,100],'input scale','linear scalar')
-		_utils.check_parameter_valid('range', output_scale, [0,100],'output scale','linear scalar')
-		_utils.check_parameter_valid('range', input_offset, [-0.5,0.5],'input offset','Volts')
-		_utils.check_parameter_valid('range', output_offset, [-0.5,0.5],'output offset','Volts')
-		_utils.check_parameter_valid('range', matrix_scalar_ch1, [-20,20],'matrix ch1 scalar','linear scalar',allow_none=True)
-		_utils.check_parameter_valid('range', matrix_scalar_ch2, [-20,20],'matrix ch2 scalar','linear scalar',allow_none=True)
+		_utils.check_parameter_valid('range', input_gain, [-100,100],'input scale','linear scalar')
+		_utils.check_parameter_valid('range', output_gain, [-100,100],'output scale','linear scalar')
+		_utils.check_parameter_valid('range', input_offset, [-1.0,1.0],'input offset','Volts')
+		_utils.check_parameter_valid('range', output_offset, [-2.0,2.0],'output offset','Volts')
 
-		## Get calibration coefficients
+		# Get calibration coefficients
 		a1, a2 = self._adc_gains()
 		d1, d2 = self._dac_gains()
 
@@ -276,38 +332,25 @@ class IIRFilterBox(_CoreOscilloscope):
 		adc_calibration = a1 if ch == 1 else a2
 		dac_calibration = d1 if ch == 1 else d2
 
-		if matrix_scalar_ch1 is None:
-			matrix_scalar_ch1 = 1 if ch == 1 else 0
-
-		if matrix_scalar_ch2 is None:
-			matrix_scalar_ch2 = 1 if ch == 2 else 0
-
-		control_matrix_ch1 = int(round(matrix_scalar_ch1 * 3750.0 * adc_calibration * 2**10 / atten))
-		control_matrix_ch2 = int(round(matrix_scalar_ch2 * 3750.0 * adc_calibration * 2**10 / atten))
-
-		## Calculate input/output scale values
+		# Calculate input/output scale values
 		output_gain_factor = 1 / 3750.0 / 8 / dac_calibration
-		input_scale_bits = int(round(input_scale*2**9))
-		output_scale_bits = int(round(output_scale*2**6*output_gain_factor))
+		input_scale_bits = int(round(input_gain*2**9))
+		output_scale_bits = int(round(output_gain*2**9*output_gain_factor))
 
-		## Calculate input/output offset values
-		input_offset_bits = int(round(375.0 * round(input_offset) / 0.5))
+		# Calculate input/output offset values
+		input_offset_bits = int(round(atten / adc_calibration * input_offset / 0.5))
 		output_offset_bits = int(round(1 / dac_calibration / 2 * output_offset / 0.5))
 
 		if ch == 1:
-			self.inputscale_ch1 = input_scale_bits
-			self.outputscale_ch1 = output_scale_bits
-			self.inputoffset_ch1 = input_offset_bits
-			self.outputoffset_ch1 = output_offset_bits
-			self.ch0_ch0gain = control_matrix_ch1
-			self.ch0_ch1gain = control_matrix_ch2
+			self.input_scale1 = input_scale_bits
+			self.output_scale1 = output_scale_bits
+			self.input_offset1 = input_offset_bits
+			self.output_offset1 = output_offset_bits
 		else:
-			self.inputscale_ch2 = input_scale_bits
-			self.outputscale_ch2 = output_scale_bits
-			self.inputoffset_ch2 = input_offset_bits
-			self.outputoffset_ch2 = output_offset_bits
-			self.ch1_ch0gain = control_matrix_ch1
-			self.ch1_ch1gain = control_matrix_ch2
+			self.input_scale2 = input_scale_bits
+			self.output_scale2 = output_scale_bits
+			self.input_offset2 = input_offset_bits
+			self.output_offset2 = output_offset_bits
 
 	@needs_commit
 	def set_monitor(self, ch, source):
@@ -352,10 +395,10 @@ class IIRFilterBox(_CoreOscilloscope):
 
 		if ch == 'a':
 			self.monitor_a = source
-			self.monitor_select0 = sources[source]
+			self.mon1_source = sources[source]
 		else:
 			self.monitor_b = source
-			self.monitor_select1 = sources[source]
+			self.mon2_source = sources[source]
 
 	@needs_commit
 	def set_trigger(self, source, edge, level, hysteresis=False, hf_reject=False, mode='auto'):
@@ -409,11 +452,11 @@ class IIRFilterBox(_CoreOscilloscope):
 
 		monitor_source_gains = {
 			'none'	: 1.0,
+			'adc1'	: scales['gain_adc1']*(10.0 if atten1[1] else 1.0),
 			'in1'	: scales['gain_adc1']*(10.0 if atten1[1] else 1.0),
-			'inch1'	: scales['gain_adc1']*(10.0 if atten1[1] else 1.0),
 			'out1'	: (scales['gain_dac1']*(2**4)), # 12bit ADC - 16bit DAC
+			'adc2'	: scales['gain_adc2']*(10.0 if atten2[1] else 1.0),
 			'in2'	: scales['gain_adc2']*(10.0 if atten2[1] else 1.0),
-			'inch2'	: scales['gain_adc2']*(10.0 if atten2[1] else 1.0),
 			'out2'	: (scales['gain_dac2']*(2**4))
 		}
 
@@ -424,33 +467,33 @@ class IIRFilterBox(_CoreOscilloscope):
 		return scales
 
 _iir_reg_handlers = {
-	'monitor_select0':	(REG_MONSELECT,		to_reg_unsigned(0,3), from_reg_unsigned(0,3)),
-	'monitor_select1':	(REG_MONSELECT,		to_reg_unsigned(3,3), from_reg_unsigned(3,3)),
+	'mon1_source':	(REG_MONSELECT,		to_reg_unsigned(0,3), from_reg_unsigned(0,3)),
+	'mon2_source':	(REG_MONSELECT,		to_reg_unsigned(3,3), from_reg_unsigned(3,3)),
 
-	'ch1_input':		(REG_ENABLE,			to_reg_unsigned(0,1), from_reg_unsigned(0,1)),
-	'ch2_input':		(REG_ENABLE,			to_reg_unsigned(1,1), from_reg_unsigned(1,1)),
-	'ch1_output':		(REG_ENABLE,			to_reg_unsigned(2,1), from_reg_unsigned(2,1)),
-	'ch2_output':		(REG_ENABLE,			to_reg_unsigned(3,1), from_reg_unsigned(3,1)),
+	'input_en1':		(REG_ENABLE,			to_reg_unsigned(0,1), from_reg_unsigned(0,1)),
+	'input_en2':		(REG_ENABLE,			to_reg_unsigned(1,1), from_reg_unsigned(1,1)),
+	'output_en1':		(REG_ENABLE,			to_reg_unsigned(2,1), from_reg_unsigned(2,1)),
+	'output_en2':		(REG_ENABLE,			to_reg_unsigned(3,1), from_reg_unsigned(3,1)),
 
-	'ch0_ch0gain':		(REG_CH0_CH0GAIN, 	to_reg_signed(0,16), from_reg_signed(0,16)),
-	'ch0_ch1gain':		(REG_CH0_CH1GAIN,	to_reg_signed(0,16), from_reg_signed(0,16)),
-	'ch1_ch0gain':		(REG_CH1_CH0GAIN,	to_reg_signed(0,16), from_reg_signed(0,16)),
-	'ch1_ch1gain':		(REG_CH1_CH1GAIN,	to_reg_signed(0,16), from_reg_signed(0,16)),
+	'matrixscale_ch1_ch1':		(REG_CH0_CH0GAIN, 	to_reg_signed(0,16), from_reg_signed(0,16)),
+	'matrixscale_ch1_ch2':		(REG_CH0_CH1GAIN,	to_reg_signed(0,16), from_reg_signed(0,16)),
+	'matrixscale_ch2_ch1':		(REG_CH1_CH0GAIN,	to_reg_signed(0,16), from_reg_signed(0,16)),
+	'matrixscale_ch2_ch2':		(REG_CH1_CH1GAIN,	to_reg_signed(0,16), from_reg_signed(0,16)),
 
 	'ch1_sampling_freq':	(REG_SAMPLINGFREQ,		to_reg_unsigned(0, 1), from_reg_unsigned(0, 1)),
 	'ch2_sampling_freq':	(REG_SAMPLINGFREQ,		to_reg_unsigned(1, 1), from_reg_unsigned(1, 1)),
 
 	'filter_reset':		(REG_FILT_RESET, 		to_reg_bool(0), from_reg_bool(0)),
 
-	'inputscale_ch1':	(REG_INPUTSCALE_CH0,	to_reg_unsigned(0, 18), from_reg_unsigned(0, 18)),
-	'inputscale_ch2':	(REG_INPUTSCALE_CH1,	to_reg_unsigned(0, 18), from_reg_unsigned(0, 18)),
+	'input_scale1':	(REG_INPUTSCALE_CH0,	to_reg_unsigned(0, 18), from_reg_unsigned(0, 18)),
+	'input_scale2':	(REG_INPUTSCALE_CH1,	to_reg_unsigned(0, 18), from_reg_unsigned(0, 18)),
 
-	'outputscale_ch1':	(REG_OUTPUTSCALE_CH0,	to_reg_unsigned(0, 18), from_reg_unsigned(0, 18)),
-	'outputscale_ch2':	(REG_OUTPUTSCALE_CH1,	to_reg_unsigned(0, 18), from_reg_unsigned(0, 18)),
+	'output_scale1':	(REG_OUTPUTSCALE_CH0,	to_reg_unsigned(0, 18), from_reg_unsigned(0, 18)),
+	'output_scale2':	(REG_OUTPUTSCALE_CH1,	to_reg_unsigned(0, 18), from_reg_unsigned(0, 18)),
 
-	'inputoffset_ch1':	(REG_INPUTOFFSET_CH0,	to_reg_signed(0, 13), from_reg_signed(0, 13)),
-	'inputoffset_ch2':	(REG_INPUTOFFSET_CH1,	to_reg_signed(0, 13), from_reg_signed(0, 13)),
+	'input_offset1':	(REG_INPUTOFFSET_CH0,	to_reg_signed(0, 14), from_reg_signed(0, 14)),
+	'input_offset2':	(REG_INPUTOFFSET_CH1,	to_reg_signed(0, 14), from_reg_signed(0, 14)),
 
-	'outputoffset_ch1':	(REG_OUTPUTOFFSET_CH0,	to_reg_signed(0, 16), from_reg_signed(0, 16)),
-	'outputoffset_ch2':	(REG_OUTPUTOFFSET_CH1,	to_reg_signed(0, 16), from_reg_signed(0, 16))
+	'output_offset1':	(REG_OUTPUTOFFSET_CH0,	to_reg_signed(0, 17), from_reg_signed(0, 17)),
+	'output_offset2':	(REG_OUTPUTOFFSET_CH1,	to_reg_signed(0, 17), from_reg_signed(0, 17))
 }
