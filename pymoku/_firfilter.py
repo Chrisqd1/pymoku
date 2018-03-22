@@ -259,10 +259,12 @@ class FIRFilter(_CoreOscilloscope):
 		if not all(map(lambda x: abs(x) <= 1.0, filter_coefficients)):
 			raise ValueOutOfRangeException("set_filter filter coefficients must be in the range [-1.0, 1.0].")
 
-		self._write_coeffs(ch, filter_coefficients)
+		# IMPORTANT: The decimation filter samplerate must be set before the coefficients are written
+		# 			 this is because the mmap access bit appropriately resets the other decimation blocks.
 		self._set_samplerate(ch, 2.0**decimation_factor)
 
-		# Enable the output and input of the set channel
+		self._write_coeffs(ch, filter_coefficients)
+
 		if ch==1:
 			self.output_en1 = True
 			self.input_en1 = True
