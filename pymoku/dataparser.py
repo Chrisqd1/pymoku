@@ -114,8 +114,7 @@ class LIDataFileReader(object):
 
 		self.records = [ [] for _ in range(self.nch)]
 
-		self.parser = FastDataParser(self.ch1, self.ch2, self.rec, self.proc, self.fmt, self.hdr, self.deltat, self.starttime, self.cal, self.startoffset)
-
+		self.parser = LIDataParser(self.ch1, self.ch2, self.rec, self.proc, self.fmt, self.hdr, self.deltat, self.starttime, self.cal, self.startoffset)
 
 	def _parse_v1_header(self):
 		pkthdr_len = struct.unpack("<H", self.file.read(2))[0]
@@ -461,7 +460,7 @@ class LIDataFileWriterV2(object):
 		self.finalize()
 
 
-class LIDataParser(object):
+class SlowDataParser(object):
 	""" Backend class that parses raw bytestrings from the instruments according to given format strings.
 
 	Unlikely to be of utility outside the Moku:Lab firmware, an end-user probably wants to instantiate
@@ -736,11 +735,11 @@ class LIDataParser(object):
 				raise DataIntegrityException("Data loss detected on stream interface")
 try:
 	import liquidreader as lr
-
-	class FastDataParser(LIDataParser):
+	log.debug("liquidreader imported successfully")
+	class FastDataParser(SlowDataParser):
 		# This class does the binary parsing and processing in the external liquidreader C module for about a 10x
 		# increase in speed compared to binary. The CSV processing is currently still done in Python, inherited
-		# from the LIDataParser above.
+		# from the SlowDataParser above.
 		def __init__(self, ch1, ch2, binstr, procstr, fmtstr, hdrstr, deltat, starttime, calcoeffs, startoffset):
 			self.ch1, self.ch2 = ch1, ch2
 			self.binstr, self.procstr, self.fmtstr, self.hdrstr = binstr, procstr, fmtstr, hdrstr
@@ -814,5 +813,8 @@ try:
 
 				d = lr.get()
 
+	LIDataParser = FastDataParser
+
 except ImportError:
-	pass
+	log.debug("liquidreader module unable to be imported. Falling back to default data parser.")
+	LIDataParser = SlowDataParser
