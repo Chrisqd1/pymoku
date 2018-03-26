@@ -45,7 +45,7 @@ _ARB_TRIGLVL_MAX = 10.0
 _ARB_TRIG_TYPE_SINGLE 	= 0
 _ARB_TRIG_TYPE_CONT		= 2
 
-_ARB_MODE_RATE = [1.0e9, 500.0e6, 250.0e6, 125.0e6] #1GS, 500MS, 250MS, 125MS
+_ARB_SMPL_RATE = 1.0e9
 
 _ARB_INPUT_SMPS = ADC_SMP_RATE
 _ARB_CHN_BUFLEN = 2**13
@@ -263,8 +263,7 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 			freq = 1/period
 			self.interpolation1 = interpolation
 			phase_modulo = (self.lut_length1 + 1) * _ARB_LUT_INTERPLOATION_LENGTH
-			update_rate = _ARB_MODE_RATE[self.mode1]
-			self._sweep1.step = freq / update_rate * phase_modulo
+			self._sweep1.step = freq / _ARB_SMPL_RATE * phase_modulo
 			phase_modulo = phase_modulo * dead_time if dead_time > 0 else phase_modulo
 			self._sweep1.stop = phase_modulo
 			self._sweep1.start = (phase / 360) * phase_modulo if dead_time == 0 else 0
@@ -277,8 +276,7 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 			freq = 1/period
 			self.interpolation2 = interpolation
 			phase_modulo = (self.lut_length2 + 1) * _ARB_LUT_INTERPLOATION_LENGTH
-			update_rate = _ARB_MODE_RATE[self.mode2]
-			self._sweep2.step = freq / update_rate * phase_modulo
+			self._sweep2.step = freq / _ARB_SMPL_RATE * phase_modulo
 			phase_modulo = phase_modulo * dead_time if dead_time > 0 else phase_modulo
 			self._sweep2.stop = phase_modulo
 			self._sweep2.start = (phase / 360) * phase_modulo if dead_time > 0 else 0
@@ -330,7 +328,7 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		_utils.check_parameter_valid('set', mode, ['auto', 'normal'], desc='mode')
 
 		trig_channels = [self._trigger1, self._trigger2]
-	
+
 
 		if not (maxwidth is None or minwidth is None):
 			raise InvalidConfigurationException("Can't set both 'minwidth' and 'maxwidth' for Pulse Width trigger mode. Choose one.")
@@ -376,7 +374,7 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		trig_channels[ch-1].edge = edge
 		trig_channels[ch-1].mode = mode
 		trig_channels[ch-1].duration = minwidth or maxwidth or 0.0
-		
+
 		if maxwidth:
 			trig_channels[ch-1].trigtype = Trigger.TYPE_PULSE
 			trig_channels[ch-1].pulsetype = Trigger.PULSE_MAX
@@ -411,7 +409,7 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		:param start: determines when in the waveform cycle to start generating signal once a trigger event has occurs.
 
 		:type stop: float;
-		:param stop; determines when in the waveform cycle to stop generating signal once a trigger event occurs 
+		:param stop; determines when in the waveform cycle to stop generating signal once a trigger event occurs
 		"""
 
 		# Convert the input parameter strings to bit-value mappings
@@ -421,7 +419,7 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		_utils.check_parameter_valid('float', duration, 'duration')
 		_utils.check_parameter_valid('bool', hold_last, 'hold_last')
 		_utils.check_parameter_valid('int', start, 'start')
-		_utils.check_parameter_valid('int', stop, 'stop')		
+		_utils.check_parameter_valid('int', stop, 'stop')
 
 		sweep_channels = [self._sweep1, self._sweep2]
 
@@ -486,11 +484,9 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 
 
 		if ch == 1:
-			update_rate = _ARB_MODE_RATE[self.mode1]
-			return (self._sweep1.step / self._sweep1.stop) * update_rate
+			return (self._sweep1.step / self._sweep1.stop) * _ARB_SMPL_RATE
 		if ch == 2:
-			update_rate = _ARB_MODE_RATE[self.mode2]
-			return (self._sweep2.step / self._sweep2.stop) * update_rate
+			return (self._sweep2.step / self._sweep2.stop) * _ARB_SMPL_RATE
 
 	@needs_commit
 	def gen_off(self, ch=None):

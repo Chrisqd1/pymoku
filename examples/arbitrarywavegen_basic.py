@@ -14,7 +14,7 @@ import numpy as np
 t = np.linspace(0, 1, 100) # Evaluate our waveform at 100 points
 
 # Simple square wave (can also use scipy.signal)
-sq_wave = np.sign(np.sin(2 * np.pi * t))
+sq_wave = np.array([-1.0 if x < 0.5 else 1.0 for x in t])
 
 # More interesting waveform. Note that we have to normalize this waveform
 # to the range [-1, 1]
