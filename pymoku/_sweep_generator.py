@@ -1,8 +1,6 @@
 from ._instrument import *
 from . import _utils
 
-_CLK_FREQ = 125e6
-
 class SweepGenerator(object):
 	_REG_CONFIG = 0
 	_REG_START_LSB = 1
@@ -25,7 +23,7 @@ class SweepGenerator(object):
 
 	@property
 	def waveform(self):
-		r1 = self.reg_base + SweepGenerator._REG_CONFIG
+		r = self.reg_base + SweepGenerator._REG_CONFIG
 		return self._instr._accessor_get(r, from_reg_unsigned(0, 2))
 
 	@waveform.setter
