@@ -68,8 +68,7 @@ PID_MONITOR_Q		= 1
 PID_MONITOR_PID		= 2
 PID_MONITOR_INPUT	= 3
 
-_PID_CONTROL_FS 	= 25e6
-
+_PID_INPUT_SMPS		= ADC_SMP_RATE/20
 
 class PIDController(_CoreOscilloscope):
 	""" PIDController instrument object. This should be instantiated and attached to a :any:`Moku` instance.
@@ -101,6 +100,9 @@ class PIDController(_CoreOscilloscope):
 
 		self.id = 5
 		self.type = "pidcontroller"
+		
+		# Monitor samplerate
+		self._input_samplerate = _PID_INPUT_SMPS
 
 	@needs_commit
 	def set_defaults(self):
@@ -121,7 +123,7 @@ class PIDController(_CoreOscilloscope):
 	def _calculate_gains_by_frequency(self, kp, i_xover, d_xover, ii_xover, si, sd):
 		# Particularly high or low I or D crossover frequencies (<1Hz, >1MHz) require that some of their gain is
 		# pushed to the overall gain on the end due to dynamic range limitations
-		fs = _PID_CONTROL_FS
+		fs = _PID_INPUT_SMPS
 		cross_over_gain = kp if kp else 1
 
 		i_gmin = d_gmin = 1
@@ -197,7 +199,7 @@ class PIDController(_CoreOscilloscope):
 			gain_factor = g / 16.0 / 1000.0 / self._dac_gains()[ch - 1]
 			p_gain = kp
 
-		fs = _PID_CONTROL_FS / (2 * math.pi)
+		fs = _PID_INPUT_SMPS / (2 * math.pi)
 
 		# I gain and corner. Factors of FS convert essentially from S- to Z-plane
 		i_gain = ki  / fs

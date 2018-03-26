@@ -9,8 +9,6 @@ import os, os.path, time, datetime, math
 import logging
 import re, struct
 
-import lr
-
 log = logging.getLogger(__name__)
 
 try:
@@ -736,80 +734,85 @@ class LIDataParser(object):
 				self._sampleidx[ch] += nprocessed
 			else:
 				raise DataIntegrityException("Data loss detected on stream interface")
+try:
+	import liquidreader as lr
 
-class FastDataParser(LIDataParser):
-	# This class does the binary parsing and processing in the external liquidreader C module for about a 10x
-	# increase in speed compared to binary. The CSV processing is currently still done in Python, inherited
-	# from the LIDataParser above.
-	def __init__(self, ch1, ch2, binstr, procstr, fmtstr, hdrstr, deltat, starttime, calcoeffs, startoffset):
-		self.ch1, self.ch2 = ch1, ch2
-		self.binstr, self.procstr, self.fmtstr, self.hdrstr = binstr, procstr, fmtstr, hdrstr
-		self.deltat, self.starttime, self.startoffset = deltat, starttime, startoffset
-		self.calcoeffs = calcoeffs
-		self.nch = 2 if self.ch1 and self.ch2 else 1
-		self.ready = False
+	class FastDataParser(LIDataParser):
+		# This class does the binary parsing and processing in the external liquidreader C module for about a 10x
+		# increase in speed compared to binary. The CSV processing is currently still done in Python, inherited
+		# from the LIDataParser above.
+		def __init__(self, ch1, ch2, binstr, procstr, fmtstr, hdrstr, deltat, starttime, calcoeffs, startoffset):
+			self.ch1, self.ch2 = ch1, ch2
+			self.binstr, self.procstr, self.fmtstr, self.hdrstr = binstr, procstr, fmtstr, hdrstr
+			self.deltat, self.starttime, self.startoffset = deltat, starttime, startoffset
+			self.calcoeffs = calcoeffs
+			self.nch = 2 if self.ch1 and self.ch2 else 1
+			self.ready = False
 
-		self.backlog = []
+			self.backlog = []
 
-		super(FastDataParser, self).__init__(ch1, ch2, binstr, procstr, fmtstr, hdrstr, deltat, starttime, calcoeffs, startoffset)
+			super(FastDataParser, self).__init__(ch1, ch2, binstr, procstr, fmtstr, hdrstr, deltat, starttime, calcoeffs, startoffset)
 
-		if all(self.calcoeffs):
-			self.init_liquidreader()
+			if all(self.calcoeffs):
+				self.init_liquidreader()
 
-	def init_liquidreader(self):
-		# This writes out effectively a version-1 LI file header so the underlying LI Reader
-		# doesn't need any modification (so long as it doesn't drop v1 support!)
-		chs = (int(self.ch2) << 1) | int(self.ch1)
+		def init_liquidreader(self):
+			# This writes out effectively a version-1 LI file header so the underlying LI Reader
+			# doesn't need any modification (so long as it doesn't drop v1 support!)
+			chs = (int(self.ch2) << 1) | int(self.ch1)
 
-		hdr = struct.pack("<BBHdQ", chs, 0, 0, self.deltat, self.starttime)
+			hdr = struct.pack("<BBHdQ", chs, 0, 0, self.deltat, self.starttime)
 
-		for i in range(self.nch):
-			hdr += struct.pack('<d', self.calcoeffs[i])
+			for i in range(self.nch):
+				hdr += struct.pack('<d', self.calcoeffs[i])
 
-		hdr += struct.pack("<H", len(self.binstr)) + self.binstr.encode()
+			hdr += struct.pack("<H", len(self.binstr)) + self.binstr.encode()
 
-		for i in range(self.nch):
-			hdr += struct.pack("<H", len(self.procstr[i])) + self.procstr[i].encode()
+			for i in range(self.nch):
+				hdr += struct.pack("<H", len(self.procstr[i])) + self.procstr[i].encode()
 
-		hdr += struct.pack("<H", len(self.fmtstr)) + self.fmtstr.encode()
-		hdr += struct.pack("<H", len(self.hdrstr)) + self.hdrstr.encode()
+			hdr += struct.pack("<H", len(self.fmtstr)) + self.fmtstr.encode()
+			hdr += struct.pack("<H", len(self.hdrstr)) + self.hdrstr.encode()
 
-		d = b'LI1' + struct.pack("<H", len(hdr)) + hdr
-		lr.restart()
-		lr.put(d)
+			d = b'LI1' + struct.pack("<H", len(hdr)) + hdr
+			lr.restart()
+			lr.put(d)
 
-		self.ready = True
+			self.ready = True
 
-		for data, ch, start_idx in self.backlog:
-			self.parse(data, ch, start_idx)
+			for data, ch, start_idx in self.backlog:
+				self.parse(data, ch, start_idx)
 
-		self.backlog = []
-
-
-	def set_coeff(self, ch, coeff):
-		# Some users, notably stream-to-network, don't know the particular unit's calibration
-		# coefficients until some data arrives, so this needs to be separately settable. However
-		# the Liquidreader can't be initialised twice, just do it the once when we have all info.
-		self.calcoeffs[ch] = coeff
-
-		if all(self.calcoeffs) and not self.ready:
-			self.init_liquidreader()
+			self.backlog = []
 
 
-	def parse(self, data, ch, start_idx=None):
-		if not self.ready:
-			self.backlog.append((data, ch, start_idx))
-			return
+		def set_coeff(self, ch, coeff):
+			# Some users, notably stream-to-network, don't know the particular unit's calibration
+			# coefficients until some data arrives, so this needs to be separately settable. However
+			# the Liquidreader can't be initialised twice, just do it the once when we have all info.
+			self.calcoeffs[ch] = coeff
 
-		lr.put(struct.pack("<BH", ch, len(data)) + data)
+			if all(self.calcoeffs) and not self.ready:
+				self.init_liquidreader()
 
-		d = lr.get()
-		while d is not None:
-			if self.nch == 2:
-				ch1, ch2 = d
-				self.processed[0].append(ch1)
-				self.processed[1].append(ch2)
-			else:
-				self.processed[0].append(d)
+
+		def parse(self, data, ch, start_idx=None):
+			if not self.ready:
+				self.backlog.append((data, ch, start_idx))
+				return
+
+			lr.put(struct.pack("<BH", ch, len(data)) + data)
 
 			d = lr.get()
+			while d is not None:
+				if self.nch == 2:
+					ch1, ch2 = d
+					self.processed[0].append(ch1)
+					self.processed[1].append(ch2)
+				else:
+					self.processed[0].append(d)
+
+				d = lr.get()
+
+except ImportError:
+	pass

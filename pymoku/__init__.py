@@ -716,6 +716,33 @@ class Moku(object):
 
 		return pkt[2:]
 
+	def _send_file_bytes(self, mp, remotename, data, offset=0):
+		# NOTE: The calling function should also perform a "finalise request" on completion of 
+		#		byte sending to ensure the file resource becomes available for use.
+		data = bytearray(data)
+		data_length = len(data)
+		fname = mp + ":" + remotename
+
+		self._set_timeout(short=False)
+		i = 0
+
+		while i < data_length:
+			n_bytes = min(data_length-i, _FS_CHUNK_SIZE)
+			pkt_data = data[i:i+n_bytes]
+
+			pkt = bytearray([len(fname)])
+			pkt += fname.encode('ascii')
+			pkt += struct.pack("<QQ", offset+i, len(pkt_data))
+			pkt += pkt_data
+			with self._conn_lock:
+				self._fs_send_generic(2, pkt)
+				self._fs_receive_generic(2)
+
+			# Increment the offset counter
+			i += len(pkt_data)
+
+		self._set_timeout(short=True)
+
 
 	def _send_file(self, mp, localname, remotename=None):
 		if remotename is None:
@@ -727,24 +754,10 @@ class Moku(object):
 		with open(localname, 'rb') as f:
 			while True:
 				data = f.read(_FS_CHUNK_SIZE)
-
 				if not len(data):
 					break
-
-				fname = mp + ":" + remotename
-
-				pkt = bytearray([len(fname)])
-				pkt += fname.encode('ascii')
-				pkt += struct.pack("<QQ", i, len(data))
-				pkt += data
-
-				with self._conn_lock:
-					self._fs_send_generic(2, pkt)
-					self._fs_receive_generic(2)
-
+				self._send_file_bytes(mp, remotename, data, i)
 				i += len(data)
-
-		self._set_timeout(short=True)
 
 		# Once all chunks have been uploaded, finalise the file on the
 		# device making it available for use
@@ -965,6 +978,13 @@ class Moku(object):
 		self._set_timeout()
 		if reply:
 			raise InvalidOperationException("Firmware update failure %d" % reply)
+
+	def _restart_board(self):
+		with self._conn_lock:
+			self._conn.send(bytearray([0x52, 0x02]))
+			hdr, reply = struct.unpack("<BB", self._conn.recv())
+		if reply:
+			raise InvalidOperationException("Reboot failed %d" % reply)
 
 	def _load_firmware(self, path):
 		"""

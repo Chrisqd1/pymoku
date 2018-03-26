@@ -1,23 +1,83 @@
 #!/usr/bin/env python
 
 from argparse import ArgumentParser
-import os, os.path, shutil, tempfile
-import requests
+import os, os.path, shutil, tempfile, tarfile
+import requests, pkg_resources
 
 from pymoku import *
 from pymoku.tools.compat import *
 
 import logging
-logging.basicConfig(level=logging.WARNING)
+logging.basicConfig(format='%(message)s', level=logging.INFO)
+
+data_path = os.path.expanduser(os.environ.get('PYMOKU_INSTR_PATH', None) or pkg_resources.resource_filename('pymoku', 'data'))
+version = pkg_resources.get_distribution("pymoku").version
+DATAURL = 'http://updates.liquidinstruments.com/static/mokudata-%s.tar.gz' % '471'
 
 parser = ArgumentParser()
-subparsers = parser.add_subparsers(title="action", description="Action to take")
+subparsers = parser.add_subparsers(title="action", dest='action', description="Action to take")
+subparsers.required = True
 
 # Global arguments
 parser.add_argument('--serial', default=None, help="Serial Number of the Moku to connect to")
 parser.add_argument('--name', default=None, help="Name of the Moku to connect to")
 parser.add_argument('--ip', default=None, help="IP Address of the Moku to connect to")
 parser.add_argument('--force', action='store_true', help="Bypass compatibility checks with the target Moku. Don't touch unless you know what you're doing.")
+
+# View and load new instrument bitstreams
+def fetchdata(args):
+	url = args.url
+	logging.info("Fetching data pack from: %s" % url)
+	r = requests.get(url)
+	with open(data_path + '/mokudata.tar.gz', 'wb') as f:
+		f.write(r.content)
+	try:
+		logging.info("installing to %s" % data_path)
+		tarfile.open(data_path + '/mokudata.tar.gz').extractall(path=data_path)
+		with open(data_path + '/data_version', 'w') as f:
+			f.write(version)
+	except:
+		logging.exception("Couldn't install data pack")
+	os.remove(data_path + '/mokudata.tar.gz')
+
+parser_fetchdata = subparsers.add_parser('fetchdata', help="Check and update instruments on the Moku.")
+parser_fetchdata.add_argument('--url', help='Override location of data pack', default=DATAURL)
+parser_fetchdata.set_defaults(func=fetchdata)
+
+def listmokus(args):
+	mokus = pymoku.BonjourFinder().find_all(timeout=2.0)
+	mokus.sort()
+	print("{: <20} {: >6} {: >15}".format('Name', 'Serial', 'IP'))
+	print("-" * (20 + 6 + 15 + 2))
+
+	for m in mokus:
+		x = None
+		try:
+			x = Moku(m)
+			print("{: <20} {: 06d} {: >15}".format(x.get_name()[:20], int(x.get_serial()), m))
+		except:
+			print("Couldn't query IP %s" % m)
+		finally:
+			if x: x.close()
+
+parser_list = subparsers.add_parser('list', help="List Moku:Labs on the network.")
+parser_list.set_defaults(func=listmokus)
+
+def query_property(args):
+	moku = None
+	try:
+		moku = connect(args, force=True)
+		if args.value:
+			moku._set_property_single(args.property, args.value)
+		print("%s = %s" % (args.property, moku._get_property_single(args.property)))
+	finally:
+		if moku:
+			moku.close()
+
+parser_set = subparsers.add_parser('property', help="Set Moku:Lab property.")
+parser_set.add_argument('property', help='Property to query')
+parser_set.add_argument('value', help='Value to write to property', nargs='?')
+parser_set.set_defaults(func=query_property)
 
 # View and load new instrument bitstreams
 def instrument(args):
@@ -92,6 +152,9 @@ def firmware(args):
 				print("Unable to determine compatibility, perhaps you're running a development or pre-release build?")
 			else:
 				print("Compatible" if compat else "Firmware version %s incompatible with Pymoku v%s, please update firmware to one of versions: %s." % (moku.get_firmware_build(), str(moku.get_version()), list_compatible_firmware()))
+		elif args.action == 'restart':
+			moku._restart_board()
+			print("Moku rebooted.")
 		else:
 			exit(1)
 	finally:
@@ -101,20 +164,20 @@ def firmware(args):
 			pass # Firmware update can stop us being able to close
 
 parser_firmware = subparsers.add_parser('firmware', help="Check and load new firmware for your Moku.")
-parser_firmware.add_argument('action', help='Action to perform', choices=['version', 'load', 'check_compat'])
+parser_firmware.add_argument('action', help='Action to perform', choices=['version', 'load', 'check_compat', 'restart'])
 parser_firmware.add_argument('file', nargs='?', default=None, help="Path to local firmware file, if any")
 parser_firmware.set_defaults(func=firmware)
 
 def main():
+	logging.info("PyMoku %s" % version)
 	args = parser.parse_args()
+	args.func(args)
 
+def connect(args, force=False):
 	if len([ x for x in (args.serial, args.name, args.ip) if x]) != 1:
 		print("Please specify exactly one of serial, name or IP address of target Moku")
 		exit(1)
 
-	args.func(args)
-
-def connect(args, force=False):
 	force = force or args.force
 	if args.serial:
 		moku = Moku.get_by_serial(args.serial, force=force)

@@ -8,9 +8,9 @@ MANIFEST
 dist
 tests/test.li
 tests/test2.li
-*.so
 .cache/
 pymoku/data/10.*
 pymoku/data/20.*
-pymoku/*.c
+pymoku/data/data_version
 .vscode
+

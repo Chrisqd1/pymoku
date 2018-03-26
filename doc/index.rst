@@ -30,6 +30,7 @@ Contents
    pid
    lockin
    iirfilterbox
+   firfilterbox
    utils
 
 

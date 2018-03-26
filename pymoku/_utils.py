@@ -1,4 +1,5 @@
 from . import ValueOutOfRangeException, InvalidParameterException
+import sys
 
 """
 	Global utility functions
@@ -42,8 +43,9 @@ def check_parameter_valid(check_type, v, allowed=None, desc="", units="", allow_
 			float(v)
 		except (ValueError, TypeError):
 			raise InvalidParameterException("Invalid parameter \'%s\': %s %s. Expected floating-point number." % (desc, v, units))
-	elif not isinstance(allowed, (list,tuple)):
-		raise InvalidParameterException("Invalid parameter 'allowed': %s %s. Expected array or tuple." % (allowed,units))
+	elif not isinstance(allowed, (list,tuple)) and (sys.version_info[0]==3 and not isinstance(allowed, range)):
+		# This case enables the "allow" parameter to be specified using Python 3's built-in range function which returns a 'range' type object
+		raise InvalidParameterException("Invalid parameter 'allowed': %s %s. Expected array, tuple or range type object." % (allowed,units))
 	elif check_type == 'set':
 		if not (v in allowed):
 			raise InvalidParameterException("Invalid parameter \'%s\': %s. Valid set %s %s." % (desc, v, allowed, units))

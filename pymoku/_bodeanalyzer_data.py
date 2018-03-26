@@ -1,7 +1,7 @@
 import math
 import struct
 
-import _frame_instrument
+from . import _frame_instrument
 
 
 class _BodeChannelData():
