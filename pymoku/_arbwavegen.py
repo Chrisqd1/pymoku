@@ -209,7 +209,7 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		os.remove('.lutdata.dat')
 
 	@needs_commit
-	def gen_waveform(self, ch, period, amplitude, phase=0, offset=0, interpolation=True, dead_time=0, dead_voltage = 0):
+	def gen_waveform(self, ch, period, amplitude, phase=0, offset=0, interpolation=True, dead_time=0, dead_voltage = 0, en=True):
 		""" Generate the Arbitrary Waveform with the given parameters on the given channel.
 
 		The Look-up table for this channel should have been loaded beforehand using :any:`write_lut`.
@@ -247,6 +247,9 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		:type dead_voltage: float [-2.0,2.0] V
 		:param dead_voltage: signal level during dead time in Volts
 
+		:type en: bool
+		:param en: Enable output
+
 		:raises ValueError: if the parameters  is invalid
 		:raises ValueOutOfRangeException: if wave parameters are out of range
 		:raises InvalidParameterException: if the parameters are the wrong types
@@ -258,6 +261,7 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		_utils.check_parameter_valid('range', dead_time, [0.0, 2e18], desc='signal dead time', units='cycles')
 		_utils.check_parameter_valid('range', dead_voltage, [-2.0, 2.0], desc='dead value', units='volts')
 		_utils.check_parameter_valid('range', phase, [0, 360], desc='phase offset', units='degrees')
+		_utils.check_parameter_valid('bool', en, 'output enable')
 
 		upper_voltage = offset + (amplitude/2.0)
 		lower_voltage = offset - (amplitude/2.0)
@@ -266,7 +270,7 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 			raise ValueOutOfRangeException("Waveform offset limited by amplitude (max output range 2.0Vpp).")
 
 		if(ch == 1):
-			freq = 1/period
+			freq = 1.0/period
 			self.interpolation1 = interpolation
 			phase_modulo = (self.lut_length1 + 1) * _ARB_LUT_INTERPLOATION_LENGTH
 			self._sweep1.step = freq / _ARB_SMPL_RATE * phase_modulo
@@ -276,10 +280,10 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 			self.dead_value1 = dead_voltage
 			self.amplitude1 = amplitude
 			self.offset1 = offset
-			self.enable1 = True
+			self.enable1 = en
 
 		if(ch == 2):
-			freq = 1/period
+			freq = 1.0/period
 			self.interpolation2 = interpolation
 			phase_modulo = (self.lut_length2 + 1) * _ARB_LUT_INTERPLOATION_LENGTH
 			self._sweep2.step = freq / _ARB_SMPL_RATE * phase_modulo
@@ -289,7 +293,7 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 			self.dead_value2 = dead_voltage
 			self.amplitude2 = amplitude
 			self.offset2 = offset
-			self.enable2 = True
+			self.enable2 = en
 
 	@needs_commit
 	def set_waveform_trigger(self, ch, source, edge, level, minwidth=None, maxwidth=None, hysteresis=False):
@@ -381,7 +385,7 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 			trig_channels[ch-1].trigtype = Trigger.TYPE_EDGE
 
 	@needs_commit
-	def set_waveform_trigger_mode(self, ch, trig_en = True, single = True, duration = 0.0, hold_last = False):
+	def set_waveform_trigger_output(self, ch, trig_en = True, single = False, duration = 0, hold_last = False):
 		""" Enables triggered output mode on the specified channel and configures 'how' to output the 
 			set waveform on a trigger event.
 
@@ -391,19 +395,15 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		:type trig_en: bool;
 		:param trig_en: Enables triggering mode on the specified output channel
 
-		:type trig_type: string; {'single', 'continuous'}
-		:param trig_type; Select the mode (how the waveform behaves) when a trigger arrives.
+		:type single: bool;
+		:param single; Enables single mode. Outputs a single waveform (vs continuous) per trigger event. 
 
 		:type duration: float; [0.0, 1e11] seconds
-		:param duration: select the time that the triggered functionality is active - set 0 for continuous. Note the 
-			duration resolution is 8ns. 
+		:param duration: Total time that the triggered output should be generated (leave 0 for continuous). 
+			Note the duration resolution is 8ns.
 
 		:type hold_last: bool
-		:param hold_last: set to hold the last value of the waveform for the duration of the triggered functionality
-
-		:type start: float; [0.0, 360.0] phase
-		:param start: determines when in the waveform cycle to start generating signal once a trigger event has occured.
-			The waveform cycle includes and specified deadtime.
+		:param hold_last: Hold the last value of the waveform for the duration of the triggered output.
 		"""
 		# Convert the input parameter strings to bit-value mappings
 		_utils.check_parameter_valid('set', ch, [1,2], 'channel')
@@ -424,7 +424,12 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 
 		sweep_channels[ch-1].waveform = _utils.str_to_val(_str_to_waveform, trig_type, 'trig_type')
 		sweep_channels[ch-1].hold_last = hold_last
-		sweep_channels[ch-1].duration = int(round(duration * 1.0e9 / 8))
+
+		if single and not duration:
+			# Duration must be set to ~equal the waveform period otherwise we can never retrigger
+			sweep_channels[ch-1].duration = _ARB_SMPL_RATE / 8.0 / self.get_frequency(ch)
+		else:
+			sweep_channels[ch-1].duration = int(round(duration * 1.0e9 / 8))
 
 	def _update_dependent_regs(self, scales):
 		super(ArbitraryWaveGen, self)._update_dependent_regs(scales)
@@ -433,7 +438,7 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 
 	@needs_commit
 	def sync_phase(self):
-		""" Synchronizes the phase of the given channel to the other
+		""" Resets the phase accumulator of both output waveforms.
 		"""
 		self.reset_phase(1)
 		self.reset_phase(2)
@@ -455,15 +460,14 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 			self.phase_rst2 = True
 
 	def get_frequency(self, ch):
-		""" returns the frequency for a given channel
+		""" Returns the frequency of the output waveform on the selected channel.
 
 		:type ch: int; {1,2}
-		:param ch: Channel from which the frequency is calculated
+		:param ch: Output channel
 
 		:raises ValueError: if the channel number is invalid
 		"""
 		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
-
 
 		if ch == 1:
 			return (self._sweep1.step / self._sweep1.stop) * _ARB_SMPL_RATE
@@ -472,7 +476,7 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 
 	@needs_commit
 	def gen_off(self, ch=None):
-		""" Turn ArbitraryWaveGen output(s) off.
+		""" DEPRECATED Turn ArbitraryWaveGen output(s) off.
 
 		The channel will be turned on when configuring the waveform type but can be turned off
 		using this function. If *ch* is None (the default), both channels will be turned off,
@@ -481,15 +485,31 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		:type ch: int; {1,2} or None
 		:param ch: Channel to turn off, or both.
 
-		:raises ValueError: invalid channel number
+		:raises ValueError: Invalid parameters
 		"""
-		_utils.check_parameter_valid('set', ch, [1,2],'output channel', allow_none=True)
+		self.output_enable(ch, en=False)
 
-		if ch is None or ch == 1:
-			self.enable1 = False
+	@needs_commit
+	def enable_output(self, ch=None, en=True):
+		""" Enable or disable the ArbitraryWaveGen output(s).
 
-		if ch is None or ch == 2:
-			self.enable2 = False
+		If *ch* is None (the default), both channels will be acted upon,
+		otherwise just the one specified by the argument.
+
+		:type ch: int; {1,2} or None
+		:param ch: Output channel, or both.
+
+		:type en: bool
+		:param en: Enable the specified output channel(s).
+
+		:raises ValueError: Invalid parameters
+		"""
+		_utils.check_parameter_valid('set',ch, [1,2], 'output channel', allow_none=True)
+		_utils.check_parameter_valid('bool',en,'output enable')
+		if not ch or ch==1:
+			self.enable1 = en
+		if not ch or ch==2:
+			self.enable2 = en
 
 
 _arb_reg_handlers = {
