@@ -78,39 +78,24 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		self._input_samplerate	= _ARB_INPUT_SMPS
 		self._chn_buffer_len	= _ARB_CHN_BUFLEN
 
+		self.data = [[0],[0]]
+
 	@needs_commit
 	def set_defaults(self):
+		"""Sets the Arbitrary Waveform Generator instrument to sane defaults
+		"""
 		super(ArbitraryWaveGen, self).set_defaults()
-		self.mode1 = _ARB_MODE_125
-		self.lut_length1 = _ARB_LUT_LENGTH
-		self.mode2 = _ARB_MODE_125
-		self.lut_length2 = _ARB_LUT_LENGTH
-		self._sweep1.stop = 2**42
-		self._sweep2.stop = 2**42
-		self._sweep1.step = _ARB_LUT_LSB
-		self._sweep2.step = _ARB_LUT_LSB
-		self.dead_value1 = 0x0000
-		self.dead_value2 = 0x0000
-		self.interpolation1 = False
-		self.interpolation2 = False
-		self.enable1 = False
-		self.enable2 = False
-		self.amplitude1 = 1.0
-		self.amplitude2 = 1.0
-		self.offset1 = 0.0
-		self.offset2 = 0.0
-		self._sweep1.waveform = SweepGenerator.WAVE_TYPE_SAWTOOTH
-		self._sweep2.waveform = SweepGenerator.WAVE_TYPE_SAWTOOTH
 
-		self.data = [[0], [0]]
+		self.gen_waveform(1, 1, 0, en=False)
+		self.gen_waveform(2, 1, 0, en=False)
 
-	@needs_commit
+		self.set_waveform_trigger(1, 'in1', 'rising', 0)
+		self.set_waveform_trigger(2, 'in2', 'rising', 0)
+
+		self.set_waveform_trigger_output(1, False)
+		self.set_waveform_trigger_output(2, False)
+
 	def _set_mode(self, ch, mode, length):
-		#Changes the mode used to determine outut the waveform.
-
-		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
-		_utils.check_parameter_valid('set', mode, [_ARB_MODE_1000, _ARB_MODE_500, _ARB_MODE_250, _ARB_MODE_125], desc='mode is not vaild')
-
 		if mode is _ARB_MODE_1000:
 			_utils.check_parameter_valid('range', length, [1,2**13], desc='length for lookup table')
 		if mode is _ARB_MODE_500:
@@ -127,6 +112,7 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 			self.mode2 = mode
 			self.lut_length2 = length-1
 
+	# Can't use nested needs_commit because mmap access bit must be set in this function
 	def write_lut(self, ch, data, mode=None):
 		"""Writes the signal lookup table to memory in the Moku:Lab.
 
@@ -145,16 +131,20 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		If you specify a particular mode along with a data array too big for
 		that mode, the behaviour is undefined.
 
+		To avoid unexpected output signals during write, disable the outputs
+		by using the :any:`enable_output` function.
+
 		:type ch: int; {1,2}
 		:param ch: Output channel to load the LUT to
 
-		:type mode: string: '1000', '500', '250', '125'
-		:param: defines the output sample rate of the AWG (in MSPS).
+		:type mode: int; {125, 250, 500, 1000} MSmps
+		:param: defines the output sample rate of the AWG.
 
 		:raises ValueError: if the channel is invalid
 		:raises ValueOutOfRangeException: if wave parameters are out of range
 		"""
-		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
+		_utils.check_parameter_valid('set', ch, [1, 2],'output channel')
+		_utils.check_parameter_valid('set', mode, [125, 250, 500, 1000], desc='output sample rate', units="MSmps", allow_none=True)
 
 		if mode is None:
 			if len(data) <= 8192:
@@ -169,15 +159,16 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 				raise ValueOutOfRangeException("Maximum data length is 65535 samples")
 
 		_str_to_mode = {
-			'1000' : _ARB_MODE_1000,
-			'500' : _ARB_MODE_500,
+			'1000' 	: _ARB_MODE_1000,
+			'500' 	: _ARB_MODE_500,
 			'250'	: _ARB_MODE_250,
 			'125'	: _ARB_MODE_125
 		}
 
-		mode = _utils.str_to_val(_str_to_mode, mode, "operating mode")
+		mode = _utils.str_to_val(_str_to_mode, str(mode), "operating mode")
 
 		self._set_mode(ch, mode, len(data))
+		self.commit()
 
 		# picks the stepsize and the steps based in the mode
 		steps, stepsize = [(8, 8192), (4, 8192 * 2), (2, 8192 * 4), (1, 8192 * 8)][mode]
@@ -209,12 +200,12 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		os.remove('.lutdata.dat')
 
 	@needs_commit
-	def gen_waveform(self, ch, period, amplitude, phase=0, offset=0, interpolation=True, dead_time=0, dead_voltage = 0, en=True):
-		""" Generate the Arbitrary Waveform with the given parameters on the given channel.
+	def gen_waveform(self, ch, period, amplitude, phase=0, offset=0, interpolation=True, dead_time=0, dead_voltage=0, en=True):
+		""" Configure and enable the Arbitrary Waveform on the given output channel.
 
-		The Look-up table for this channel should have been loaded beforehand using :any:`write_lut`.
+		The look-up table for this channel's output waveform should have been loaded beforehand using :any:`write_lut`.
 
-		The Arbitrary Waveform Generator has the ability to insert a deadtime between cycles from the look-up
+		The Arbitrary Waveform Generator has the ability to insert a deadtime between cycles of the look-up
 		table. This time is specified in cycles of the waveform. During this time, the output will be held
 		at the given *dead_voltage*.  This allows the user to, for example, generate infrequent pulses without
 		using space in the LUT to specify the time between, keeping the full LUT size to provide a high-resolution
@@ -222,6 +213,9 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 
 		Where the period and look-up table contents are set such that there isn't exactly one LUT point per output
 		sample, the AWG instrument can optionally provide a linear interpolation between LUT points.
+
+		This function enables the output channel by default. If you wish to enable the outputs simultaneously, you
+		should set the `en` parameter to False and enable both when desired using :any:`enable_output`.
 
 		:type ch: int; {1,2}
 		:param ch: Channel on which to generate the wave
@@ -255,7 +249,7 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		:raises InvalidParameterException: if the parameters are the wrong types
 		"""
 		_utils.check_parameter_valid('set', ch, [1,2], desc='output channel')
-		_utils.check_parameter_valid('range', period, [4e-9, 1], desc='periode of the signal')
+		_utils.check_parameter_valid('range', period, [4e-9, 1], desc='period of the signal')
 		_utils.check_parameter_valid('range', amplitude, [0.0,2.0], desc='peak to peak amplitude', units='volts')
 		_utils.check_parameter_valid('bool', interpolation, desc='linear interpolation')
 		_utils.check_parameter_valid('range', dead_time, [0.0, 2e18], desc='signal dead time', units='cycles')
@@ -370,7 +364,6 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		trig_channels[ch-1].auto_holdoff = 0
 
 		trig_channels[ch-1].edge = edge
-		trig_channels[ch-1].mode = mode
 		trig_channels[ch-1].duration = minwidth or maxwidth or 0.0
 		# TODO: Enable setting hysteresis level. For now we use the iPad LSB values for ON/OFF.
 		trig_channels[ch-1].hysteresis = 25 if hysteresis else 0
@@ -408,21 +401,14 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		# Convert the input parameter strings to bit-value mappings
 		_utils.check_parameter_valid('set', ch, [1,2], 'channel')
 		_utils.check_parameter_valid('bool', trig_en, 'trigger enable')
-		_utils.check_parameter_valid('set', trig_type, ['single', 'continuous'])
+		_utils.check_parameter_valid('bool', single, 'single trigger enable')
 		_utils.check_parameter_valid('range', duration, [0, 1e11], 'duration', 'seconds')
 		_utils.check_parameter_valid('bool', hold_last, 'hold_last')
-		_utils.check_parameter_valid('range', start, [0, 360], 'trigger output start phase', 'degrees')
 
 		sweep_channels = [self._sweep1, self._sweep2]
 
 		sweep_channels[ch-1].wait_for_trig = trig_en
-
-		_str_to_waveform = {
-			'single' : 		_ARB_TRIG_TYPE_SINGLE,
-			'continuous' : 	_ARB_TRIG_TYPE_CONT
-		}
-
-		sweep_channels[ch-1].waveform = _utils.str_to_val(_str_to_waveform, trig_type, 'trig_type')
+		sweep_channels[ch-1].waveform = _ARB_TRIG_TYPE_SINGLE if single else _ARB_TRIG_TYPE_CONT
 		sweep_channels[ch-1].hold_last = hold_last
 
 		if single and not duration:
@@ -470,9 +456,9 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		_utils.check_parameter_valid('set', ch, [1,2],'output channel')
 
 		if ch == 1:
-			return (self._sweep1.step / self._sweep1.stop) * _ARB_SMPL_RATE
+			return (float(self._sweep1.step) / self._sweep1.stop) * _ARB_SMPL_RATE
 		if ch == 2:
-			return (self._sweep2.step / self._sweep2.stop) * _ARB_SMPL_RATE
+			return (float(self._sweep2.step) / self._sweep2.stop) * _ARB_SMPL_RATE
 
 	@needs_commit
 	def gen_off(self, ch=None):
@@ -513,11 +499,11 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 
 
 _arb_reg_handlers = {
-	'enable1':			(REG_ARB_SETTINGS1,		to_reg_bool(0),			from_reg_bool(0)),
-	'phase_rst1':		(REG_ARB_SETTINGS1,		to_reg_bool(1),			from_reg_bool(1)),
+	'enable1':			(REG_ARB_SETTINGS1,		to_reg_bool(0),	from_reg_bool(0)),
+	'phase_rst1':		(REG_ARB_SETTINGS1,		to_reg_bool(1),	from_reg_bool(1)),
 	'mode1':			(REG_ARB_SETTINGS1,		to_reg_unsigned(2, 2, allow_set=[_ARB_MODE_125, _ARB_MODE_250, _ARB_MODE_500, _ARB_MODE_1000]),
 												from_reg_unsigned(2, 2)),
-	'interpolation1':	(REG_ARB_SETTINGS1,		to_reg_bool(4),			from_reg_bool(4)),
+	'interpolation1':	(REG_ARB_SETTINGS1,		to_reg_bool(4),	from_reg_bool(4)),
 	'trig_source1':		(REG_ARB_SETTINGS1,		to_reg_unsigned(5, 5, allow_set=[_ARB_TRIG_SRC_CH1, _ARB_TRIG_SRC_CH2, _ARB_TRIG_SRC_EXT]),
 												from_reg_unsigned(5, 5)),
 	'lut_length1':		(REG_ARB_LUT_LENGTH1,	to_reg_unsigned(0, 16), from_reg_signed(0, 16)),
@@ -526,11 +512,11 @@ _arb_reg_handlers = {
 	                                            from_reg_signed(0, 18, xform=lambda obj, r: r / _ARB_AMPSCALE)),
 	'offset1':			(REG_ARB_OFFSET1,		to_reg_signed(0, 16, xform=lambda obj, r: r * _ARB_VOLTSCALE),
 	                                            from_reg_signed(0, 16, xform=lambda obj, r: r / _ARB_VOLTSCALE)),
-	'enable2':			(REG_ARB_SETTINGS2,		to_reg_bool(0),			from_reg_bool(0)),
-	'phase_rst2':		(REG_ARB_SETTINGS2,		to_reg_bool(1),			from_reg_bool(1)),
+	'enable2':			(REG_ARB_SETTINGS2,		to_reg_bool(0), from_reg_bool(0)),
+	'phase_rst2':		(REG_ARB_SETTINGS2,		to_reg_bool(1),	from_reg_bool(1)),
 	'mode2':			(REG_ARB_SETTINGS2,		to_reg_unsigned(2, 2, allow_set=[_ARB_MODE_125, _ARB_MODE_250, _ARB_MODE_500, _ARB_MODE_1000]),
 												from_reg_unsigned(2, 2)),
-	'interpolation2':	(REG_ARB_SETTINGS2,		to_reg_bool(4),			from_reg_bool(4)),
+	'interpolation2':	(REG_ARB_SETTINGS2,		to_reg_bool(4),	from_reg_bool(4)),
 	'trig_source2':		(REG_ARB_SETTINGS2,		to_reg_unsigned(5, 5, allow_set=[_ARB_TRIG_SRC_CH1, _ARB_TRIG_SRC_CH2, _ARB_TRIG_SRC_EXT]),
 												from_reg_unsigned(5, 5)),
 	'lut_length2':		(REG_ARB_LUT_LENGTH2,	to_reg_unsigned(0, 16), from_reg_signed(0, 16)),
