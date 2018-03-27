@@ -603,12 +603,12 @@ class WaveformGenerator(BasicWaveformGenerator):
 				raise ValueOutOfRangeException("Invalid Trigger threshold on channel 2. Valid range for input is [-0.5, 0.5] and if attenution is on [-5, 5].")
 		if self.trigger_select_ch1 == _SG_TRIG_DAC:
 			try:
-				self.trig_DAC_threshold_ch1 = self.trig_volts_ch1 / (d1 * 16)
+				self.trig_DAC_threshold_ch2 = self.trig_volts_ch1 / d2
 			except ValueOutOfRangeException:
 				raise ValueOutOfRangeException("Invalid Trigger threshold on channel 1. Valid range for output is [-1, 1].")
 		if self.trigger_select_ch2 == _SG_TRIG_DAC:
 			try:
-				self.trig_DAC_threshold_ch2 = self.trig_volts_ch2 / (d2 * 16)
+				self.trig_DAC_threshold_ch1 = self.trig_volts_ch2 / d1
 			except ValueOutOfRangeException:
 				raise ValueOutOfRangeException("Invalid Trigger threshold on channel 2. Valid range for output is [-1, 1] .")
 
