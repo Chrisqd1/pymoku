@@ -5,8 +5,13 @@ import pymoku.version
 
 import pkg_resources
 import threading
+import tarfile
 
 from pymoku.tools import compat as cp
+
+DATAPATH = os.path.expanduser(os.environ.get('PYMOKU_INSTR_PATH', None) or pkg_resources.resource_filename('pymoku', 'data'))
+PYMOKU_VERSION = pkg_resources.get_distribution("pymoku").version
+MOKUDATAFILE = 'mokudata-%s.tar.gz' % pymoku.version.compat_fw[0]
 
 log = logging.getLogger(__name__)
 
@@ -717,7 +722,7 @@ class Moku(object):
 		return pkt[2:]
 
 	def _send_file_bytes(self, mp, remotename, data, offset=0):
-		# NOTE: The calling function should also perform a "finalise request" on completion of 
+		# NOTE: The calling function should also perform a "finalise request" on completion of
 		#		byte sending to ensure the file resource becomes available for use.
 		data = bytearray(data)
 		data_length = len(data)
@@ -946,19 +951,16 @@ class Moku(object):
 
 		:raises NetworkError: if the upload fails verification.
 		"""
-		import zlib
-		mp = 'b'
-
 		localname = os.path.basename(path)
 
 		if instr_id is not None:
 			remotename = "{:03d}.{:03d}".format(instr_id, sub_id)
 		elif localname.count('.') == 2:
-			remotename = localname[localname.index('.') + 1:]
+			remotename = '.'.join(localname.split('.')[1:])
 		else:
 			remotename = None
 
-		remotename = self._send_file(mp, path, remotename)
+		remotename = self._send_file('b', path, remotename)
 
 		return self._fs_sha('b', remotename)
 
@@ -1109,8 +1111,14 @@ class Moku(object):
 			try:
 				# HW version 2.0, instrument 1 -> 20.001.000 (no partial/sub-id support)
 				bs_name = "{:02d}.{:03d}.000".format(int(self.get_hw_version() * 10), instrument.id)
-				bs_path = os.path.join(data_folder, bs_name)
-				self._load_bitstream(bs_path, instrument.id)
+
+				tardata = tarfile.open(DATAPATH + '/' + MOKUDATAFILE)
+				bs_tarinfo = tardata.getmember(bs_name)
+				bs_file = tardata.extractfile(bs_tarinfo)
+				self._send_file_bytes('b', '.'.join(bs_name.split('.')[1:]), bs_file.read())
+				bs_file.close()
+				tardata.close()
+
 				log.debug("Load complete.")
 			except:
 				log.exception("Unable to automatically load instrument, deploy may fail")

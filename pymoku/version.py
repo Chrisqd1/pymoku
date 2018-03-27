@@ -1,7 +1,7 @@
 import pkg_resources as pkr
 
 # List of compatible firmware builds
-compat_fw = [471]
+compat_fw = [472]
 
 # Compatible network protocol version
 protocol_version = '7'
