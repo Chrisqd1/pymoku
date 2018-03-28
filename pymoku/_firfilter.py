@@ -266,9 +266,11 @@ class FIRFilter(_CoreOscilloscope):
 		self._write_coeffs(ch, filter_coefficients)
 
 		if ch==1:
+			self.filter_en1 = True
 			self.output_en1 = True
 			self.input_en1 = True
 		else:
+			self.filter_en2 = True
 			self.output_en2 = True
 			self.input_en2 = True
 
@@ -431,8 +433,8 @@ class FIRFilter(_CoreOscilloscope):
 _fir_reg_handlers = {
 	'reset_ch1':			(REG_FIR_CONTROL,			to_reg_bool(0), from_reg_bool(0)),
 	'reset_ch2':			(REG_FIR_CONTROL,			to_reg_bool(1), from_reg_bool(1)),
-	'output_en1':			(REG_FIR_CONTROL,			to_reg_bool(2), from_reg_bool(2)),
-	'output_en2':			(REG_FIR_CONTROL,			to_reg_bool(3), from_reg_bool(3)),
+	'filter_en1':			(REG_FIR_CONTROL,			to_reg_bool(2), from_reg_bool(2)),
+	'filter_en2':			(REG_FIR_CONTROL,			to_reg_bool(3), from_reg_bool(3)),
 	'link':					(REG_FIR_CONTROL,			to_reg_bool(4), from_reg_bool(4)),
 	'input_en1':			(REG_FIR_CONTROL,			to_reg_bool(5), from_reg_bool(5)),
 	'input_en2':			(REG_FIR_CONTROL,			to_reg_bool(6), from_reg_bool(6)),
@@ -440,6 +442,8 @@ _fir_reg_handlers = {
 	'mon2_source':			(REG_FIR_CONTROL,			to_reg_unsigned(12, 3), from_reg_unsigned(12, 3)),
 	'mon1_clip':			(REG_FIR_CONTROL,			to_reg_bool(11), from_reg_bool(11)),
 	'mon2_clip':			(REG_FIR_CONTROL,			to_reg_bool(15), from_reg_bool(15)),
+	'output_en1':			(REG_FIR_CONTROL,			to_reg_bool(16), from_reg_bool(16)),
+	'output_en2':			(REG_FIR_CONTROL,			to_reg_bool(17), from_reg_bool(17)),
 
 	'input_scale1':			(REG_FIR_IN_SCALE1,			to_reg_signed(0, 18, xform=lambda obj, x: x * 2.0**9), 
 														from_reg_signed(0, 18, xform=lambda obj, x : x / (2.0 **9))),
