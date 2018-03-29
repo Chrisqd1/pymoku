@@ -122,7 +122,7 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		- 1000MSPS: 8192 points per channel
 		- 500MSPS: 16384 points per channel
 		- 250MSPS: 32768 points per channel
-		- 125MSPS: 65534 points per channel
+		- 125MSPS: 65536 points per channel
 
 		If you don't specify a mode, the fastest output rate for the given data
 		length will be automatically chosen. This is correct in almost all
@@ -137,26 +137,40 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		:type ch: int; {1,2}
 		:param ch: Output channel to load the LUT to
 
+		:type data: float array;
+		:param data: Lookup table coefficients normalised to range [-1.0, 1.0].
+
 		:type mode: int; {125, 250, 500, 1000} MSmps
-		:param: defines the output sample rate of the AWG.
+		:param mode: defines the output sample rate of the AWG.
 
 		:raises ValueError: if the channel is invalid
 		:raises ValueOutOfRangeException: if wave parameters are out of range
 		"""
 		_utils.check_parameter_valid('set', ch, [1, 2],'output channel')
 		_utils.check_parameter_valid('set', mode, [125, 250, 500, 1000], desc='output sample rate', units="MSmps", allow_none=True)
+		
+		# Check that all coefficients are between -1.0 and 1.0
+		if not all(map(lambda x: abs(x) <= 1.0, data)):
+			raise ValueOutOfRangeException("Lookup table coefficients must be in the range [-1.0, 1.0].")
 
-		if mode is None:
-			if len(data) <= 8192:
-				mode = '1000'
-			elif len(data) <= 16384:
-				mode = '500'
-			elif len(data) <= 32768:
-				mode = '250'
-			elif len(data) <= 65535:
-				mode = '125'
-			else:
-				raise ValueOutOfRangeException("Maximum data length is 65535 samples")
+		n_points = len(data)
+
+		if n_points <= 2**13:
+			max_lut_samplerate = 1000
+		elif n_points <= 2**14:
+			max_lut_samplerate = 500
+		elif n_points <= 2**15:
+			max_lut_samplerate = 250
+		elif n_points <= 2**16:
+			max_lut_samplerate = 125
+		else:
+			raise ValueOutOfRangeException("Maximum data length is 65535 samples")
+
+		if not mode:
+			mode = max_lut_samplerate
+
+		if mode > max_lut_samplerate:
+			raise InvalidConfigurationException("Maximum samplerate for {} lookup table coefficients is {}Msmps.".format(n_points,max_lut_samplerate))
 
 		_str_to_mode = {
 			'1000' 	: _ARB_MODE_1000,
@@ -249,7 +263,7 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		:raises InvalidParameterException: if the parameters are the wrong types
 		"""
 		_utils.check_parameter_valid('set', ch, [1,2], desc='output channel')
-		_utils.check_parameter_valid('range', period, [4e-9, 1], desc='period of the signal')
+		_utils.check_parameter_valid('range', period, [4e-9, 1000], desc='period of the signal')
 		_utils.check_parameter_valid('range', amplitude, [0.0,2.0], desc='peak to peak amplitude', units='volts')
 		_utils.check_parameter_valid('bool', interpolation, desc='linear interpolation')
 		_utils.check_parameter_valid('range', dead_time, [0.0, 2e18], desc='signal dead time', units='cycles')
