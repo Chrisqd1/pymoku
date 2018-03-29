@@ -29,8 +29,6 @@ _ARB_MODE_500 = 0x1
 _ARB_MODE_250 = 0x2
 _ARB_MODE_125 = 0x3
 
-_ARB_AMPSCALE = 2.0**16 - 1
-_ARB_VOLTSCALE = 2.0**15
 _ARB_LUT_LENGTH = 8192
 _ARB_LUT_LSB = 2.0**32
 _ARB_LUT_INTERPLOATION_LENGTH = 2**32
@@ -522,10 +520,10 @@ _arb_reg_handlers = {
 												from_reg_unsigned(5, 5)),
 	'lut_length1':		(REG_ARB_LUT_LENGTH1,	to_reg_unsigned(0, 16), from_reg_signed(0, 16)),
 	'dead_value1':		(REG_ARB_LUT_LENGTH1,	to_reg_signed(16, 16), 	from_reg_signed(16, 16)),
-	'amplitude1':		(REG_ARB_AMPLITUDE1,	to_reg_signed(0, 18, xform=lambda obj, r: r * _ARB_AMPSCALE),
-	                                            from_reg_signed(0, 18, xform=lambda obj, r: r / _ARB_AMPSCALE)),
-	'offset1':			(REG_ARB_OFFSET1,		to_reg_signed(0, 16, xform=lambda obj, r: r * _ARB_VOLTSCALE),
-	                                            from_reg_signed(0, 16, xform=lambda obj, r: r / _ARB_VOLTSCALE)),
+	'amplitude1':		(REG_ARB_AMPLITUDE1,	to_reg_signed(0, 18, xform=lambda obj, r: r / obj._dac_gains()[0]),
+	                                            from_reg_signed(0, 18, xform=lambda obj, r: r * obj._dac_gains()[0])),
+	'offset1':			(REG_ARB_OFFSET1,		to_reg_signed(0, 16, xform=lambda obj, r: r / obj._dac_gains()[0]),
+	                                            from_reg_signed(0, 16, xform=lambda obj, r: r * obj._dac_gains()[0])),
 	'enable2':			(REG_ARB_SETTINGS2,		to_reg_bool(0), from_reg_bool(0)),
 	'phase_rst2':		(REG_ARB_SETTINGS2,		to_reg_bool(1),	from_reg_bool(1)),
 	'mode2':			(REG_ARB_SETTINGS2,		to_reg_unsigned(2, 2, allow_set=[_ARB_MODE_125, _ARB_MODE_250, _ARB_MODE_500, _ARB_MODE_1000]),
@@ -535,8 +533,8 @@ _arb_reg_handlers = {
 												from_reg_unsigned(5, 5)),
 	'lut_length2':		(REG_ARB_LUT_LENGTH2,	to_reg_unsigned(0, 16), from_reg_signed(0, 16)),
 	'dead_value2':		(REG_ARB_LUT_LENGTH2,	to_reg_signed(16, 16), 	from_reg_signed(16, 16)),
-	'amplitude2':		(REG_ARB_AMPLITUDE2,	to_reg_signed(0, 18, xform=lambda obj, r: r * _ARB_AMPSCALE),
-	                                            from_reg_signed(0, 18, xform=lambda obj, r: r / _ARB_AMPSCALE)),
-	'offset2':			(REG_ARB_OFFSET2,		to_reg_signed(0, 16, xform=lambda obj, r: r * _ARB_VOLTSCALE),
-	                                            from_reg_signed(0, 16, xform=lambda obj, r: r / _ARB_VOLTSCALE))
+	'amplitude2':		(REG_ARB_AMPLITUDE2,	to_reg_signed(0, 18, xform=lambda obj, r: r / obj._dac_gains()[1]),
+	                                            from_reg_signed(0, 18, xform=lambda obj, r: r * obj._dac_gains()[1])),
+	'offset2':			(REG_ARB_OFFSET2,		to_reg_signed(0, 16, xform=lambda obj, r: r / obj._dac_gains()[1]),
+	                                            from_reg_signed(0, 16, xform=lambda obj, r: r * obj._dac_gains()[1]))
 }
