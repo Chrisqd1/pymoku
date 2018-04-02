@@ -275,15 +275,20 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		if (upper_voltage > 1.0) or (lower_voltage < -1.0):
 			raise ValueOutOfRangeException("Waveform offset limited by amplitude (max output range 2.0Vpp).")
 
+		# Ensure that dead voltage does not exceed the amplitude of the waveform
+		if dead_voltage > upper_voltage or dead_voltage < lower_voltage:
+			raise ValueOutOfRangeException("Dead voltage must not exceed custom waveform voltage range of [%.2f, %.2f] Volts." \
+				% (lower_voltage, upper_voltage))
+
 		if(ch == 1):
 			freq = 1.0/period
 			self.interpolation1 = interpolation
 			phase_modulo = (self.lut_length1 + 1) * _ARB_LUT_INTERPLOATION_LENGTH
 			self._sweep1.step = freq / _ARB_SMPL_RATE * phase_modulo
-			phase_modulo = phase_modulo * dead_time if dead_time > 0 else phase_modulo
+			phase_modulo = phase_modulo * (1 + dead_time)
 			self._sweep1.stop = phase_modulo
-			self._sweep1.start = (phase / 360) * phase_modulo if dead_time == 0 else 0
-			self.dead_value1 = dead_voltage
+			self._sweep1.start = (phase / 360.0) * phase_modulo
+			self.dead_value1 = 0.0 if not amplitude else 2.0 * (dead_voltage - lower_voltage)/(upper_voltage - lower_voltage) - 1.0
 			self.amplitude1 = amplitude
 			self.offset1 = offset
 			self.enable1 = en
@@ -293,10 +298,10 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 			self.interpolation2 = interpolation
 			phase_modulo = (self.lut_length2 + 1) * _ARB_LUT_INTERPLOATION_LENGTH
 			self._sweep2.step = freq / _ARB_SMPL_RATE * phase_modulo
-			phase_modulo = phase_modulo * dead_time if dead_time > 0 else phase_modulo
+			phase_modulo = phase_modulo * (1 + dead_time)
 			self._sweep2.stop = phase_modulo
-			self._sweep2.start = (phase / 360) * phase_modulo if dead_time > 0 else 0
-			self.dead_value2 = dead_voltage
+			self._sweep2.start = (phase / 360.0) * phase_modulo
+			self.dead_value2 = 0.0 if not amplitude else 2.0 * (dead_voltage - lower_voltage)/(upper_voltage - lower_voltage) - 1.0
 			self.amplitude2 = amplitude
 			self.offset2 = offset
 			self.enable2 = en
@@ -518,8 +523,9 @@ _arb_reg_handlers = {
 	'interpolation1':	(REG_ARB_SETTINGS1,		to_reg_bool(4),	from_reg_bool(4)),
 	'trig_source1':		(REG_ARB_SETTINGS1,		to_reg_unsigned(5, 5, allow_set=[_ARB_TRIG_SRC_CH1, _ARB_TRIG_SRC_CH2, _ARB_TRIG_SRC_EXT]),
 												from_reg_unsigned(5, 5)),
-	'lut_length1':		(REG_ARB_LUT_LENGTH1,	to_reg_unsigned(0, 16), from_reg_signed(0, 16)),
-	'dead_value1':		(REG_ARB_LUT_LENGTH1,	to_reg_signed(16, 16), 	from_reg_signed(16, 16)),
+	'lut_length1':		(REG_ARB_LUT_LENGTH1,	to_reg_unsigned(0, 16), from_reg_unsigned(0, 16)),
+	'dead_value1':		(REG_ARB_LUT_LENGTH1,	to_reg_signed(16, 16, xform=lambda obj, r: r * (2.0**15)),
+												from_reg_signed(16, 16, xform=lambda obj, r: r / (2.0**15))),
 	'amplitude1':		(REG_ARB_AMPLITUDE1,	to_reg_signed(0, 18, xform=lambda obj, r: r / obj._dac_gains()[0]),
 	                                            from_reg_signed(0, 18, xform=lambda obj, r: r * obj._dac_gains()[0])),
 	'offset1':			(REG_ARB_OFFSET1,		to_reg_signed(0, 16, xform=lambda obj, r: r / obj._dac_gains()[0]),
@@ -531,8 +537,9 @@ _arb_reg_handlers = {
 	'interpolation2':	(REG_ARB_SETTINGS2,		to_reg_bool(4),	from_reg_bool(4)),
 	'trig_source2':		(REG_ARB_SETTINGS2,		to_reg_unsigned(5, 5, allow_set=[_ARB_TRIG_SRC_CH1, _ARB_TRIG_SRC_CH2, _ARB_TRIG_SRC_EXT]),
 												from_reg_unsigned(5, 5)),
-	'lut_length2':		(REG_ARB_LUT_LENGTH2,	to_reg_unsigned(0, 16), from_reg_signed(0, 16)),
-	'dead_value2':		(REG_ARB_LUT_LENGTH2,	to_reg_signed(16, 16), 	from_reg_signed(16, 16)),
+	'lut_length2':		(REG_ARB_LUT_LENGTH2,	to_reg_unsigned(0, 16), from_reg_unsigned(0, 16)),
+	'dead_value2':		(REG_ARB_LUT_LENGTH2,	to_reg_signed(16, 16, xform=lambda obj, r: r * 2.0**15),
+												from_reg_signed(16, 16, xform=lambda obj, r: r / (2.0**15))),
 	'amplitude2':		(REG_ARB_AMPLITUDE2,	to_reg_signed(0, 18, xform=lambda obj, r: r / obj._dac_gains()[1]),
 	                                            from_reg_signed(0, 18, xform=lambda obj, r: r * obj._dac_gains()[1])),
 	'offset2':			(REG_ARB_OFFSET2,		to_reg_signed(0, 16, xform=lambda obj, r: r / obj._dac_gains()[1]),
