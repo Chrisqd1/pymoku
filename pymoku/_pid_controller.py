@@ -478,19 +478,19 @@ _PID_reg_hdl = {
 	'ch1_input_light':		(REG_PID_MONSELECT, to_reg_bool(8), from_reg_bool(8)),
 	'ch2_input_light':		(REG_PID_MONSELECT, to_reg_bool(9), from_reg_bool(9)),
 	'ch1_ch1_gain' :		((REG_PID_CH0_CH0GAIN_MSB, REG_PID_CH0_CH0GAIN_LSB),
-												to_reg_signed(24,16, xform=lambda obj, x : x * 2**8 * obj._adc_gains()[0]),
-												from_reg_signed(24,16, xform=lambda obj, x : x / 2**8 / obj._adc_gains()[0])),
+												to_reg_signed(24,16, xform=lambda obj, x : x * 2.0**8 * obj._adc_gains()[0]),
+												from_reg_signed(24,16, xform=lambda obj, x : x / 2.0**8 / obj._adc_gains()[0])),
 
 	'ch1_ch2_gain' :		(REG_PID_CH0_CH1GAIN,
-												to_reg_signed(0,16, xform=lambda obj, x : x * 2**8 * obj._adc_gains()[0]),
-												from_reg_signed(0,16, xform=lambda obj, x : x / 2**8 / obj._adc_gains()[0])),
+												to_reg_signed(0,16, xform=lambda obj, x : x * 2.0**8 * obj._adc_gains()[0]),
+												from_reg_signed(0,16, xform=lambda obj, x : x / 2.0**8 / obj._adc_gains()[0])),
 
 	'ch2_ch1_gain' :	((REG_PID_CH1_CH0GAIN_MSB, REG_PID_CH1_CH0GAIN_LSB),
-												to_reg_signed(24,16, xform=lambda obj, x: x * 2**8 * obj._adc_gains()[1]),
-												from_reg_signed(24,16, xform=lambda obj, x: x / 2**8 / obj._adc_gains()[1])),
+												to_reg_signed(24,16, xform=lambda obj, x: x * 2.0**8 * obj._adc_gains()[1]),
+												from_reg_signed(24,16, xform=lambda obj, x: x / 2.0**8 / obj._adc_gains()[1])),
 
-	'ch2_ch2_gain' :	(REG_PID_CH1_CH1GAIN, 	to_reg_signed(16,16, xform=lambda obj, x: x * 2**8 * obj._adc_gains()[1]),
-												from_reg_signed(16,16, xform=lambda obj, x: x / 2**8 / obj._adc_gains()[1])),
+	'ch2_ch2_gain' :	(REG_PID_CH1_CH1GAIN, 	to_reg_signed(16,16, xform=lambda obj, x: x * 2.0**8 * obj._adc_gains()[1]),
+												from_reg_signed(16,16, xform=lambda obj, x: x / 2.0**8 / obj._adc_gains()[1])),
 
 	'ch1_pid1_in_offset':	(REG_PID_CH0_OFFSET1, to_reg_signed(0, 16, xform=lambda obj, x: x / obj._dac_gains()[0]),
 												from_reg_signed(0, 16, xform=lambda obj, x: x * obj._dac_gains()[0])),
