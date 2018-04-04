@@ -157,18 +157,18 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _waveform_generator.B
 			'in2'	: _DL_SOURCE_ADC2,
 			'out1' 	: _DL_SOURCE_DAC1,
 			'out2' 	: _DL_SOURCE_DAC2,
-			'Ext' 	: _DL_SOURCE_EXT
+			'ext' 	: _DL_SOURCE_EXT
 		}
 		_utils.check_parameter_valid('set', ch, [1,2], 'channel')
 		source = _utils.str_to_val(_str_to_channel_data_source, source, 'channel data source')
 		lmode = _utils.str_to_val(_str_to_lmode, lmode, 'DAC loopback mode')
 		if ch == 1:
 			self.source_ch1 = source
-			if source == _DL_SOURCE_DAC1 or source == _DL_SOURCE_DAC2:
+			if source in [_DL_SOURCE_DAC1, _DL_SOURCE_DAC2]:
 				self.loopback_mode_ch1 = lmode
 		elif ch == 2:
 			self.source_ch2 = source
-			if source == _DL_SOURCE_DAC1 or source == _DL_SOURCE_DAC2:
+			if source in [_DL_SOURCE_DAC1, _DL_SOURCE_DAC2]:
 				self.loopback_mode_ch2 = lmode
 
 	def _update_datalogger_params(self):

@@ -374,7 +374,7 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		:type ch: int; {1,2}
 		:param ch: Channel Number
 
-		:type source: string, {'in','out'}
+		:type source: string, {'in1','in2','out1','out2','ext'}
 		:param source: Where the specified channel should source data from (either the input or internally looped back output)
 
 		:type lmode: string, {'clip','round'}
