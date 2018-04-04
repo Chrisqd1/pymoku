@@ -9,8 +9,11 @@ REG_DL_ACTL			= 66
 REG_DL_DECIMATION	= 65
 
 # REG_DL_OUTSEL constants
-_DL_SOURCE_ADC	= 0
-_DL_SOURCE_DAC	= 1
+_DL_SOURCE_ADC1	= 0
+_DL_SOURCE_ADC2	= 1
+_DL_SOURCE_DAC1	= 2
+_DL_SOURCE_DAC2	= 3
+_DL_SOURCE_EXT	= 4
 
 _DL_LB_ROUND	= 0
 _DL_LB_CLIP		= 1
@@ -72,8 +75,8 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _waveform_generator.B
 		# TODO: Disable without using a gen_ function
 		self.gen_off()
 
-		self.set_source(1,'in')
-		self.set_source(2,'in')
+		self.set_source(1,'in1')
+		self.set_source(2,'in2')
 		self.set_precision_mode(False)
 		self._set_pause(False)
 
@@ -136,7 +139,7 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _waveform_generator.B
 		:type ch:  int; {1,2}
 		:param ch: Channel Number
 
-		:type source: string, {'in','out'}
+		:type source: string, {'in1', 'in2', 'out1','out2', 'ext'}
 		:param source: Where the specified channel should source data from (either the input or internally looped back output)
 
 		:type lmode: string, {'clip','round'}
@@ -150,19 +153,22 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _waveform_generator.B
 			'clip' : _DL_LB_CLIP
 		}
 		_str_to_channel_data_source = {
-			'in' : _DL_SOURCE_ADC,
-			'out' : _DL_SOURCE_DAC
+			'in1'	: _DL_SOURCE_ADC1,
+			'in2'	: _DL_SOURCE_ADC2,
+			'out1' 	: _DL_SOURCE_DAC1,
+			'out2' 	: _DL_SOURCE_DAC2,
+			'ext' 	: _DL_SOURCE_EXT
 		}
 		_utils.check_parameter_valid('set', ch, [1,2], 'channel')
 		source = _utils.str_to_val(_str_to_channel_data_source, source, 'channel data source')
 		lmode = _utils.str_to_val(_str_to_lmode, lmode, 'DAC loopback mode')
 		if ch == 1:
 			self.source_ch1 = source
-			if source == _DL_SOURCE_DAC:
+			if source in [_DL_SOURCE_DAC1, _DL_SOURCE_DAC2]:
 				self.loopback_mode_ch1 = lmode
 		elif ch == 2:
 			self.source_ch2 = source
-			if source == _DL_SOURCE_DAC:
+			if source in [_DL_SOURCE_DAC1, _DL_SOURCE_DAC2]:
 				self.loopback_mode_ch2 = lmode
 
 	def _update_datalogger_params(self):
@@ -225,14 +231,16 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _waveform_generator.B
 		g1, g2 = self._adc_gains()
 		d1, d2 = self._dac_gains()
 
+		gains = [g1, g2, d1, d2, 2.0**-11]
+
 		l1 = self.loopback_mode_ch1
 		l2 = self.loopback_mode_ch2
 
 		s1 = self.source_ch1
 		s2 = self.source_ch2
 
-		scale_ch1 = g1 if s1 == _DL_SOURCE_ADC else d1
-		scale_ch2 = g2 if s2 == _DL_SOURCE_ADC else d2
+		scale_ch1 = gains[s1]
+		scale_ch2 = gains[s2]
 
 		if self.ain_mode == _DL_AIN_DECI:
 			scale_ch1 /= self._deci_gain()
@@ -240,9 +248,9 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _waveform_generator.B
 
 		def _compute_total_scaling_factor(adc,dac,src,lmode):
 			# Change scaling factor depending on the source type
-			if (src == _DL_SOURCE_ADC):
+			if src in [_DL_SOURCE_ADC1, _DL_SOURCE_ADC2]:
 				scale = 1.0
-			elif (src == _DL_SOURCE_DAC):
+			elif src in [_DL_SOURCE_DAC1, _DL_SOURCE_DAC2]:
 				if(lmode == _DL_LB_CLIP):
 					scale = 1.0
 				else: # Rounding mode
@@ -269,11 +277,11 @@ class Datalogger(_stream_instrument.StreamBasedInstrument, _waveform_generator.B
 				}
 
 _dl_reg_handlers = {
-	'source_ch1':		(REG_DL_OUTSEL,	to_reg_unsigned(0, 1, allow_set=[_DL_SOURCE_ADC, _DL_SOURCE_DAC]),
-											from_reg_unsigned(0, 1)),
+	'source_ch1':		(REG_DL_OUTSEL,	to_reg_unsigned(0, 8, allow_set=[_DL_SOURCE_ADC1, _DL_SOURCE_ADC2, _DL_SOURCE_DAC1,_DL_SOURCE_DAC2,_DL_SOURCE_EXT]),
+											from_reg_unsigned(0, 8)),
 
-	'source_ch2':		(REG_DL_OUTSEL,	to_reg_unsigned(1, 1, allow_set=[_DL_SOURCE_ADC, _DL_SOURCE_DAC]),
-											from_reg_unsigned(1, 1)),
+	'source_ch2':		(REG_DL_OUTSEL,	to_reg_unsigned(8, 8, allow_set=[_DL_SOURCE_ADC1, _DL_SOURCE_ADC2, _DL_SOURCE_DAC1,_DL_SOURCE_DAC2,_DL_SOURCE_EXT]),
+											from_reg_unsigned(8, 8)),
 
 	'loopback_mode_ch1':	(REG_DL_ACTL,	to_reg_unsigned(0, 1, allow_set=[_DL_LB_CLIP, _DL_LB_ROUND]),
 											from_reg_unsigned(0, 1)),
