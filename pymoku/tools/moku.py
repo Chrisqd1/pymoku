@@ -2,7 +2,8 @@
 
 from argparse import ArgumentParser
 import os, os.path, shutil, tempfile, tarfile
-import requests, md5, sys
+import requests, sys
+import hashlib
 
 from pymoku import *
 from pymoku.tools.compat import *
@@ -28,11 +29,11 @@ def update(args):
 		url = args.url
 
 		r = requests.get(url.replace('tar.gz', 'md5'))
-		remote_hash = r.content.split(r' ')[0].decode('hex')
+		remote_hash = r.text.split(' ')[0]
 
 		try:
 			with open(DATAPATH + '/' + MOKUDATAFILE, 'rb') as f:
-				assert md5.new(f.read()).digest() == remote_hash and not args.force
+				assert hashlib.md5(f.read()).hexdigest() == remote_hash and not args.force
 		except:
 			#Any exception above causes new archive to download
 
@@ -50,7 +51,7 @@ def update(args):
 					sys.stdout.write('\r[%-30s] Done!\n' % ('#' * 30))
 
 			with open(DATAPATH + '/' + MOKUDATAFILE, 'rb') as f:
-				assert md5.new(f.read()).digest() == remote_hash
+				assert hashlib.md5(f.read()).hexdigest() == remote_hash
 		else:
 			logging.info("%s Already up to date" % MOKUDATAFILE)
 	elif args.action == 'install':
@@ -83,7 +84,7 @@ def update(args):
 		tardata.close()
 
 		moku._trigger_fwload()
-		print("Successfully started firmware update. Your Moku will shut down automatically when complete.")
+		log.info("Successfully started firmware update. Your Moku will shut down automatically when complete.")
 
 parser_update = subparsers.add_parser('update', help="Check and update instruments on the Moku.")
 parser_update.add_argument('--url', help='Override location of data pack', default=MOKUDATAURL)
@@ -196,7 +197,7 @@ def firmware(args):
 				print('Package load requires an FW file to be specified')
 				return
 
-			print "Loading firmware from: %s" % f
+			print("Loading firmware from: %s" % f)
 			moku._load_firmware(f)
 			print("Successfully started firmware update. Your Moku will shut down automatically when complete.")
 		elif args.action == 'check_compat':
