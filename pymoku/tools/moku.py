@@ -2,17 +2,15 @@
 
 from argparse import ArgumentParser
 import os, os.path, shutil, tempfile, tarfile
-import requests, pkg_resources
+import requests, hashlib, sys, threading
 
 from pymoku import *
 from pymoku.tools.compat import *
 
+MOKUDATAURL = 'http://updates.liquidinstruments.com/static/' + MOKUDATAFILE
+
 import logging
 logging.basicConfig(format='%(message)s', level=logging.INFO)
-
-data_path = os.path.expanduser(os.environ.get('PYMOKU_INSTR_PATH', None) or pkg_resources.resource_filename('pymoku', 'data'))
-version = pkg_resources.get_distribution("pymoku").version
-DATAURL = 'http://updates.liquidinstruments.com/static/mokudata-%s.tar.gz' % '471'
 
 parser = ArgumentParser()
 subparsers = parser.add_subparsers(title="action", dest='action', description="Action to take")
@@ -25,24 +23,73 @@ parser.add_argument('--ip', default=None, help="IP Address of the Moku to connec
 parser.add_argument('--force', action='store_true', help="Bypass compatibility checks with the target Moku. Don't touch unless you know what you're doing.")
 
 # View and load new instrument bitstreams
-def fetchdata(args):
-	url = args.url
-	logging.info("Fetching data pack from: %s" % url)
-	r = requests.get(url)
-	with open(data_path + '/mokudata.tar.gz', 'wb') as f:
-		f.write(r.content)
-	try:
-		logging.info("installing to %s" % data_path)
-		tarfile.open(data_path + '/mokudata.tar.gz').extractall(path=data_path)
-		with open(data_path + '/data_version', 'w') as f:
-			f.write(version)
-	except:
-		logging.exception("Couldn't install data pack")
-	os.remove(data_path + '/mokudata.tar.gz')
+def update(args):
+	if args.action == 'fetch':
+		url = args.url
 
-parser_fetchdata = subparsers.add_parser('fetchdata', help="Check and update instruments on the Moku.")
-parser_fetchdata.add_argument('--url', help='Override location of data pack', default=DATAURL)
-parser_fetchdata.set_defaults(func=fetchdata)
+		r = requests.get(url.replace('tar.gz', 'md5'))
+		remote_hash = r.text.split(' ')[0]
+
+		try:
+			with open(DATAPATH + '/' + MOKUDATAFILE, 'rb') as f:
+				assert hashlib.md5(f.read()).hexdigest() == remote_hash and not args.force
+		except:
+			#Any exception above causes new archive to download
+
+			logging.info("Fetching data pack from: %s" % url)
+			with requests.get(url, stream=True) as r:
+				length = int(r.headers['content-length'])
+				recvd = 0
+
+				with open(DATAPATH + '/' + MOKUDATAFILE, 'wb') as f:
+					for chunk in r.iter_content(chunk_size=400000):
+						f.write(chunk)
+						recvd = recvd + len(chunk)
+						sys.stdout.write("\r[%-30s] %3d%%" % ('#' * int(30.0 * recvd / length), (100.0 * recvd / length)))
+						sys.stdout.flush()
+					sys.stdout.write('\r[%-30s] Done!\n' % ('#' * 30))
+
+			with open(DATAPATH + '/' + MOKUDATAFILE, 'rb') as f:
+				assert hashlib.md5(f.read()).hexdigest() == remote_hash
+		else:
+			logging.info("%s Already up to date" % MOKUDATAFILE)
+	elif args.action == 'install':
+		moku = connect(args, force=True)
+
+		v = moku.get_hw_version()
+		f = DATAPATH + '/' + MOKUDATAFILE
+		old_fw = moku.get_firmware_build()
+		new_fw = version.compat_fw[0]
+
+		logging.info('Updating Moku %06d from %d to %d...' % (int(moku.get_serial()), old_fw, new_fw))
+
+		if not args.force:
+			if old_fw == new_fw:
+				logging.warning('Firmware already up to date.')
+				return
+			if old_fw > new_fw:
+				logging.error('Refusing to downgrade firmware.')
+				return
+
+		if old_fw > new_fw:
+			logging.warning('Downgrading firmware.')
+
+		tardata = tarfile.open(DATAPATH + '/' + MOKUDATAFILE)
+		fw_tarinfo = tardata.getmember('moku%2d.fw' % (v * 10))
+		fw_file = tardata.extractfile(fw_tarinfo)
+
+		moku._send_file_bytes('f', 'moku.fw', fw_file.read())
+		fw_file.close()
+		tardata.close()
+
+		moku._trigger_fwload()
+		log.info("Successfully started firmware update. Your Moku will shut down automatically when complete.")
+
+parser_update = subparsers.add_parser('update', help="Check and update instruments on the Moku.")
+parser_update.add_argument('--url', help='Override location of data pack', default=MOKUDATAURL)
+parser_update.add_argument('--force', action='store_true')
+parser_update.add_argument('action', help='Action to perform', choices=['fetch', 'install'])
+parser_update.set_defaults(func=update)
 
 def listmokus(args):
 	mokus = pymoku.BonjourFinder().find_all(timeout=2.0)
@@ -50,15 +97,24 @@ def listmokus(args):
 	print("{: <20} {: >6} {: >15}".format('Name', 'Serial', 'IP'))
 	print("-" * (20 + 6 + 15 + 2))
 
-	for m in mokus:
+	def _querytask(m):
 		x = None
 		try:
-			x = Moku(m)
+			x = Moku(m, force=True)
 			print("{: <20} {: 06d} {: >15}".format(x.get_name()[:20], int(x.get_serial()), m))
 		except:
 			print("Couldn't query IP %s" % m)
 		finally:
 			if x: x.close()
+
+	tasks = []
+	for m in mokus:
+		tasks.append(threading.Thread(target=_querytask, args=[m]))
+
+	for t in tasks:
+		t.start()
+	for t in tasks:
+		t.join()
 
 parser_list = subparsers.add_parser('list', help="List Moku:Labs on the network.")
 parser_list.set_defaults(func=listmokus)
@@ -139,10 +195,18 @@ def firmware(args):
 		if args.action == 'version':
 			print("Moku Firmware Version {}".format(moku.get_firmware_build()))
 		elif args.action == 'load':
-			if not args.file or not args.file.endswith('fw'):
+			v = moku.get_hw_version()
+			if not args.file:
+				f = DATAPATH + '/moku%2d.fw' % (v * 10)	#TODO
+			else:
+				f = args.file
+
+			if not f.endswith('fw'):
 				print('Package load requires an FW file to be specified')
 				return
-			moku._load_firmware(args.file)
+
+			print("Loading firmware from: %s" % f)
+			moku._load_firmware(f)
 			print("Successfully started firmware update. Your Moku will shut down automatically when complete.")
 		elif args.action == 'check_compat':
 			build = moku.get_firmware_build()
@@ -169,7 +233,7 @@ parser_firmware.add_argument('file', nargs='?', default=None, help="Path to loca
 parser_firmware.set_defaults(func=firmware)
 
 def main():
-	logging.info("PyMoku %s" % version)
+	logging.info("PyMoku %s" % PYMOKU_VERSION)
 	args = parser.parse_args()
 	args.func(args)
 
