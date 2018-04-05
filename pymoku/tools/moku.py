@@ -2,8 +2,7 @@
 
 from argparse import ArgumentParser
 import os, os.path, shutil, tempfile, tarfile
-import requests, sys
-import hashlib
+import requests, hashlib, sys, threading
 
 from pymoku import *
 from pymoku.tools.compat import *
@@ -98,15 +97,24 @@ def listmokus(args):
 	print("{: <20} {: >6} {: >15}".format('Name', 'Serial', 'IP'))
 	print("-" * (20 + 6 + 15 + 2))
 
-	for m in mokus:
+	def _querytask(m):
 		x = None
 		try:
-			x = Moku(m)
+			x = Moku(m, force=True)
 			print("{: <20} {: 06d} {: >15}".format(x.get_name()[:20], int(x.get_serial()), m))
 		except:
 			print("Couldn't query IP %s" % m)
 		finally:
 			if x: x.close()
+
+	tasks = []
+	for m in mokus:
+		tasks.append(threading.Thread(target=_querytask, args=[m]))
+
+	for t in tasks:
+		t.start()
+	for t in tasks:
+		t.join()
 
 parser_list = subparsers.add_parser('list', help="List Moku:Labs on the network.")
 parser_list.set_defaults(func=listmokus)
