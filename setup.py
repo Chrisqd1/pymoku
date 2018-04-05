@@ -36,7 +36,7 @@ setup(
 		'urllib3',
 		'pyzmq',
 		'rfc6266',
-		'requests',
+		'requests>=2.18.0',
 		'decorator',
 	],
 
