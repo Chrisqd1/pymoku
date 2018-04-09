@@ -241,14 +241,14 @@ class FIRFilter(_CoreOscilloscope):
 		"""
 		Set FIR filter sample rate and kernel coefficients. This will enable the specified channel output.
  
-		:type ch : int; {1,2}
-		:param ch : target channel.
+		:type ch: int; {1,2}
+		:param ch: target channel.
 
-		:type decimation_factor : int; [3,10]
-		:param decimation_factor : the binary exponent *n* specifying the sample rate: Fs = 125 MHz / 2^n.
+		:type decimation_factor: int; [3,10]
+		:param decimation_factor: the binary exponent *n* specifying the sample rate: Fs = 125 MHz / 2^n.
 
-		:type filter_coefficients : float array;
-		:param filter_coefficients : array of FIR filter coefficients. The length of the array must not exceed N = 29*min(2^n - 1, 511).
+		:type filter_coefficients: float array;
+		:param filter_coefficients: array of FIR filter coefficients. The length of the array must not exceed N = 29*min(2^n - 1, 511).
 		"""
 		# TODO: Document the quantization of array coefficients incurred
 		# TODO: The array format is NOT in the class documentation above...?
@@ -339,8 +339,8 @@ class FIRFilter(_CoreOscilloscope):
 		"""
 		Disables the output of the specified FIR filter channel.
 
-		:type ch : int; {1,2}
-		:param ch : target channel
+		:type ch: int; {1,2}
+		:param ch: target channel
 		"""
 		if ch == 1:
 			self.output_en1 = False

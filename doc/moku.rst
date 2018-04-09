@@ -18,7 +18,7 @@ defines the functionality of the Moku:Lab. For examples on how to deploy an inst
 Example Usage
 -------------
 
-For more details on searching for your Moku:Lab and retrieving device configuration information, see the `Bonjour Moku guide <https://liquidinstruments.atlassian.net/wiki/pages/viewpage.action?pageId=295806>`_. The following example code and a wide range of other pymoku demo scripts, can be found at the `pymoku example repository <https://anaconda.org/liquidinstruments/pymoku-examples/files>`_.
+For more details on searching for your Moku:Lab and retrieving device configuration information, see the `Bonjour Moku guide <https://liquidinstruments.atlassian.net/wiki/x/foME>`_. The following example code and a wide range of other pymoku demo scripts can be found at the `pymoku Github repository <https://github.com/liquidinstruments/pymoku>`_.
 
 .. literalinclude:: ../examples/moku_basic.py
 	:language: python
@@ -53,22 +53,22 @@ Instruments
 Exceptions
 ----------
 
-.. autoexception MokuException
-.. autoexception MokuNotFound
-.. autoexception NetworkError
-.. autoexception DeployException
-.. autoexception InvalidOperationException
-.. autoexception InvalidParameterException
-.. autoexception ValueOutOfRangeException
-.. autoexception NotDeployedException
-.. autoexception FrameTimeout
-.. autoexception NoDataException
-.. autoexception InvalidConfigurationException
-.. autoexception StreamException
-.. autoexception FileNotFound
-.. autoexception InsufficientSpace
-.. autoexception MPNotMounted
-.. autoexception MPReadOnly
-.. autoexception UnknownAction
-.. autoexception MokuBusy
-.. autoexception UncommittedSettings
+.. autoexception:: MokuException
+.. autoexception:: MokuNotFound
+.. autoexception:: NetworkError
+.. autoexception:: DeployException
+.. autoexception:: InvalidOperationException
+.. autoexception:: InvalidParameterException
+.. autoexception:: ValueOutOfRangeException
+.. autoexception:: NotDeployedException
+.. autoexception:: FrameTimeout
+.. autoexception:: NoDataException
+.. autoexception:: InvalidConfigurationException
+.. autoexception:: StreamException
+.. autoexception:: FileNotFound
+.. autoexception:: InsufficientSpace
+.. autoexception:: MPNotMounted
+.. autoexception:: MPReadOnly
+.. autoexception:: UnknownAction
+.. autoexception:: MokuBusy
+.. autoexception:: UncommittedSettings

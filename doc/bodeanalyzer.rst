@@ -7,7 +7,7 @@ This instrument measures the transfer function of a system by generating a swept
 Example Usage
 -------------
 
-For the following example code and a wide range of other pymoku demo scripts, see the `pymoku example repository <https://anaconda.org/liquidinstruments/pymoku-examples>`_.
+The following example code and a wide range of other pymoku demo scripts can be found at the `pymoku Github repository <https://github.com/liquidinstruments/pymoku>`_.
 
 .. literalinclude:: ../examples/bodeanalyzer_basic.py
 	:language: python

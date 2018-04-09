@@ -7,12 +7,12 @@ The Datalogger instrument provides file logging (to CSV and Binary formats) and 
 For file logging or network streaming, use the `_data_log` or `_stream_data` type functions, respectively.
 
 .. note:: 
-	To convert *.li* binary formatted log files, consult the tutorial on the `moku command line utility <http://confluence.liquidinstruments.com>`_.
+	To convert *.li* binary formatted log files, use the `moku_convert` command line utility that comes with your pymoku installation. Alternatively, you can download an exectuable version `here <https://www.liquidinstruments.com/utilities/>`_.
 
 Example Usage
 -------------
 
-For an in-depth walkthrough on using the pymoku Datalogger Instrument, see the `pymoku Datalogger tutorial <https://liquidinstruments.atlassian.net/wiki/display/MCS/The+Datalogger>`_. For the following example code and a wide range of other pymoku demo scripts, see the `pymoku example repository <https://anaconda.org/liquidinstruments/pymoku-examples/files>`_.
+For an in-depth walkthrough on using the pymoku Datalogger Instrument, see the `pymoku Datalogger tutorial <https://liquidinstruments.atlassian.net/wiki/display/MCS/The+Datalogger>`_. The following example code and a wide range of other pymoku demo scripts can be found at the `pymoku Github repository <https://github.com/liquidinstruments/pymoku>`_.
 
 .. literalinclude:: ../examples/datalogger_basic.py
 	:language: python
