@@ -1,9 +1,6 @@
 #!/usr/bin/env python
 
 # Python 3 str object for Python 2
-from builtins import str
-from six import string_types
-
 import sys
 import os, os.path, time, datetime, math
 import logging
@@ -101,7 +98,7 @@ class LIDataFileReader(object):
 			self._parse_v1_header()
 		elif self.version == 2:
 			if 'capnp' not in globals():
-				raise Exception("Can't parse LI files on this platform, please refer to the pymoku FAQs.")
+				raise Exception("Can't parse LI files on this platform. Ensure 'capnp' is installed.")
 			self._parse_v2_header()
 		else:
 			raise InvalidFileException("Unknown File Version %s" % v)
@@ -326,9 +323,10 @@ class LIDataFileWriterV1(object):
 		:param timestep: Time between records being captured
 		:param starttime: Time at which the record was started, seconds since Jan 1 1970
 		"""
-		if isinstance(file, string_types):
+		try:
 			self.file = open(file, 'wb')
-		else:
+		except TypeError:
+			# Assume a file object has been passed
 			self.file = file
 
 		nch = 0
@@ -399,11 +397,12 @@ class LIDataFileWriterV2(object):
 		"""
 
 		if 'capnp' not in globals():
-			raise Exception("Can't write LI files on this platform, please refer to the LI FAQs.")
+			raise Exception("Can't write LI files on this platform. Ensure 'capnp' is installed.")
 
-		if isinstance(file, string_types):
+		try:
 			self.file = open(file, 'wb')
-		else:
+		except TypeError:
+			# Assume a file object has been passed
 			self.file = file
 
 		self.file.write(b'LI2')

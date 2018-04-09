@@ -1,5 +1,5 @@
 from setuptools import setup
-import os.path, urllib, tarfile
+import os.path, tarfile
 
 with open('pymoku/version.txt') as f:
 	version = f.read().strip()
@@ -32,10 +32,6 @@ setup(
 	install_requires=[
 		'future',
 		'pyzmq>=15.3.0',
-		'six',
-		'urllib3',
-		'pyzmq',
-		'rfc6266',
 		'requests>=2.18.0',
 		'decorator',
 	],
