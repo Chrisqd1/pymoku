@@ -14,6 +14,8 @@ You must call both functions at least once in order to generate a waveform.
 Example Usage
 -------------
 
+The following example code and a wide range of other pymoku demo scripts can be found at the `pymoku Github repository <https://github.com/liquidinstruments/pymoku>`_.
+
 .. literalinclude:: ../examples/arbitrarywavegen_basic.py
 	:language: python
 	:caption: arbitrarywaveformgen_basic.py

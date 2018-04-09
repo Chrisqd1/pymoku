@@ -9,6 +9,8 @@ saturation (anti-windup) and differentiator saturation.
 Example Usage
 -------------
 
+The following example code and a wide range of other pymoku demo scripts can be found at the `pymoku Github repository <https://github.com/liquidinstruments/pymoku>`_.
+
 .. literalinclude:: ../examples/pidcontroller_basic.py
 	:language: python
 	:caption: pidcontroller_basic.py

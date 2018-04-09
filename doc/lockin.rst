@@ -14,6 +14,8 @@ the same API as the :any:`Oscilloscope` object.
 Example Usage
 -------------
 
+The following example code and a wide range of other pymoku demo scripts can be found at the `pymoku Github repository <https://github.com/liquidinstruments/pymoku>`_.
+
 .. literalinclude:: ../examples/lockinamp_basic.py
 	:language: python
 	:caption: lockinamp_basic.py

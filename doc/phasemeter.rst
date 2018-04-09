@@ -26,7 +26,7 @@ For logging data to a file, the *data_log* type functions should be used (see th
 Example Usage
 -------------
 
-For an in-depth walkthrough on using the pymoku Phasemeter Instrument, see the `pymoku Phasemeter tutorial <https://liquidinstruments.atlassian.net/wiki/display/MCS/The+Phasemeter>`_. For the following example code and a wide range of other pymoku demo scripts, see the `pymoku example repository <https://anaconda.org/liquidinstruments/pymoku-examples/files>`_.
+For an in-depth walkthrough on using the pymoku Phasemeter Instrument, see the `pymoku Phasemeter tutorial <https://liquidinstruments.atlassian.net/wiki/display/MCS/The+Phasemeter>`_. The following example code and a wide range of other pymoku demo scripts can be found at the `pymoku Github repository <https://github.com/liquidinstruments/pymoku>`_.
 
 .. literalinclude:: ../examples/phasemeter_basic.py
 	:language: python
