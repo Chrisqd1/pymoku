@@ -23,11 +23,11 @@ You'll also need to fetch binary artefacts to configure the Moku:Lab with
 
 And if you already have a Moku:Lab running an old firmware version you can update it with
 
-    moku --serial=123456 update install
+    $: moku --serial=123456 update install
 
 To find Moku:Labs on your network
 
-    moku list
+    $: moku list
 
 ## Examples
 You can find a few example scripts in the **examples/** folder.
