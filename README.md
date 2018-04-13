@@ -11,32 +11,36 @@ You can install pymoku directly from the Python Package Index (pypi) using the *
 
     $: sudo pip install --upgrade pymoku
     OR
-    $: sudo pip3 install pymoku # Python 3.x
+    $: sudo pip3 install --upgrade pymoku # Python 3.x
     
-You can confirm the installation was successful 
 #### Using conda
-If you are using the [conda](https://www.anaconda.com/) package manager, you can install pymoku by running
+If you are using the [conda](https://www.anaconda.com/) package manager run
 
     $: conda config --add channels conda-forge
     $: conda config --add channels liquidinstruments
     $: conda install pymoku
+
+Alternatively, use the Anaconda Navigator GUI to add the `liquidinstruments` channel to your desired conda environment and search for the `pymoku` package.
         
 ### 2. Test your install
-You can test successful installation by running
+You can test successful installation with
 
     $: python
     OR 
-    $: python3
+    $: python3 # Python 3.x
     >>> import pymoku
     >>> # No import errors should be seen here.
        
 ### 3. Update your Moku:Lab
-To successfully connect to your Moku:Lab, you'll need to ensure it is running the latest instruments and firmware. First, get your device's serial number located on it's base. Then fetch the latest device files and upgrade your Moku:Lab
+To successfully connect to your Moku:Lab, you'll need to ensure it is running the latest instruments and firmware. First fetch the latest device files
 
     $: sudo moku update fetch
-    $: moku --serial=123456 update install
+    
+Then by using your Moku:Lab serial number (or [IP address](https://github.com/liquidinstruments/pymoku/wiki/Connecting-to-your-Moku:Lab)), upgrade your Moku:Lab's firmware
 
-You're good to go! You can find Moku:Labs on your network using
+    $: moku --serial=123456 update install # Use --ip if Bonjour Discovery unavailable
+
+You're good to go! You can find all Moku:Labs on your network using
 
     $: moku list
 
@@ -53,8 +57,8 @@ from pymoku.instruments import Oscilloscope
 m = Moku.get_by_serial('123456')
 i = m.deploy_instrument(Oscilloscope)
 
-i.set_timebase(-1e-3, 1e-3) #1ms before and after trigger event
-i.set_trigger('in1', 'rising', 0) #risinge edge through 0 volts
+i.set_timebase(-1e-3, 1e-3) # 1ms before and after trigger event
+i.set_trigger('in1', 'rising', 0) # rising edge through 0 volts
 
 data = i.get_data()
 print(data.ch1, data.ch2, data.time)
