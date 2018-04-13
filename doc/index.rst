@@ -11,7 +11,7 @@ For example usage, see the individual instrument pages or refer to the `pymoku t
 Installation
 ============
 
-pymoku may be installed on Linux, Mac and Windows operating systems. For details please refer to the `installation procedures <https://liquidinstruments.atlassian.net/wiki/x/egBWAg>`_.
+pymoku may be installed on Linux, Mac and Windows operating systems. For details please refer to the `installation procedures <https://github.com/liquidinstruments/pymoku>`_.
 
 Contents
 ========

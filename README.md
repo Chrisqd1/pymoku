@@ -5,29 +5,41 @@ Python library for the command, control and monitoring of the [Liquid Instrument
 Primary documentation on [ReadTheDocs](http://pymoku.readthedocs.org)
 
 ## Installation
+### 1. Install the package
+#### Using pip
 You can install pymoku directly from the Python Package Index (pypi) using the **pip** utility. Most Python distributions come with pip pre-installed. To do this, run
 
     $: sudo pip install --upgrade pymoku
     OR
     $: sudo pip3 install pymoku # Python 3.x
     
+You can confirm the installation was successful 
+#### Using conda
+If you are using the [conda](https://www.anaconda.com/) package manager, you can install pymoku by running
+
+    $: conda config --add channels conda-forge
+    $: conda config --add channels liquidinstruments
+    $: conda install pymoku
+        
+### 2. Test your install
 You can test successful installation by running
 
     $: python
+    OR 
+    $: python3
     >>> import pymoku
     >>> # No import errors should be seen here.
-
-You'll also need to fetch binary artefacts to configure the Moku:Lab with
+       
+### 3. Update your Moku:Lab
+To successfully connect to your Moku:Lab, you'll need to ensure it is running the latest instruments and firmware. First, get your device's serial number located on it's base. Then fetch the latest device files and upgrade your Moku:Lab
 
     $: sudo moku update fetch
-
-And if you already have a Moku:Lab running an old firmware version you can update it with
-
     $: moku --serial=123456 update install
 
-To find Moku:Labs on your network
+You're good to go! You can find Moku:Labs on your network using
 
     $: moku list
+
 
 ## Examples
 You can find a few example scripts in the **examples/** folder.
@@ -51,7 +63,7 @@ m.close()
 ```
 ## Troubleshooting
 #### Can't import Bonjour Libraries
-On **Windows** autodiscovery requires extra drivers from Apple. Install the [Apple Bonjour Printer Services]. Note that you can choose not to install this service, and your Moku:Lab will still be accessible by IP address, you just won't be able to automatically connect by name or serial number.
+On **Windows** autodiscovery requires extra drivers from Apple. Install the [Apple Bonjour Printer Services](https://support.apple.com/kb/DL999). Note that you can choose not to install this service, and your Moku:Lab will still be accessible by IP address, you just won't be able to automatically connect by name or serial number.
 
 On **Linux** install the dnssd compatibility libraries. For Ubuntu, this is
 
