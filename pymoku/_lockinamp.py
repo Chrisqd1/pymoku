@@ -113,7 +113,7 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		self.set_monitor('a', 'in1')
 		self.set_monitor('b', 'main')
 		self.set_demodulation('internal', 0, 90)
-		self.set_outputs('i','demod',0,0)
+		self.set_outputs('x','demod',0,0)
 		self.set_input_gain(0)
 
 	@needs_commit
@@ -157,16 +157,16 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		  An exception will be raised if you attempt to set the auxilliary channel to view aa signal from the Lock-in logic while
 		  external demodulation is enabled.
 
-		:type main: string; {'X','Y','I','Q','R','theta','offset','none'}
+		:type main: string; {'x', 'y', 'r', 'theta', 'offset', 'none'}
 		:param main: Main output signal
 
-		:type aux: string; {'Y','Q','theta','sine','demod','offset','none'}
+		:type aux: string; {'x', 'y', 'r', theta', 'sine', 'demod', 'offset', 'none'}
 		:param aux: Auxillary output signal
 
-		:type main_offset: float; [-1.0,1.0] V
+		:type main_offset: float; [-1.0, 1.0] V
 		:param main_offset: Main output offset
 
-		:type aux_offset: float; [-1.0,1.0] V
+		:type aux_offset: float; [-1.0, 1.0] V
 		:param aux_offset: Auxillary output offset
 		"""
 		_utils.check_parameter_valid('string', main, desc="main output signal")
@@ -176,16 +176,10 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		main = main.lower()
 		aux = aux.lower()
 
-		_utils.check_parameter_valid('set', main, allowed=['x','y','i','q','r','theta','offset','none'], desc="main output signal")
-		_utils.check_parameter_valid('set', aux, allowed=['y','q','theta','sine','demod','offset','none'], desc="auxillary output signal")
+		_utils.check_parameter_valid('set', main, allowed=['x','y','r','theta','offset','none'], desc="main output signal")
+		_utils.check_parameter_valid('set', aux, allowed=['x', 'y','r','theta','sine','demod','offset','none'], desc="auxillary output signal")
 
-		lia_signals = ['x','y','r','theta','i','q']
-
-		# Check for incompatible combinations here
-		if ((main in ['x','i'] and aux=='theta') or \
-			(main=='r' and aux in ['y','q']) or \
-		 	(aux in lia_signals and main in ['y','q','theta'])):
-			raise InvalidConfigurationException("Invalid output signal combination. Main - %s, Aux: %s" % (main, aux))
+		lia_signals = ['r','theta','x','y']
 
 		# I hate having this check here and its complement when trying to set modulation below, ideally they'd
 		# come in through a single interface
@@ -193,122 +187,46 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		  aux in lia_signals or main in ['r', 'theta']):
 			raise InvalidConfigurationException("Can't use quadrature-related outputs when using external demodulation without a PLL.")
 
-		# Set up main output
-		self._set_main_out('ch1' if main in lia_signals else main, offset=main_offset)
+		# Main output enables
+		self.main_offset = main_offset
+		self.main_source = main
+		self.ch1_signal_en = main in lia_signals
+		self.ch1_out_en = not (main is 'none')
 
-		# Set up aux output
-		self._set_aux_out('ch2' if aux in lia_signals else aux, offset=aux_offset)
+		# Auxillary output enables
+		self.aux_offset = aux_offset
+		self.aux_source = aux
+		self.ch2_signal_en = aux in (lia_signals + ['sine','demod'])
+		self.ch2_out_en = not (aux is 'none')
+		self.aux_select = 1 if aux in (lia_signals) else (2 if aux == 'demod' else 0) # Defaults to local oscillator i.e. 'sine'
 
-		# Set gain stage/pid stage input signals
-		# Assume PID on main channel for now
-		# Only set the ones that care about a lockin signal
+		# PID/Gain stage selects are updated on commit
 
-	def _signal_select_num(sig):
-		signal_select_map = [(0,'i'),(0,'x'),(1,'q'),(1,'y'),(2,'r'),(3,'theta')]
-		return [i for i,x in signal_select_map if x==sig][0]
+	def _update_pid_gain_selects(self):
+		# Update the PID/Gain signal inputs / channel select ouputs to match the set main/aux source signals
 
-		# If the PID is moved, the signals have to be re-selected to be a gain stage or otherwise
-		self.pid_signal_select = _signal_select_num(main if self.pid_ch_select==0 else aux)
-		self.gain_signal_select = _signal_select_num(main if self.pid_ch_select==0 else aux)
+		def _signal_select(sig):
+			lia_signals = ['x','y','r','theta']
+			return 0 if not(sig in lia_signals) else [i for i,x in enumerate(lia_signals) if x==sig][0]
 
-		# Change which lock-in signals are passed into gain/pid stage
-		if main in lia_signals:
-			if self.pid_ch_select == 0:
-				self.pid_signal_select = _signal_select_num(main)
-			else:
-				self.gain_signal_select = _signal_select_num(main)
-
-		if aux in lia_signals:
-			if self.pid_ch_select == 1:
-				self.pid_signal_select = _signal_select_num(main)
-			else:
-				self.gain_signal_select = _signal_select_num(main)
-
-	def _set_main_out(self, sel='ch1', offset=0.0):
-		"""
-		Selects the signal that is routed to the Main Output Channel 1.
-
-		sel is one of:
-			- **ch1** -  the lock-in amplifier signal
-			- **offset** - the main output offset voltage
-			- **none** - disable the output
-
-		:type sel: string; {'ch1','offset','none'}
-		:param sel: Main output signal select
-
-		:type offset: float; [-1.0,1.0] V
-		:param offset: Main output offset
-
-		"""
-		_utils.check_parameter_valid('set', sel, allowed=['ch1','offset','none'], desc="main output signal select")
-		_utils.check_parameter_valid('range', offset, allowed=[-1.0,1.0], desc="main output offset")
-
-		self.main_offset = offset
-
-		self.main_source = sel
-
-		# Turn on the auxillary output
-		if sel == 'ch1':
-			self.ch1_signal_en = True
-			self.ch1_out_en = True
-		elif sel == 'offset':
-			self.ch1_signal_en = False
-			self.ch1_out_en = True
-		elif sel == 'none':
-			self.ch1_out_en = False
+		if self._pid_channel=='main':
+			self.pid_sig_select = _signal_select(self.main_source)
+			self.pid_ch_select = 0
+			self.gain_sig_select = _signal_select(self.aux_source)
 		else:
-			# Should never be reached
-			raise Exception("Invalid main output selection.")
-
-	def _set_aux_out(self, auxsel, offset=0.0):
-		"""
-		Selects the signal that is routed to the Auxillary Output Channel 2.
-
-		auxsel is one of:
-			- **sine** - a sine wave that has independent parameters to the internal local oscillator
-			- **ch2** -  the second lock-in amplifier signal
-			- **demod** - the signal used for demodulation
-			- **offset** - the auxillary output offset voltage
-			- **none** - disable the output
-
-		:type auxsel: string; {'sine', 'ch2', 'demod', 'offset','none'}
-		:param auxsel: Auxillary output signal select
-
-		"""
-		_utils.check_parameter_valid('set', auxsel, allowed=['sine', 'demod', 'ch2','offset','none'], desc="auxillary output signal select")
-		_utils.check_parameter_valid('range', offset, allowed=[-1.0,1.0], desc="auxillary output offset")
-
-		self.aux_offset = offset
-
-		# Turns on the auxillary output for most cases
-		self.ch2_out_en = True
-		self.ch2_signal_en = True
-
-		# Unfortunately need to remember this source so we can check for invalid output configuration
-		# when selecting demod source
-		self.aux_source = auxsel
-
-		if auxsel == 'sine':
-			self.aux_select = 0
-		elif auxsel == 'ch2':
-			self.aux_select = 1
-		elif auxsel == 'demod':
-			self.aux_select = 2
-		elif auxsel == 'offset':
-			self.ch2_signal_en = False
-		elif auxsel == 'none':
-			self.ch2_out_en = False
-		else:
-			# Should never be reached
-			raise Exception("Invalid auxillary output selection.")
+			self.pid_sig_select = _signal_select(self.aux_source)
+			self.pid_ch_select = 1
+			self.gain_sig_select = _signal_select(self.main_source)
 
 	@needs_commit
 	def set_pid_by_frequency(self, lia_ch, kp=1, i_xover=None, d_xover=None, si=None, sd=None, in_offset=0, out_offset=0):
 		"""
 		Set which lock-in channel the PID is on and configure it using frequency domain parameters.
 
+		This sets the gain stage to be on the opposite channel.
+
 		:type ch: string; {'main','aux'}
-		:param ch: Lock-in channel name to put PID on
+		:param ch: Lock-in channel name to put PID on. 
 
 		:type kp: float; [-1e3,1e3]
 		:param kp: Proportional gain factor
@@ -336,7 +254,7 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 
 		:raises InvalidConfigurationException: if the configuration of PID gains is not possible.
 		"""
-		self._set_pid_channel(lia_ch)
+		self._pid_channel = lia_ch
 		g, kp, ki, kd, kii, si, sd = self._calculate_gains_by_frequency(kp, i_xover, d_xover, None, si, sd)
 		self._set_by_gain(1, g, kp, ki, kd, 0, si, sd, in_offset, out_offset, touch_ii=False)
 
@@ -344,6 +262,8 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 	def set_pid_by_gain(self, lia_ch, g, kp=1.0, ki=0, kd=0, si=None, sd=None, in_offset=0, out_offset=0):
 		"""
 		Set which lock-in channel the PID is on and configure it using gain parameters.
+
+		This sets the gain stage to be on the opposite channel.
 
 		:type ch: string; {'main','aux'}
 		:param ch: Lock-in channel name to put PID on
@@ -377,71 +297,34 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 
 		:raises InvalidConfigurationException: if the configuration of PID gains is not possible.
 		"""
-		self._set_pid_channel(lia_ch)
+		self._pid_channel = lia_ch
 		self._set_by_gain(1, g, kp, ki, kd, 0, si, sd, in_offset, out_offset, touch_ii=False)
 
+	# Overload the PID API functions 
 	set_by_gain = set_pid_by_gain
 	set_by_frequency = set_pid_by_frequency
-
-	def _set_pid_channel(self, lia_ch):
-		# Helper function which switches connections to gain stage and PID
-
-		_utils.check_parameter_valid('set', lia_ch, allowed=['main','aux'], desc="PID channel")
-
-		# Register value translation
-		new_pid_ch_select = (lia_ch=='aux')
-
-		# Check if the PID has swapped channels
-		if new_pid_ch_select != self.pid_ch_select:
-
-			# Update the PID output channel
-			self.pid_ch_select = new_pid_ch_select
-
-			# Switch the input signal select of PID and Gain stage
-			old_pid_input_sig = self.pid_signal_select
-			self.pid_signal_select = self.gain_signal_select
-			self.gain_signal_select = old_pid_input_sig
-
-		# Restore the gain of the non-PID channel
-		if lia_ch == 'main':
-			self.gainstage_gain = self._g_aux
-		else:
-			self.gainstage_gain = self._g_main
 
 	@needs_commit
 	def set_gain(self, lia_ch, g):
 		"""
-			Set the output gain for the specified lock-in channel.
+		Sets the gain stage to be on the specified lock-in channel, and configures its gain.
 
-			If you have a PID on the specified channel, it will be configured to a P with the specified gain.
+		This sets the PID stage to be on the opposite channel.
 
-			:type lia_ch: string; {'main','aux'}
-			:param lia_ch: Channel name
+		:type lia_ch: string; {'main','aux'}
+		:param lia_ch: Channel name
 
-			:type g: float; [0, 2^16 - 1]
-			:param g: Gain
+		:type g: float; [0, 2^16 - 1]
+		:param g: Gain
 		"""
 		_utils.check_parameter_valid('set', lia_ch, allowed=['main','aux'], desc="lock-in channel")
 		_utils.check_parameter_valid('range', g, allowed=[0, 2**16 - 1], desc="gain")
 
-		if lia_ch == 'aux':
-			# Track gain value for the main channel
-			self._g_aux = g
-			# If PID is on this channel, treat it like a gain stage
-			if self.pid_ch_select == 1:
-				self.set_pid_by_gain('aux',g)
-			else:
-				self.gainstage_gain = g
-		elif lia_ch == 'main':
-			# Track gain value for the main channel
-			self._g_main = g
-			# If PID is on this channel, treat it like a gain stage
-			if self.pid_ch_select == 0:
-				self.set_pid_by_gain('main',g)
-			else:
-				self.gainstage_gain = g
-		else:
-			raise Exception("Invalid LIA channel.")
+		# Store selected PID channel locally. Signal select regs are updated on commit.
+		self._pid_channel = 'main' if lia_ch=='aux' else 'aux'
+
+		# Set the desired gain
+		self.gainstage_gain = g
 
 	@needs_commit
 	def set_demodulation(self, mode, frequency=1e6, phase=0):
@@ -703,6 +586,13 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		scales['scale_ch2'] = 1.0 if not self.monitor_b else monitor_source_gains[self.monitor_b]
 
 		return scales
+
+	def _update_dependent_regs(self, scales):
+		super(LockInAmp, self)._update_dependent_regs(scales)
+
+		# Update PID/Gain stage input/output selects as they may have swapped channels
+		self._update_pid_gain_selects()
+
 
 _lia_reg_hdl = {
 	'lpf_en':			(REG_LIA_ENABLES,		to_reg_bool(0),
