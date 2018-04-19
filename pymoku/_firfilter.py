@@ -127,7 +127,45 @@ class _DecFilter(object):
 		self._instr._accessor_set(self.regbase + self.REG_INTERP_CTRL, to_reg_unsigned(17, 4), i_bitshift_cic2)
 
 class FIRFilter(_CoreOscilloscope):
-	""" Finite Impulse Response (FIR) Filter instrument object.
+	r"""
+
+	The FIR Filter Box implements finite impulse response (FIR) filters with kernels consisting of over 14,000 coefficients. The transfer function can be written:
+
+	.. math::
+		H(z) = \sum_{k=1}^{N-1} b_k * z^{-k} 
+
+	Where N is the number of coefficients and bk is the kth coefficient.
+
+	To specify a filter, you must supply an array containing the filter coefficients. The array should contain all coefficients in the filter kernel and does not need to be
+	zero-padded to the maximum kernel length. 
+
+	Example array dimensions:
+
+	[ k=0 , k=1 , k=2 , k=3 , k=4   ......   k=N-1 ]
+
+	Each coefficient must be in the normalised range [-1.0, + 1.0]. Internally, these are represented as signed 25-bit fixed-point numbers.
+	Filter coefficients can be computed using signal processing toolboxes in e.g. MATLAB or SciPy. 
+
+	The instrument can run at eight different sampling rates, shown in the following list. These sample rates correspond to a division of the 125 MHz clock by powers 
+	of 2 between 3-10. Sample rates are configured in the set_filter function by specifying the power of 2 exponent as the function argument "decimation_factor".
+
+	The maximum number of kernel coefficients that can be implemented follows the following formula:
+
+	.. math::
+		N = 29 * 2^{decimation_factor} <= 14,819 
+
+	1. Sample rate = 15.625 MHz.  Decimation factor = 3.  Max coefficients = 232.
+	2. Sample rate = 7.8125 MHz.  Decimation factor = 4.  Max coefficients = 464.
+	3. Sample rate = ~3.9063 MHz. Decimation factor = 5.  Max coefficients = 928.
+	4. Sample rate = ~1.9531 MHz. Decimation factor = 6.  Max coefficients = 1856.
+	5. Sample rate = ~976.56 kHz. Decimation factor = 7.  Max coefficients = 3712.
+	6. Sample rate = ~488.3 kHz.  Decimation factor = 8.  Max coefficients = 7424.
+	7. Sample rate = ~244.2 kHz.  Decimation factor = 9.  Max coefficients = 14819.
+	8. Sample rate = ~122.1 kHz.  Decimation factor = 10. Max coefficients = 14819.
+
+	.. warning::
+		The overall output gain of the instrument is the product of the gain of the filter, set in the coefficient kernel array. To avoid clipping with full-range input signals, 
+		you should ensure that the sum of all coefficients in the kernal is <= 1.0. 
 
 	To run a new FIRFilter instrument, this should be instantiated and deployed via a connected
 	:any:`Moku` object using :any:`deploy_instrument`. Alternatively, a pre-configured instrument object
@@ -140,6 +178,7 @@ class FIRFilter(_CoreOscilloscope):
 		:annotation: = "firfilter"
 
 		Name of this instrument.
+
 	"""
 	def __init__(self):
 		super(FIRFilter, self).__init__()
@@ -211,10 +250,10 @@ class FIRFilter(_CoreOscilloscope):
 		:type input_gain, output_gain: float, linear scalar, [-100,100]
 		:param input_gain, output_gain: channel scalars before and after the FIR filter
 
-		:type input_offset: float, volts, [-0.5,0.5]
+		:type input_offset: float, volts, [-1.0,1.0]
 		:param input_offset: channel offset before the FIR filter
 
-		:type output_offset: float, volts, [-1.0,1.0]
+		:type output_offset: float, volts, [-2.0,2.0]
 		:param output_offset: channel offset after the FIR filter
 		"""
 		_utils.check_parameter_valid('set', ch, [1, 2], 'filter channel')
@@ -239,7 +278,8 @@ class FIRFilter(_CoreOscilloscope):
 
 	def set_filter(self, ch, decimation_factor, filter_coefficients):
 		"""
-		Set FIR filter sample rate and kernel coefficients. This will enable the specified channel output.
+		Set FIR filter sample rate and kernel coefficients. This will enable the specified channel output. See class documentation for information on filter_coefficients array 
+		formatting and how decimation_factor relates to instrument sample rate. 
  
 		:type ch: int; {1,2}
 		:param ch: target channel.
