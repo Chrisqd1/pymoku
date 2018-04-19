@@ -21,6 +21,7 @@ REG_NA_ENABLES				= 73
 REG_NA_SWEEP_AMP_MULT		= 74
 REG_NA_SETTLE_CYCLES		= 76
 REG_NA_AVERAGE_CYCLES		= 77
+REG_NA_SWEEP_OFF_MULT		= 78
 
 _NA_FPGA_CLOCK 		= 125e6
 _NA_DAC_SMPS 		= 1e9
@@ -226,7 +227,7 @@ class BodeAnalyzer(_frame_instrument.FrameBasedInstrument):
 		self.sweep_reset = True
 
 	@needs_commit
-	def set_output(self, ch, amplitude):
+	def set_output(self, ch, amplitude, offset):
 		""" Set the output sweep amplitude.
 
 		.. note::
@@ -242,17 +243,24 @@ class BodeAnalyzer(_frame_instrument.FrameBasedInstrument):
 		"""
 		_utils.check_parameter_valid('set', ch, [1,2], 'output channel')
 		_utils.check_parameter_valid('range', amplitude, [0.001,2.0], 'sweep amplitude','Vpp')
+		_utils.check_parameter_valid('range', amplitude, [-1.0,1.0], 'sweep offset','volts')
+
+		# ensure combination of amplitude and offset doesn't cause output clipping
+		if abs(amplitude/2.0 + offset) > 1.0:
+			raise ValueOutOfRangeException("Sweep amplitude and offset must not cause the swept sinewave to exit the bound of +/- 1.0 volts.")
 
 		# Set up the output scaling register but also save the voltage value away for use
 		# in the state dictionary to scale incoming data
 		if ch == 1:
 			self.sweep_amplitude_ch1 = amplitude
 			self.sweep_amp_volts_ch1 = amplitude
+			self.sweep_offset_ch1 = offset
 			self.channel1_en = amplitude > 0
 
 		elif ch == 2:
 			self.sweep_amplitude_ch2 = amplitude
 			self.sweep_amp_volts_ch2 = amplitude
+			self.sweep_offset_ch2 = offset
 			self.channel2_en = amplitude > 0
 
 	@needs_commit
@@ -307,8 +315,8 @@ class BodeAnalyzer(_frame_instrument.FrameBasedInstrument):
 		self.set_sweep()
 
 		# 100mVpp swept outputs
-		self.set_output(1,0.1)
-		self.set_output(2,0.1)
+		self.set_output(1, 0.1, 0.0)
+		self.set_output(2, 0.1, 0.0)
 
 		self.start_sweep()
 
@@ -365,6 +373,13 @@ _na_reg_handlers = {
 											to_reg_unsigned(16, 16, xform=lambda obj, a: a / obj._dac_gains()[1]),
 											from_reg_unsigned(16, 16, xform=lambda obj, a: a * obj._dac_gains()[1])),
 
+	'sweep_offset_ch1':		(REG_NA_SWEEP_OFF_MULT,
+											to_reg_signed(0, 16, xform=lambda obj, a: a / obj._dac_gains()[0]),
+											from_reg_signed(0, 16, xform=lambda obj, a: a * obj._dac_gains()[0])),
+	'sweep_offset_ch2':		(REG_NA_SWEEP_OFF_MULT,
+											to_reg_signed(16, 16, xform=lambda obj, a: a / obj._dac_gains()[1]),
+											from_reg_signed(16, 16, xform=lambda obj, a: a * obj._dac_gains()[1])),
+
 	'settling_cycles':			(REG_NA_SETTLE_CYCLES, to_reg_unsigned(0, 32), from_reg_unsigned(0, 32)),
-	'averaging_cycles':			(REG_NA_AVERAGE_CYCLES, to_reg_unsigned(0, 32), from_reg_unsigned(0, 32)),
+	'averaging_cycles':			(REG_NA_AVERAGE_CYCLES, to_reg_unsigned(0, 32), from_reg_unsigned(0, 32))
 }
