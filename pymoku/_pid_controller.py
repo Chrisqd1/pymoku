@@ -272,7 +272,7 @@ class PIDController(_CoreOscilloscope):
 		"""
 
 		g, kp, ki, kd, kii, si, sd = self._calculate_gains_by_frequency(kp, i_xover, d_xover, ii_xover, si, sd)
-		self._set_by_gain(ch, g, kp, ki, kd, kii, si, sd, in_offset, out_offset, touch_ii=True)
+		self._set_by_gain(ch, g, kp, ki, kd, kii, si, sd, in_offset, out_offset, touch_ii=True, dac=ch)
 
 	@needs_commit
 	def set_by_gain(self, ch, g, kp=0, ki=0, kd=0, kii=0, si=None, sd=None, in_offset=0, out_offset=0):
@@ -312,12 +312,13 @@ class PIDController(_CoreOscilloscope):
 
 		:raises InvalidConfigurationException: if the configuration of PID gains is not possible.
 		"""
-		self._set_by_gain(ch, g, kp, ki, kd, kii, si, sd, in_offset, out_offset, touch_ii=True)
+		self._set_by_gain(ch, g, kp, ki, kd, kii, si, sd, in_offset, out_offset, touch_ii=True, dac=ch)
 
-	def _set_by_gain(self, ch, g, kp, ki, kd, kii, si, sd, in_offset, out_offset, touch_ii):
+	def _set_by_gain(self, ch, g, kp, ki, kd, kii, si, sd, in_offset, out_offset, touch_ii, dac):
 
+		# The gain calculations depend on the output DAC, not the PID channel.
 		p_gain, i_gain, d_gain, gain_factor, ii_gain, i_fb, d_fb = self._calculate_regs_by_gain(
-			ch, g, kp, ki, kd, kii, si, sd)
+			dac, g, kp, ki, kd, kii, si, sd)
 
 		double_integrator = kii != 0
 

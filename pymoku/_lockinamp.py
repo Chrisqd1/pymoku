@@ -90,13 +90,16 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		self._input_samplerate = _LIA_INPUT_SMPS
 
 		# Remember some user settings for when swapping channels
-		self.monitor_a = None
-		self.monitor_b = None
-		self.demod_mode = None
-		self.main_source = None
-		self.aux_source = None
-		self._pid_channel = None
+		# Need to initialise these to valid values so set_defaults can be run.
+		self.monitor_a = 'none'
+		self.monitor_b = 'none'
+		self.demod_mode = 'internal'
+		self.main_source = 'none'
+		self.aux_source = 'none'
+		self._pid_channel = 'main'
+		self._pid_gains = {'g': 1.0, 'kp': 1.0, 'ki': 0, 'kd': 0, 'si': None, 'sd': None, 'in_offset': 0, 'out_offset': 0}
 		self._lo_amp = 1.0
+		self._gainstage_gain = 1.0
 
 	@needs_commit
 	def set_defaults(self):
@@ -113,7 +116,7 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		self.set_monitor('a', 'in1')
 		self.set_monitor('b', 'main')
 		self.set_demodulation('internal', 0)
-		self.set_outputs('x','demod')
+		self.set_outputs('none','none')
 		self.set_input_gain(0)
 
 	@needs_commit
@@ -251,9 +254,13 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 
 		:raises InvalidConfigurationException: if the configuration of PID gains is not possible.
 		"""
-		self._pid_channel = lia_ch
 		g, kp, ki, kd, kii, si, sd = self._calculate_gains_by_frequency(kp, i_xover, d_xover, None, si, sd)
-		self._set_by_gain(1, g, kp, ki, kd, 0, si, sd, in_offset, out_offset, touch_ii=False)
+
+		# Locally store these settings, and update the instrument registers on commit
+		# This ensures all dependent register values are updated at the same time, and the correct
+		# DAC scaling is used.
+		self._pid_channel = lia_ch
+		self._pid_gains = {'g': g, 'kp': kp, 'ki': ki, 'kd': kd, 'si': si, 'sd': sd, 'in_offset': in_offset, 'out_offset': out_offset}
 
 	@needs_commit
 	def set_pid_by_gain(self, lia_ch, g, kp=1.0, ki=0, kd=0, si=None, sd=None, in_offset=0, out_offset=0):
@@ -294,8 +301,11 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 
 		:raises InvalidConfigurationException: if the configuration of PID gains is not possible.
 		"""
+		# Locally store these settings, and update the instrument registers on commit
+		# This ensures all dependent register values are updated at the same time, and the correct
+		# DAC scaling is used.
 		self._pid_channel = lia_ch
-		self._set_by_gain(1, g, kp, ki, kd, 0, si, sd, in_offset, out_offset, touch_ii=False)
+		self._pid_gains = {'g': g, 'kp': kp, 'ki': ki, 'kd': kd, 'si': si, 'sd': sd, 'in_offset': in_offset, 'out_offset': out_offset}
 
 	# Overload the PID API functions 
 	set_by_gain = set_pid_by_gain
@@ -320,11 +330,11 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		# Store selected PID channel locally. Signal select regs are updated on commit.
 		self._pid_channel = 'main' if lia_ch=='aux' else 'aux'
 
-		# Set the desired gain
-		self.gainstage_gain = g / self._dac_gains()[0 if lia_ch == 'main' else 1] / 31.25 / 2.0**12
+		# Store selected gain locally. Update on commit with correct DAC scaling.
+		self._gainstage_gain = g
 
 	@needs_commit
-	def set_demodulation(self, mode, frequency=1e6, phase=0):
+	def set_demodulation(self, mode, frequency=1e6, phase=0, output_amplitude=0.5):
 		"""
 		Configure the demodulation stage.
 
@@ -350,6 +360,9 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		:type phase: float; [0, 360] deg
 		:param phase: Internal demodulation signal phase (ignored in 'external' mode)
 
+		:type output_amplitude: float; [0.0, 2.0] Vpp
+		:param output_amplitude: Output amplitude of the demodulation signal when auxillary channel set to output `demod`.
+
 		"""
 		_utils.check_parameter_valid('range', frequency, allowed=[0,200e6], desc="demodulation frequency", units="Hz")
 		_utils.check_parameter_valid('range', phase, allowed=[0,360], desc="demodulation phase", units="degrees")
@@ -363,6 +376,11 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		self.bandwidth = 0
 		self.lo_PLL_reset = 0
 		self.lo_reacquire = 0
+
+		# Store the desired output amplitude in the case that 'set_outputs' is called with
+		# 'demod' for the auxillary channel output. We can't set the register here because 
+		# it is shared with the local oscillator amplitude. It will be updated on commit.
+ 		self._demod_amp = output_amplitude
 
 		if mode == 'internal':
 			self.ext_demod = 0
@@ -579,14 +597,28 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		# Update PID/Gain stage input/output selects as they may have swapped channels
 		self._update_pid_gain_selects()
 
+		# Set the PID gains using the correct output DAC channel
+		gs = self._pid_gains
+		pid_ch = 1 if self._pid_channel == 'main' else 2
+		self._set_by_gain(1, gs['g'], gs['kp'], gs['ki'], gs['kd'], 0, gs['si'], gs['sd'], gs['in_offset'], gs['out_offset'], touch_ii=False, dac=pid_ch)
+
+		# Set gainstage gain with correct output DAC channel scaling
+		self.gainstage_gain = self._gainstage_gain / self._dac_gains()[1 if self._pid_channel == 'main' else 0] / 31.25 / 2.0**12
+
 		if self.aux_source in _LIA_SIGNALS:
 			# If aux is set to a filtered signal, set this to maximum gain setting.
 			# If you don't do this, the filtered signal is scaled by < 1.0.
 			self.sineout_amp = 2**16 - 1
 		else:
-			# If aux is set to LO, set the sine amplitude as desired. 
+			# If aux is set to LO or demod, set the sine amplitude as desired. 
 			# Only ever output on Channel 2.
-			self.sineout_amp = self._lo_amp / self._dac_gains()[1]
+			self.sineout_amp = (self._lo_amp if self.aux_source=='sine' else self._demod_amp) / self._dac_gains()[1]
+
+	def set_control_matrix(self):
+		""" DEPRECATED """
+		# This function is merely here because LIA inherits PID which has a control matrix
+		# We need to rethink PID inheritance.
+		pass
 
 _lia_reg_hdl = {
 	'lpf_en':			(REG_LIA_ENABLES,		to_reg_bool(0),
