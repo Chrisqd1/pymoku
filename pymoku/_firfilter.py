@@ -129,47 +129,57 @@ class _DecFilter(object):
 class FIRFilter(_CoreOscilloscope):
 	r"""
 
-	The FIR Filter Box implements finite impulse response (FIR) filters with kernels consisting of over 14,000 coefficients. The transfer function can be written:
+	The FIR Filter Box instrument implements two Finite Impulse Response (FIR) filter channels with kernels consisting of over 14,000 coefficients. The transfer function can be written:
 
 	.. math::
-		H(z) = \sum_{k=1}^{N-1} b_k * z^{-k} 
+		H(z) = \sum_{k=1}^{N} b_k * z^{-k} 
 
-	Where N is the number of coefficients and bk is the kth coefficient.
+	where :math:`N` is the number of coefficients and :math:`b_k` is the k-th coefficient.
 
-	To specify a filter, you must supply an array containing the filter coefficients. The array should contain all coefficients in the filter kernel and does not need to be
-	zero-padded to the maximum kernel length. 
+	To configure a filter kernel, call the :py:meth:`~pymoku.instruments.FIRFilter.set_filter` function with a 1-D coefficient array containing all coefficients in your filter kernel. 
+	Note that the array does not need to be	zero-padded to the maximum kernel length, and the coefficients must be normalised to the range [-1.0, 1.0]. i.e.
 
-	Example array dimensions:
+	.. math::
+		[b_1, b_2, b_3, ... b_N] = [ 0.3, -0.2, 0.12, ... 0.5 ]
 
-	[ k=0 , k=1 , k=2 , k=3 , k=4   ......   k=N-1 ]
-
-	Each coefficient must be in the normalised range [-1.0, + 1.0]. Internally, these are represented as signed 25-bit fixed-point numbers.
+	Internally, the coefficients are represented as signed 25-bit fixed-point numbers.
 	Filter coefficients can be computed using signal processing toolboxes in e.g. MATLAB or SciPy. 
 
-	The instrument can run at eight different sampling rates, shown in the following list. These sample rates correspond to a division of the 125 MHz clock by powers 
-	of 2 between 3-10. Sample rates are configured in the set_filter function by specifying the power of 2 exponent as the function argument "decimation_factor".
+	Each filter channel can run at one of eight sampling rates, as summarised in the table below. These sample rates correspond to a division of the 125 MHz clock by powers 
+	of 2 between 3-10. Sample rates are configured in the :py:meth:`~pymoku.instruments.FIRFilter.set_filter` function by specifying the power of 2 exponent as the `decimation_factor` function argument.
 
 	The maximum number of kernel coefficients that can be implemented follows the following formula:
 
 	.. math::
-		N = 29 * 2^{decimation_factor} <= 14,819 
+		N_{max} = min(29 * 2^{decimation\_factor}, 14819)
 
-	1. Sample rate = 15.625 MHz.  Decimation factor = 3.  Max coefficients = 232.
-	2. Sample rate = 7.8125 MHz.  Decimation factor = 4.  Max coefficients = 464.
-	3. Sample rate = ~3.9063 MHz. Decimation factor = 5.  Max coefficients = 928.
-	4. Sample rate = ~1.9531 MHz. Decimation factor = 6.  Max coefficients = 1856.
-	5. Sample rate = ~976.56 kHz. Decimation factor = 7.  Max coefficients = 3712.
-	6. Sample rate = ~488.3 kHz.  Decimation factor = 8.  Max coefficients = 7424.
-	7. Sample rate = ~244.2 kHz.  Decimation factor = 9.  Max coefficients = 14819.
-	8. Sample rate = ~122.1 kHz.  Decimation factor = 10. Max coefficients = 14819.
+	+-------------+--------------------+---------------------+
+	| Sample rate | Decimation Factor  | Max # Coefficients  |
+	+=============+====================+=====================+
+	| 15.625 MHz  | 3                  | 232                 |
+	+-------------+--------------------+---------------------+
+	| 7.8125 MHz  | 4                  | 464                 |
+	+-------------+--------------------+---------------------+
+	| ~3.906 MHz  | 5                  | 928                 |
+	+-------------+--------------------+---------------------+
+	| ~1.953 MHz  | 6                  | 1856                |
+	+-------------+--------------------+---------------------+
+	| ~976.6 kHz  | 7                  | 3712                |
+	+-------------+--------------------+---------------------+
+	| ~488.3 kHz  | 8                  | 7424                |
+	+-------------+--------------------+---------------------+
+	| ~244.2 kHz  | 9                  | 14819               |
+	+-------------+--------------------+---------------------+
+	| ~122.1 kHz  | 10                 | 14819               |
+	+-------------+--------------------+---------------------+
 
 	.. warning::
 		The overall output gain of the instrument is the product of the gain of the filter, set in the coefficient kernel array. To avoid clipping with full-range input signals, 
-		you should ensure that the sum of all coefficients in the kernal is <= 1.0. 
+		you should ensure that the sum of all coefficients in the kernel is <= 1.0. 
 
-	To run a new FIRFilter instrument, this should be instantiated and deployed via a connected
+	To run a new FIR Filter Box instrument, this class should be instantiated and deployed via a connected
 	:any:`Moku` object using :any:`deploy_instrument`. Alternatively, a pre-configured instrument object
-	can be obtained by discovering an already running FIRFilter instrument on a Moku:Lab device via
+	can be obtained by discovering an already running FIR Filter Box instrument on a Moku:Lab device via
 	:any:`deploy_or_connect`.
 
 	.. automethod:: pymoku.instruments.FIRFilter.__init__
@@ -278,17 +288,17 @@ class FIRFilter(_CoreOscilloscope):
 
 	def set_filter(self, ch, decimation_factor, filter_coefficients):
 		"""
-		Set FIR filter sample rate and kernel coefficients. This will enable the specified channel output. See class documentation for information on filter_coefficients array 
-		formatting and how decimation_factor relates to instrument sample rate. 
+		Set FIR filter sample rate and kernel coefficients for the specified filter channel. This will enable the specified channel output. See class documentation for 
+		information on the `filter_coefficients` array formatting and how `decimation_factor` relates to instrument sample rate. 
  
 		:type ch: int; {1,2}
-		:param ch: target channel.
+		:param ch: Filter channel.
 
 		:type decimation_factor: int; [3,10]
-		:param decimation_factor: the binary exponent *n* specifying the sample rate: Fs = 125 MHz / 2^n.
+		:param decimation_factor: the binary exponent *n* specifying the filter sample rate: :math:`Fs = 125 MHz / 2^n`.
 
-		:type filter_coefficients: float array;
-		:param filter_coefficients: array of FIR filter coefficients. The length of the array must not exceed N = 29*min(2^n - 1, 511).
+		:type filter_coefficients: array(float)
+		:param filter_coefficients: array of FIR filter coefficients. The length of the array must not exceed :math:`N = min(29*2^n, 14819)`.
 		"""
 		# TODO: Document the quantization of array coefficients incurred
 		# TODO: The array format is NOT in the class documentation above...?
