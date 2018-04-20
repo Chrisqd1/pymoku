@@ -2,6 +2,8 @@
 FIR Filter Box Instrument
 ============================
 
+The FIR Filter Box implements finite impulse response (FIR) filters at up to 15 MS/s and with over 14,000 coefficients at 244 kS/s. The instrument has two independent filter chains, a control matrix to combine signals from both ADCs, input/output scaling and offsets and oscilloscope monitor probes to view signals at different points in the instrument. 
+
 Example Usage
 -------------
 
