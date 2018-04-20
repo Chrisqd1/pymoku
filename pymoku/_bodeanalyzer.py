@@ -227,27 +227,30 @@ class BodeAnalyzer(_frame_instrument.FrameBasedInstrument):
 		self.sweep_reset = True
 
 	@needs_commit
-	def set_output(self, ch, amplitude, offset):
+	def set_output(self, ch, amplitude, offset=0):
 		""" Set the output sweep amplitude.
 
 		.. note::
 			Ensure that the output amplitude is set so as to not saturate the inputs.
 			Inputs are limited to 1.0Vpp with attenuation turned off.
 
-		:param ch: int; {1,2}
-		:type ch: Output channel
+		:type ch: int; {1, 2}
+		:param ch: Output channel
 
-		:param amplitude: float; [0.0,2.0] Vpp
-		:type amplitude: Sweep amplitude
+		:type amplitude: float; [0.0, 2.0] Vpp
+		:param amplitude: Sweep amplitude
+
+		:type offset: float; [-1.0, 1.0] Volts
+		:param offset: Sweep offset
 
 		"""
-		_utils.check_parameter_valid('set', ch, [1,2], 'output channel')
-		_utils.check_parameter_valid('range', amplitude, [0.001,2.0], 'sweep amplitude','Vpp')
-		_utils.check_parameter_valid('range', amplitude, [-1.0,1.0], 'sweep offset','volts')
+		_utils.check_parameter_valid('set', ch, [1, 2], 'output channel')
+		_utils.check_parameter_valid('range', amplitude, [0.001, 2.0], 'sweep amplitude', 'Vpp')
+		_utils.check_parameter_valid('range', offset, [-1.0, 1.0], 'sweep offset', 'volts')
 
 		# ensure combination of amplitude and offset doesn't cause output clipping
-		if abs(amplitude/2.0 + offset) > 1.0:
-			raise ValueOutOfRangeException("Sweep amplitude and offset must not cause the swept sinewave to exit the bound of +/- 1.0 volts.")
+		if ((amplitude/2.0) + abs(offset)) > 1.0:
+			raise ValueOutOfRangeException("Output sweep waveform must not exceed +/- 1.0 volts. Reduce output amplitude and/or offset.")
 
 		# Set up the output scaling register but also save the voltage value away for use
 		# in the state dictionary to scale incoming data
