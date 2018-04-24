@@ -203,6 +203,22 @@ class FIRFilter(_CoreOscilloscope):
 		self._decfilter1 = _DecFilter(self, 97)
 		self._decfilter2 = _DecFilter(self, 101)
 
+		# Initialise all local configuration variables
+		# These remember user settings prior to on-commit reg calculations
+		self._matrixscale_ch1_ch1 = 0 
+		self._matrixscale_ch1_ch2 = 0
+		self._matrixscale_ch2_ch1 = 0
+		self._matrixscale_ch2_ch2 = 0
+
+		self._input_scale1 = 0
+		self._output_scale1 = 0
+		self._input_offset1 = 0
+		self._output_offset1 = 0
+		self._input_scale2 = 0
+		self._output_scale2 = 0
+		self._input_offset2 = 0
+		self._output_offset2 = 0
+
 	@needs_commit
 	def set_defaults(self):
 		super(FIRFilter, self).set_defaults()
@@ -239,11 +255,18 @@ class FIRFilter(_CoreOscilloscope):
 		_utils.check_parameter_valid('range', scale_in2, [-20, 20], 'control matrix scale (ch2)', 'linear scalar')
 
 		if ch == 1:
-			self.matrixscale_ch1_ch1 = scale_in1
-			self.matrixscale_ch1_ch2 = scale_in2
+			self._matrixscale_ch1_ch1 = scale_in1
+			self._matrixscale_ch1_ch2 = scale_in2
 		else:
-			self.matrixscale_ch2_ch1 = scale_in1
-			self.matrixscale_ch2_ch2 = scale_in2
+			self._matrixscale_ch2_ch1 = scale_in1
+			self._matrixscale_ch2_ch2 = scale_in2
+
+	def _update_control_matrix_regs(self):
+			# Used to update regs at commit time with correct frontend settings.
+			self.matrixscale_ch1_ch1 = self._matrixscale_ch1_ch1
+			self.matrixscale_ch1_ch2 = self._matrixscale_ch1_ch2
+			self.matrixscale_ch2_ch1 = self._matrixscale_ch2_ch1
+			self.matrixscale_ch2_ch2 = self._matrixscale_ch2_ch2
 
 	@needs_commit
 	def set_gains_offsets(self, ch, input_gain=1.0, output_gain=1.0, input_offset=0, output_offset=0):
@@ -273,18 +296,29 @@ class FIRFilter(_CoreOscilloscope):
 		_utils.check_parameter_valid('range', output_offset, [-2.0, 2.0], 'output offset', 'Volts')
 
 		if ch == 1:
-			self.input_scale1 = input_gain
-			self.output_scale1 = output_gain
-			self.input_offset1 = input_offset
-			self.output_offset1 = output_offset
+			self._input_scale1 = input_gain
+			self._output_scale1 = output_gain
+			self._input_offset1 = input_offset
+			self._output_offset1 = output_offset
 		else:
-			self.input_scale2 = input_gain
-			self.output_scale2 = output_gain
-			self.input_offset2 = input_offset
-			self.output_offset2 = output_offset
+			self._input_scale2 = input_gain
+			self._output_scale2 = output_gain
+			self._input_offset2 = input_offset
+			self._output_offset2 = output_offset
 
 		# Reset the channel's filtering loop for new settings to take effect immediately
 		self._channel_reset(ch)
+
+	def _update_gains_offsets_regs(self):
+		# Used to update regs at commit time with correct frontend settings.
+		self.input_scale1 = self._input_scale1
+		self.output_scale1 = self._output_scale1
+		self.input_offset1 = self._input_offset1
+		self.output_offset1 = self._output_offset1
+		self.input_scale2 = self._input_scale2
+		self.output_scale2 = self._output_scale2
+		self.input_offset2 = self._input_offset2
+		self.output_offset2 = self._output_offset2
 
 	def set_filter(self, ch, decimation_factor, filter_coefficients):
 		"""
@@ -475,9 +509,8 @@ class FIRFilter(_CoreOscilloscope):
 
 	def _update_dependent_regs(self, scales):
 		super(FIRFilter, self)._update_dependent_regs(scales)
-
-		# TODO: All matrix and gain scaling factors need to be updated depending on front-end settings
-		pass
+		self._update_control_matrix_regs()
+		self._update_gains_offsets_regs()
 
 
 _fir_reg_handlers = {
