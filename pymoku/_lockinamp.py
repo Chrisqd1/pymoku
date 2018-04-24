@@ -380,7 +380,7 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		# Store the desired output amplitude in the case that 'set_outputs' is called with
 		# 'demod' for the auxillary channel output. We can't set the register here because 
 		# it is shared with the local oscillator amplitude. It will be updated on commit.
- 		self._demod_amp = output_amplitude
+		self._demod_amp = output_amplitude
 
 		if mode == 'internal':
 			self.ext_demod = 0
