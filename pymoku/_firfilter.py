@@ -38,8 +38,7 @@ _FIR_MON_OUT2 = 6
 _FIR_INPUT_SMPS = ADC_SMP_RATE/4
 _FIR_CHN_BUFLEN = 2**13
 
-_ADC_DEFAULT_CALIBRATION = 3750.0								# Bits/V (No attenuation)
-_DAC_DEFAULT_CALIBRATION = _ADC_DEFAULT_CALIBRATION * 2.0**3	# Bits/V
+_ADC_DEFAULT_CALIBRATION = 3750.0 # Bits/V (No attenuation)
 
 class _DecFilter(object):
 	REG_DECIMATION = 0
@@ -241,18 +240,22 @@ class FIRFilter(_CoreOscilloscope):
 
 		Input mixing allows a filter channel to act on a linear combination of the two input signals.
 
-		:type ch: int, {1,2}
+		:type ch: int, {1, 2}
 		:param ch: target filter channel
 
-		:type scale_in1: float, [-20,20]
-		:param scale_in1: linear scale factor of input 1 signal added to target filter channel input
+		:type scale_in1: float, [-20, 20]
+		:param scale_in1: linear scale factor of input 1 signal added to target filter channel input.
+			To avoid quantization, use at most one decimal place.
 
-		:type scale_in2: float, [-20,20] 
-		:param scale_in2: linear scale factor of input 2 signal added to target filter channel input
+		:type scale_in2: float, [-20, 20] 
+		:param scale_in2: linear scale factor of input 2 signal added to target filter channel input.
+			To avoid quantization, use at most one decimal place.
 		"""
 		_utils.check_parameter_valid('set', ch, [1, 2], 'filter channel')
 		_utils.check_parameter_valid('range', scale_in1, [-20, 20], 'control matrix scale (ch1)', 'linear scalar')
 		_utils.check_parameter_valid('range', scale_in2, [-20, 20], 'control matrix scale (ch2)', 'linear scalar')
+		if (scale_in1/0.1)%1 or (scale_in2/0.1)%1:
+			log.warning("Control matrix scalars should contain one decimal place to avoid quantization effects.")
 
 		if ch == 1:
 			self._matrixscale_ch1_ch1 = scale_in1
@@ -545,11 +548,11 @@ _fir_reg_handlers = {
 	'output_scale2':		(REG_FIR_OUT_SCALE2,		to_reg_signed(0, 18, xform=lambda obj, x: int(round(x * 2.0**9 / (_ADC_DEFAULT_CALIBRATION * 2**3 * obj._dac_gains()[1])))), 
 														from_reg_signed(0, 18, xform=lambda obj, x: x * (_ADC_DEFAULT_CALIBRATION * 2**3 * obj._dac_gains()[1]) / 2.0**9)),
 
-	'output_offset1':		(REG_FIR_OUT_OFFSET1,		to_reg_signed(0, 32, xform=lambda obj, x: int(round(x * 2.0**15 * (_ADC_DEFAULT_CALIBRATION * 2**3 * obj._dac_gains()[0])))), 
-														from_reg_signed(0, 32, xform=lambda obj, x: x / (_ADC_DEFAULT_CALIBRATION * 2**3 * obj._dac_gains()[1])/ 2.0**15)),
+	'output_offset1':		(REG_FIR_OUT_OFFSET1,		to_reg_signed(0, 17, xform=lambda obj, x: int(round(x * 2.0**15 * (_ADC_DEFAULT_CALIBRATION * 2**3 * obj._dac_gains()[0])))), 
+														from_reg_signed(0, 17, xform=lambda obj, x: x / (_ADC_DEFAULT_CALIBRATION * 2**3 * obj._dac_gains()[1])/ 2.0**15)),
 
-	'output_offset2':		(REG_FIR_OUT_OFFSET2,		to_reg_signed(0, 32, xform=lambda obj, x: int(round(x * 2.0**15 * (_ADC_DEFAULT_CALIBRATION * 2**3 * obj._dac_gains()[1])))), 
-														from_reg_signed(0, 32, xform=lambda obj, x: x / (_ADC_DEFAULT_CALIBRATION * 2**3 * obj._dac_gains()[1])/ 2.0**15)),
+	'output_offset2':		(REG_FIR_OUT_OFFSET2,		to_reg_signed(0, 17, xform=lambda obj, x: int(round(x * 2.0**15 * (_ADC_DEFAULT_CALIBRATION * 2**3 * obj._dac_gains()[1])))), 
+														from_reg_signed(0, 17, xform=lambda obj, x: x / (_ADC_DEFAULT_CALIBRATION * 2**3 * obj._dac_gains()[1])/ 2.0**15)),
 
 	'matrixscale_ch1_ch1':	(REG_FIR_MATRIXGAIN_CH1,	to_reg_signed(0, 16, 
 															xform=lambda obj, x: int(round(x * (_ADC_DEFAULT_CALIBRATION / (10.0 if obj.get_frontend(1)[1] else 1.0)) * obj._adc_gains()[0] * 2.0**10))), 
@@ -560,11 +563,11 @@ _fir_reg_handlers = {
 														from_reg_signed(16, 16,
 															xform=lambda obj, x: x * ((10.0 if obj.get_frontend(2)[1] else 1.0) / _ADC_DEFAULT_CALIBRATION) / obj._adc_gains()[1] / 2.0**10)),
 	'matrixscale_ch2_ch1':	(REG_FIR_MATRIXGAIN_CH2,	to_reg_signed(0, 16, 
-															xform=lambda obj, x: int(round(x * (_ADC_DEFAULT_CALIBRATION / (10.0 if obj.get_frontend(2)[1] else 1.0)) * obj._adc_gains()[1] * 2.0**10))), 
+															xform=lambda obj, x: int(round(x * (_ADC_DEFAULT_CALIBRATION / (10.0 if obj.get_frontend(1)[1] else 1.0)) * obj._adc_gains()[0] * 2.0**10))), 
 														from_reg_signed(0, 16,
 															xform=lambda obj, x: x * ((10.0 if obj.get_frontend(2)[1] else 1.0) / _ADC_DEFAULT_CALIBRATION) / obj._adc_gains()[1] / 2.0**10)),
 	'matrixscale_ch2_ch2':	(REG_FIR_MATRIXGAIN_CH2,	to_reg_signed(16, 16, 
-															xform=lambda obj, x: int(round(x * (_ADC_DEFAULT_CALIBRATION / (10.0 if obj.get_frontend(1)[1] else 1.0)) * obj._adc_gains()[0] * 2.0**10))), 
+															xform=lambda obj, x: int(round(x * (_ADC_DEFAULT_CALIBRATION / (10.0 if obj.get_frontend(2)[1] else 1.0)) * obj._adc_gains()[1] * 2.0**10))), 
 														from_reg_signed(16, 16,
 															xform=lambda obj, x: x * ((10.0 if obj.get_frontend(1)[1] else 1.0) / _ADC_DEFAULT_CALIBRATION) / obj._adc_gains()[0] / 2.0**10))
 }
