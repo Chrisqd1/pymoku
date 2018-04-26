@@ -77,6 +77,8 @@ _LIA_P_GAINSCALE	= 2.0**16
 _LIA_ID_GAINSCALE	= 2.0**24 - 1
 
 _LIA_SIGNALS = ['x','y','r','theta']
+# The output signals allowed while non-PLL external demodulation is set
+_NON_PLL_ALLOWED_SIGS = ['x','sine','offset','none']
 
 class LockInAmp(PIDController, _CoreOscilloscope):
 	def __init__(self):
@@ -182,11 +184,9 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		_utils.check_parameter_valid('set', main, allowed=['x','y','r','theta','offset','none'], desc="main output signal")
 		_utils.check_parameter_valid('set', aux, allowed=['x', 'y','r','theta','sine','demod','offset','none'], desc="auxillary output signal")
 
-		# I hate having this check here and its complement when trying to set modulation below, ideally they'd
-		# come in through a single interface
-		if self.demod_mode == 'external' and (
-		  aux in _LIA_SIGNALS or main in ['r', 'theta']):
-			raise InvalidConfigurationException("Can't use quadrature-related outputs when using external demodulation without a PLL.")
+		if self.demod_mode == 'external' and not (aux in _NON_PLL_ALLOWED_SIGS and main in _NON_PLL_ALLOWED_SIGS):
+			raise InvalidConfigurationException("Can't use quadrature-related outputs when using external demodulation without a PLL. " \
+				"Allowed outputs are " + str(_NON_PLL_ALLOWED_SIGS))
 
 		# Main output enables
 		self.main_offset = main_offset
@@ -368,9 +368,9 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		_utils.check_parameter_valid('range', phase, allowed=[0,360], desc="demodulation phase", units="degrees")
 		_utils.check_parameter_valid('set', mode, allowed=['internal', 'external', 'external_pll'] )
 
-		if mode == 'external' and (
-		  self.aux_source == 'ch2' or self.main_source in ['r', 'theta']):
-			raise InvalidConfigurationException("Can't use external demodulation source without a PLL with quadrature-related outputs.")
+		if mode == 'external' and not (self.aux_source in _NON_PLL_ALLOWED_SIGS and self.main_source in _NON_PLL_ALLOWED_SIGS):
+			raise InvalidConfigurationException("Can't use external demodulation source without a PLL with quadrature-related outputs. " \
+				"Allowed outputs are " + str(_NON_PLL_ALLOWED_SIGS))
 
 		self.autoacquire = 1
 		self.bandwidth = 0
