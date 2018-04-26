@@ -518,11 +518,11 @@ _iir_reg_handlers = {
 												from_reg_signed(0, 14,
 													xform=lambda obj, x: x * ((10.0 if obj.get_frontend(ch)[1] else 1.0) / 2.0 / _ADC_DEFAULT_CALIBRATION))),
 	'output_offset1':	(REG_OUTPUTOFFSET_CH0,	to_reg_signed(0, 17,
-													xform=lambda obj, x: x / obj._dac_gains()[0]), 
+													xform=lambda obj, x: int(round(x / obj._dac_gains()[0]))), 
 												from_reg_signed(0, 17,
 													xform=lambda obj, x: x * obj._dac_gains()[0])),
 	'output_offset2':	(REG_OUTPUTOFFSET_CH1,	to_reg_signed(0, 17,
-													xform=lambda obj, x: x / obj._dac_gains()[1]), 
+													xform=lambda obj, x: int(round(x / obj._dac_gains()[1]))), 
 												from_reg_signed(0, 17,
 													xform=lambda obj, x: x * obj._dac_gains()[1]))
 	}
