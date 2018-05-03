@@ -337,8 +337,6 @@ class FIRFilter(_CoreOscilloscope):
 		:type filter_coefficients: array(float)
 		:param filter_coefficients: array of FIR filter coefficients. The length of the array must not exceed :math:`N = min(29*2^n, 14819)`.
 		"""
-		# TODO: Document the quantization of array coefficients incurred
-		# TODO: The array format is NOT in the class documentation above...?
 		_utils.check_parameter_valid('set', ch, [1, 2],'filter channel')
 		_utils.check_parameter_valid('set', decimation_factor, range(3,11), 'decimation factor')
 		_utils.check_parameter_valid('range', len(filter_coefficients), [0, _FIR_NUM_BLOCKS * min(2**decimation_factor - 1, 2**9 - 1)], 'filter coefficient array length')
