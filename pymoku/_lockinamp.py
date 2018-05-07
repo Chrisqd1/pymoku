@@ -60,6 +60,7 @@ REG_LIA_MONSELECT		= 127
 
 _LIA_INPUT_SMPS = ADC_SMP_RATE
 
+# Monitor probe locations (for A and B channels)
 _LIA_MON_NONE	= 0
 _LIA_MON_IN1	= 1
 _LIA_MON_I		= 2
@@ -69,6 +70,12 @@ _LIA_MON_AUX	= 5
 _LIA_MON_IN2	= 6
 _LIA_MON_DEMOD	= 7
 
+# Monitor data sources
+_LIA_MONSOURCE_A		= 0
+_LIA_MONSOURCE_B		= 1
+_LIA_MONSOURCE_IN1		= 2
+_LIA_MONSOURCE_IN2		= 3
+_LIA_MONSOURCE_EXT		= 4
 
 _LIA_CONTROL_FS 	= 25.0e6
 _LIA_FREQSCALE		= 1.0e9 / 2**48
@@ -544,27 +551,28 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		source = source.lower()
 		_utils.check_parameter_valid('set', source, allowed=['in1','in2','a','b','ext'], desc="trigger source")
 
-		# Translate the LIA trigger sources to Oscilloscope sources
-		_str_to_osc_trig_source = {
-			'a' : 'in1',
-			'b' : 'in2',
-			'in1' : 'out1',
-			'in2' : 'out2',
-			'ext' : 'ext'
-		}
-
 		source = _utils.str_to_val(_str_to_osc_trig_source, source, 'trigger source')
 
-		super(LockInAmp, self).set_trigger(source=source, edge=edge, level=level, hysteresis=hysteresis, hf_reject=hf_reject, mode=mode)
+		# Private function doesn't check input parameters
+		super(LockInAmp, self)._set_trigger(source=source, edge=edge, level=level, hysteresis=hysteresis, hf_reject=hf_reject, mode=mode)
 
-	def _calculate_scales(self):
-		# This calculates scaling factors for the internal Oscilloscope frames
-		scales = super(LockInAmp, self)._calculate_scales()
+	def _trigger_source_bits_per_volt(self, source, scales):
+		# Calculates the volts to bits conversion for various trigger source signals
 
-		# Change the scales we care about
-		deci_gain = self._deci_gain()
-		atten1 = self.get_frontend(1)
-		atten2 = self.get_frontend(2)
+		if (source == _LIA_MONSOURCE_A):
+			level = self._monitor_source_bits_per_volt(self.monitor_a, scales)
+		elif (source == _LIA_MONSOURCE_B):
+			level = self._monitor_source_bits_per_volt(self.monitor_b, scales)
+		elif (source == _LIA_MONSOURCE_IN1):
+			level = scales['gain_adc1']*(10.0 if atten1 else 1.0)
+		elif (source == _LIA_MONSOURCE_IN2):
+			level = scales['gain_adc2']*(10.0 if atten2 else 1.0)
+		else:
+			level = 1.0
+		return level
+
+	def _monitor_source_bits_per_volt(self, source, scales):
+		# Calculates the volts to bits conversion for the given monitor port signal
 
 		def _demod_mode_to_gain(mode):
 			if mode == 'internal' or 'external_pll':
@@ -584,10 +592,20 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 			'i'		: scales['gain_adc1']*(10.0 if atten1 else 1.0),
 			'q'		: scales['gain_adc1']*(10.0 if atten1 else 1.0)
 		}
+		return monitor_source_gains[source]
+
+	def _calculate_scales(self):
+		# This calculates scaling factors for the internal Oscilloscope frames
+		scales = super(LockInAmp, self)._calculate_scales()
+
+		# Change the scales we care about
+		deci_gain = self._deci_gain()
+		atten1 = self.get_frontend(1)
+		atten2 = self.get_frontend(2)
 
 		# Replace scaling factors depending on the monitor signal source
-		scales['scale_ch1'] = 1.0 if not self.monitor_a else monitor_source_gains[self.monitor_a]
-		scales['scale_ch2'] = 1.0 if not self.monitor_b else monitor_source_gains[self.monitor_b]
+		scales['scale_ch1'] = 1.0 if not self.monitor_a else self._monitor_source_bits_per_volt(self.monitor_a)
+		scales['scale_ch2'] = 1.0 if not self.monitor_b else self._monitor_source_bits_per_volt(self.monitor_a)
 
 		return scales
 

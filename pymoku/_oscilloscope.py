@@ -181,9 +181,9 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		self.pretrigger = buffer_offset
 		self.offset = frame_offset
 
-	def _source_volts_per_bit(self, source, scales):
+	def _trigger_source_bits_per_volt(self, source, scales):
 		"""
-			Converts volts to bits depending on the source (ADC1/2, DAC1/2)
+			Converts volts to bits depending on the trigger source
 		"""
 		if (source == _OSC_SOURCE_CH1):
 			level = scales['gain_adc1']
@@ -369,6 +369,9 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		else:
 			self._trigger.trigtype = Trigger.TYPE_EDGE
 
+	def _set_trigger(self, source, edge, level, minwidth, maxwidth, hysteresis, hf_reject, mode):
+
+
 	@needs_commit
 	def set_source(self, ch, source, lmode='round'):
 		""" Sets the source of the channel data to either the analog input or internally looped-back digital output.
@@ -485,8 +488,8 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 	def _update_dependent_regs(self, scales):
 		# Update trigger level and duration settings based on current trigger source and timebase
 		self._trigger.duration = self._trig_duration * self._input_samplerate / (self.decimation_rate if self.is_precision_mode() else 1.0)
-		self._trigger.level = int(round(self._trig_level / self._source_volts_per_bit(self.trig_ch, scales)))
-		self._trigger.hysteresis = int(round(self._trig_hystersis / self._source_volts_per_bit(self.trig_ch, scales)))
+		self._trigger.level = int(round(self._trig_level * self._trigger_source_bits_per_volt(self.trig_ch, scales)))
+		self._trigger.hysteresis = int(round(self._trig_hystersis * self._trigger_source_bits_per_volt(self.trig_ch, scales)))
 
 	def _update_datalogger_params(self):
 		scales = self._calculate_scales()
@@ -544,8 +547,8 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 
 		# Read back trigger settings into local variables
 		self._trig_duration = self._trigger.duration * (self.decimation_rate if self.is_precision_mode() else 1.0) / self._input_samplerate
-		self._trig_level = self._trigger.level * self._source_volts_per_bit(self.trig_ch, scales)
-		self._trig_hystersis = self._trigger.hysteresis * self._source_volts_per_bit(self.trig_ch, scales)
+		self._trig_level = self._trigger.level / self._trigger_source_bits_per_volt(self.trig_ch, scales)
+		self._trig_hystersis = self._trigger.hysteresis / self._trigger_source_bits_per_volt(self.trig_ch, scales)
 
 		self._update_datalogger_params()
 
