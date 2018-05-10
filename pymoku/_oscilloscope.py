@@ -314,6 +314,25 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 			with ``wait=True``.
 
 		"""
+		# External trigger source is only available on Moku 20
+		if (self._moku.get_hw_version() == 1.0) and source == 'ext':
+			raise InvalidConfigurationException('External trigger source is not available on your hardware.')
+
+		# Define the trigger sources appropriate to the Oscilloscope instrument
+		_str_to_trigger_source = {
+			'in1' : _OSC_SOURCE_CH1,
+			'in2' : _OSC_SOURCE_CH2,
+			'out1' : _OSC_SOURCE_DA1,
+			'out2' : _OSC_SOURCE_DA2,
+			'ext' : _OSC_SOURCE_EXT
+		}
+		source = _utils.str_to_val(_str_to_trigger_source, source, 'trigger source')
+
+		# This function is the portion of set_trigger shared among instruments with embedded scopes. 
+		self._set_trigger(source, edge, level, minwidth, maxwidth, hysteresis, hf_reject, mode)
+
+
+	def _set_trigger(self, source, edge, level, minwidth, maxwidth, hysteresis, hf_reject, mode):
 		# Convert the input parameter strings to bit-value mappings
 		_utils.check_parameter_valid('range', level, [_OSC_TRIGLVL_MIN, _OSC_TRIGLVL_MAX], 'trigger level', 'Volts')
 		_utils.check_parameter_valid('bool', hf_reject, 'High-frequency reject enable')
@@ -324,10 +343,6 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		if (maxwidth or minwidth) and (edge is 'both'):
 			raise InvalidConfigurationException("Can't set trigger edge type 'both' in Pulse Width trigger mode. Choose one of {'rising','falling'}.")
 
-		# External trigger source is only available on Moku 20
-		if (self._moku.get_hw_version() == 1.0) and source == 'ext':
-			raise ValueOutOfRangeException('External trigger source is not available on your hardware.')
-
 		self.hf_reject = hf_reject
 
 		if mode == 'auto':
@@ -337,19 +352,11 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 			self._trigger.timer = 0.0
 			self._trigger.auto_holdoff = 0
 
-		_str_to_trigger_source = {
-			'in1' : _OSC_SOURCE_CH1,
-			'in2' : _OSC_SOURCE_CH2,
-			'out1' : _OSC_SOURCE_DA1,
-			'out2' : _OSC_SOURCE_DA2,
-			'ext' : _OSC_SOURCE_EXT
-		}
 		_str_to_edge = {
 			'rising' : Trigger.EDGE_RISING,
 			'falling' : Trigger.EDGE_FALLING,
 			'both'	: Trigger.EDGE_BOTH
 		}
-		source = _utils.str_to_val(_str_to_trigger_source, source, 'trigger source')
 		edge = _utils.str_to_val(_str_to_edge, edge, 'edge type')
 
 		self.trig_ch = source
@@ -368,8 +375,6 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 			self._trigger.pulsetype = Trigger.PULSE_MIN
 		else:
 			self._trigger.trigtype = Trigger.TYPE_EDGE
-
-	def _set_trigger(self, source, edge, level, minwidth, maxwidth, hysteresis, hf_reject, mode):
 
 
 	@needs_commit

@@ -524,37 +524,55 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 			raise ValueOutOfRangeException("Invalid channel %d", monitor_ch)
 
 	@needs_commit
-	def set_trigger(self, source, edge, level, hysteresis=False, hf_reject=False, mode='auto'):
+	def set_trigger(self, source, edge, level, minwidth=None, maxwidth=None, hysteresis=10e-3, hf_reject=False, mode='auto'):
+		""" 
+		Set the trigger source for the monitor channel signals. This can be either of the input or
+		monitor signals, or the external input.
+
+		:type source: string, {'in1','in2','A','B','ext'}
+		:param source: Trigger Source. May be either an input or monitor channel (as set by 
+				:py:meth:`~pymoku.instruments.LockInAmp.set_monitor`), or external. External refers 
+				to the back-panel connector of the same	name, allowing triggering from an 
+				externally-generated digital [LV]TTL or CMOS signal.
+
+		:type edge: string, {'rising','falling','both'}
+		:param edge: Which edge to trigger on. In Pulse Width modes this specifies whether the pulse is positive (rising)
+				or negative (falling), with the 'both' option being invalid.
+
+		:type level: float, [-10.0, 10.0] volts
+		:param level: Trigger level
+
+		:type minwidth: float, seconds
+		:param minwidth: Minimum Pulse Width. 0 <= minwidth < (2^32/samplerate). Can't be used with maxwidth.
+
+		:type maxwidth: float, seconds
+		:param maxwidth: Maximum Pulse Width. 0 <= maxwidth < (2^32/samplerate). Can't be used with minwidth.
+
+		:type hysteresis: float, [100e-6, 5.0] volts
+		:param hysteresis: Hysteresis around trigger point.
+
+		:type hf_reject: bool
+		:param hf_reject: Enable high-frequency noise rejection
+
+		:type mode: string, {'auto', 'normal'}
+		:param mode: Trigger mode.
 		"""
-			Set the trigger for the monitor signals. This can be either of the input channel signals
-			or monitor channel signals.
+		# External trigger source is only available on Moku 20
+		if (self._moku.get_hw_version() == 1.0) and source == 'ext':
+			raise InvalidConfigurationException('External trigger source is not available on your hardware.')
 
-			:type source: string; {'in1','in2','A','B','ext'}
-			:param source: Trigger channel
+		# Define the trigger sources appropriate to the LockInAmp instrument
+		_str_to_trigger_source = {
+			'in1' : _LIA_MONSOURCE_IN1,
+			'in2' : _LIA_MONSOURCE_IN2,
+			'a' : _LIA_MONSOURCE_A,
+			'b' : _LIA_MONSOURCE_B,
+			'ext' : _LIA_MONSOURCE_EXT
+		}
+		source = _utils.str_to_val(_str_to_trigger_source, source, 'trigger source')
 
-			:type edge: string, {'rising','falling','both'}
-			:param edge: Which edge to trigger on.
-
-			:type level: float, [-10.0, 10.0] volts
-			:param level: Trigger level
-
-			:type hysteresis: bool
-			:param hysteresis: Enable Hysteresis around trigger point.
-
-			:type hf_reject: bool
-			:param hf_reject: Enable high-frequency noise rejection
-
-			:type mode: string, {'auto', 'normal'}
-			:param mode: Trigger mode.
-		"""
-		_utils.check_parameter_valid('string', source, desc="trigger source")
-		source = source.lower()
-		_utils.check_parameter_valid('set', source, allowed=['in1','in2','a','b','ext'], desc="trigger source")
-
-		source = _utils.str_to_val(_str_to_osc_trig_source, source, 'trigger source')
-
-		# Private function doesn't check input parameters
-		super(LockInAmp, self)._set_trigger(source=source, edge=edge, level=level, hysteresis=hysteresis, hf_reject=hf_reject, mode=mode)
+		# This function is the portion of set_trigger shared among instruments with embedded scopes. 
+		self._set_trigger(source, edge, level, minwidth, maxwidth, hysteresis, hf_reject, mode)
 
 	def _trigger_source_bits_per_volt(self, source, scales):
 		# Calculates the volts to bits conversion for various trigger source signals
@@ -564,15 +582,20 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		elif (source == _LIA_MONSOURCE_B):
 			level = self._monitor_source_bits_per_volt(self.monitor_b, scales)
 		elif (source == _LIA_MONSOURCE_IN1):
-			level = scales['gain_adc1']*(10.0 if atten1 else 1.0)
+			level = scales['gain_adc1']*(10.0 if scales['atten_ch1'] else 1.0)
 		elif (source == _LIA_MONSOURCE_IN2):
-			level = scales['gain_adc2']*(10.0 if atten2 else 1.0)
+			level = scales['gain_adc2']*(10.0 if scales['atten_ch2'] else 1.0)
 		else:
 			level = 1.0
 		return level
 
 	def _monitor_source_bits_per_volt(self, source, scales):
 		# Calculates the volts to bits conversion for the given monitor port signal
+
+		# Change the scales we care about
+		deci_gain = self._deci_gain()
+		atten1 = self.get_frontend(1)
+		atten2 = self.get_frontend(2)
 
 		def _demod_mode_to_gain(mode):
 			if mode == 'internal' or 'external_pll':
@@ -584,13 +607,13 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 
 		monitor_source_gains = {
 			'none'	: 1.0,
-			'in1'	: scales['gain_adc1']*(10.0 if atten1 else 1.0), # Undo range scaling
-			'in2'	: scales['gain_adc2']*(10.0 if atten2 else 1.0),
+			'in1'	: scales['gain_adc1']*(10.0 if scales['atten_ch1'] else 1.0), # Undo range scaling
+			'in2'	: scales['gain_adc2']*(10.0 if scales['atten_ch2'] else 1.0),
 			'main'	: scales['gain_dac1']*(2**4), # 12bit ADC - 16bit DAC
 			'aux'	: scales['gain_dac2']*(2**4),
 			'demod'	: _demod_mode_to_gain(self.demod_mode),
-			'i'		: scales['gain_adc1']*(10.0 if atten1 else 1.0),
-			'q'		: scales['gain_adc1']*(10.0 if atten1 else 1.0)
+			'i'		: scales['gain_adc1']*(10.0 if scales['atten_ch1'] else 1.0),
+			'q'		: scales['gain_adc1']*(10.0 if scales['atten_ch1'] else 1.0)
 		}
 		return monitor_source_gains[source]
 
@@ -598,14 +621,9 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		# This calculates scaling factors for the internal Oscilloscope frames
 		scales = super(LockInAmp, self)._calculate_scales()
 
-		# Change the scales we care about
-		deci_gain = self._deci_gain()
-		atten1 = self.get_frontend(1)
-		atten2 = self.get_frontend(2)
-
 		# Replace scaling factors depending on the monitor signal source
-		scales['scale_ch1'] = 1.0 if not self.monitor_a else self._monitor_source_bits_per_volt(self.monitor_a)
-		scales['scale_ch2'] = 1.0 if not self.monitor_b else self._monitor_source_bits_per_volt(self.monitor_a)
+		scales['scale_ch1'] = 1.0 if not self.monitor_a else self._monitor_source_bits_per_volt(self.monitor_a, scales)
+		scales['scale_ch2'] = 1.0 if not self.monitor_b else self._monitor_source_bits_per_volt(self.monitor_b, scales)
 
 		return scales
 
