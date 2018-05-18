@@ -119,10 +119,6 @@ class PIDController(_CoreOscilloscope):
 		self.set_control_matrix(2, 1, 0)
 		self.set_by_gain(1, 1, 0)
 		self.set_by_gain(2, 1, 0)
-		self.ch1_pid1_int_dc_pole = False
-		self.ch1_pid2_int_dc_pole = False
-		self.ch2_pid1_int_dc_pole = False
-		self.ch2_pid2_int_dc_pole = False
 
 	def _calculate_gains_by_frequency(self, kp, i_xover, d_xover, ii_xover, si, sd):
 		# Particularly high or low I or D crossover frequencies (<1Hz, >1MHz) require that some of their gain is
@@ -339,7 +335,6 @@ class PIDController(_CoreOscilloscope):
 			# Set gain factors
 			self.ch1_pid1_int_i_gain = i_gain
 			self.ch1_pid1_int_p_gain = p_gain
-			print '1', self.ch1_pid1_int_p_gain
 			self.ch1_pid1_int_ifb_gain = i_fb
 			self.ch1_pid1_int_dc_pole = si is None
 
@@ -384,7 +379,6 @@ class PIDController(_CoreOscilloscope):
 			# Set gain factors
 			self.ch2_pid1_int_i_gain = i_gain
 			self.ch2_pid1_int_p_gain = p_gain
-			print '2', self.ch2_pid1_int_p_gain
 			self.ch2_pid1_int_ifb_gain = i_fb
 			self.ch2_pid1_int_dc_pole = si is None
 
