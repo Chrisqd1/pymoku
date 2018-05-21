@@ -123,7 +123,7 @@ class PIDController(_CoreOscilloscope):
 	def _calculate_gains_by_frequency(self, kp, i_xover, d_xover, ii_xover, si, sd):
 		# Particularly high or low I or D crossover frequencies (<1Hz, >1MHz) require that some of their gain is
 		# pushed to the overall gain on the end due to dynamic range limitations
-		fs = _PID_INPUT_SMPS
+		fs = _PID_INPUT_SMPS / (2*math.pi)
 		cross_over_gain = kp if kp else 1
 
 		i_gmin = d_gmin = 1
@@ -134,7 +134,7 @@ class PIDController(_CoreOscilloscope):
 			i_gmax = max(i_unity / 1e6, 1)
 
 		if d_xover:
-			d_unity = d_xover * fs / d_xover
+			d_unity = d_xover * (2*math.pi) * fs / d_xover
 			d_gmin = sd if sd is not None and sd < 1 else max(1.0e6 / d_unity, 1.0)
 			d_gmax = max(1 / d_unity, 1)
 
@@ -192,7 +192,7 @@ class PIDController(_CoreOscilloscope):
 		# Check if double integrator stage is enabled
 		double_integrator = kii != 0
 
-		gain_factor = g * 2.0**4 / self._dac_gains()[ch - 1] / 31.25
+		gain_factor = g * 2.0**6 / self._dac_gains()[ch - 1] / 31.25
 		p_gain = kp
 
 		if double_integrator:
