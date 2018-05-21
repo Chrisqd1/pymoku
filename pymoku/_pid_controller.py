@@ -192,11 +192,13 @@ class PIDController(_CoreOscilloscope):
 		# Check if double integrator stage is enabled
 		double_integrator = kii != 0
 
-		gain_factor = g * 2.0**6 / self._dac_gains()[ch - 1] / 31.25
+		gain_factor = g * 2.0**6 / 31.25
 		p_gain = kp
 
 		if double_integrator:
 			gain_factor = math.sqrt(gain_factor)
+
+		gain_factor = gain_factor/ self._dac_gains()[ch - 1]
 
 		fs = _PID_INPUT_SMPS / (2 * math.pi)
 
@@ -561,8 +563,8 @@ _PID_reg_hdl = {
 	'ch2_pid1_pidgain':		(REG_PID_CH1_PIDGAIN1, to_reg_signed(0, 32, xform=lambda obj, x: x),
 												from_reg_signed(0, 32, xform=lambda obj, x: x)),
 
-	'ch2_pid2_pidgain':		(REG_PID_CH1_PIDGAIN2, to_reg_signed(0, 32, xform=lambda obj, x: x * 2.0**15),
-												from_reg_signed(0, 32, xform=lambda obj, x: x / 2.0**15)),
+	'ch2_pid2_pidgain':		(REG_PID_CH1_PIDGAIN2, to_reg_signed(0, 32, xform=lambda obj, x: x ),
+												from_reg_signed(0, 32, xform=lambda obj, x: x )),
 
 	'ch2_pid1_int_i_gain':	(REG_PID_CH1_INT_IGAIN1, to_reg_unsigned(0, 24, xform=lambda obj, x: x * (2.0**24 - 1)),
 												from_reg_unsigned(0, 24, xform=lambda obj, x: x / (2.0**24 - 1))),
