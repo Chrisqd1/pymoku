@@ -549,7 +549,7 @@ class SlowDataParser(object):
 		self._currecord = [[] for _ in range(self.nch)]
 		self._currfmt 	= [[] for _ in range(self.nch)]
 
-		self._sampleidx = [0 for _ in range(self.nch)]
+		self._byteidx = [0 for _ in range(self.nch)]
 
 	def _process_records(self):
 		for ch in range(self.nch):
@@ -727,9 +727,8 @@ class SlowDataParser(object):
 		# The sample index isn't the same as the total length of the processed
 		# array as the user can empty the processed array themselves
 		if start_idx is not None:
-			if self._sampleidx[ch] == start_idx:
-				nprocessed = len(self.processed[ch]) - prev_len
-				self._sampleidx[ch] += nprocessed
+			if self._byteidx[ch] == start_idx:
+				self._byteidx[ch] += len(data)
 			else:
 				raise DataIntegrityException("Data loss detected on stream interface")
 try:
