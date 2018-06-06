@@ -4,6 +4,7 @@ import math
 
 from ._instrument import *
 from ._oscilloscope import _CoreOscilloscope
+from . import _utils
 
 log = logging.getLogger(__name__)
 
@@ -447,6 +448,51 @@ class PIDController(_CoreOscilloscope):
 		else:
 			self.ch2_input_light = True;
 
+	@needs_commit
+	def enable_output(self, ch = None, en = True):
+		""" Enable or disable the PID channel output(s).
+
+		If *ch* is None (the default), both channels will be acted upon,
+		otherwise just the one specified by the argument.
+
+		:type ch: int; {1,2} or None
+		:param ch: Output channel, or both.
+
+		:type en: bool
+		:param en: Enable the specified output channel(s).
+
+		:raises InvalidParameterException: Invalid parameters
+		"""
+		_utils.check_parameter_valid('set', ch, [1, 2, None], 'output channel')
+		_utils.check_parameter_valid('bool', en, 'output enable')
+
+		if ch is None or ch == 1:
+			self.ch1_output_en = en
+		if ch is None or ch == 2:
+			self.ch2_output_en = en
+
+	@needs_commit
+	def enable_input(self, ch = None, en = True):
+		""" Enable or disable the PID channel input(s).
+
+		If *ch* is None (the default), both channels will be acted upon,
+		otherwise just the one specified by the argument.
+
+		:type ch: int; {1,2} or None
+		:param ch: Output channel, or both.
+
+		:type en: bool
+		:param en: Enable the specified input channel(s).
+
+		:raises InvalidParameterException: Invalid parameters
+		"""
+		_utils.check_parameter_valid('set', ch, [1, 2, None], 'input channel')
+		_utils.check_parameter_valid('bool', en, desc = 'enable input')
+
+		if ch is None or ch == 1:
+			self.ch1_input_en = en
+		if ch is None or ch == 2:
+			self.ch2_input_en = en
 
 _PID_reg_hdl = {
 	'ch1_pid1_bypass':		(REG_PID_ENABLES,	to_reg_bool(0), from_reg_bool(0)),
