@@ -184,6 +184,13 @@ class IIRFilterBox(_CoreOscilloscope):
 			self.matrixscale_ch2_ch1 = self._matrixscale_ch2_ch1
 			self.matrixscale_ch2_ch2 = self._matrixscale_ch2_ch2
 
+	def _sync_control_matrix_regs(self):
+			# Used to sync local variabels when connecting to an existing moku.
+			self._matrixscale_ch1_ch1 = self.matrixscale_ch1_ch1
+			self._matrixscale_ch1_ch2 = self.matrixscale_ch1_ch2
+			self._matrixscale_ch2_ch1 = self.matrixscale_ch2_ch1
+			self._matrixscale_ch2_ch2 = self.matrixscale_ch2_ch2
+
 	# NOTE: This function avoids @needs_commit because it calls _set_mmap_access which requires an immediate commit
 	def set_filter(self, ch, sample_rate, filter_coefficients):
 		"""
@@ -347,6 +354,17 @@ class IIRFilterBox(_CoreOscilloscope):
 		self.input_offset2 	= self._input_offset2
 		self.output_offset2 = self._output_offset2
 
+	def _sync_gains_offsets_regs(self):
+		# Used to update regs at commit time with correct frontend settings.
+		self._input_scale1 	 = self.input_scale1
+		self._output_scale1  = self.output_scale1
+		self._input_offset1  = self.input_offset1
+		self._output_offset1 = self.output_offset1
+		self._input_scale2 	 = self.input_scale2
+		self._output_scale2  = self.output_scale2
+		self._input_offset2  = self.input_offset2
+		self._output_offset2 = self.output_offset2
+
 	@needs_commit
 	def set_monitor(self, ch, source):
 		"""
@@ -476,6 +494,11 @@ class IIRFilterBox(_CoreOscilloscope):
 		self._update_control_matrix_regs()
 		self._update_gains_offsets_regs()
 
+	def _on_reg_sync(self):
+		super(IIRFilterBox, self)._on_reg_sync()
+		# Update local variables with device variables
+		self._sync_control_matrix_regs()
+		self._sync_gains_offsets_regs()
 
 _iir_reg_handlers = {
 	'mon1_source':	(REG_MONSELECT,		to_reg_unsigned(0,3), from_reg_unsigned(0,3)),
