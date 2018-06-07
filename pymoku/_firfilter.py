@@ -271,6 +271,13 @@ class FIRFilter(_CoreOscilloscope):
 			self.matrixscale_ch2_ch1 = self._matrixscale_ch2_ch1
 			self.matrixscale_ch2_ch2 = self._matrixscale_ch2_ch2
 
+	def _sync_control_matrix_regs(self):
+			# sync local variables when connecting to an existing instrument
+			self._matrixscale_ch1_ch1 = self.matrixscale_ch1_ch1
+			self._matrixscale_ch1_ch2 = self.matrixscale_ch1_ch2
+			self._matrixscale_ch2_ch1 = self.matrixscale_ch2_ch1
+			self._matrixscale_ch2_ch2 = self.matrixscale_ch2_ch2
+
 	@needs_commit
 	def set_gains_offsets(self, ch, input_gain=1.0, output_gain=1.0, input_offset=0, output_offset=0):
 		"""
@@ -314,14 +321,25 @@ class FIRFilter(_CoreOscilloscope):
 
 	def _update_gains_offsets_regs(self):
 		# Used to update regs at commit time with correct frontend settings.
-		self.input_scale1 = self._input_scale1
-		self.output_scale1 = self._output_scale1
-		self.input_offset1 = self._input_offset1
+		self.input_scale1 	= self._input_scale1
+		self.output_scale1 	= self._output_scale1
+		self.input_offset1 	= self._input_offset1
 		self.output_offset1 = self._output_offset1
-		self.input_scale2 = self._input_scale2
-		self.output_scale2 = self._output_scale2
-		self.input_offset2 = self._input_offset2
+		self.input_scale2 	= self._input_scale2
+		self.output_scale2 	= self._output_scale2
+		self.input_offset2 	= self._input_offset2
 		self.output_offset2 = self._output_offset2
+
+	def _sync_gains_offsets_regs(self):
+		# sync local variables when connecting to an existing instrument
+		self._input_scale1 	 = self.input_scale1
+		self._output_scale1  = self.output_scale1
+		self._input_offset1  = self.input_offset1
+		self._output_offset1 = self.output_offset1
+		self._input_scale2 	 = self.input_scale2
+		self._output_scale2  = self.output_scale2
+		self._input_offset2  = self.input_offset2
+		self._output_offset2 = self.output_offset2
 
 	def set_filter(self, ch, decimation_factor, filter_coefficients):
 		"""
@@ -516,14 +534,7 @@ class FIRFilter(_CoreOscilloscope):
 	def _on_reg_sync(self):
 		super(FIRFilter, self)._on_reg_sync()
 		# Update local variables with device variables
-		self._input_scale1 = self.input_scale1
-		self._output_scale1 = self.output_scale1
-		self._input_offset1 = self.input_offset1
-		self._output_offset1 = self.output_offset1
-		self._input_scale2 = self.input_scale2
-		self._output_scale2 = self.output_scale2
-		self._input_offset2 = self.input_offset2
-		self._output_offset2 = self.output_offset2
+		self._sync_gains_offsets_regs()
 
 
 
