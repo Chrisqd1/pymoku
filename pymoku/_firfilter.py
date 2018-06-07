@@ -513,6 +513,20 @@ class FIRFilter(_CoreOscilloscope):
 		self._update_control_matrix_regs()
 		self._update_gains_offsets_regs()
 
+	def _on_reg_sync(self):
+		super(FIRFilter, self)._on_reg_sync()
+		# Update local variables with device variables
+		self._input_scale1 = self.input_scale1
+		self._output_scale1 = self.output_scale1
+		self._input_offset1 = self.input_offset1
+		self._output_offset1 = self.output_offset1
+		self._input_scale2 = self.input_scale2
+		self._output_scale2 = self.output_scale2
+		self._input_offset2 = self.input_offset2
+		self._output_offset2 = self.output_offset2
+
+
+
 
 _fir_reg_handlers = {
 	'reset_ch1':			(REG_FIR_CONTROL,			to_reg_bool(0), from_reg_bool(0)),
