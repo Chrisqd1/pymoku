@@ -11,7 +11,7 @@ from pymoku.tools import compat as cp
 
 DATAPATH = os.path.expanduser(os.environ.get('PYMOKU_INSTR_PATH', None) or pkg_resources.resource_filename('pymoku', 'data'))
 PYMOKU_VERSION = pkg_resources.get_distribution("pymoku").version
-MOKUDATAFILE = 'mokudata-%s.tar.gz' % pymoku.version.compat_fw[0]
+MOKUDATAFILE = 'mokudata-%s-%s.tar.gz' % (pymoku.version.compat_fw[0], pymoku.version.compat_patch[0])
 
 log = logging.getLogger(__name__)
 
@@ -143,9 +143,10 @@ class Moku(object):
 
 		# Check that pymoku is compatible with the Moku:Lab's firmware version
 		if not force:
-			build = self.get_firmware_build()
-			if cp.firmware_is_compatible(build) == False: # Might be None = unknown, don't print that.
-				raise MokuException("The connected Moku appears to be incompatible with this version of pymoku. Please run 'moku --ip={} firmware check_compat' for more information.".format(self._ip))
+			if cp.firmware_is_compatible(self) == False: # Might be None = unknown, don't print that.
+				raise MokuException("Moku:Lab firmware {} incompatible with Pymoku v{}. "
+					"Please update using\n moku --ip={} update fetch\n moku --ip={} update install"
+					.format(self.get_firmware_build(), PYMOKU_VERSION, self.get_ip(), self.get_ip()))
 
 		self.load_instruments = load_instruments if load_instruments is not None else self.get_bootmode() == 'normal'
 
@@ -941,6 +942,16 @@ class Moku(object):
 
 	def _delete_file(self, mp, path):
 		self._fs_finalise(mp, path, 0)
+
+	def _list_packs(self):
+		return [f[0] for f in self._fs_list('p') if f[0].endswith(('hgp','hgp.aes'))]
+
+	def _delete_packs(self):
+		for p in self._list_packs():
+			self._delete_file('p', p)
+
+	def _list_running_packs(self):
+		return [(p[0].split('.')[1], p[1]) for p in self._get_property_section('packs')]
 
 	def _load_bitstream(self, path, instr_id=None, sub_id=0):
 		"""

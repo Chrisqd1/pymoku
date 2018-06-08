@@ -27,17 +27,22 @@ def update(args):
 	if args.action == 'fetch':
 		url = args.url
 
-		r = requests.get(url.replace('tar.gz', 'md5'))
-		remote_hash = r.text.split(' ')[0]
-
 		try:
+			r = requests.get(url.replace('tar.gz', 'md5'))
+			r.raise_for_status() # Checks for any HTTP errors
+			remote_hash = r.text.split(' ')[0]
+
 			with open(DATAPATH + '/' + MOKUDATAFILE, 'rb') as f:
 				assert hashlib.md5(f.read()).hexdigest() == remote_hash and not args.force
-		except:
-			#Any exception above causes new archive to download
 
+		except requests.HTTPError as e:
+			logging.error("ERROR: Unable to retrieve updates from server.\n%s" % e.message)
+			return
+		except:
+			# Any non-HTTP exception causes new archive to download
 			logging.info("Fetching data pack from: %s" % url)
 			with requests.get(url, stream=True) as r:
+				r.raise_for_status() # Check for any HTTP errors
 				length = int(r.headers['content-length'])
 				recvd = 0
 
@@ -54,36 +59,68 @@ def update(args):
 		else:
 			logging.info("%s Already up to date" % MOKUDATAFILE)
 	elif args.action == 'install':
+		firmware_reboot = False
+		patch_reboot = False
 		moku = connect(args, force=True)
 
 		v = moku.get_hw_version()
 		f = DATAPATH + '/' + MOKUDATAFILE
+
+		def _load_firmware():
+			tardata = tarfile.open(DATAPATH + '/' + MOKUDATAFILE)
+			fw_tarinfo = tardata.getmember('moku%2d.fw' % (v * 10))
+			fw_file = tardata.extractfile(fw_tarinfo)
+			moku._send_file_bytes('f', 'moku.fw', fw_file.read())
+			fw_file.close()
+			tardata.close()
+			return True
+
+		def _load_patches():
+			moku._delete_packs()
+			tardata = tarfile.open(DATAPATH + '/' + MOKUDATAFILE)
+			tar_packs = [ f for f in tardata.getnames() if f.endswith(('hgp','hgp.aes')) ]
+			for p in tar_packs:
+				pack_name = p.split('/')[-1]
+				pack_tarinfo = tardata.getmember(p)
+				pack_file = tardata.extractfile(pack_tarinfo)
+				logging.info("Installing pack - %s" % pack_name)
+				moku._send_file_bytes('p', pack_name, pack_file.read())
+				pack_file.close()
+			tardata.close()
+			return True
+
 		old_fw = moku.get_firmware_build()
 		new_fw = version.compat_fw[0]
-
 		logging.info('Updating Moku %06d from %d to %d...' % (int(moku.get_serial()), old_fw, new_fw))
 
-		if not args.force:
+		if args.force:
+			if old_fw > new_fs:
+				logging.warning('Downgrading firmware.')
+			firmware_reboot |= _load_firmware()
+		else:
 			if old_fw == new_fw:
 				logging.warning('Firmware already up to date.')
-				return
-			if old_fw > new_fw:
+			elif old_fw > new_fw:
 				logging.error('Refusing to downgrade firmware.')
-				return
+			else:
+				firmware_reboot |= _load_firmware()
 
-		if old_fw > new_fw:
-			logging.warning('Downgrading firmware.')
+		# Applying patches
+		logging.info('Checking patches.')
 
-		tardata = tarfile.open(DATAPATH + '/' + MOKUDATAFILE)
-		fw_tarinfo = tardata.getmember('moku%2d.fw' % (v * 10))
-		fw_file = tardata.extractfile(fw_tarinfo)
+		if not patch_is_compatible(moku):
+			logging.info('Applying patches...')
+			patch_reboot |= _load_patches()
+		else:
+			logging.info('Patches already up to date.')
 
-		moku._send_file_bytes('f', 'moku.fw', fw_file.read())
-		fw_file.close()
-		tardata.close()
-
-		moku._trigger_fwload()
-		log.info("Successfully started firmware update. Your Moku will shut down automatically when complete.")
+		if firmware_reboot:
+			moku._trigger_fwload()
+			log.info("Successfully started firmware update. Your Moku:Lab will shut down automatically when complete. " 
+						"This process can take up to 30-minutes.")
+		elif patch_reboot:
+			moku._restart_board()
+			log.info("Successfully applied patches. Your Moku:Lab will now shut down to complete the update process.")
 
 parser_update = subparsers.add_parser('update', help="Check and update instruments on the Moku.")
 parser_update.add_argument('--url', help='Override location of data pack', default=MOKUDATAURL)
@@ -171,7 +208,7 @@ def package(args):
 				return
 
 			fname = os.path.basename(args.file)
-			moku._send_file('f', args.file)
+			moku._send_file('p', args.file)
 
 			print("Successfully loaded new package {}".format(fname))
 		else:
@@ -209,13 +246,14 @@ def firmware(args):
 			moku._load_firmware(f)
 			print("Successfully started firmware update. Your Moku will shut down automatically when complete.")
 		elif args.action == 'check_compat':
-			build = moku.get_firmware_build()
-			compat = firmware_is_compatible(build)
+			compat = firmware_is_compatible(moku)
 
-			if compat is None:
+			if compat == None:
 				print("Unable to determine compatibility, perhaps you're running a development or pre-release build?")
 			else:
-				print("Compatible" if compat else "Firmware version %s incompatible with Pymoku v%s, please update firmware to one of versions: %s." % (moku.get_firmware_build(), str(moku.get_version()), list_compatible_firmware()))
+				print("Compatible." if compat else "Moku:Lab firmware {} incompatible with Pymoku v{}. "
+					"Please update using\n moku --ip={} update fetch\n moku --ip={} update install"
+					.format(moku.get_firmware_build(), PYMOKU_VERSION, moku.get_ip(), moku.get_ip()))
 		elif args.action == 'restart':
 			moku._restart_board()
 			print("Moku rebooted.")
@@ -223,7 +261,8 @@ def firmware(args):
 			exit(1)
 	finally:
 		try:
-			moku.close()
+			if moku:
+				moku.close()
 		except zmq.error.Again:
 			pass # Firmware update can stop us being able to close
 
