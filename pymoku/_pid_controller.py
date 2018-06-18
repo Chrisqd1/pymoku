@@ -193,7 +193,8 @@ class PIDController(_CoreOscilloscope):
 		# Check if double integrator stage is enabled
 		double_integrator = kii != 0
 
-		gain_factor = g * 2.0**6 / 31.25
+		gain_factor = g * 2.0**4 / 31.25
+
 		p_gain = kp
 
 		if double_integrator:
@@ -334,7 +335,6 @@ class PIDController(_CoreOscilloscope):
 			self.ch1_pid1_ien = ki > 0
 			self.ch1_pid1_den = kd > 0
 			self.ch1_pid1_pidgain = gain_factor
-
 			# Set gain factors
 			self.ch1_pid1_int_i_gain = i_gain
 			self.ch1_pid1_int_p_gain = p_gain
@@ -378,7 +378,7 @@ class PIDController(_CoreOscilloscope):
 			self.ch2_pid1_ien = ki > 0
 			self.ch2_pid1_den = kd > 0
 			self.ch2_pid1_pidgain = gain_factor
-
+			# Set gain factors
 			# Set gain factors
 			self.ch2_pid1_int_i_gain = i_gain
 			self.ch2_pid1_int_p_gain = p_gain
@@ -432,11 +432,11 @@ class PIDController(_CoreOscilloscope):
 		# gain. This optimises the rounding strategy, as the control matrix itself
 		# doesn't have many fractional bits.
 		if ch == 1:
-			self.ch1_ch1_gain = self_gain * 1000
-			self.ch1_ch2_gain = cross_gain * 1000
+			self.ch1_ch1_gain = self_gain * 1000 * 4
+			self.ch1_ch2_gain = cross_gain * 1000 * 4
 		elif ch == 2:
-			self.ch2_ch1_gain = cross_gain * 1000
-			self.ch2_ch2_gain = self_gain * 1000
+			self.ch2_ch1_gain = cross_gain * 1000 * 4
+			self.ch2_ch2_gain = self_gain * 1000 * 4
 
 		if self.ch1_ch1_gain == self.ch2_ch1_gain == 0:
 			self.ch1_input_light = False;
