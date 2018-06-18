@@ -59,6 +59,7 @@ REG_LIA_SINEOUTOFF		= 126
 REG_LIA_MONSELECT		= 127
 
 _LIA_INPUT_SMPS = ADC_SMP_RATE
+_LIA_CHN_BUFLEN	= CHN_BUFLEN
 
 # Monitor probe locations (for A and B channels)
 _LIA_MON_NONE	= 0
@@ -97,6 +98,7 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 
 		# Monitor samplerate
 		self._input_samplerate = _LIA_INPUT_SMPS
+		self._chn_buffer_len 	= _LIA_CHN_BUFLEN
 
 		# Remember some user settings for when swapping channels
 		# Need to initialise these to valid values so set_defaults can be run.
@@ -574,13 +576,14 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		# This function is the portion of set_trigger shared among instruments with embedded scopes. 
 		self._set_trigger(source, edge, level, minwidth, maxwidth, hysteresis, hf_reject, mode)
 
-	def _trigger_source_bits_per_volt(self, source, scales):
+	def _trigger_source_volts_per_bit(self, source, scales):
 		# Calculates the volts to bits conversion for various trigger source signals
 
 		if (source == _LIA_MONSOURCE_A):
-			level = self._monitor_source_bits_per_volt(self.monitor_a, scales)
+			# The trigger level always uses precision mode data so we need to account for decimation gain
+			level = self._monitor_source_volts_per_bit(self.monitor_a, scales)/ self._deci_gain()
 		elif (source == _LIA_MONSOURCE_B):
-			level = self._monitor_source_bits_per_volt(self.monitor_b, scales)
+			level = self._monitor_source_volts_per_bit(self.monitor_b, scales)/ self._deci_gain()
 		elif (source == _LIA_MONSOURCE_IN1):
 			level = scales['gain_adc1']*(10.0 if scales['atten_ch1'] else 1.0)
 		elif (source == _LIA_MONSOURCE_IN2):
@@ -589,7 +592,7 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 			level = 1.0
 		return level
 
-	def _monitor_source_bits_per_volt(self, source, scales):
+	def _monitor_source_volts_per_bit(self, source, scales):
 		# Calculates the volts to bits conversion for the given monitor port signal
 
 		# Change the scales we care about
@@ -609,8 +612,8 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 			'none'	: 1.0,
 			'in1'	: scales['gain_adc1']*(10.0 if scales['atten_ch1'] else 1.0), # Undo range scaling
 			'in2'	: scales['gain_adc2']*(10.0 if scales['atten_ch2'] else 1.0),
-			'main'	: scales['gain_dac1']*(2**4), # 12bit ADC - 16bit DAC
-			'aux'	: scales['gain_dac2']*(2**4),
+			'main'	: scales['gain_dac1']*(2.0**4), # 12bit ADC - 16bit DAC
+			'aux'	: scales['gain_dac2']*(2.0**4),
 			'demod'	: _demod_mode_to_gain(self.demod_mode),
 			'i'		: scales['gain_adc1']*(10.0 if scales['atten_ch1'] else 1.0),
 			'q'		: scales['gain_adc1']*(10.0 if scales['atten_ch1'] else 1.0)
@@ -622,8 +625,8 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		scales = super(LockInAmp, self)._calculate_scales()
 
 		# Replace scaling factors depending on the monitor signal source
-		scales['scale_ch1'] = 1.0 if not self.monitor_a else self._monitor_source_bits_per_volt(self.monitor_a, scales)
-		scales['scale_ch2'] = 1.0 if not self.monitor_b else self._monitor_source_bits_per_volt(self.monitor_b, scales)
+		scales['scale_ch1'] = 1.0 if not self.monitor_a else self._monitor_source_volts_per_bit(self.monitor_a, scales)
+		scales['scale_ch2'] = 1.0 if not self.monitor_b else self._monitor_source_volts_per_bit(self.monitor_b, scales)
 
 		return scales
 

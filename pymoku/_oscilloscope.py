@@ -181,7 +181,7 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		self.pretrigger = buffer_offset
 		self.offset = frame_offset
 
-	def _trigger_source_bits_per_volt(self, source, scales):
+	def _trigger_source_volts_per_bit(self, source, scales):
 		"""
 			Converts volts to bits depending on the trigger source
 		"""
@@ -343,6 +343,13 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		if (maxwidth or minwidth) and (edge is 'both'):
 			raise InvalidConfigurationException("Can't set trigger edge type 'both' in Pulse Width trigger mode. Choose one of {'rising','falling'}.")
 
+		_str_to_edge = {
+			'rising' : Trigger.EDGE_RISING,
+			'falling' : Trigger.EDGE_FALLING,
+			'both'	: Trigger.EDGE_BOTH
+		}
+		edge = _utils.str_to_val(_str_to_edge, edge, 'edge type')
+
 		self.hf_reject = hf_reject
 
 		if mode == 'auto':
@@ -351,13 +358,6 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		elif mode == 'normal':
 			self._trigger.timer = 0.0
 			self._trigger.auto_holdoff = 0
-
-		_str_to_edge = {
-			'rising' : Trigger.EDGE_RISING,
-			'falling' : Trigger.EDGE_FALLING,
-			'both'	: Trigger.EDGE_BOTH
-		}
-		edge = _utils.str_to_val(_str_to_edge, edge, 'edge type')
 
 		self.trig_ch = source
 		# Locally store user settings and calculate regs at commit-time
@@ -493,8 +493,8 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 	def _update_dependent_regs(self, scales):
 		# Update trigger level and duration settings based on current trigger source and timebase
 		self._trigger.duration = self._trig_duration * self._input_samplerate / (self.decimation_rate if self.is_precision_mode() else 1.0)
-		self._trigger.level = int(round(self._trig_level * self._trigger_source_bits_per_volt(self.trig_ch, scales)))
-		self._trigger.hysteresis = int(round(self._trig_hystersis * self._trigger_source_bits_per_volt(self.trig_ch, scales)))
+		self._trigger.level = int(round(self._trig_level/self._trigger_source_volts_per_bit(self.trig_ch, scales)))
+		self._trigger.hysteresis = int(round(self._trig_hystersis/self._trigger_source_volts_per_bit(self.trig_ch, scales)))
 
 	def _update_datalogger_params(self):
 		scales = self._calculate_scales()
@@ -552,8 +552,8 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 
 		# Read back trigger settings into local variables
 		self._trig_duration = self._trigger.duration * (self.decimation_rate if self.is_precision_mode() else 1.0) / self._input_samplerate
-		self._trig_level = self._trigger.level / self._trigger_source_bits_per_volt(self.trig_ch, scales)
-		self._trig_hystersis = self._trigger.hysteresis / self._trigger_source_bits_per_volt(self.trig_ch, scales)
+		self._trig_level = self._trigger.level / self._trigger_source_volts_per_bit(self.trig_ch, scales)
+		self._trig_hystersis = self._trigger.hysteresis / self._trigger_source_volts_per_bit(self.trig_ch, scales)
 
 		self._update_datalogger_params()
 

@@ -60,12 +60,12 @@ class Trigger(object):
 	@property
 	def hysteresis(self):
 		r = self.reg_base + Trigger._REG_HYSTERESIS
-		return self._instr._accessor_get(r, from_reg_unsigned(0, 16))
+		return self._instr._accessor_get(r, from_reg_unsigned(0, 32))
 
 	@hysteresis.setter
 	def hysteresis(self, value):
 		r = self.reg_base + Trigger._REG_HYSTERESIS
-		self._instr._accessor_set(r, to_reg_unsigned(0, 16), value)
+		self._instr._accessor_set(r, to_reg_unsigned(0, 32), value)
 
 	@property
 	def timer(self):
