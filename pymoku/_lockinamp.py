@@ -71,12 +71,21 @@ _LIA_MON_AUX	= 5
 _LIA_MON_IN2	= 6
 _LIA_MON_DEMOD	= 7
 
-# Monitor data sources
-_LIA_MONSOURCE_A		= 0
-_LIA_MONSOURCE_B		= 1
-_LIA_MONSOURCE_IN1		= 2
-_LIA_MONSOURCE_IN2		= 3
-_LIA_MONSOURCE_EXT		= 4
+# Oscilloscope data sources
+_LIA_SOURCE_A		= 0
+_LIA_SOURCE_B		= 1
+_LIA_SOURCE_IN1		= 2
+_LIA_SOURCE_IN2		= 3
+_LIA_SOURCE_EXT		= 4
+
+# Input mux selects for Oscilloscope
+_LIA_OSC_SOURCES = {
+	'a' : _LIA_SOURCE_A,
+	'b' : _LIA_SOURCE_B,
+	'in1' : _LIA_SOURCE_IN1,
+	'in2' : _LIA_SOURCE_IN2,
+	'ext' : _LIA_SOURCE_EXT
+}
 
 _LIA_CONTROL_FS 	= 25.0e6
 _LIA_FREQSCALE		= 1.0e9 / 2**48
@@ -111,6 +120,7 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		self._pid_gains = {'g': 1.0, 'kp': 1.0, 'ki': 0, 'kd': 0, 'si': None, 'sd': None, 'in_offset': 0, 'out_offset': 0}
 		self._lo_amp = 1.0
 		self._gainstage_gain = 1.0
+		self._demod_amp = 0.5
 
 	@needs_commit
 	def set_defaults(self):
@@ -118,6 +128,10 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 
 		# Avoid calling the PID controller set_defaults
 		_CoreOscilloscope.set_defaults(self)
+
+		# We only allow looking at the monitor signals in the embedded scope
+		self._set_source(1, _LIA_SOURCE_A)
+		self._set_source(2, _LIA_SOURCE_B)
 
 		# Configure the low-pass filter
 		self.set_filter(1e3, 1)
@@ -505,7 +519,7 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		_utils.check_parameter_valid('set', monitor_ch, allowed=['a','b'], desc="monitor channel")
 		_utils.check_parameter_valid('set', source, allowed=['none', 'in1', 'in2', 'main', 'aux', 'demod', 'i','q'], desc="monitor source")
 
-		sources = {
+		monitor_sources = {
 			'none'	: _LIA_MON_NONE,
 			'in1'	: _LIA_MON_IN1,
 			'in2'	: _LIA_MON_IN2,
@@ -518,10 +532,10 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 
 		if monitor_ch == 'a':
 			self.monitor_a = source
-			self.monitor_select0 = sources[source]
+			self.monitor_select0 = monitor_sources[source]
 		elif monitor_ch == 'b':
 			self.monitor_b = source
-			self.monitor_select1 = sources[source]
+			self.monitor_select1 = monitor_sources[source]
 		else:
 			raise ValueOutOfRangeException("Invalid channel %d", monitor_ch)
 
@@ -559,34 +573,23 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		:type mode: string, {'auto', 'normal'}
 		:param mode: Trigger mode.
 		"""
-		# External trigger source is only available on Moku 20
-		if (self._moku.get_hw_version() == 1.0) and source == 'ext':
-			raise InvalidConfigurationException('External trigger source is not available on your hardware.')
-
 		# Define the trigger sources appropriate to the LockInAmp instrument
-		_str_to_trigger_source = {
-			'in1' : _LIA_MONSOURCE_IN1,
-			'in2' : _LIA_MONSOURCE_IN2,
-			'a' : _LIA_MONSOURCE_A,
-			'b' : _LIA_MONSOURCE_B,
-			'ext' : _LIA_MONSOURCE_EXT
-		}
-		source = _utils.str_to_val(_str_to_trigger_source, source, 'trigger source')
+		source = _utils.str_to_val(_LIA_OSC_SOURCES, source, 'trigger source')
 
 		# This function is the portion of set_trigger shared among instruments with embedded scopes. 
 		self._set_trigger(source, edge, level, minwidth, maxwidth, hysteresis, hf_reject, mode)
 
-	def _trigger_source_volts_per_bit(self, source, scales):
+	def _signal_source_volts_per_bit(self, source, scales):
 		# Calculates the volts to bits conversion for various trigger source signals
 
-		if (source == _LIA_MONSOURCE_A):
+		if (source == _LIA_SOURCE_A):
 			# The trigger level always uses precision mode data so we need to account for decimation gain
 			level = self._monitor_source_volts_per_bit(self.monitor_a, scales)/ self._deci_gain()
-		elif (source == _LIA_MONSOURCE_B):
+		elif (source == _LIA_SOURCE_B):
 			level = self._monitor_source_volts_per_bit(self.monitor_b, scales)/ self._deci_gain()
-		elif (source == _LIA_MONSOURCE_IN1):
+		elif (source == _LIA_SOURCE_IN1):
 			level = scales['gain_adc1']*(10.0 if scales['atten_ch1'] else 1.0)
-		elif (source == _LIA_MONSOURCE_IN2):
+		elif (source == _LIA_SOURCE_IN2):
 			level = scales['gain_adc2']*(10.0 if scales['atten_ch2'] else 1.0)
 		else:
 			level = 1.0
