@@ -253,15 +253,10 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		Precision mode, a.k.a Decimation, samples at full rate and applies a low-pass filter to the data. This improves
 		precision. Normal mode works by direct downsampling, throwing away points it doesn't need.
 
-		Precision mode canot be enabled if the trigger hysteresis has been explicitly set to an explicit, non-zero voltage.
-		See :any:`set_trigger <pymoku.instruments.Oscilloscope.set_trigger`.
-
 		:param state: Select Precision Mode
 		:type state: bool
 		"""
 		_utils.check_parameter_valid('bool', state, desc='precision mode enable')
-		#if state and self.hysteresis > 0 :
-		#	raise InvalidConfigurationException("Precision mode and Hysteresis can't be set at the same time.")
 		self.ain_mode = _OSC_AIN_DECI if state else _OSC_AIN_DDS
 
 	def is_precision_mode(self):
@@ -275,7 +270,7 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		_utils.check_parameter_valid('range', level, [_OSC_TRIGLVL_MIN, _OSC_TRIGLVL_MAX], 'trigger level', 'Volts')
 		_utils.check_parameter_valid('bool', hf_reject, 'High-frequency reject enable')
 		_utils.check_parameter_valid('set', mode, ['auto', 'normal'], desc='mode')
-		_utils.check_parameter_valid('range', hysteresis, [100e-6, 5.0], 'hysteresis', 'Volts')
+		_utils.check_parameter_valid('range', hysteresis, [100e-6, 1.0], 'hysteresis', 'Volts')
 		if not (maxwidth is None or minwidth is None):
 			raise InvalidConfigurationException("Can't set both 'minwidth' and 'maxwidth' for Pulse Width trigger mode. Choose one.")
 		if (maxwidth or minwidth) and (edge is 'both'):
@@ -380,7 +375,14 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		# Update trigger level and duration settings based on current trigger source and timebase
 		self._trigger.duration = self._trig_duration * self._input_samplerate / (self.decimation_rate if self.is_precision_mode() else 1.0)
 		self._trigger.level = int(round(self._trig_level/self._signal_source_volts_per_bit(self.trig_ch, scales, trigger=True)))
-		self._trigger.hysteresis = min(int(round(self._trig_hysteresis/self._signal_source_volts_per_bit(self.trig_ch, scales, trigger=True))),2**16-1)
+
+		# Notify the user if hysteresis has been clamped
+		max_hysteresis = 2**16 - 1
+		hysteresis = int(round(self._trig_hysteresis/self._signal_source_volts_per_bit(self.trig_ch, scales, trigger=True)))
+		if hysteresis > max_hysteresis:
+			hysteresis = max_hysteresis
+			log.info("Hysteresis set to maximum value.")
+		self._trigger.hysteresis = hysteresis
 
 	def _update_datalogger_params(self):
 		scales = self._calculate_scales()
@@ -512,7 +514,7 @@ class Oscilloscope(_CoreOscilloscope, _waveform_generator.BasicWaveformGenerator
 		:type maxwidth: float, seconds
 		:param maxwidth: Maximum Pulse Width. 0 <= maxwidth < (2^32/samplerate). Can't be used with minwidth.
 
-		:type hysteresis: float, [100e-6, 5.0] volts
+		:type hysteresis: float, [100e-6, 1.0] volts
 		:param hysteresis: Hysteresis around trigger point.
 
 		:type hf_reject: bool
