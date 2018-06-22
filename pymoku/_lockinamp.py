@@ -111,8 +111,8 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 
 		# Remember some user settings for when swapping channels
 		# Need to initialise these to valid values so set_defaults can be run.
-		self.monitor_a = 'none'
-		self.monitor_b = 'none'
+		self.monitor_a = None
+		self.monitor_b = None
 		self.demod_mode = 'internal'
 		self.main_source = 'none'
 		self.aux_source = 'none'
@@ -621,16 +621,6 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 			'q'		: scales['gain_adc1']/(10.0 if scales['atten_ch1'] else 1.0)
 		}
 		return monitor_source_gains[source]
-
-	def _calculate_scales(self):
-		# This calculates scaling factors for the internal Oscilloscope frames
-		scales = super(LockInAmp, self)._calculate_scales()
-
-		# Replace scaling factors depending on the monitor signal source
-		scales['scale_ch1'] = 1.0 if not self.monitor_a else self._monitor_source_volts_per_bit(self.monitor_a, scales)
-		scales['scale_ch2'] = 1.0 if not self.monitor_b else self._monitor_source_volts_per_bit(self.monitor_b, scales)
-
-		return scales
 
 	def _update_dependent_regs(self, scales):
 		super(LockInAmp, self)._update_dependent_regs(scales)

@@ -358,8 +358,7 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 			bt1 = self._calculate_buffer_start_time(self.decimation_rate, self.pretrigger)
 			bts = self._calculate_buffer_timestep(self.decimation_rate)
 
-		return {'scales_ch1': 1.0,
-				'scales_ch2': 1.0,
+		scales = {
 				'gain_adc1': g1,
 				'gain_adc2': g2,
 				'gain_dac1': d1,
@@ -369,7 +368,14 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 				'time_min': t1,
 				'time_step': ts,
 				'buff_time_min': bt1,
-				'buff_time_step': bts}
+				'buff_time_step': bts
+				}
+
+		# Replace scaling factors depending on the monitor signal source
+		scales['scale_ch1'] = self._signal_source_volts_per_bit(self.source_ch1, scales)
+		scales['scale_ch2'] = self._signal_source_volts_per_bit(self.source_ch2, scales)
+
+		return scales 
 
 	def _update_dependent_regs(self, scales):
 		# Update trigger level and duration settings based on current trigger source and timebase
@@ -575,16 +581,6 @@ class Oscilloscope(_CoreOscilloscope, _waveform_generator.BasicWaveformGenerator
 			level = 1.0
 
 		return level
-
-	def _calculate_scales(self):
-		# This calculates scaling factors for the internal Oscilloscope frames
-		scales = super(Oscilloscope, self)._calculate_scales()
-
-		# Replace scaling factors depending on the monitor signal source
-		scales['scale_ch1'] = self._signal_source_volts_per_bit(self.source_ch1, scales)
-		scales['scale_ch2'] = self._signal_source_volts_per_bit(self.source_ch2, scales)
-
-		return scales
 
 _osc_reg_handlers = {
 	'source_ch1':		(REG_OSC_OUTSEL,	to_reg_unsigned(0, 8, allow_set=[_OSC_SOURCE_CH1, _OSC_SOURCE_CH2, _OSC_SOURCE_DA1, _OSC_SOURCE_DA2, _OSC_SOURCE_EXT]),
