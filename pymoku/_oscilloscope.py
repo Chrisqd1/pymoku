@@ -550,7 +550,7 @@ class Oscilloscope(_CoreOscilloscope, _waveform_generator.BasicWaveformGenerator
 		:type lmode: string, {'clip','round'}
 		:param lmode: DAC Loopback mode (ignored 'in' sources)
 		"""
-		# TODO: Add loopback mode
+		# TODO: Add loopback mode functionality
 		source = _utils.str_to_val(_OSC_SOURCES, source, 'channel data source')
 		self._set_source(ch, source)
 
@@ -558,7 +558,7 @@ class Oscilloscope(_CoreOscilloscope, _waveform_generator.BasicWaveformGenerator
 		"""
 			Converts volts to bits depending on the signal source
 		"""
-		if self.is_precision_mode() or trigger:
+		if (not trigger and self.is_precision_mode()) or (trigger and self.trig_precision):
 			deci_gain = self._deci_gain()
 		else:
 			deci_gain = 1.0
