@@ -1,51 +1,40 @@
-# pymoku
+# PyMoku
 
-Python library for the command, control and monitoring of the [Liquid Instruments Moku:Lab](http://www.liquidinstruments.com) device.
+A Python library for the command, control and monitoring of the [Liquid Instruments Moku:Lab](http://www.liquidinstruments.com).
 
-Primary documentation on [ReadTheDocs](http://pymoku.readthedocs.org)
+API documentation can be found at [ReadTheDocs](http://pymoku.readthedocs.org).
 
 ## Installation
-### 1. Install the package
-#### Using pip
-You can install pymoku directly from the Python Package Index (pypi) using the **pip** utility. Most Python distributions come with pip pre-installed. To do this, run
 
-    $: sudo pip install --upgrade pymoku
-    OR
-    $: sudo pip3 install --upgrade pymoku # Python 3.x
-    
-#### Using conda
-If you are using the [conda](https://www.anaconda.com/) package manager run
+Before installing *pymoku*, ensure you have
 
-    $: conda config --add channels conda-forge
-    $: conda config --add channels liquidinstruments
-    $: conda install pymoku
+- The latest [Python](https://www.python.org) distribution installed.  We support Python **2.7** and **3.6**.
 
-Alternatively, use the Anaconda Navigator GUI to add the `liquidinstruments` channel to your desired conda environment and search for the `pymoku` package.
-        
-### 2. Test your install
-You can test successful installation with
+- (optional) Bonjour services installed. See [Installing Bonjour Libraries](#Installing-Bonjour-Libraries).
 
-    $: python
-    OR 
-    $: python3 # Python 3.x
-    >>> import pymoku
-    >>> # No import errors should be seen here.
-       
-### 3. Update your Moku:Lab
-To successfully connect to your Moku:Lab, you'll need to ensure it is running the latest instruments and firmware. First fetch the latest device files
+Install using pip
 
-    $: sudo moku update fetch
-    
-Then by using your Moku:Lab serial number (or [IP address](https://github.com/liquidinstruments/pymoku/wiki/Connecting-to-your-Moku:Lab)), upgrade your Moku:Lab's firmware
+    $ pip install --upgrade pymoku
+    $ moku update fetch
 
-    $: moku --serial=123456 update install # Use --ip if Bonjour Discovery unavailable
+Find Moku:Labs on your network with
 
-You're good to go! You can find all Moku:Labs on your network using
+    $ moku list
 
-    $: moku list
+Check your Moku:Lab is running the latest firmware with
 
+    $ moku --serial=123456 update install
+
+or
+
+    $ moku --ip=192.168.0.1 update install
+
+The serial number is the middle 6 digits on the underside of the Moku:Lab.
+
+**NOTE:** The update process is indicated by alternating orange and white lights, or a pulsing orange light. This process can take up to 30 minutes.
 
 ## Examples
+
 You can find a few example scripts in the **examples/** folder.
 
 Here is a basic example of how to connect to a Moku:Lab, deploy the Oscilloscope and fetch a single data trace.
@@ -65,29 +54,68 @@ print(data.ch1, data.ch2, data.time)
 
 m.close()
 ```
+
 ## Troubleshooting
-#### Can't import Bonjour Libraries
-On **Windows** autodiscovery requires extra drivers from Apple. Install the [Apple Bonjour Printer Services](https://support.apple.com/kb/DL999). Note that you can choose not to install this service, and your Moku:Lab will still be accessible by IP address, you just won't be able to automatically connect by name or serial number.
 
-On **Linux** install the dnssd compatibility libraries. For Ubuntu, this is
+#### Installing Bonjour Libraries
 
-    $: sudo apt-get install libavahi-compat-libdnssd1
-    
-On **Mac** contact Liquid Instruments support, this shouldn't happen.
+To automatically discover Moku:Lab on your network (i.e. by *name* or *serial*) you must have Bonjour installed.
+
+Without Bonjour, your Moku:Lab will still be accessible by IP address, you just won't be able to automatically connect by name or serial number, or find it using `moku list`.
+
+To install Bonjour:
+
+- **Windows** install the [Apple Bonjour Printer Services](https://support.apple.com/kb/DL999). Note that you can choose not to install this service, and
+
+- **Linux** install the dnssd compatibility libraries. For Ubuntu, this is
+
+        $ sudo apt-get install libavahi-compat-libdnssd1
+
+- **OSX** comes with Bonjour by default.
+
+#### I can't find my Moku:Lab on the network
+
+Search your local network for running Moku:Labs with
+
+    $ moku list
+
+If you do not see your Moku:Lab, confirm that your Moku:Lab is powered ON, and that you have Bonjour installed on your operating system [Installing Bonjour Libraries](#Installing-Bonjour-Libraries).
+
+If you are connecting over
+
+- **Access Point Mode** Ensure your computer is connected to the Moku:Lab's WiFi network.  The Moku:Lab will default to the IP address `192.168.73.1`.
+- **Ethernet** Ensure the cable is plugged in an you see the orange activity light.  You will need a DHCP server running on your network to provide the Moku:Lab an IP address.
+- **WiFi** After configuring the WiFi in the Moku:Lab (currently requires an iPad), you should see a solid blue light on the front.  If it's blinking indefinitely or off, check the configuration again using an iPad.
+- **USB** ensure you have plugged the Moku:Lab's micro-USB port into the USB port of your PC. For Linux users, you will have to change the USB-Ethernet network settings to "Link Local" for IPv4 and IPv6. **NOTE:** Currently only one Moku:Lab can be connected over USB at a time.
+
+See [Connecting to your Moku:Lab](https://github.com/liquidinstruments/pymoku/wiki/Connecting-to-your-Moku:Lab) guide on how to find your device's IP address.
+
+If you are still having difficulty, contact support@liquidinstruments.com.
 
 #### ImportError: No Module named pymoku
-Make sure you are running the version of Python you installed pymoku to. Use **pip** and **python** for Python 2.7, and **pip3** and **python3** for Python 3.x.
+
+Make sure you are running the version of Python you installed pymoku to.  Often a system will have multiple Python installations. Try substituting `pip` with `python -m pip` in the installation.
 
 If you installed pymoku inside an Environment (i.e. via virtualenv or conda-env), ensure that Environment is activated. You can check that pymoku is installed in your currently running environment using
 
-    (myenv)$: pip list
-    OR
-    (myenv)$: conda list # For conda users
-    
+    (myenv)$ pip list
+
+or
+
+    (myenv)$ conda list # For conda users
+
 #### zmq.error.Again: Resource temporarily unavailable
+
 1. Ensure your Moku:Lab is visible on the network by calling `moku list` or searching for the service using BonjourBrowser
 2. Make sure you are using the latest version of pymoku, and that your Moku:Lab has been upgraded to the newest firmware. See the Installation section above for details.
 
+#### pymoku.DeployException: Deploy Error 3
+
+Confirm you have have the latest binary data pack and that your Moku:Lab is running the latest firmware
+
+    $ moku update fetch
+    $ moku --serial=123456 update install
 
 ## Issue Tracking
+
 Please log issues here on Github.
