@@ -222,9 +222,15 @@ class Moku(object):
 		:rtype: :any:`Moku`
 		:return: Moku with given serial number
 		:raises *MokuNotFound*: if no such Moku is found within the timeout"""
+
+		try: 
+			serial_num = int(serial)
+		except ValueError:
+			raise InvalidParameterException("Moku:Lab serial number must be an integer. See base plate of your device.")
+
 		def _filter(txtrecord):
 			try:
-				return txtrecord['device.serial']==serial
+				return int(txtrecord['device.serial']) == serial_num
 			except KeyError:
 				return False
 
