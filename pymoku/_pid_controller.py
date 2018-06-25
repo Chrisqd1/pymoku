@@ -61,15 +61,36 @@ REG_PID_MONSELECT				= 104
 PID_HIGH_PRECISION	= 1
 PID_HIGH_RANGE		= 0
 
+# Monitor probe locations (for A and B channels)
+_PID_MON_NONE = 0
+_PID_MON_ADC1 = 1
+_PID_MON_IN1  = 2
+_PID_MON_OUT1 = 3
+_PID_MON_ADC2 = 4
+_PID_MON_IN2  = 5
+_PID_MON_OUT2 = 6
 
-### Every constant that starts with PID_ will become an attribute of pymoku.instruments ###
+# Oscilloscope data sources
+_PID_SOURCE_A		= 0
+_PID_SOURCE_B		= 1
+_PID_SOURCE_IN1		= 2
+_PID_SOURCE_IN2		= 3
+_PID_SOURCE_EXT		= 4
 
-PID_MONITOR_I		= 0
-PID_MONITOR_Q		= 1
-PID_MONITOR_PID		= 2
-PID_MONITOR_INPUT	= 3
+# Input mux selects for Oscilloscope
+_PID_OSC_SOURCES = {
+	'a' : _PID_SOURCE_A,
+	'b' : _PID_SOURCE_B,
+	'in1' : _PID_SOURCE_IN1,
+	'in2' : _PID_SOURCE_IN2,
+	'ext' : _PID_SOURCE_EXT
+}
 
-_PID_INPUT_SMPS		= ADC_SMP_RATE/20
+_PID_INPUT_SMPS	= ADC_SMP_RATE/20
+_PID_CHN_BUFLEN = 2**14
+
+_ADC_DEFAULT_CALIBRATION = 3750.0								# Bits/V (No attenuation)
+_DAC_DEFAULT_CALIBRATION = _ADC_DEFAULT_CALIBRATION * 2.0**3	# Bits/V
 
 class PIDController(_CoreOscilloscope):
 	""" PIDController instrument object. This should be instantiated and attached to a :any:`Moku` instance.
@@ -101,14 +122,27 @@ class PIDController(_CoreOscilloscope):
 
 		self.id = 5
 		self.type = "pidcontroller"
-		
+
 		# Monitor samplerate
 		self._input_samplerate = _PID_INPUT_SMPS
+		self._chn_buffer_len   = _PID_CHN_BUFLEN
+
+		self.monitor_a = 'none'
+		self.monitor_b = 'none'
 
 	@needs_commit
 	def set_defaults(self):
 		""" Reset the lockinamp to sane defaults. """
 		super(PIDController, self).set_defaults()
+
+		# We only allow looking at the monitor signals in the embedded scope
+		self._set_source(1, _PID_SOURCE_A)
+		self._set_source(2, _PID_SOURCE_B)
+
+		self.set_monitor('a','out1')
+		self.set_monitor('b','out2')
+
+		self.set_trigger('a', 'rising', 0, mode='auto')
 
 		# Enable inputs/outputs
 		self.ch1_input_en = True
@@ -449,6 +483,133 @@ class PIDController(_CoreOscilloscope):
 			self.ch2_input_light = True;
 
 	@needs_commit
+	def set_trigger(self, source, edge, level, minwidth=None, maxwidth=None, hysteresis=10e-3, hf_reject=False, mode='auto'):
+		""" 
+		Set the trigger source for the monitor channel signals. This can be either of the input or
+		monitor signals, or the external input.
+
+		:type source: string, {'in1','in2','A','B','ext'}
+		:param source: Trigger Source. May be either an input or monitor channel (as set by 
+				:py:meth:`~pymoku.instruments.PIDController.set_monitor`), or external. External refers 
+				to the back-panel connector of the same	name, allowing triggering from an 
+				externally-generated digital [LV]TTL or CMOS signal.
+
+		:type edge: string, {'rising','falling','both'}
+		:param edge: Which edge to trigger on. In Pulse Width modes this specifies whether the pulse is positive (rising)
+				or negative (falling), with the 'both' option being invalid.
+
+		:type level: float, [-10.0, 10.0] volts
+		:param level: Trigger level
+
+		:type minwidth: float, seconds
+		:param minwidth: Minimum Pulse Width. 0 <= minwidth < (2^32/samplerate). Can't be used with maxwidth.
+
+		:type maxwidth: float, seconds
+		:param maxwidth: Maximum Pulse Width. 0 <= maxwidth < (2^32/samplerate). Can't be used with minwidth.
+
+		:type hysteresis: float, [100e-6, 1.0] volts
+		:param hysteresis: Hysteresis around trigger point.
+
+		:type hf_reject: bool
+		:param hf_reject: Enable high-frequency noise rejection
+
+		:type mode: string, {'auto', 'normal'}
+		:param mode: Trigger mode.
+		"""
+		# Define the trigger sources appropriate to the LockInAmp instrument
+		source = _utils.str_to_val(_PID_OSC_SOURCES, source, 'trigger source')
+
+		# This function is the portion of set_trigger shared among instruments with embedded scopes. 
+		self._set_trigger(source, edge, level, minwidth, maxwidth, hysteresis, hf_reject, mode)
+
+	@needs_commit
+	def set_monitor(self, monitor_ch, source):
+		"""
+		Configures the specified monitor channel to view the desired PID instrument signal.
+
+		There are two 12-bit monitoring channels available, 'a' and 'b'; each of these can 
+		be assigned to source signals from any of the internal PID instrument monitoring points. 
+		Signals larger than 12-bits must be either truncated or clipped to the allowed size.
+
+		The source is one of:
+			- **adc1**	: Channel 1 ADC input
+			- **in1**	: PID Channel 1 input (after mixing, offset and scaling)
+			- **out1**	: PID Channel 1 output
+			- **adc2**	: Channel 2 ADC Input
+			- **in2**	: PID Channel 2 input (after mixing, offset and scaling)
+			- **out2**	: PID Channel 2 output
+
+		:type monitor_ch: str; {'a','b'}
+		:param monitor_ch: Monitor channel
+
+		:type source: str; {'adc1', 'in1', 'out1', 'adc2', 'in2', 'out2'}
+		:param source: Signal to connect to the monitor channel
+
+		"""
+		_utils.check_parameter_valid('string', monitor_ch, desc="monitor channel")
+		_utils.check_parameter_valid('string', source, desc="monitor signal")
+
+		monitor_sources = {
+			'none': _PID_MON_NONE,
+			'adc1': _PID_MON_ADC1,
+			'in1':	_PID_MON_IN1,
+			'out1': _PID_MON_OUT1,
+			'adc2': _PID_MON_ADC2,
+			'in2':	_PID_MON_IN2,
+			'out2':	_PID_MON_OUT2
+		}
+		monitor_ch = monitor_ch.lower()
+		source = source.lower()
+
+		_utils.check_parameter_valid('set', monitor_ch, allowed=['a','b'], desc="monitor channel")
+		_utils.check_parameter_valid('set', source, allowed=monitor_sources.keys(), desc="monitor source")
+
+		if monitor_ch == 'a':
+			self.monitor_a = source
+			self.mon1_source = monitor_sources[source]
+		elif monitor_ch == 'b':
+			self.monitor_b = source
+			self.mon2_source = monitor_sources[source]
+		else:
+			raise ValueOutOfRangeException("Invalid channel %d", monitor_ch)
+
+	def _signal_source_volts_per_bit(self, source, scales, trigger=False):
+		"""
+			Converts volts to bits depending on the signal source
+		"""
+		# Decimation gain is applied only when using precision mode data
+		if (not trigger and self.is_precision_mode()) or (trigger and self.trig_precision):
+			deci_gain = self._deci_gain()
+		else:
+			deci_gain = 1.0
+
+		if (source == _PID_SOURCE_A):
+			level = self._monitor_source_volts_per_bit(self.monitor_a, scales)/deci_gain
+		elif (source == _PID_SOURCE_B):
+			level = self._monitor_source_volts_per_bit(self.monitor_b, scales)/deci_gain
+		elif (source == _PID_SOURCE_IN1):
+			level = scales['gain_adc1']*(10.0 if scales['atten_ch1'] else 1.0)/deci_gain
+		elif (source == _PID_SOURCE_IN2):
+			level = scales['gain_adc2']*(10.0 if scales['atten_ch2'] else 1.0)/deci_gain
+		else:
+			level = 1.0
+		return level
+
+	def _monitor_source_volts_per_bit(self, source, scales):
+		# Calculates the volts to bits conversion for the given monitor port signal
+
+		monitor_source_gains = {
+			'none': 1.0,
+			'adc1': scales['gain_adc1']/(10.0 if scales['atten_ch1'] else 1.0),
+			'in1':	1.0/_ADC_DEFAULT_CALIBRATION/(10.0 if scales['atten_ch1'] else 1.0),
+			'out1': scales['gain_dac1']*(2.0**4),
+			'adc2': scales['gain_adc2']/(10.0 if scales['atten_ch2'] else 1.0),
+			'in2':	1.0/_ADC_DEFAULT_CALIBRATION/(10.0 if scales['atten_ch2'] else 1.0),
+			'out2':	scales['gain_dac2']*(2.0**4)
+		}
+		return monitor_source_gains[source]
+
+	@needs_commit
 	def enable_output(self, ch = None, en = True):
 		""" Enable or disable the PID channel output(s).
 
@@ -647,8 +808,8 @@ _PID_reg_hdl = {
 												to_reg_unsigned(0, 24, xform=lambda obj, x: x * (2.0**24 - 1)),
 												from_reg_unsigned(0, 24, xform=lambda obj, x: x / (2.0**24 - 1))),
 
-	'monitor_select0':	(REG_PID_MONSELECT,		to_reg_unsigned(18, 3), from_reg_unsigned(18, 3)),
+	'mon1_source':	(REG_PID_MONSELECT,		to_reg_unsigned(18, 3), from_reg_unsigned(18, 3)),
 
-	'monitor_select1':	(REG_PID_MONSELECT,		to_reg_unsigned(21, 3),	from_reg_unsigned(21, 3)),
+	'mon2_source':	(REG_PID_MONSELECT,		to_reg_unsigned(21, 3),	from_reg_unsigned(21, 3)),
 
 }
