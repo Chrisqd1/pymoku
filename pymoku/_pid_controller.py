@@ -601,10 +601,10 @@ class PIDController(_CoreOscilloscope):
 		monitor_source_gains = {
 			'none': 1.0,
 			'adc1': scales['gain_adc1']/(10.0 if scales['atten_ch1'] else 1.0),
-			'in1':	1.0/_ADC_DEFAULT_CALIBRATION/(10.0 if scales['atten_ch1'] else 1.0),
+			'in1':	1.0/_ADC_DEFAULT_CALIBRATION/(10.0 if scales['atten_ch1'] else 1.0)*4.0, # Compensate for /4 in control matrix
 			'out1': scales['gain_dac1']*(2.0**4),
 			'adc2': scales['gain_adc2']/(10.0 if scales['atten_ch2'] else 1.0),
-			'in2':	1.0/_ADC_DEFAULT_CALIBRATION/(10.0 if scales['atten_ch2'] else 1.0),
+			'in2':	1.0/_ADC_DEFAULT_CALIBRATION/(10.0 if scales['atten_ch2'] else 1.0)*4.0, # Compensate for /4 in control matrix
 			'out2':	scales['gain_dac2']*(2.0**4)
 		}
 		return monitor_source_gains[source]
@@ -808,8 +808,8 @@ _PID_reg_hdl = {
 												to_reg_unsigned(0, 24, xform=lambda obj, x: x * (2.0**24 - 1)),
 												from_reg_unsigned(0, 24, xform=lambda obj, x: x / (2.0**24 - 1))),
 
-	'mon1_source':	(REG_PID_MONSELECT,		to_reg_unsigned(18, 3), from_reg_unsigned(18, 3)),
+	'mon1_source':	(REG_PID_MONSELECT,		to_reg_unsigned(0, 3), from_reg_unsigned(0, 3)),
 
-	'mon2_source':	(REG_PID_MONSELECT,		to_reg_unsigned(21, 3),	from_reg_unsigned(21, 3)),
+	'mon2_source':	(REG_PID_MONSELECT,		to_reg_unsigned(3, 3),	from_reg_unsigned(3, 3)),
 
 }
