@@ -116,7 +116,7 @@ def update(args):
 
 		if firmware_reboot:
 			moku._trigger_fwload()
-			log.info("Successfully started firmware update. Your Moku:Lab will shut down automatically when complete. " 
+			log.info("Successfully started firmware update. Your Moku:Lab will shut down automatically when complete. "
 						"This process can take up to 30-minutes.")
 		elif patch_reboot:
 			moku._restart_board()
@@ -131,18 +131,25 @@ parser_update.set_defaults(func=update)
 def listmokus(args):
 	mokus = pymoku.BonjourFinder().find_all(timeout=2.0)
 	mokus.sort()
-	print("{: <20} {: >6} {: >15}".format('Name', 'Serial', 'IP'))
-	print("-" * (20 + 6 + 15 + 2))
+	print("{: <20} {: >6} {: >6} {: >15}".format('Name', 'Serial', 'FW', 'IP'))
+	print("-" * (20 + 6 + 6 + 15 + 3))
 
 	def _querytask(m):
 		x = None
 		try:
 			x = Moku(m, force=True)
-			print("{: <20} {: 06d} {: >15}".format(x.get_name()[:20], int(x.get_serial()), m))
+			print("{: <20} {: 06d} {: 6d} {: >15}".format(
+				x.get_name()[:20],
+				int(x.get_serial()),
+				x.get_firmware_build(),
+				m))
 		except:
 			print("Couldn't query IP %s" % m)
 		finally:
-			if x: x.close()
+			try:
+				x.close()
+			except:
+				pass
 
 	tasks = []
 	for m in mokus:
