@@ -1,6 +1,14 @@
 # pymoku example: PID Controller Plotting Example
 #
-# (c) 2018 Liquid Instruments
+# This script demonstrates how to configure both PID Controllers
+# in the PID Controller instrument. Configuration on the Channel 1 
+# PID is done by specifying frequency response characteristics,
+# while Channel 2 specifies the gain characteristics.
+#
+# The output response of each PID Controller channel is plotted
+# in real-time.
+#
+# (c) 2017 Liquid Instruments Pty. Ltd.
 #
 from pymoku import Moku
 from pymoku.instruments import PIDController
@@ -9,22 +17,18 @@ import math
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 
-import logging
-logging.basicConfig(level=logging.DEBUG)
-
 def from_dB(dB):
 	# Helper function that converts from dB to linear scale
 	return 10**(dB/20.0)
 
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
-m = Moku.get_by_name('TurtleOne')
+m = Moku.get_by_name('Moku')
 i = PIDController()
 m.deploy_instrument(i)
 
 try:
-
-	# Configure the PID Controller using frequency response characteristics
+	# Configure the Channel 1 PID Controller using frequency response characteristics
 	# 	P = -10dB
 	#	I Crossover = 100Hz
 	# 	D Crossover = 10kHz
@@ -34,13 +38,21 @@ try:
 	# Note that gains must be converted from dB first
 	i.set_by_frequency(1, kp=from_dB(-10), i_xover=1e2, ii_xover=None, d_xover =1e4, si=from_dB(10), sd=from_dB(10))
 
+	# Configure the Channel 2 PID Controller using gain characteristics
+	#   Overall Gain = 6dB
+	#   I Gain       = 20dB
+	#   I Saturation = 40dB
+	# Note that gains must be converted from dB first
+	i.set_by_gain(2, g=from_dB(6.0), ki=from_dB(20), si=from_dB(25))
+
 	# Set which signals to view on each monitor channel, and the timebase on
 	# which to view them.
-	i.set_timebase(-1e6, 1e-6)
-	i.set_monitor('a', 'in1')
-	i.set_monitor('b', 'out1')
+	i.set_monitor('a', 'out1')
+	i.set_monitor('b', 'out2')
 
-	i.set_trigger('a', 'rising', 0, mode='auto')
+	# +- 1msec
+	i.set_timebase(-1e-3, 1e-3)
+	i.set_trigger('a', 'rising', 0)
 
 	# Get initial data frame to set up plotting parameters. This can be done once
 	# if we know that the axes aren't going to change (otherwise we'd do
