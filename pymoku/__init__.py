@@ -11,7 +11,7 @@ from pymoku.tools import compat as cp
 
 DATAPATH = os.path.expanduser(os.environ.get('PYMOKU_INSTR_PATH', None) or pkg_resources.resource_filename('pymoku', 'data'))
 PYMOKU_VERSION = pkg_resources.get_distribution("pymoku").version
-MOKUDATAFILE = 'mokudata-%s.tar.gz' % pymoku.version.compat_fw[0]
+MOKUDATAFILE = 'mokudata-%s-%s.tar.gz' % (pymoku.version.compat_fw[0], pymoku.version.compat_patch[0])
 
 log = logging.getLogger(__name__)
 
@@ -143,9 +143,10 @@ class Moku(object):
 
 		# Check that pymoku is compatible with the Moku:Lab's firmware version
 		if not force:
-			build = self.get_firmware_build()
-			if cp.firmware_is_compatible(build) == False: # Might be None = unknown, don't print that.
-				raise MokuException("The connected Moku appears to be incompatible with this version of pymoku. Please run 'moku --ip={} firmware check_compat' for more information.".format(self._ip))
+			if cp.firmware_is_compatible(self) == False: # Might be None = unknown, don't print that.
+				raise MokuException("Moku:Lab firmware {} incompatible with Pymoku v{}. "
+					"Please update using\n moku --ip={} update fetch\n moku --ip={} update install"
+					.format(self.get_firmware_build(), PYMOKU_VERSION, self.get_ip(), self.get_ip()))
 
 		self.load_instruments = load_instruments if load_instruments is not None else self.get_bootmode() == 'normal'
 
@@ -185,18 +186,20 @@ class Moku(object):
 		"""
 		Factory function, returns a :any:`Moku` instance with the given IP address.
 
-		This works in a similar way to instantiating the instance manually but will perform
-		version and compatibility checks first.
+		:type serial: str
+		:param serial: Target IP address i.e. '192.168.73.1'
 
-		:type ip_addr: str
-		:param ip_addr: target IP address
-		:type timeout: float
-		:param timeout: operation timeout
+		:type timeout: float, seconds
+		:param timeout: Operation timeout
+
 		:type force: bool
 		:param force: Ignore firmware compatibility checks and force the instrument to deploy.
+
 		:rtype: :any:`Moku`
-		:return: Moku with given IP address
-		:raises *MokuNotFound*: if no such Moku is found within the timeout"""
+		:return: Connected :any:`Moku <pymoku.Moku>` object with specified IP address.
+
+		:raises *MokuNotFound*: If no such Moku:Lab is found within the timeout period.
+		"""
 		def _filter(ip):
 			return ip == ip_addr
 
@@ -205,25 +208,39 @@ class Moku(object):
 		if len(mokus):
 			return Moku(mokus[0], force=force, *args, **kwargs)
 
-		raise MokuNotFound("Couldn't find Moku: %s" % ip_addr)
+		raise MokuNotFound("Couldn't find Moku:Lab with IP address: %s" % ip_addr)
 
 	@staticmethod
 	def get_by_serial(serial, timeout=10, force=False, *args, **kwargs):
 		"""
-		Factory function, returns a :any:`Moku` instance with the given Serial number.
+		Factory function, returns a :any:`Moku` instance with the given serial number.
 
-		:type ip_addr: str
-		:param ip_addr: target serial
-		:type timeout: float
-		:param timeout: operation timeout
+		:type serial: str
+		:param serial: Target serial number i.e. '000123'
+
+		:type timeout: float, seconds
+		:param timeout: Operation timeout
+
 		:type force: bool
 		:param force: Ignore firmware compatibility checks and force the instrument to deploy.
+
 		:rtype: :any:`Moku`
-		:return: Moku with given serial number
-		:raises *MokuNotFound*: if no such Moku is found within the timeout"""
+		:return: Connected :any:`Moku <pymoku.Moku>` object with specified serial number.
+
+		:raises *MokuNotFound*: if no such Moku:Lab is found within the timeout period.
+		"""
+		try: 
+			serial_num = int(serial)
+		except ValueError:
+			raise InvalidParameterException("Moku:Lab serial number must be an integer e.g. '000231'. See base plate of your device.")
+
 		def _filter(txtrecord):
 			try:
-				return txtrecord['device.serial']==serial
+				txt_serial = int(txtrecord['device.serial'])
+				return txt_serial == serial_num
+			except ValueError:
+				log.warning("Discovered a Moku:Lab with invalid serial number '%s'." % txtrecord['device.serial'])
+				return False
 			except KeyError:
 				return False
 
@@ -232,23 +249,27 @@ class Moku(object):
 		if len(mokus):
 			return Moku(mokus[0], force=force, *args, **kwargs)
 
-		raise MokuNotFound("Couldn't find Moku: %s" % serial)
+		raise MokuNotFound("Couldn't find Moku:Lab with serial number: %s" % serial)
 
 	@staticmethod
 	def get_by_name(name, timeout=10, force=False, *args, **kwargs):
-
 		"""
-		Factory function, returns a :any:`Moku` instance with the given name.
+		Factory function, returns a :any:`Moku` instance with the given device name.
 
-		:type ip_addr: str
-		:param ip_addr: target device name
-		:type timeout: float
-		:param timeout: operation timeout
+		:type serial: str
+		:param serial: Target device name i.e. 'MyMoku'
+
+		:type timeout: float, seconds
+		:param timeout: Operation timeout
+
 		:type force: bool
 		:param force: Ignore firmware compatibility checks and force the instrument to deploy.
+
 		:rtype: :any:`Moku`
-		:return: Moku with given device name
-		:raises *MokuNotFound*: if no such Moku is found within the timeout"""
+		:return: Connected :any:`Moku <pymoku.Moku>` object with specified device name.
+
+		:raises *MokuNotFound*: if no such Moku:Lab is found within the timeout period.
+		"""
 		def _filter(devname):
 			return devname==name
 
@@ -257,7 +278,7 @@ class Moku(object):
 		if len(mokus):
 			return Moku(mokus[0], force=force, *args, **kwargs)
 
-		raise MokuNotFound("Couldn't find Moku: %s" % name)
+		raise MokuNotFound("Couldn't find Moku:Lab with name: %s" % name)
 
 	def _set_timeout(self, short=True, seconds=None):
 		if seconds is not None:
@@ -942,6 +963,16 @@ class Moku(object):
 	def _delete_file(self, mp, path):
 		self._fs_finalise(mp, path, 0)
 
+	def _list_packs(self):
+		return [f[0] for f in self._fs_list('p') if f[0].endswith(('hgp','hgp.aes'))]
+
+	def _delete_packs(self):
+		for p in self._list_packs():
+			self._delete_file('p', p)
+
+	def _list_running_packs(self):
+		return [(p[0].split('.')[1], p[1]) for p in self._get_property_section('packs')]
+
 	def _load_bitstream(self, path, instr_id=None, sub_id=0):
 		"""
 		Load a bitstream file to the Moku, ready for deployment.
@@ -1214,8 +1245,14 @@ class Moku(object):
 		if self._instrument is not None:
 			self._instrument._set_running(False)
 
-		self.relinquish_ownership()
-		with self._conn_lock:
-			self._conn.close()
+		try:
+			self.relinquish_ownership()
+		except struct.error:
+			# This error occurs on earlier firmware versions (<=1.5) due to ownership packet format changes
+			pass
+		finally:
+			with self._conn_lock:
+				self._conn.close()
+
 		# Don't clobber the ZMQ context as it's global to the interpretter, if the user has multiple Moku
 		# objects then we don't want to mess with that.

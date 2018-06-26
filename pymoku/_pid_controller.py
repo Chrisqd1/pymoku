@@ -4,6 +4,7 @@ import math
 
 from ._instrument import *
 from ._oscilloscope import _CoreOscilloscope
+from . import _utils
 
 log = logging.getLogger(__name__)
 
@@ -117,13 +118,13 @@ class PIDController(_CoreOscilloscope):
 
 		self.set_control_matrix(1, 1, 0)
 		self.set_control_matrix(2, 1, 0)
-		self.set_by_gain(1, 1, 1)
-		self.set_by_gain(2, 1, 1)
+		self.set_by_gain(1, 1, 0)
+		self.set_by_gain(2, 1, 0)
 
 	def _calculate_gains_by_frequency(self, kp, i_xover, d_xover, ii_xover, si, sd):
 		# Particularly high or low I or D crossover frequencies (<1Hz, >1MHz) require that some of their gain is
 		# pushed to the overall gain on the end due to dynamic range limitations
-		fs = _PID_INPUT_SMPS
+		fs = _PID_INPUT_SMPS / (2*math.pi)
 		cross_over_gain = kp if kp else 1
 
 		i_gmin = d_gmin = 1
@@ -134,7 +135,7 @@ class PIDController(_CoreOscilloscope):
 			i_gmax = max(i_unity / 1e6, 1)
 
 		if d_xover:
-			d_unity = d_xover * fs / d_xover
+			d_unity = d_xover * (2*math.pi) * fs / d_xover
 			d_gmin = sd if sd is not None and sd < 1 else max(1.0e6 / d_unity, 1.0)
 			d_gmax = max(1 / d_unity, 1)
 
@@ -192,12 +193,14 @@ class PIDController(_CoreOscilloscope):
 		# Check if double integrator stage is enabled
 		double_integrator = kii != 0
 
+		gain_factor = g * 2.0**4 / 31.25
+
+		p_gain = kp
+
 		if double_integrator:
-			gain_factor = math.sqrt(g / 16.0 / 1000.0 / self._dac_gains()[ch - 1])
-			p_gain = kp
-		else :
-			gain_factor = g / 16.0 / 1000.0 / self._dac_gains()[ch - 1]
-			p_gain = kp
+			gain_factor = math.sqrt(gain_factor)
+
+		gain_factor = gain_factor/ self._dac_gains()[ch - 1]
 
 		fs = _PID_INPUT_SMPS / (2 * math.pi)
 
@@ -273,7 +276,7 @@ class PIDController(_CoreOscilloscope):
 		"""
 
 		g, kp, ki, kd, kii, si, sd = self._calculate_gains_by_frequency(kp, i_xover, d_xover, ii_xover, si, sd)
-		self._set_by_gain(ch, g, kp, ki, kd, kii, si, sd, in_offset, out_offset, touch_ii=True)
+		self._set_by_gain(ch, g, kp, ki, kd, kii, si, sd, in_offset, out_offset, touch_ii=True, dac=ch)
 
 	@needs_commit
 	def set_by_gain(self, ch, g, kp=0, ki=0, kd=0, kii=0, si=None, sd=None, in_offset=0, out_offset=0):
@@ -313,12 +316,13 @@ class PIDController(_CoreOscilloscope):
 
 		:raises InvalidConfigurationException: if the configuration of PID gains is not possible.
 		"""
-		self._set_by_gain(ch, g, kp, ki, kd, kii, si, sd, in_offset, out_offset, touch_ii=True)
+		self._set_by_gain(ch, g, kp, ki, kd, kii, si, sd, in_offset, out_offset, touch_ii=True, dac=ch)
 
-	def _set_by_gain(self, ch, g, kp, ki, kd, kii, si, sd, in_offset, out_offset, touch_ii):
+	def _set_by_gain(self, ch, g, kp, ki, kd, kii, si, sd, in_offset, out_offset, touch_ii, dac):
 
+		# The gain calculations depend on the output DAC, not the PID channel.
 		p_gain, i_gain, d_gain, gain_factor, ii_gain, i_fb, d_fb = self._calculate_regs_by_gain(
-			ch, g, kp, ki, kd, kii, si, sd)
+			dac, g, kp, ki, kd, kii, si, sd)
 
 		double_integrator = kii != 0
 
@@ -331,7 +335,6 @@ class PIDController(_CoreOscilloscope):
 			self.ch1_pid1_ien = ki > 0
 			self.ch1_pid1_den = kd > 0
 			self.ch1_pid1_pidgain = gain_factor
-
 			# Set gain factors
 			self.ch1_pid1_int_i_gain = i_gain
 			self.ch1_pid1_int_p_gain = p_gain
@@ -375,7 +378,6 @@ class PIDController(_CoreOscilloscope):
 			self.ch2_pid1_ien = ki > 0
 			self.ch2_pid1_den = kd > 0
 			self.ch2_pid1_pidgain = gain_factor
-
 			# Set gain factors
 			self.ch2_pid1_int_i_gain = i_gain
 			self.ch2_pid1_int_p_gain = p_gain
@@ -429,11 +431,11 @@ class PIDController(_CoreOscilloscope):
 		# gain. This optimises the rounding strategy, as the control matrix itself
 		# doesn't have many fractional bits.
 		if ch == 1:
-			self.ch1_ch1_gain = self_gain * 1000
-			self.ch1_ch2_gain = cross_gain * 1000
+			self.ch1_ch1_gain = self_gain * 1000 * 4
+			self.ch1_ch2_gain = cross_gain * 1000 * 4
 		elif ch == 2:
-			self.ch2_ch1_gain = cross_gain * 1000
-			self.ch2_ch2_gain = self_gain * 1000
+			self.ch2_ch1_gain = cross_gain * 1000 * 4
+			self.ch2_ch2_gain = self_gain * 1000 * 4
 
 		if self.ch1_ch1_gain == self.ch2_ch1_gain == 0:
 			self.ch1_input_light = False;
@@ -445,6 +447,51 @@ class PIDController(_CoreOscilloscope):
 		else:
 			self.ch2_input_light = True;
 
+	@needs_commit
+	def enable_output(self, ch = None, en = True):
+		""" Enable or disable the PID channel output(s).
+
+		If *ch* is None (the default), both channels will be acted upon,
+		otherwise just the one specified by the argument.
+
+		:type ch: int; {1,2} or None
+		:param ch: Output channel, or both.
+
+		:type en: bool
+		:param en: Enable the specified output channel(s).
+
+		:raises InvalidParameterException: Invalid parameters
+		"""
+		_utils.check_parameter_valid('set', ch, [1, 2, None], 'output channel')
+		_utils.check_parameter_valid('bool', en, 'output enable')
+
+		if ch is None or ch == 1:
+			self.ch1_output_en = en
+		if ch is None or ch == 2:
+			self.ch2_output_en = en
+
+	@needs_commit
+	def enable_input(self, ch = None, en = True):
+		""" Enable or disable the PID channel input(s).
+
+		If *ch* is None (the default), both channels will be acted upon,
+		otherwise just the one specified by the argument.
+
+		:type ch: int; {1,2} or None
+		:param ch: Output channel, or both.
+
+		:type en: bool
+		:param en: Enable the specified input channel(s).
+
+		:raises InvalidParameterException: Invalid parameters
+		"""
+		_utils.check_parameter_valid('set', ch, [1, 2, None], 'input channel')
+		_utils.check_parameter_valid('bool', en, desc = 'enable input')
+
+		if ch is None or ch == 1:
+			self.ch1_input_en = en
+		if ch is None or ch == 2:
+			self.ch2_input_en = en
 
 _PID_reg_hdl = {
 	'ch1_pid1_bypass':		(REG_PID_ENABLES,	to_reg_bool(0), from_reg_bool(0)),
@@ -504,47 +551,47 @@ _PID_reg_hdl = {
 	'ch1_pid2_out_offset':	(REG_PID_CH0_OFFSET2, to_reg_signed(16, 16, xform=lambda obj, x: x / obj._dac_gains()[0]),
 												from_reg_signed(16, 16, xform=lambda obj, x: x * obj._dac_gains()[0])),
 
-	'ch1_pid1_pidgain':		(REG_PID_CH0_PIDGAIN1, to_reg_signed(0, 32, xform=lambda obj, x: x * 2**15),
-												from_reg_signed(0, 32, xform=lambda obj, x: x / 2**15)),
+	'ch1_pid1_pidgain':		(REG_PID_CH0_PIDGAIN1, to_reg_signed(0, 32, xform=lambda obj, x: x),
+												from_reg_signed(0, 32, xform=lambda obj, x: x)),
 
-	'ch1_pid2_pidgain':		(REG_PID_CH0_PIDGAIN2, to_reg_signed(0, 32, xform=lambda obj, x: x * 2**15),
-												from_reg_signed(0, 32, xform=lambda obj, x: x / 2**15)),
+	'ch1_pid2_pidgain':		(REG_PID_CH0_PIDGAIN2, to_reg_signed(0, 32, xform=lambda obj, x: x),
+												from_reg_signed(0, 32, xform=lambda obj, x: x)),
 
-	'ch1_pid1_int_i_gain':	(REG_PID_CH0_INT_IGAIN1, to_reg_unsigned(0, 24, xform=lambda obj, x: x*(2**24 -1)),
-												from_reg_unsigned(0, 24, xform=lambda obj, x: x / (2**24-1))),
+	'ch1_pid1_int_i_gain':	(REG_PID_CH0_INT_IGAIN1, to_reg_unsigned(0, 24, xform=lambda obj, x: x*(2.0**24 -1)),
+												from_reg_unsigned(0, 24, xform=lambda obj, x: x / (2.0**24-1))),
 
 	# TODO: This concerns me, not sure if its writing to the registers as expected
 	'ch1_pid2_int_i_gain':	((REG_PID_CH0_INT_IGAIN2_MSB, REG_PID_CH0_INT_IGAIN2_LSB),
-												to_reg_unsigned(24, 24, xform=lambda obj, x: x * (2**24 -1)),
-												from_reg_unsigned(24, 24, xform=lambda obj, x: x / (2**24-1))),
+												to_reg_unsigned(24, 24, xform=lambda obj, x: x * (2.0**24 -1)),
+												from_reg_unsigned(24, 24, xform=lambda obj, x: x / (2.0**24-1))),
 
 	'ch1_pid1_int_ifb_gain':	((REG_PID_CH0_INT_IFBGAIN1_MSB, REG_PID_CH0_INT_IFBGAIN1_LSB),
-												to_reg_unsigned(16, 24, xform=lambda obj, x: x * (2**24 -1)),
-												from_reg_unsigned(16, 24, xform=lambda obj, x: x / (2**24-1))),
+												to_reg_unsigned(16, 24, xform=lambda obj, x: x * (2.0**24 -1)),
+												from_reg_unsigned(16, 24, xform=lambda obj, x: x / (2.0**24-1))),
 
 	'ch1_pid2_int_ifb_gain':	(REG_PID_CH0_INT_IFBGAIN2,
-												to_reg_unsigned(8, 24, xform=lambda obj, x: x*(2**24 -1)),
-												from_reg_unsigned(8, 24, xform=lambda obj, x: x / (2**24-1))),
+												to_reg_unsigned(8, 24, xform=lambda obj, x: x*(2.0**24 -1)),
+												from_reg_unsigned(8, 24, xform=lambda obj, x: x / (2.0**24-1))),
 
 	'ch1_pid1_int_p_gain':	(REG_PID_CH0_INT_PGAIN1,
-												to_reg_unsigned(0, 24, xform=lambda obj, x: x * 2**11),
-												from_reg_unsigned(0, 24, xform=lambda obj, x: x / 2**11)),
+												to_reg_unsigned(0, 24, xform=lambda obj, x: x * 2.0**11),
+												from_reg_unsigned(0, 24, xform=lambda obj, x: x / 2.0**11)),
 
 	'ch1_pid2_int_p_gain':	((REG_PID_CH0_INT_PGAIN2_MSB, REG_PID_CH0_INT_PGAIN2_LSB),
-												to_reg_unsigned(24, 24, xform=lambda obj, x: x * 2**11),
-												from_reg_unsigned(24, 24, xform=lambda obj, x: x / 2**11)),
+												to_reg_unsigned(24, 24, xform=lambda obj, x: x * 2.0**11),
+												from_reg_unsigned(24, 24, xform=lambda obj, x: x / 2.0**11)),
 
 	'ch1_pid1_diff_p_gain':	(REG_PID_CH0_DIFF_PGAIN1,
-												to_reg_unsigned(0, 24, xform=lambda obj, x: x * 2**11),
-												from_reg_unsigned(0, 24, xform=lambda obj, x: x / 2**11)),
+												to_reg_unsigned(0, 24, xform=lambda obj, x: x * 2.0**11),
+												from_reg_unsigned(0, 24, xform=lambda obj, x: x / 2.0**11)),
 
 	'ch1_pid1_diff_i_gain':	((REG_PID_CH0_DIFF_IGAIN1_MSB, REG_PID_CH0_DIFF_IGAIN1_LSB),
 												to_reg_unsigned(16, 24),
 												from_reg_unsigned(16, 24)),
 
 	'ch1_pid1_diff_ifb_gain':	(REG_PID_CH0_DIFF_IFBGAIN1,
-												to_reg_unsigned(0, 24, xform=lambda obj, x: x * (2**24 - 1)),
-												from_reg_unsigned(0, 24, xform=lambda obj, x: x / (2**24 - 1))),
+												to_reg_unsigned(0, 24, xform=lambda obj, x: x * (2.0**24 - 1)),
+												from_reg_unsigned(0, 24, xform=lambda obj, x: x / (2.0**24 - 1))),
 
 	'ch2_pid1_in_offset':	(REG_PID_CH1_OFFSET1, to_reg_signed(0, 16, xform=lambda obj, x: x / obj._dac_gains()[1]),
 												from_reg_signed(0, 16, xform=lambda obj, x: x * obj._dac_gains()[1])),
@@ -558,46 +605,46 @@ _PID_reg_hdl = {
 	'ch2_pid2_out_offset':	(REG_PID_CH1_OFFSET2, to_reg_signed(16, 16, xform=lambda obj, x: x / obj._dac_gains()[1]),
 												from_reg_signed(16, 16, xform=lambda obj, x: x * obj._dac_gains()[1])),
 
-	'ch2_pid1_pidgain':		(REG_PID_CH1_PIDGAIN1, to_reg_signed(0, 32, xform=lambda obj, x: x * 2**15),
-												from_reg_signed(0, 32, xform=lambda obj, x: x / 2**15)),
+	'ch2_pid1_pidgain':		(REG_PID_CH1_PIDGAIN1, to_reg_signed(0, 32, xform=lambda obj, x: x),
+												from_reg_signed(0, 32, xform=lambda obj, x: x)),
 
-	'ch2_pid2_pidgain':		(REG_PID_CH1_PIDGAIN2, to_reg_signed(0, 32, xform=lambda obj, x: x * 2**15),
-												from_reg_signed(0, 32, xform=lambda obj, x: x / 2**15)),
+	'ch2_pid2_pidgain':		(REG_PID_CH1_PIDGAIN2, to_reg_signed(0, 32, xform=lambda obj, x: x ),
+												from_reg_signed(0, 32, xform=lambda obj, x: x )),
 
-	'ch2_pid1_int_i_gain':	(REG_PID_CH1_INT_IGAIN1, to_reg_unsigned(0, 24, xform=lambda obj, x: x * (2**24 - 1)),
-												from_reg_unsigned(0, 24, xform=lambda obj, x: x / (2**24 - 1))),
+	'ch2_pid1_int_i_gain':	(REG_PID_CH1_INT_IGAIN1, to_reg_unsigned(0, 24, xform=lambda obj, x: x * (2.0**24 - 1)),
+												from_reg_unsigned(0, 24, xform=lambda obj, x: x / (2.0**24 - 1))),
 
 	'ch2_pid2_int_i_gain':	((REG_PID_CH1_INT_IGAIN2_MSB, REG_PID_CH1_INT_IGAIN2_LSB),
-												to_reg_unsigned(24, 24, xform=lambda obj, x: x * (2**24 - 1)),
-												from_reg_unsigned(24, 24, xform=lambda obj, x: x / (2**24 - 1))),
+												to_reg_unsigned(24, 24, xform=lambda obj, x: x * (2.0**24 - 1)),
+												from_reg_unsigned(24, 24, xform=lambda obj, x: x / (2.0**24 - 1))),
 
 	'ch2_pid1_int_ifb_gain':	((REG_PID_CH1_INT_IFBGAIN1_MSB, REG_PID_CH1_INT_IFBGAIN1_LSB),
-												to_reg_unsigned(16, 24, xform=lambda obj, x: x * (2**24 - 1)),
-												from_reg_unsigned(16, 24, xform=lambda obj, x: x / (2**24 - 1))),
+												to_reg_unsigned(16, 24, xform=lambda obj, x: x * (2.0**24 - 1)),
+												from_reg_unsigned(16, 24, xform=lambda obj, x: x / (2.0**24 - 1))),
 
 	'ch2_pid2_int_ifb_gain':	(REG_PID_CH1_INT_IFBGAIN2,
-												to_reg_unsigned(8, 24, xform=lambda obj, x: x * (2**24 - 1)),
-												from_reg_unsigned(8, 24, xform=lambda obj, x: x / (2**24 - 1))),
+												to_reg_unsigned(8, 24, xform=lambda obj, x: x * (2.0**24 - 1)),
+												from_reg_unsigned(8, 24, xform=lambda obj, x: x / (2.0**24 - 1))),
 
 	'ch2_pid1_int_p_gain':	(REG_PID_CH1_INT_PGAIN1,
-												to_reg_unsigned(0, 24, xform=lambda obj, x: x * 2**11),
-												from_reg_unsigned(0, 24, xform=lambda obj, x: x / 2**11)),
+												to_reg_unsigned(0, 24, xform=lambda obj, x: x * 2.0**11),
+												from_reg_unsigned(0, 24, xform=lambda obj, x: x / 2.0**11)),
 
 	'ch2_pid2_int_p_gain':	((REG_PID_CH1_INT_PGAIN2_MSB, REG_PID_CH1_INT_PGAIN2_LSB),
-												to_reg_unsigned(24, 24, xform=lambda obj, x: x * 2**11),
-												from_reg_unsigned(24, 24, xform=lambda obj, x: x / 2**11)),
+												to_reg_unsigned(24, 24, xform=lambda obj, x: x * 2.0**11),
+												from_reg_unsigned(24, 24, xform=lambda obj, x: x / 2.0**11)),
 
 	'ch2_pid1_diff_p_gain':	(REG_PID_CH1_DIFF_PGAIN1,
-												to_reg_unsigned(0, 24, xform=lambda obj, x: x * 2**11),
-												from_reg_unsigned(0, 24, xform=lambda obj, x: x / 2**11)),
+												to_reg_unsigned(0, 24, xform=lambda obj, x: x * 2.0**11),
+												from_reg_unsigned(0, 24, xform=lambda obj, x: x / 2.0**11)),
 
 	'ch2_pid1_diff_i_gain':	((REG_PID_CH1_DIFF_IGAIN1_MSB, REG_PID_CH1_DIFF_IGAIN1_LSB),
 												to_reg_unsigned(16, 24),
 												from_reg_unsigned(16, 24)),
 
 	'ch2_pid1_diff_ifb_gain':	(REG_PID_CH1_DIFF_IFBGAIN1,
-												to_reg_unsigned(0, 24, xform=lambda obj, x: x * (2**24 - 1)),
-												from_reg_unsigned(0, 24, xform=lambda obj, x: x / (2**24 - 1))),
+												to_reg_unsigned(0, 24, xform=lambda obj, x: x * (2.0**24 - 1)),
+												from_reg_unsigned(0, 24, xform=lambda obj, x: x / (2.0**24 - 1))),
 
 	'monitor_select0':	(REG_PID_MONSELECT,		to_reg_unsigned(18, 3), from_reg_unsigned(18, 3)),
 
