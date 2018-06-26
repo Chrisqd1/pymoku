@@ -379,7 +379,6 @@ class PIDController(_CoreOscilloscope):
 			self.ch2_pid1_den = kd > 0
 			self.ch2_pid1_pidgain = gain_factor
 			# Set gain factors
-			# Set gain factors
 			self.ch2_pid1_int_i_gain = i_gain
 			self.ch2_pid1_int_p_gain = p_gain
 			self.ch2_pid1_int_ifb_gain = i_fb
