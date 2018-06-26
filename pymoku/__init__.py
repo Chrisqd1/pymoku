@@ -186,18 +186,20 @@ class Moku(object):
 		"""
 		Factory function, returns a :any:`Moku` instance with the given IP address.
 
-		This works in a similar way to instantiating the instance manually but will perform
-		version and compatibility checks first.
+		:type serial: str
+		:param serial: Target IP address i.e. '192.168.73.1'
 
-		:type ip_addr: str
-		:param ip_addr: target IP address
-		:type timeout: float
-		:param timeout: operation timeout
+		:type timeout: float, seconds
+		:param timeout: Operation timeout
+
 		:type force: bool
 		:param force: Ignore firmware compatibility checks and force the instrument to deploy.
+
 		:rtype: :any:`Moku`
-		:return: Moku with given IP address
-		:raises *MokuNotFound*: if no such Moku is found within the timeout"""
+		:return: Connected :any:`Moku <pymoku.Moku>` object with specified IP address.
+
+		:raises *MokuNotFound*: If no such Moku:Lab is found within the timeout period.
+		"""
 		def _filter(ip):
 			return ip == ip_addr
 
@@ -206,31 +208,39 @@ class Moku(object):
 		if len(mokus):
 			return Moku(mokus[0], force=force, *args, **kwargs)
 
-		raise MokuNotFound("Couldn't find Moku: %s" % ip_addr)
+		raise MokuNotFound("Couldn't find Moku:Lab with IP address: %s" % ip_addr)
 
 	@staticmethod
 	def get_by_serial(serial, timeout=10, force=False, *args, **kwargs):
 		"""
-		Factory function, returns a :any:`Moku` instance with the given Serial number.
+		Factory function, returns a :any:`Moku` instance with the given serial number.
 
-		:type ip_addr: str
-		:param ip_addr: target serial
-		:type timeout: float
-		:param timeout: operation timeout
+		:type serial: str
+		:param serial: Target serial number i.e. '000123'
+
+		:type timeout: float, seconds
+		:param timeout: Operation timeout
+
 		:type force: bool
 		:param force: Ignore firmware compatibility checks and force the instrument to deploy.
-		:rtype: :any:`Moku`
-		:return: Moku with given serial number
-		:raises *MokuNotFound*: if no such Moku is found within the timeout"""
 
+		:rtype: :any:`Moku`
+		:return: Connected :any:`Moku <pymoku.Moku>` object with specified serial number.
+
+		:raises *MokuNotFound*: if no such Moku:Lab is found within the timeout period.
+		"""
 		try: 
 			serial_num = int(serial)
 		except ValueError:
-			raise InvalidParameterException("Moku:Lab serial number must be an integer. See base plate of your device.")
+			raise InvalidParameterException("Moku:Lab serial number must be an integer e.g. '000231'. See base plate of your device.")
 
 		def _filter(txtrecord):
 			try:
-				return int(txtrecord['device.serial']) == serial_num
+				txt_serial = int(txtrecord['device.serial'])
+				return txt_serial == serial_num
+			except ValueError:
+				log.warning("Discovered a Moku:Lab with invalid serial number '%s'." % txtrecord['device.serial'])
+				return False
 			except KeyError:
 				return False
 
@@ -239,23 +249,27 @@ class Moku(object):
 		if len(mokus):
 			return Moku(mokus[0], force=force, *args, **kwargs)
 
-		raise MokuNotFound("Couldn't find Moku: %s" % serial)
+		raise MokuNotFound("Couldn't find Moku:Lab with serial number: %s" % serial)
 
 	@staticmethod
 	def get_by_name(name, timeout=10, force=False, *args, **kwargs):
-
 		"""
-		Factory function, returns a :any:`Moku` instance with the given name.
+		Factory function, returns a :any:`Moku` instance with the given device name.
 
-		:type ip_addr: str
-		:param ip_addr: target device name
-		:type timeout: float
-		:param timeout: operation timeout
+		:type serial: str
+		:param serial: Target device name i.e. 'MyMoku'
+
+		:type timeout: float, seconds
+		:param timeout: Operation timeout
+
 		:type force: bool
 		:param force: Ignore firmware compatibility checks and force the instrument to deploy.
+
 		:rtype: :any:`Moku`
-		:return: Moku with given device name
-		:raises *MokuNotFound*: if no such Moku is found within the timeout"""
+		:return: Connected :any:`Moku <pymoku.Moku>` object with specified device name.
+
+		:raises *MokuNotFound*: if no such Moku:Lab is found within the timeout period.
+		"""
 		def _filter(devname):
 			return devname==name
 
@@ -264,7 +278,7 @@ class Moku(object):
 		if len(mokus):
 			return Moku(mokus[0], force=force, *args, **kwargs)
 
-		raise MokuNotFound("Couldn't find Moku: %s" % name)
+		raise MokuNotFound("Couldn't find Moku:Lab with name: %s" % name)
 
 	def _set_timeout(self, short=True, seconds=None):
 		if seconds is not None:
