@@ -28,16 +28,18 @@ REG_SAMPLINGFREQ		= 124
 REG_FILT_RESET 		= 62
 
 _IIR_MON_NONE		= 0
-_IIR_MON_IN1 		= 1
-_IIR_MON_INCH1		= 2
+_IIR_MON_ADC1 		= 1
+_IIR_MON_IN1		= 2
 _IIR_MON_OUT1		= 3
-_IIR_MON_IN2 		= 4
-_IIR_MON_INCH2 		= 5
+_IIR_MON_ADC2 		= 4
+_IIR_MON_IN2 		= 5
 _IIR_MON_OUT2 		= 6
 _IIR_COEFFWIDTH = 48
 
 _IIR_INPUT_SMPS = ADC_SMP_RATE/4
 _IIR_CHN_BUFLEN = 2**13
+
+_ADC_DEFAULT_CALIBRATION = 3750.0 # Bits/V (No attenuation)
 
 class IIRFilterBox(_CoreOscilloscope):
 	r"""
@@ -96,6 +98,26 @@ class IIRFilterBox(_CoreOscilloscope):
 		self._decfilter1 = DecFilter(self, 103)
 		self._decfilter2 = DecFilter(self, 107)
 
+		# Initialise all local configuration variables
+		# These remember user settings prior to on-commit reg calculations
+		self._matrixscale_ch1_ch1 = 0 
+		self._matrixscale_ch1_ch2 = 0
+		self._matrixscale_ch2_ch1 = 0
+		self._matrixscale_ch2_ch2 = 0
+
+		self._input_scale1 = 0
+		self._output_scale1 = 0
+		self._input_offset1 = 0
+		self._output_offset1 = 0
+		self._input_scale2 = 0
+		self._output_scale2 = 0
+		self._input_offset2 = 0
+		self._output_offset2 = 0
+
+		# TODO: Read these back on_reg_sync
+		self.filter_ch1 = [[0,0,0,0,0,0]]*4
+		self.filter_ch2 = [[0,0,0,0,0,0]]*4
+
 	@needs_commit
 	def set_defaults(self):
 		""" Reset the IIR to sane defaults. """
@@ -114,16 +136,6 @@ class IIRFilterBox(_CoreOscilloscope):
 		self.ch2_sampling_freq = 0
 
 		self.filter_reset = 0
-
-		self.input_scale1 = 0
-		self.input_scale2 = 0
-		self.output_scale1 = 0
-		self.output_scale2 = 0
-
-		self.input_offset1 = 0
-		self.input_offset2 = 0
-		self.output_offset1 = 0
-		self.output_offset2 = 0
 
 		# initialize filter coefficient arrays as all pass filters
 		b = [1.0,1.0,0.0,0.0,0.0,0.0]
@@ -145,14 +157,14 @@ class IIRFilterBox(_CoreOscilloscope):
 
 		Input mixing allows a filter channel to act on a linear combination of the two input signals.
 
-		:type ch: int, {1,2}
+		:type ch: int, {1, 2}
 		:param ch: target filter channel
 
-		:type scale_in1: float, [-20,20]
+		:type scale_in1: float, [-20, 20]
 		:param scale_in1: linear scale factor of input 1 signal added to target filter channel input.
 			To avoid quantization, use at most one decimal place.
 
-		:type scale_in2: float, [-20,20] 
+		:type scale_in2: float, [-20, 20] 
 		:param scale_in2: linear scale factor of input 2 signal added to target filter channel input.
 			To avoid quantization, use at most one decimal place.
 		"""
@@ -162,25 +174,26 @@ class IIRFilterBox(_CoreOscilloscope):
 		if (scale_in1/0.1)%1 or (scale_in2/0.1)%1:
 			log.warning("Control matrix scalars should contain one decimal place to avoid quantization effects.")
 
-		# Get calibration coefficients
-		a1, a2 = self._adc_gains()
-		d1, d2 = self._dac_gains()
-
-		front_end = self._get_frontend(channel = 1) if ch == 1 else self._get_frontend(channel = 2)
-		atten = 10.0 if front_end[1] else 1.0
-
-		adc_calibration = a1 if ch == 1 else a2
-		dac_calibration = d1 if ch == 1 else d2
-
-		control_matrix_ch1 = int(round(scale_in1 * 3750.0 * adc_calibration * 2**10 / atten))
-		control_matrix_ch2 = int(round(scale_in2 * 3750.0 * adc_calibration * 2**10 / atten))
-
 		if ch == 1:
-			self.matrixscale_ch1_ch1 = control_matrix_ch1
-			self.matrixscale_ch1_ch2 = control_matrix_ch2
+			self._matrixscale_ch1_ch1 = scale_in1
+			self._matrixscale_ch1_ch2 = scale_in2
 		else:
-			self.matrixscale_ch2_ch1 = control_matrix_ch1
-			self.matrixscale_ch2_ch2 = control_matrix_ch2
+			self._matrixscale_ch2_ch1 = scale_in1
+			self._matrixscale_ch2_ch2 = scale_in2
+
+	def _update_control_matrix_regs(self):
+			# Used to update regs at commit time with correct frontend settings.
+			self.matrixscale_ch1_ch1 = self._matrixscale_ch1_ch1
+			self.matrixscale_ch1_ch2 = self._matrixscale_ch1_ch2
+			self.matrixscale_ch2_ch1 = self._matrixscale_ch2_ch1
+			self.matrixscale_ch2_ch2 = self._matrixscale_ch2_ch2
+
+	def _sync_control_matrix_regs(self):
+			# Used to sync local variabels when connecting to an existing moku.
+			self._matrixscale_ch1_ch1 = self.matrixscale_ch1_ch1
+			self._matrixscale_ch1_ch2 = self.matrixscale_ch1_ch2
+			self._matrixscale_ch2_ch1 = self.matrixscale_ch2_ch1
+			self._matrixscale_ch2_ch2 = self.matrixscale_ch2_ch2
 
 	# NOTE: This function avoids @needs_commit because it calls _set_mmap_access which requires an immediate commit
 	def set_filter(self, ch, sample_rate, filter_coefficients):
@@ -322,57 +335,63 @@ class IIRFilterBox(_CoreOscilloscope):
 		_utils.check_parameter_valid('range', input_offset, [-1.0,1.0],'input offset','Volts')
 		_utils.check_parameter_valid('range', output_offset, [-2.0,2.0],'output offset','Volts')
 
-		# Get calibration coefficients
-		a1, a2 = self._adc_gains()
-		d1, d2 = self._dac_gains()
-
-		front_end = self._get_frontend(channel = 1) if ch == 1 else self._get_frontend(channel = 2)
-		atten = 10.0 if front_end[1] else 1.0
-
-		adc_calibration = a1 if ch == 1 else a2
-		dac_calibration = d1 if ch == 1 else d2
-
-		# Calculate input/output scale values
-		output_gain_factor = 1 / 3750.0 / 8 / dac_calibration
-		input_scale_bits = int(round(input_gain*2**9))
-		output_scale_bits = int(round(output_gain*2**9*output_gain_factor))
-
 		# Calculate input/output offset values
-		input_offset_bits = int(round(atten / adc_calibration * input_offset / 0.5))
-		output_offset_bits = int(round(1 / dac_calibration / 2 * output_offset / 0.5))
-
 		if ch == 1:
-			self.input_scale1 = input_scale_bits
-			self.output_scale1 = output_scale_bits
-			self.input_offset1 = input_offset_bits
-			self.output_offset1 = output_offset_bits
+			self._input_scale1 = input_gain
+			self._output_scale1 = output_gain
+			self._input_offset1 = input_offset
+			self._output_offset1 = output_offset
 		else:
-			self.input_scale2 = input_scale_bits
-			self.output_scale2 = output_scale_bits
-			self.input_offset2 = input_offset_bits
-			self.output_offset2 = output_offset_bits
+			self._input_scale2 = input_gain
+			self._output_scale2 = output_gain
+			self._input_offset2 = input_offset
+			self._output_offset2 = output_offset
+
+	def _update_gains_offsets_regs(self):
+		# Used to update regs at commit time with correct frontend settings.
+		self.input_scale1   = self._input_scale1
+		self.output_scale1  = self._output_scale1
+		self.input_offset1  = self._input_offset1
+		self.output_offset1 = self._output_offset1
+		self.input_scale2   = self._input_scale2
+		self.output_scale2  = self._output_scale2
+		self.input_offset2  = self._input_offset2
+		self.output_offset2 = self._output_offset2
+
+	def _sync_gains_offsets_regs(self):
+		# Used to update regs at commit time with correct frontend settings.
+		self._input_scale1   = self.input_scale1
+		self._output_scale1  = self.output_scale1
+		self._input_offset1  = self.input_offset1
+		self._output_offset1 = self.output_offset1
+		self._input_scale2   = self.input_scale2
+		self._output_scale2  = self.output_scale2
+		self._input_offset2  = self.input_offset2
+		self._output_offset2 = self.output_offset2
 
 	@needs_commit
 	def set_monitor(self, ch, source):
 		"""
-		Select the point inside the filterbox to monitor.
+		Configures the specified monitor channel to view the desired IIR Filter Box signal.
 
-		There are two monitoring channels available, 'a' and 'b'; you can mux any of the internal
-		monitoring points to either of these channels.
+		There are two 12-bit monitoring channels available, 'a' and 'b'; each of these can 
+		be assigned to source signals from any of the internal filterbox monitoring points. 
+		Signals larger than 12-bits must be either truncated or clipped to the allowed size.
 
 		The source is one of:
-			- **adc1**	: CH 1 ADC input
-			- **in1**	: Filter CH 1 after input offset and mixing
-			- **out1**	: Filter CH 1 output
-			- **adc2**	: CH 2 ADC input
-			- **in2**	: Filter CH 2 after input offset and
-			- **out2**	: Filter CH 2 Output
+			- **adc1**	: Channel 1 ADC input
+			- **in1**	: Filter Channel 1 input (after mixing, offset and scaling)
+			- **out1**	: Filter Channel 1 output
+			- **adc2**	: Channel 2 ADC Input
+			- **in2**	: Filter Channel 2 input (after mixing, offset and scaling)
+			- **out2**	: Filter Channel 2 output
 
+		:type ch: str; {'a','b'}
 		:param ch: Monitor channel
-		:type ch: str ['a', 'b']
 
-		:param source: Signal to connect to this monitor channel
-		:type source: str
+		:type source: str; {'adc1', 'in1', 'out1', 'adc2', 'in2', 'out2'}
+		:param source: Signal to connect to the monitor channel
+
 		"""
 		_utils.check_parameter_valid('string', ch, desc="monitor channel")
 		_utils.check_parameter_valid('string', source, desc="monitor signal")
@@ -382,11 +401,11 @@ class IIRFilterBox(_CoreOscilloscope):
 
 		sources = {
 			'none': _IIR_MON_NONE,
-			'adc1': _IIR_MON_IN1,
-			'in1':	_IIR_MON_INCH1,
+			'adc1': _IIR_MON_ADC1,
+			'in1':	_IIR_MON_IN1,
 			'out1': _IIR_MON_OUT1,
-			'adc2': _IIR_MON_IN2,
-			'in2':	_IIR_MON_INCH2,
+			'adc2': _IIR_MON_ADC2,
+			'in2':	_IIR_MON_IN2,
 			'out2':	_IIR_MON_OUT2,
 		}
 
@@ -394,10 +413,8 @@ class IIRFilterBox(_CoreOscilloscope):
 		source = source.lower()
 
 		if ch == 'a':
-			self.monitor_a = source
 			self.mon1_source = sources[source]
 		else:
-			self.monitor_b = source
 			self.mon2_source = sources[source]
 
 	@needs_commit
@@ -445,26 +462,51 @@ class IIRFilterBox(_CoreOscilloscope):
 		# This calculates scaling factors for the internal Oscilloscope frames
 		scales = super(IIRFilterBox, self)._calculate_scales()
 
-		# Change the scales we care about
-		#deci_gain = self._deci_gain()
-		atten1 = self.get_frontend(1)
-		atten2 = self.get_frontend(2)
+		atten_ch1 = scales['atten_ch1']
+		atten_ch2 = scales['atten_ch2']
+		gain_adc1 = scales['gain_adc1'] / (10.0 if atten_ch1 else 1.0) # Volts/bit
+		gain_adc2 = scales['gain_adc2'] / (10.0 if atten_ch2 else 1.0) # Volts/bit
+		gain_dac1 = scales['gain_dac1']
+		gain_dac2 = scales['gain_dac2']
 
 		monitor_source_gains = {
-			'none'	: 1.0,
-			'adc1'	: scales['gain_adc1']*(10.0 if atten1[1] else 1.0),
-			'in1'	: scales['gain_adc1']*(10.0 if atten1[1] else 1.0),
-			'out1'	: (scales['gain_dac1']*(2**4)), # 12bit ADC - 16bit DAC
-			'adc2'	: scales['gain_adc2']*(10.0 if atten2[1] else 1.0),
-			'in2'	: scales['gain_adc2']*(10.0 if atten2[1] else 1.0),
-			'out2'	: (scales['gain_dac2']*(2**4))
+			str(_IIR_MON_NONE) 	: 1.0,
+			str(_IIR_MON_ADC1) 	: gain_adc1, 
+			str(_IIR_MON_IN1) 	: 1.0 / (_ADC_DEFAULT_CALIBRATION), 
+			str(_IIR_MON_OUT1) 	: gain_dac1 * 2.0**4,
+			str(_IIR_MON_ADC2) 	: gain_adc2,
+			str(_IIR_MON_IN2) 	: 1.0 / (_ADC_DEFAULT_CALIBRATION),
+			str(_IIR_MON_OUT2)	: gain_dac2 * 2.0**4,
 		}
 
-		# Replace scaling factors depending on the monitor signal source
-		scales['scale_ch1'] = 1.0 if not self.monitor_a else monitor_source_gains[self.monitor_a]
-		scales['scale_ch2'] = 1.0 if not self.monitor_b else monitor_source_gains[self.monitor_b]
+		# Scales for frame channel data
+		scale_ch1 = monitor_source_gains[str(self.mon1_source)] # Y1 * scale_ch1
+		scale_ch2 = monitor_source_gains[str(self.mon2_source)] # Y2 * scale_ch2
+
+		# Account for decimation gain in precision mode
+		if self.is_precision_mode():
+			scale_ch1 /= self._deci_gain()
+			scale_ch2 /= self._deci_gain()
+
+		scales['scale_ch1'] = scale_ch1
+		scales['scale_ch2'] = scale_ch2
 
 		return scales
+
+	def _update_dependent_regs(self, scales):
+		super(IIRFilterBox, self)._update_dependent_regs(scales)
+		self._update_control_matrix_regs()
+		self._update_gains_offsets_regs()
+
+	def _on_reg_sync(self):
+		super(IIRFilterBox, self)._on_reg_sync()
+		# Update local variables with device variables
+		self._sync_control_matrix_regs()
+		self._sync_gains_offsets_regs()
+
+		# TODO: Sync previous IIR filter coefficients to local coefficient variables
+		# self.filter_ch1 = ...
+		# self.filter_ch2 = ...
 
 _iir_reg_handlers = {
 	'mon1_source':	(REG_MONSELECT,		to_reg_unsigned(0,3), from_reg_unsigned(0,3)),
@@ -475,25 +517,53 @@ _iir_reg_handlers = {
 	'output_en1':		(REG_ENABLE,			to_reg_unsigned(2,1), from_reg_unsigned(2,1)),
 	'output_en2':		(REG_ENABLE,			to_reg_unsigned(3,1), from_reg_unsigned(3,1)),
 
-	'matrixscale_ch1_ch1':		(REG_CH0_CH0GAIN, 	to_reg_signed(0,16), from_reg_signed(0,16)),
-	'matrixscale_ch1_ch2':		(REG_CH0_CH1GAIN,	to_reg_signed(0,16), from_reg_signed(0,16)),
-	'matrixscale_ch2_ch1':		(REG_CH1_CH0GAIN,	to_reg_signed(0,16), from_reg_signed(0,16)),
-	'matrixscale_ch2_ch2':		(REG_CH1_CH1GAIN,	to_reg_signed(0,16), from_reg_signed(0,16)),
-
+	'matrixscale_ch1_ch1':	(REG_CH0_CH0GAIN,	to_reg_signed(0, 16, 
+															xform=lambda obj, x: int(round(x * (_ADC_DEFAULT_CALIBRATION / (10.0 if obj.get_frontend(1)[1] else 1.0)) * obj._adc_gains()[0] * 2.0**10))), 
+														from_reg_signed(0, 16,
+															xform=lambda obj, x: x * ((10.0 if obj.get_frontend(1)[1] else 1.0) / _ADC_DEFAULT_CALIBRATION) / obj._adc_gains()[0] / 2.0**10)),
+	'matrixscale_ch1_ch2':	(REG_CH0_CH1GAIN,	to_reg_signed(0, 16, 
+															xform=lambda obj, x: int(round(x * (_ADC_DEFAULT_CALIBRATION / (10.0 if obj.get_frontend(2)[1] else 1.0)) * obj._adc_gains()[1] * 2.0**10))), 
+														from_reg_signed(0, 16,
+															xform=lambda obj, x: x * ((10.0 if obj.get_frontend(2)[1] else 1.0) / _ADC_DEFAULT_CALIBRATION) / obj._adc_gains()[1] / 2.0**10)),
+	'matrixscale_ch2_ch1':	(REG_CH1_CH0GAIN,	to_reg_signed(0, 16, 
+															xform=lambda obj, x: int(round(x * (_ADC_DEFAULT_CALIBRATION / (10.0 if obj.get_frontend(1)[1] else 1.0)) * obj._adc_gains()[0] * 2.0**10))), 
+														from_reg_signed(0, 16,
+															xform=lambda obj, x: x * ((10.0 if obj.get_frontend(1)[1] else 1.0) / _ADC_DEFAULT_CALIBRATION) / obj._adc_gains()[0] / 2.0**10)),
+	'matrixscale_ch2_ch2':	(REG_CH1_CH1GAIN,	to_reg_signed(0, 16, 
+															xform=lambda obj, x: int(round(x * (_ADC_DEFAULT_CALIBRATION / (10.0 if obj.get_frontend(2)[1] else 1.0)) * obj._adc_gains()[1] * 2.0**10))), 
+														from_reg_signed(0, 16,
+															xform=lambda obj, x: x * ((10.0 if obj.get_frontend(2)[1] else 1.0) / _ADC_DEFAULT_CALIBRATION) / obj._adc_gains()[1] / 2.0**10)),
+	
 	'ch1_sampling_freq':	(REG_SAMPLINGFREQ,		to_reg_unsigned(0, 1), from_reg_unsigned(0, 1)),
 	'ch2_sampling_freq':	(REG_SAMPLINGFREQ,		to_reg_unsigned(1, 1), from_reg_unsigned(1, 1)),
 
 	'filter_reset':		(REG_FILT_RESET, 		to_reg_bool(0), from_reg_bool(0)),
 
-	'input_scale1':	(REG_INPUTSCALE_CH0,	to_reg_unsigned(0, 18), from_reg_unsigned(0, 18)),
-	'input_scale2':	(REG_INPUTSCALE_CH1,	to_reg_unsigned(0, 18), from_reg_unsigned(0, 18)),
+	'input_scale1':			(REG_INPUTSCALE_CH0, to_reg_signed(0, 18, xform=lambda obj, x: x * 2.0**9), 
+														from_reg_signed(0, 18, xform=lambda obj, x : x / (2.0 **9))),
+	'input_scale2':			(REG_INPUTSCALE_CH1, to_reg_signed(0, 18, xform=lambda obj, x: x * 2.0**9), 
+														from_reg_signed(0, 18, xform=lambda obj, x : x / (2.0 **9))),
 
-	'output_scale1':	(REG_OUTPUTSCALE_CH0,	to_reg_unsigned(0, 18), from_reg_unsigned(0, 18)),
-	'output_scale2':	(REG_OUTPUTSCALE_CH1,	to_reg_unsigned(0, 18), from_reg_unsigned(0, 18)),
+	'output_scale1':		(REG_OUTPUTSCALE_CH0,		to_reg_signed(0, 18, xform=lambda obj, x: int(round(x * 2.0**9 / (_ADC_DEFAULT_CALIBRATION * 2**3 * obj._dac_gains()[0])))), 
+														from_reg_signed(0, 18, xform=lambda obj, x: x * (_ADC_DEFAULT_CALIBRATION * 2**3 * obj._dac_gains()[0]) / 2.0**9)),
 
-	'input_offset1':	(REG_INPUTOFFSET_CH0,	to_reg_signed(0, 14), from_reg_signed(0, 14)),
-	'input_offset2':	(REG_INPUTOFFSET_CH1,	to_reg_signed(0, 14), from_reg_signed(0, 14)),
+	'output_scale2':		(REG_OUTPUTSCALE_CH1,		to_reg_signed(0, 18, xform=lambda obj, x: int(round(x * 2.0**9 / (_ADC_DEFAULT_CALIBRATION * 2**3 * obj._dac_gains()[1])))), 
+														from_reg_signed(0, 18, xform=lambda obj, x: x * (_ADC_DEFAULT_CALIBRATION * 2**3 * obj._dac_gains()[1]) / 2.0**9)),
 
-	'output_offset1':	(REG_OUTPUTOFFSET_CH0,	to_reg_signed(0, 17), from_reg_signed(0, 17)),
-	'output_offset2':	(REG_OUTPUTOFFSET_CH1,	to_reg_signed(0, 17), from_reg_signed(0, 17))
-}
+	'input_offset1':	(REG_INPUTOFFSET_CH0,	to_reg_signed(0, 14, 
+													xform=lambda obj, x: int(round(2.0 * x * _ADC_DEFAULT_CALIBRATION / (10.0 if obj.get_frontend(1)[1] else 1.0)))), 
+												from_reg_signed(0, 14,
+													xform=lambda obj, x: x * ((10.0 if obj.get_frontend(1)[1] else 1.0) / 2.0 / _ADC_DEFAULT_CALIBRATION))),
+	'input_offset2':	(REG_INPUTOFFSET_CH1,	to_reg_signed(0, 14, 
+													xform=lambda obj, x: int(round(2.0 * x * _ADC_DEFAULT_CALIBRATION / (10.0 if obj.get_frontend(2)[1] else 1.0)))), 
+												from_reg_signed(0, 14,
+													xform=lambda obj, x: x * ((10.0 if obj.get_frontend(2)[1] else 1.0) / 2.0 / _ADC_DEFAULT_CALIBRATION))),
+	'output_offset1':	(REG_OUTPUTOFFSET_CH0,	to_reg_signed(0, 17,
+													xform=lambda obj, x: int(round(x / obj._dac_gains()[0]))), 
+												from_reg_signed(0, 17,
+													xform=lambda obj, x: x * obj._dac_gains()[0])),
+	'output_offset2':	(REG_OUTPUTOFFSET_CH1,	to_reg_signed(0, 17,
+													xform=lambda obj, x: int(round(x / obj._dac_gains()[1]))), 
+												from_reg_signed(0, 17,
+													xform=lambda obj, x: x * obj._dac_gains()[1]))
+	}

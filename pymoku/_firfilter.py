@@ -38,8 +38,7 @@ _FIR_MON_OUT2 = 6
 _FIR_INPUT_SMPS = ADC_SMP_RATE/4
 _FIR_CHN_BUFLEN = 2**13
 
-_ADC_DEFAULT_CALIBRATION = 3750.0								# Bits/V (No attenuation)
-_DAC_DEFAULT_CALIBRATION = _ADC_DEFAULT_CALIBRATION * 2.0**3	# Bits/V
+_ADC_DEFAULT_CALIBRATION = 3750.0 # Bits/V (No attenuation)
 
 class _DecFilter(object):
 	REG_DECIMATION = 0
@@ -203,6 +202,22 @@ class FIRFilter(_CoreOscilloscope):
 		self._decfilter1 = _DecFilter(self, 97)
 		self._decfilter2 = _DecFilter(self, 101)
 
+		# Initialise all local configuration variables
+		# These remember user settings prior to on-commit reg calculations
+		self._matrixscale_ch1_ch1 = 0 
+		self._matrixscale_ch1_ch2 = 0
+		self._matrixscale_ch2_ch1 = 0
+		self._matrixscale_ch2_ch2 = 0
+
+		self._input_scale1 = 0
+		self._output_scale1 = 0
+		self._input_offset1 = 0
+		self._output_offset1 = 0
+		self._input_scale2 = 0
+		self._output_scale2 = 0
+		self._input_offset2 = 0
+		self._output_offset2 = 0
+
 	@needs_commit
 	def set_defaults(self):
 		super(FIRFilter, self).set_defaults()
@@ -225,25 +240,43 @@ class FIRFilter(_CoreOscilloscope):
 
 		Input mixing allows a filter channel to act on a linear combination of the two input signals.
 
-		:type ch: int, {1,2}
+		:type ch: int, {1, 2}
 		:param ch: target filter channel
 
-		:type scale_in1: float, [-20,20]
-		:param scale_in1: linear scale factor of input 1 signal added to target filter channel input
+		:type scale_in1: float, [-20, 20]
+		:param scale_in1: linear scale factor of input 1 signal added to target filter channel input.
+			To avoid quantization, use at most one decimal place.
 
-		:type scale_in2: float, [-20,20] 
-		:param scale_in2: linear scale factor of input 2 signal added to target filter channel input
+		:type scale_in2: float, [-20, 20] 
+		:param scale_in2: linear scale factor of input 2 signal added to target filter channel input.
+			To avoid quantization, use at most one decimal place.
 		"""
 		_utils.check_parameter_valid('set', ch, [1, 2], 'filter channel')
 		_utils.check_parameter_valid('range', scale_in1, [-20, 20], 'control matrix scale (ch1)', 'linear scalar')
 		_utils.check_parameter_valid('range', scale_in2, [-20, 20], 'control matrix scale (ch2)', 'linear scalar')
+		if (scale_in1/0.1)%1 or (scale_in2/0.1)%1:
+			log.warning("Control matrix scalars should contain one decimal place to avoid quantization effects.")
 
 		if ch == 1:
-			self.matrixscale_ch1_ch1 = scale_in1
-			self.matrixscale_ch1_ch2 = scale_in2
+			self._matrixscale_ch1_ch1 = scale_in1
+			self._matrixscale_ch1_ch2 = scale_in2
 		else:
-			self.matrixscale_ch2_ch1 = scale_in1
-			self.matrixscale_ch2_ch2 = scale_in2
+			self._matrixscale_ch2_ch1 = scale_in1
+			self._matrixscale_ch2_ch2 = scale_in2
+
+	def _update_control_matrix_regs(self):
+			# Used to update regs at commit time with correct frontend settings.
+			self.matrixscale_ch1_ch1 = self._matrixscale_ch1_ch1
+			self.matrixscale_ch1_ch2 = self._matrixscale_ch1_ch2
+			self.matrixscale_ch2_ch1 = self._matrixscale_ch2_ch1
+			self.matrixscale_ch2_ch2 = self._matrixscale_ch2_ch2
+
+	def _sync_control_matrix_regs(self):
+			# sync local variables when connecting to an existing instrument
+			self._matrixscale_ch1_ch1 = self.matrixscale_ch1_ch1
+			self._matrixscale_ch1_ch2 = self.matrixscale_ch1_ch2
+			self._matrixscale_ch2_ch1 = self.matrixscale_ch2_ch1
+			self._matrixscale_ch2_ch2 = self.matrixscale_ch2_ch2
 
 	@needs_commit
 	def set_gains_offsets(self, ch, input_gain=1.0, output_gain=1.0, input_offset=0, output_offset=0):
@@ -273,18 +306,40 @@ class FIRFilter(_CoreOscilloscope):
 		_utils.check_parameter_valid('range', output_offset, [-2.0, 2.0], 'output offset', 'Volts')
 
 		if ch == 1:
-			self.input_scale1 = input_gain
-			self.output_scale1 = output_gain
-			self.input_offset1 = input_offset
-			self.output_offset1 = output_offset
+			self._input_scale1 = input_gain
+			self._output_scale1 = output_gain
+			self._input_offset1 = input_offset
+			self._output_offset1 = output_offset
 		else:
-			self.input_scale2 = input_gain
-			self.output_scale2 = output_gain
-			self.input_offset2 = input_offset
-			self.output_offset2 = output_offset
+			self._input_scale2 = input_gain
+			self._output_scale2 = output_gain
+			self._input_offset2 = input_offset
+			self._output_offset2 = output_offset
 
 		# Reset the channel's filtering loop for new settings to take effect immediately
 		self._channel_reset(ch)
+
+	def _update_gains_offsets_regs(self):
+		# Used to update regs at commit time with correct frontend settings.
+		self.input_scale1   = self._input_scale1
+		self.output_scale1  = self._output_scale1
+		self.input_offset1  = self._input_offset1
+		self.output_offset1 = self._output_offset1
+		self.input_scale2   = self._input_scale2
+		self.output_scale2  = self._output_scale2
+		self.input_offset2  = self._input_offset2
+		self.output_offset2 = self._output_offset2
+
+	def _sync_gains_offsets_regs(self):
+		# sync local variables when connecting to an existing instrument
+		self._input_scale1   = self.input_scale1
+		self._output_scale1  = self.output_scale1
+		self._input_offset1  = self.input_offset1
+		self._output_offset1 = self.output_offset1
+		self._input_scale2   = self.input_scale2
+		self._output_scale2  = self.output_scale2
+		self._input_offset2  = self.input_offset2
+		self._output_offset2 = self.output_offset2
 
 	def set_filter(self, ch, decimation_factor, filter_coefficients):
 		"""
@@ -300,8 +355,6 @@ class FIRFilter(_CoreOscilloscope):
 		:type filter_coefficients: array(float)
 		:param filter_coefficients: array of FIR filter coefficients. The length of the array must not exceed :math:`N = min(29*2^n, 14819)`.
 		"""
-		# TODO: Document the quantization of array coefficients incurred
-		# TODO: The array format is NOT in the class documentation above...?
 		_utils.check_parameter_valid('set', ch, [1, 2],'filter channel')
 		_utils.check_parameter_valid('set', decimation_factor, range(3,11), 'decimation factor')
 		_utils.check_parameter_valid('range', len(filter_coefficients), [0, _FIR_NUM_BLOCKS * min(2**decimation_factor - 1, 2**9 - 1)], 'filter coefficient array length')
@@ -475,10 +528,14 @@ class FIRFilter(_CoreOscilloscope):
 
 	def _update_dependent_regs(self, scales):
 		super(FIRFilter, self)._update_dependent_regs(scales)
+		self._update_control_matrix_regs()
+		self._update_gains_offsets_regs()
 
-		# TODO: All matrix and gain scaling factors need to be updated depending on front-end settings
-		pass
-
+	def _on_reg_sync(self):
+		super(FIRFilter, self)._on_reg_sync()
+		# Update local variables with device variables
+		self._sync_gains_offsets_regs()
+		self._sync_control_matrix_regs()
 
 _fir_reg_handlers = {
 	'reset_ch1':			(REG_FIR_CONTROL,			to_reg_bool(0), from_reg_bool(0)),
@@ -512,11 +569,11 @@ _fir_reg_handlers = {
 	'output_scale2':		(REG_FIR_OUT_SCALE2,		to_reg_signed(0, 18, xform=lambda obj, x: int(round(x * 2.0**9 / (_ADC_DEFAULT_CALIBRATION * 2**3 * obj._dac_gains()[1])))), 
 														from_reg_signed(0, 18, xform=lambda obj, x: x * (_ADC_DEFAULT_CALIBRATION * 2**3 * obj._dac_gains()[1]) / 2.0**9)),
 
-	'output_offset1':		(REG_FIR_OUT_OFFSET1,		to_reg_signed(0, 32, xform=lambda obj, x: int(round(x * 2.0**15 * (_ADC_DEFAULT_CALIBRATION * 2**3 * obj._dac_gains()[0])))), 
-														from_reg_signed(0, 32, xform=lambda obj, x: x / (_ADC_DEFAULT_CALIBRATION * 2**3 * obj._dac_gains()[1])/ 2.0**15)),
+	'output_offset1':		(REG_FIR_OUT_OFFSET1,		to_reg_signed(0, 17, xform=lambda obj, x: int(round(x / obj._dac_gains()[0]))), 
+														from_reg_signed(0, 17, xform=lambda obj, x: x * obj._dac_gains()[0])),
 
-	'output_offset2':		(REG_FIR_OUT_OFFSET2,		to_reg_signed(0, 32, xform=lambda obj, x: int(round(x * 2.0**15 * (_ADC_DEFAULT_CALIBRATION * 2**3 * obj._dac_gains()[1])))), 
-														from_reg_signed(0, 32, xform=lambda obj, x: x / (_ADC_DEFAULT_CALIBRATION * 2**3 * obj._dac_gains()[1])/ 2.0**15)),
+	'output_offset2':		(REG_FIR_OUT_OFFSET2,		to_reg_signed(0, 17, xform=lambda obj, x: int(round(x / obj._dac_gains()[1]))), 
+														from_reg_signed(0, 17, xform=lambda obj, x: x * obj._dac_gains()[1])),
 
 	'matrixscale_ch1_ch1':	(REG_FIR_MATRIXGAIN_CH1,	to_reg_signed(0, 16, 
 															xform=lambda obj, x: int(round(x * (_ADC_DEFAULT_CALIBRATION / (10.0 if obj.get_frontend(1)[1] else 1.0)) * obj._adc_gains()[0] * 2.0**10))), 
@@ -527,11 +584,11 @@ _fir_reg_handlers = {
 														from_reg_signed(16, 16,
 															xform=lambda obj, x: x * ((10.0 if obj.get_frontend(2)[1] else 1.0) / _ADC_DEFAULT_CALIBRATION) / obj._adc_gains()[1] / 2.0**10)),
 	'matrixscale_ch2_ch1':	(REG_FIR_MATRIXGAIN_CH2,	to_reg_signed(0, 16, 
-															xform=lambda obj, x: int(round(x * (_ADC_DEFAULT_CALIBRATION / (10.0 if obj.get_frontend(2)[1] else 1.0)) * obj._adc_gains()[1] * 2.0**10))), 
+															xform=lambda obj, x: int(round(x * (_ADC_DEFAULT_CALIBRATION / (10.0 if obj.get_frontend(1)[1] else 1.0)) * obj._adc_gains()[0] * 2.0**10))), 
 														from_reg_signed(0, 16,
 															xform=lambda obj, x: x * ((10.0 if obj.get_frontend(2)[1] else 1.0) / _ADC_DEFAULT_CALIBRATION) / obj._adc_gains()[1] / 2.0**10)),
 	'matrixscale_ch2_ch2':	(REG_FIR_MATRIXGAIN_CH2,	to_reg_signed(16, 16, 
-															xform=lambda obj, x: int(round(x * (_ADC_DEFAULT_CALIBRATION / (10.0 if obj.get_frontend(1)[1] else 1.0)) * obj._adc_gains()[0] * 2.0**10))), 
+															xform=lambda obj, x: int(round(x * (_ADC_DEFAULT_CALIBRATION / (10.0 if obj.get_frontend(2)[1] else 1.0)) * obj._adc_gains()[1] * 2.0**10))), 
 														from_reg_signed(16, 16,
 															xform=lambda obj, x: x * ((10.0 if obj.get_frontend(1)[1] else 1.0) / _ADC_DEFAULT_CALIBRATION) / obj._adc_gains()[0] / 2.0**10))
 }
