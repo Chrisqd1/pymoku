@@ -94,33 +94,36 @@ def update(args):
 		logging.info('Updating Moku %06d from %d to %d...' % (int(moku.get_serial()), old_fw, new_fw))
 
 		if args.force:
-			if old_fw > new_fs:
+			if old_fw > new_fw:
 				logging.warning('Downgrading firmware.')
 			firmware_reboot |= _load_firmware()
 		else:
 			if old_fw == new_fw:
-				logging.warning('Firmware already up to date.')
+				logging.info('Firmware already up to date.')
 			elif old_fw > new_fw:
 				logging.error('Refusing to downgrade firmware.')
 			else:
 				firmware_reboot |= _load_firmware()
 
+		if firmware_reboot:
+			serial_num = int(moku.get_serial())
+			moku._trigger_fwload()
+			log.info("Successfully started firmware update. Your Moku:Lab will shut down automatically when complete. " 
+						"This process can take up to 30-minutes. Please run `moku --serial=%d update install` a second time to ensure all updates are installed correctly." % (serial_num))
+			return
+		
 		# Applying patches
-		logging.info('Checking patches.')
+		logging.info('Checking for updates.')
 
 		if not patch_is_compatible(moku):
-			logging.info('Applying patches...')
+			logging.info('Applying updates...')
 			patch_reboot |= _load_patches()
 		else:
-			logging.info('Patches already up to date.')
+			logging.info('Moku:Lab already up to date.')		
 
-		if firmware_reboot:
-			moku._trigger_fwload()
-			log.info("Successfully started firmware update. Your Moku:Lab will shut down automatically when complete. "
-						"This process can take up to 30-minutes.")
-		elif patch_reboot:
+		if patch_reboot:
 			moku._restart_board()
-			log.info("Successfully applied patches. Your Moku:Lab will now shut down to complete the update process.")
+			log.info("Successfully applied updates. Your Moku:Lab will now shut down to complete the update process.")
 
 parser_update = subparsers.add_parser('update', help="Check and update instruments on the Moku.")
 parser_update.add_argument('--url', help='Override location of data pack', default=MOKUDATAURL)
