@@ -114,6 +114,10 @@ class IIRFilterBox(_CoreOscilloscope):
 		self._input_offset2 = 0
 		self._output_offset2 = 0
 
+		# TODO: Read these back on_reg_sync
+		self.filter_ch1 = [[0,0,0,0,0,0]]*4
+		self.filter_ch2 = [[0,0,0,0,0,0]]*4
+
 	@needs_commit
 	def set_defaults(self):
 		""" Reset the IIR to sane defaults. """
@@ -500,6 +504,10 @@ class IIRFilterBox(_CoreOscilloscope):
 		self._sync_control_matrix_regs()
 		self._sync_gains_offsets_regs()
 
+		# TODO: Sync previous IIR filter coefficients to local coefficient variables
+		# self.filter_ch1 = ...
+		# self.filter_ch2 = ...
+
 _iir_reg_handlers = {
 	'mon1_source':	(REG_MONSELECT,		to_reg_unsigned(0,3), from_reg_unsigned(0,3)),
 	'mon2_source':	(REG_MONSELECT,		to_reg_unsigned(3,3), from_reg_unsigned(3,3)),
@@ -545,11 +553,11 @@ _iir_reg_handlers = {
 	'input_offset1':	(REG_INPUTOFFSET_CH0,	to_reg_signed(0, 14, 
 													xform=lambda obj, x: int(round(2.0 * x * _ADC_DEFAULT_CALIBRATION / (10.0 if obj.get_frontend(1)[1] else 1.0)))), 
 												from_reg_signed(0, 14,
-													xform=lambda obj, x: x * ((10.0 if obj.get_frontend(ch)[1] else 1.0) / 2.0 / _ADC_DEFAULT_CALIBRATION))),
+													xform=lambda obj, x: x * ((10.0 if obj.get_frontend(1)[1] else 1.0) / 2.0 / _ADC_DEFAULT_CALIBRATION))),
 	'input_offset2':	(REG_INPUTOFFSET_CH1,	to_reg_signed(0, 14, 
 													xform=lambda obj, x: int(round(2.0 * x * _ADC_DEFAULT_CALIBRATION / (10.0 if obj.get_frontend(2)[1] else 1.0)))), 
 												from_reg_signed(0, 14,
-													xform=lambda obj, x: x * ((10.0 if obj.get_frontend(ch)[1] else 1.0) / 2.0 / _ADC_DEFAULT_CALIBRATION))),
+													xform=lambda obj, x: x * ((10.0 if obj.get_frontend(2)[1] else 1.0) / 2.0 / _ADC_DEFAULT_CALIBRATION))),
 	'output_offset1':	(REG_OUTPUTOFFSET_CH0,	to_reg_signed(0, 17,
 													xform=lambda obj, x: int(round(x / obj._dac_gains()[0]))), 
 												from_reg_signed(0, 17,
