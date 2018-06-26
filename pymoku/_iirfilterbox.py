@@ -345,22 +345,22 @@ class IIRFilterBox(_CoreOscilloscope):
 
 	def _update_gains_offsets_regs(self):
 		# Used to update regs at commit time with correct frontend settings.
-		self.input_scale1 	= self._input_scale1
-		self.output_scale1 	= self._output_scale1
-		self.input_offset1 	= self._input_offset1
+		self.input_scale1   = self._input_scale1
+		self.output_scale1  = self._output_scale1
+		self.input_offset1  = self._input_offset1
 		self.output_offset1 = self._output_offset1
-		self.input_scale2 	= self._input_scale2
-		self.output_scale2 	= self._output_scale2
-		self.input_offset2 	= self._input_offset2
+		self.input_scale2   = self._input_scale2
+		self.output_scale2  = self._output_scale2
+		self.input_offset2  = self._input_offset2
 		self.output_offset2 = self._output_offset2
 
 	def _sync_gains_offsets_regs(self):
 		# Used to update regs at commit time with correct frontend settings.
-		self._input_scale1 	 = self.input_scale1
+		self._input_scale1   = self.input_scale1
 		self._output_scale1  = self.output_scale1
 		self._input_offset1  = self.input_offset1
 		self._output_offset1 = self.output_offset1
-		self._input_scale2 	 = self.input_scale2
+		self._input_scale2   = self.input_scale2
 		self._output_scale2  = self.output_scale2
 		self._input_offset2  = self.input_offset2
 		self._output_offset2 = self.output_offset2

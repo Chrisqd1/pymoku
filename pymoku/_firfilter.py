@@ -321,22 +321,22 @@ class FIRFilter(_CoreOscilloscope):
 
 	def _update_gains_offsets_regs(self):
 		# Used to update regs at commit time with correct frontend settings.
-		self.input_scale1 	= self._input_scale1
-		self.output_scale1 	= self._output_scale1
-		self.input_offset1 	= self._input_offset1
+		self.input_scale1   = self._input_scale1
+		self.output_scale1  = self._output_scale1
+		self.input_offset1  = self._input_offset1
 		self.output_offset1 = self._output_offset1
-		self.input_scale2 	= self._input_scale2
-		self.output_scale2 	= self._output_scale2
-		self.input_offset2 	= self._input_offset2
+		self.input_scale2   = self._input_scale2
+		self.output_scale2  = self._output_scale2
+		self.input_offset2  = self._input_offset2
 		self.output_offset2 = self._output_offset2
 
 	def _sync_gains_offsets_regs(self):
 		# sync local variables when connecting to an existing instrument
-		self._input_scale1 	 = self.input_scale1
+		self._input_scale1   = self.input_scale1
 		self._output_scale1  = self.output_scale1
 		self._input_offset1  = self.input_offset1
 		self._output_offset1 = self.output_offset1
-		self._input_scale2 	 = self.input_scale2
+		self._input_scale2   = self.input_scale2
 		self._output_scale2  = self.output_scale2
 		self._input_offset2  = self.input_offset2
 		self._output_offset2 = self.output_offset2
@@ -535,9 +535,7 @@ class FIRFilter(_CoreOscilloscope):
 		super(FIRFilter, self)._on_reg_sync()
 		# Update local variables with device variables
 		self._sync_gains_offsets_regs()
-
-
-
+		self._sync_control_matrix_regs()
 
 _fir_reg_handlers = {
 	'reset_ch1':			(REG_FIR_CONTROL,			to_reg_bool(0), from_reg_bool(0)),
