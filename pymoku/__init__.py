@@ -1225,8 +1225,14 @@ class Moku(object):
 		if self._instrument is not None:
 			self._instrument._set_running(False)
 
-		self.relinquish_ownership()
-		with self._conn_lock:
-			self._conn.close()
+		try:
+			self.relinquish_ownership()
+		except struct.error:
+			# This error occurs on earlier firmware versions (<=1.5) due to ownership packet format changes
+			pass
+		finally:
+			with self._conn_lock:
+				self._conn.close()
+
 		# Don't clobber the ZMQ context as it's global to the interpretter, if the user has multiple Moku
 		# objects then we don't want to mess with that.
