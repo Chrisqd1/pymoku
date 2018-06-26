@@ -447,7 +447,7 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		# Read back trigger settings into local variables
 		self._trig_duration = self._trigger.duration * (self.decimation_rate if self.is_precision_mode() else 1.0) / self._input_samplerate
 		self._trig_level = self._trigger.level / self._signal_source_volts_per_bit(self.trig_ch, scales, trigger=True)
-		self._trig_hystersis = self._trigger.hysteresis / self._signal_source_volts_per_bit(self.trig_ch, scales, Trigger=True)
+		self._trig_hystersis = self._trigger.hysteresis / self._signal_source_volts_per_bit(self.trig_ch, scales, trigger=True)
 
 		self._update_datalogger_params()
 
