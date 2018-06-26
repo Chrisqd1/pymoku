@@ -655,18 +655,18 @@ _instr_reg_handlers = {
 
 	'adc1_offset':		(REG_CAL_ADC0,	to_reg_signed(0, 7),		from_reg_signed(0, 7)),
 	'adc1_offset_t':	(REG_CAL_ADC0,	to_reg_signed(16, 16, xform=lambda obj, x: round(max(-2**15, min(2**15-1, x * 2.0**13)))),
-										from_reg_signed(16, 16, xform=lambda obj, x: round(x / 2.0**13))),
+										from_reg_signed(16, 16, xform=lambda obj, x: x / 2.0**13)),
 
 	'adc2_offset':		(REG_CAL_ADC1,	to_reg_signed(0, 7),		from_reg_signed(0, 7)),
 	'adc2_offset_t':	(REG_CAL_ADC1,	to_reg_signed(16, 16, xform=lambda obj, x: round(max(-2**15, min(2**15-1, x * 2.0**13)))),
-										from_reg_signed(16, 16, xform=lambda obj, x: round(x / 2.0**13))),
+										from_reg_signed(16, 16, xform=lambda obj, x: x / 2.0**13)),
 
 	'dac1_offset':		(REG_CAL_DAC0,	to_reg_signed(0, 11),		from_reg_signed(0, 11)),
-	'dac1_offset_t':	(REG_CAL_DAC0,	to_reg_signed(16, 16, xform=lambda obj, x: max(-2**15, min(2**15-1, x * 2.0**12))),
+	'dac1_offset_t':	(REG_CAL_DAC0,	to_reg_signed(16, 16, xform=lambda obj, x: round(max(-2**15, min(2**15-1, x * 2.0**12)))),
 										from_reg_signed(16, 16, xform=lambda obj, x: x / 2.0**12)),
 
 	'dac2_offset':		(REG_CAL_DAC1,	to_reg_signed(0, 11),		from_reg_signed(0, 11)),
-	'dac2_offset_t':	(REG_CAL_DAC1,	to_reg_signed(16, 16, xform=lambda obj, x: max(-2**15, min(2**15-1, x * 2.0**12))),
+	'dac2_offset_t':	(REG_CAL_DAC1,	to_reg_signed(16, 16, xform=lambda obj, x: round(max(-2**15, min(2**15-1, x * 2.0**12)))),
 										from_reg_signed(16, 16, xform=lambda obj, x:  x / 2.0**12)),
 
 	'state_id':			(REG_STATE,	 	to_reg_unsigned(0, 8),		from_reg_unsigned(0, 8)),
