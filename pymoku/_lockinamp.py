@@ -111,8 +111,8 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 
 		# Remember some user settings for when swapping channels
 		# Need to initialise these to valid values so set_defaults can be run.
-		self.monitor_a = None
-		self.monitor_b = None
+		self.monitor_a = 'none'
+		self.monitor_b = 'none'
 		self.demod_mode = 'internal'
 		self.main_source = 'none'
 		self.aux_source = 'none'
