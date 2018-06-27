@@ -17,7 +17,7 @@ REG_OSC_OUTSEL		= 64
 REG_OSC_TRIGCTL		= 67
 REG_OSC_ACTL		= 66
 REG_OSC_DECIMATION	= 65
-REG_OSC_AUTOTIMER	= 68+6
+REG_OSC_AUTOTIMER	= 74
 
 ### Every constant that starts with OSC_ will become an attribute of pymoku.instruments ###
 _OSC_SOURCE_CH1		= 0
