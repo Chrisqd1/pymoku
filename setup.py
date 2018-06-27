@@ -7,8 +7,8 @@ with open('pymoku/version.txt') as f:
 setup(
 	name='pymoku',
 	version=version,
-	author='Shanae King',
-	author_email='shanae@liquidinstruments.com',
+	author='Ben Coughlan',
+	author_email='ben@liquidinstruments.com',
 	packages=['pymoku', 'pymoku.tools'],
 	package_dir={'pymoku': 'pymoku'},
 	package_data={
