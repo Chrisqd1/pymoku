@@ -1,9 +1,6 @@
 from ._instrument import *
 from . import _utils
 
-_CLK_FREQ = 125e6
-_TIMER_ACCUM = 2.0**32
-
 class Trigger(object):
 	_REG_CONFIG = 0
 	_REG_LEVEL = 1
@@ -11,7 +8,6 @@ class Trigger(object):
 	_REG_DURATION = 3
 	_REG_HOLDOFF = 4
 	_REG_NTRIGGER = 5
-	_REG_TIMER = 6
 
 	TYPE_EDGE = 0
 	TYPE_PULSE = 1
@@ -68,19 +64,6 @@ class Trigger(object):
 		self._instr._accessor_set(r, to_reg_unsigned(0, 16), value)
 
 	@property
-	def timer(self):
-		r = self.reg_base + Trigger._REG_TIMER
-		v = self._instr._accessor_get(r, from_reg_unsigned(0, 16))
-		return (_CLK_FREQ * v) / _TIMER_ACCUM
-
-	@timer.setter
-	def timer(self, value):
-		_utils.check_parameter_valid('range', value, allowed=[0.0, (_CLK_FREQ * (2.0**16 - 1)) / _TIMER_ACCUM], desc='timer', units='Hz')
-		r = self.reg_base + Trigger._REG_TIMER
-		v = int(round(value * (_TIMER_ACCUM / _CLK_FREQ)))
-		self._instr._accessor_set(r, to_reg_unsigned(0, 16), v)
-
-	@property
 	def holdoff(self):
 		r = self.reg_base + Trigger._REG_HOLDOFF
 		return self._instr._accessor_get(r, from_reg_unsigned(0, 32), value)
@@ -89,16 +72,6 @@ class Trigger(object):
 	def holdoff(self, value):
 		r = self.reg_base + Trigger._REG_HOLDOFF
 		self._instr._accessor_set(r, to_reg_unsigned(0, 32), value)
-
-	@property
-	def auto_holdoff(self):
-		r = self.reg_base + Trigger._REG_TIMER
-		return self._instr._accessor_get(r, from_reg_unsigned(16, 8))
-
-	@auto_holdoff.setter
-	def auto_holdoff(self, value):
-		r = self.reg_base + Trigger._REG_TIMER
-		self._instr._accessor_set(r, to_reg_unsigned(16, 8), value)
 
 	@property
 	def ntrigger(self):

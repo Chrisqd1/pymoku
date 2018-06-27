@@ -17,6 +17,7 @@ REG_OSC_OUTSEL		= 64
 REG_OSC_TRIGCTL		= 67
 REG_OSC_ACTL		= 66
 REG_OSC_DECIMATION	= 65
+REG_OSC_AUTOTIMER	= 68+6
 
 ### Every constant that starts with OSC_ will become an attribute of pymoku.instruments ###
 _OSC_SOURCE_CH1		= 0
@@ -46,6 +47,9 @@ _OSC_SAMPLERATE_MIN = 10 # smp/s
 
 _OSC_PRETRIGGER_MAX = (2**12)-1
 _OSC_POSTTRIGGER_MAX = -2**28
+
+_CLK_FREQ = 125e6
+_TIMER_ACCUM = 2.0**32
 
 class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 
@@ -326,11 +330,12 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		self.hf_reject = hf_reject
 
 		if mode == 'auto':
-			self._trigger.timer = 20.0
-			self._trigger.auto_holdoff = 5
+			#TODO these should scale with the timebase
+			self.auto_timer = 20.0
+			self.auto_holdoff = 5
 		elif mode == 'normal':
-			self._trigger.timer = 0.0
-			self._trigger.auto_holdoff = 0
+			self.auto_timer = 0.0
+			self.auto_holdoff = 0
 
 		_str_to_trigger_source = {
 			'in1' : _OSC_SOURCE_CH1,
@@ -583,7 +588,6 @@ class Oscilloscope(_CoreOscilloscope, _waveform_generator.BasicWaveformGenerator
 	# e.g. lockin, pid etc.
 	pass
 
-
 _osc_reg_handlers = {
 	'source_ch1':		(REG_OSC_OUTSEL,	to_reg_unsigned(0, 8, allow_set=[_OSC_SOURCE_CH1, _OSC_SOURCE_CH2, _OSC_SOURCE_DA1, _OSC_SOURCE_DA2, _OSC_SOURCE_EXT]),
 											from_reg_unsigned(0, 8)),
@@ -602,5 +606,8 @@ _osc_reg_handlers = {
 											from_reg_unsigned(1, 1)),
 	'ain_mode':			(REG_OSC_ACTL,		to_reg_unsigned(16,2, allow_set=[_OSC_AIN_DDS, _OSC_AIN_DECI]),
 											from_reg_unsigned(16,2)),
-	'decimation_rate':	(REG_OSC_DECIMATION,to_reg_unsigned(0, 32),	from_reg_unsigned(0, 32))
+	'decimation_rate':	(REG_OSC_DECIMATION,to_reg_unsigned(0, 32), from_reg_unsigned(0, 32)),
+	'auto_timer':		(REG_OSC_AUTOTIMER, to_reg_unsigned(0, 16, xform=lambda obj, a:int(round(a * (_TIMER_ACCUM / _CLK_FREQ)))),
+		                                    from_reg_unsigned(0, 16, xform=lambda obj, a:(_CLK_FREQ * a) / _TIMER_ACCUM)),
+	'auto_holdoff':		(REG_OSC_AUTOTIMER, to_reg_unsigned(16, 8), from_reg_unsigned(16, 8))
 }
