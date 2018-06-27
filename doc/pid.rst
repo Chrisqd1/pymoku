@@ -15,7 +15,7 @@ The following example code and a wide range of other pymoku demo scripts can be 
 	:language: python
 	:caption: pidcontroller_basic.py
 
-The Lock-In Class
+The PIDController Class
 ----------------------
 
 .. autoclass:: pymoku.instruments.PIDController

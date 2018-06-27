@@ -14,7 +14,7 @@ The following example code and a wide range of other pymoku demo scripts can be 
 	:caption: iirfilterbox_basic.py
 
 
-The IIR Filter Box Class
+The IIRFilterBox Class
 -----------------------
 
 .. autoclass:: pymoku.instruments.IIRFilterBox

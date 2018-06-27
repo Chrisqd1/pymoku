@@ -14,7 +14,7 @@ The following example code and a wide range of other pymoku demo scripts can be 
 	:caption: firfilter_basic.py
 
 
-The FIR Filter Box Class
+The FIRFilter Class
 -----------------------
 
 .. autoclass:: pymoku.instruments.FIRFilter

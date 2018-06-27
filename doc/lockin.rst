@@ -21,7 +21,7 @@ The following example code and a wide range of other pymoku demo scripts can be 
 	:caption: lockinamp_basic.py
 
 
-The Lock-In Class
+The LockInAmp Class
 -----------------
 
 .. autoclass:: pymoku.instruments.LockInAmp
