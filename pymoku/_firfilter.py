@@ -27,13 +27,30 @@ _FIR_NUM_BLOCKS = 29
 _FIR_BLOCK_SIZE = 511
 _FIR_MMAP_BLOCK_SIZE = 2**17
 
+# Monitor probe locations (for A and B channels)
 _FIR_MON_NONE = 0
 _FIR_MON_ADC1 = 1
-_FIR_MON_IN1 = 2
+_FIR_MON_IN1  = 2
 _FIR_MON_OUT1 = 3
 _FIR_MON_ADC2 = 4
-_FIR_MON_IN2 = 5
+_FIR_MON_IN2  = 5
 _FIR_MON_OUT2 = 6
+
+# Oscilloscope data sources
+_FIR_SOURCE_A		= 0
+_FIR_SOURCE_B		= 1
+_FIR_SOURCE_IN1		= 2
+_FIR_SOURCE_IN2		= 3
+_FIR_SOURCE_EXT		= 4
+
+# Input mux selects for Oscilloscope
+_FIR_OSC_SOURCES = {
+	'a' : _FIR_SOURCE_A,
+	'b' : _FIR_SOURCE_B,
+	'in1' : _FIR_SOURCE_IN1,
+	'in2' : _FIR_SOURCE_IN2,
+	'ext' : _FIR_SOURCE_EXT
+}
 
 _FIR_INPUT_SMPS = ADC_SMP_RATE/4
 _FIR_CHN_BUFLEN = 2**13
@@ -202,6 +219,9 @@ class FIRFilter(_CoreOscilloscope):
 		self._decfilter1 = _DecFilter(self, 97)
 		self._decfilter2 = _DecFilter(self, 101)
 
+		self.monitor_a = 'none'
+		self.monitor_b = 'none'
+
 		# Initialise all local configuration variables
 		# These remember user settings prior to on-commit reg calculations
 		self._matrixscale_ch1_ch1 = 0 
@@ -221,6 +241,11 @@ class FIRFilter(_CoreOscilloscope):
 	@needs_commit
 	def set_defaults(self):
 		super(FIRFilter, self).set_defaults()
+
+		# We only allow looking at the monitor signals in the embedded scope
+		self._set_source(1, _FIR_SOURCE_A)
+		self._set_source(2, _FIR_SOURCE_B)
+
 		self.set_gains_offsets(1)
 		self.set_gains_offsets(2)
 
@@ -229,6 +254,8 @@ class FIRFilter(_CoreOscilloscope):
 
 		self.set_monitor('a','out1')
 		self.set_monitor('b','out2')
+
+		self.set_trigger('a', 'rising', 0, mode='auto')
 
 		self.input_en1 = True
 		self.input_en2 = True
@@ -384,7 +411,7 @@ class FIRFilter(_CoreOscilloscope):
 		self.commit()
 
 	@needs_commit
-	def set_monitor(self, ch, source, clip=False):
+	def set_monitor(self, monitor_ch, source, clip=False):
 		"""
 		Configures the specified monitor channel to view the desired filterbox signal.
 
@@ -400,8 +427,8 @@ class FIRFilter(_CoreOscilloscope):
 			- **in2**	: Filter Channel 2 input (after mixing, offset and scaling)
 			- **out2**	: Filter Channel 2 output
 
-		:type ch: str; {'a','b'}
-		:param ch: Monitor channel
+		:type monitor_ch: str; {'a','b'}
+		:param monitor_ch: Monitor channel
 
 		:type source: str; {'adc1', 'in1', 'out1', 'adc2', 'in2', 'out2'}
 		:param source: Signal to connect to the monitor channel
@@ -409,16 +436,10 @@ class FIRFilter(_CoreOscilloscope):
 		:type clip: bool;
 		:param clip: Enable signal clipping to the allowed size (truncate is default).
 		"""
-		ch = ch.lower()
-		source = source.lower()
-
-		_utils.check_parameter_valid('string', ch, desc="monitor channel")
+		_utils.check_parameter_valid('string', monitor_ch, desc="monitor channel")
 		_utils.check_parameter_valid('string', source, desc="monitor signal")
-		_utils.check_parameter_valid('set', ch, allowed=['a','b'], desc="monitor channel")
-		_utils.check_parameter_valid('set', source, allowed=['adc1', 'in1', 'out1', 'adc2', 'in2', 'out2'], desc="monitor source")
-		_utils.check_parameter_valid('bool', clip, desc="clip enable")
 
-		_str_to_mon_source = {
+		monitor_sources = {
 			'none': _FIR_MON_NONE,
 			'adc1': _FIR_MON_ADC1,
 			'in1':	_FIR_MON_IN1,
@@ -427,15 +448,62 @@ class FIRFilter(_CoreOscilloscope):
 			'in2':	_FIR_MON_IN2,
 			'out2':	_FIR_MON_OUT2
 		}
+		monitor_ch = monitor_ch.lower()
+		source = source.lower()
 
-		source = _utils.str_to_val(_str_to_mon_source, source, 'monitor source')
+		_utils.check_parameter_valid('set', monitor_ch, allowed=['a','b'], desc="monitor channel")
+		_utils.check_parameter_valid('set', source, allowed=['none', 'adc1', 'in1', 'out1', 'adc2', 'in2', 'out2'], desc="monitor source")
 
-		if ch == 'a':
-			self.mon1_source = source
+		if monitor_ch == 'a':
+			self.monitor_a = source
+			self.mon1_source = monitor_sources[source]
 			self.mon1_clip = clip
-		else:
-			self.mon2_source = source
+		elif monitor_ch == 'b':
+			self.monitor_b = source
+			self.mon2_source = monitor_sources[source]
 			self.mon2_clip = clip
+		else:
+			raise ValueOutOfRangeException("Invalid channel %d", monitor_ch)
+
+	@needs_commit
+	def set_trigger(self, source, edge, level, minwidth=None, maxwidth=None, hysteresis=10e-3, hf_reject=False, mode='auto'):
+		""" 
+		Set the trigger source for the monitor channel signals. This can be either of the input or
+		monitor signals, or the external input.
+
+		:type source: string, {'in1','in2','A','B','ext'}
+		:param source: Trigger Source. May be either an input or monitor channel (as set by 
+				:py:meth:`~pymoku.instruments.FIRFilter.set_monitor`), or external. External refers 
+				to the back-panel connector of the same	name, allowing triggering from an 
+				externally-generated digital [LV]TTL or CMOS signal.
+
+		:type edge: string, {'rising','falling','both'}
+		:param edge: Which edge to trigger on. In Pulse Width modes this specifies whether the pulse is positive (rising)
+				or negative (falling), with the 'both' option being invalid.
+
+		:type level: float, [-10.0, 10.0] volts
+		:param level: Trigger level
+
+		:type minwidth: float, seconds
+		:param minwidth: Minimum Pulse Width. 0 <= minwidth < (2^32/samplerate). Can't be used with maxwidth.
+
+		:type maxwidth: float, seconds
+		:param maxwidth: Maximum Pulse Width. 0 <= maxwidth < (2^32/samplerate). Can't be used with minwidth.
+
+		:type hysteresis: float, [100e-6, 1.0] volts
+		:param hysteresis: Hysteresis around trigger point.
+
+		:type hf_reject: bool
+		:param hf_reject: Enable high-frequency noise rejection
+
+		:type mode: string, {'auto', 'normal'}
+		:param mode: Trigger mode.
+		"""
+		# Define the trigger sources appropriate to the LockInAmp instrument
+		source = _utils.str_to_val(_FIR_OSC_SOURCES, source, 'trigger source')
+
+		# This function is the portion of set_trigger shared among instruments with embedded scopes. 
+		self._set_trigger(source, edge, level, minwidth, maxwidth, hysteresis, hf_reject, mode)
 
 	@needs_commit
 	def disable_output(self, ch):
@@ -492,39 +560,41 @@ class FIRFilter(_CoreOscilloscope):
 		# Release the memory map "file" to other resources
 		self._moku._fs_finalise('j', '', _FIR_MMAP_BLOCK_SIZE*2)
 
-	def _calculate_scales(self):
-		scales = super(FIRFilter, self)._calculate_scales()
+	def _signal_source_volts_per_bit(self, source, scales, trigger=False):
+		"""
+			Converts volts to bits depending on the signal source
+		"""
+		# Decimation gain is applied only when using precision mode data
+		if (not trigger and self.is_precision_mode()) or (trigger and self.trig_precision):
+			deci_gain = self._deci_gain()
+		else:
+			deci_gain = 1.0
 
-		atten_ch1 = scales['atten_ch1']
-		atten_ch2 = scales['atten_ch2']
-		gain_adc1 = scales['gain_adc1'] / (10.0 if atten_ch1 else 1.0) # Volts/bit
-		gain_adc2 = scales['gain_adc2'] / (10.0 if atten_ch2 else 1.0) # Volts/bit
-		gain_dac1 = scales['gain_dac1']
-		gain_dac2 = scales['gain_dac2']
+		if (source == _FIR_SOURCE_A):
+			level = self._monitor_source_volts_per_bit(self.monitor_a, scales)/deci_gain
+		elif (source == _FIR_SOURCE_B):
+			level = self._monitor_source_volts_per_bit(self.monitor_b, scales)/deci_gain
+		elif (source == _FIR_SOURCE_IN1):
+			level = scales['gain_adc1']*(10.0 if scales['atten_ch1'] else 1.0)/deci_gain
+		elif (source == _FIR_SOURCE_IN2):
+			level = scales['gain_adc2']*(10.0 if scales['atten_ch2'] else 1.0)/deci_gain
+		else:
+			level = 1.0
+		return level
+
+	def _monitor_source_volts_per_bit(self, source, scales):
+		# Calculates the volts to bits conversion for the given monitor port signal
 
 		monitor_source_gains = {
-			str(_FIR_MON_NONE) 	: 1.0,
-			str(_FIR_MON_ADC1) 	: gain_adc1 / 2.0, 
-			str(_FIR_MON_IN1) 	: 1.0 / (2.0 * _ADC_DEFAULT_CALIBRATION), 
-			str(_FIR_MON_OUT1) 	: gain_dac1 * 2.0**3,
-			str(_FIR_MON_ADC2) 	: gain_adc2 / 2.0,
-			str(_FIR_MON_IN2) 	: 1.0 / (2.0 * _ADC_DEFAULT_CALIBRATION),
-			str(_FIR_MON_OUT2)	: gain_dac2 * 2.0**3,
+			'none': 1.0,
+			'adc1': scales['gain_adc1']/(10.0 if scales['atten_ch1'] else 1.0),
+			'in1':	1.0/_ADC_DEFAULT_CALIBRATION/(10.0 if scales['atten_ch1'] else 1.0),
+			'out1': scales['gain_dac1']*(2.0**4),
+			'adc2': scales['gain_adc2']/(10.0 if scales['atten_ch2'] else 1.0),
+			'in2':	1.0/_ADC_DEFAULT_CALIBRATION/(10.0 if scales['atten_ch2'] else 1.0),
+			'out2':	scales['gain_dac2']*(2.0**4)
 		}
-
-		# Scales for frame channel data
-		scale_ch1 = monitor_source_gains[str(self.mon1_source)] * (1.0 if self.mon1_clip else 2.0) # Y1 * scale_ch1
-		scale_ch2 = monitor_source_gains[str(self.mon2_source)] * (1.0 if self.mon2_clip else 2.0) # Y2 * scale_ch2
-
-		# Account for decimation gain in precision mode
-		if self.is_precision_mode():
-			scale_ch1 /= self._deci_gain()
-			scale_ch2 /= self._deci_gain()
-
-		scales['scale_ch1'] = scale_ch1
-		scales['scale_ch2'] = scale_ch2
-
-		return scales
+		return monitor_source_gains[source]
 
 	def _update_dependent_regs(self, scales):
 		super(FIRFilter, self)._update_dependent_regs(scales)

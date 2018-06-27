@@ -34,6 +34,32 @@ _IIR_MON_OUT1		= 3
 _IIR_MON_ADC2 		= 4
 _IIR_MON_IN2 		= 5
 _IIR_MON_OUT2 		= 6
+
+# Monitor probe locations (for A and B channels)
+_IIR_MON_NONE = 0
+_IIR_MON_ADC1 = 1
+_IIR_MON_IN1  = 2
+_IIR_MON_OUT1 = 3
+_IIR_MON_ADC2 = 4
+_IIR_MON_IN2  = 5
+_IIR_MON_OUT2 = 6
+
+# Oscilloscope data sources
+_IIR_SOURCE_A		= 0
+_IIR_SOURCE_B		= 1
+_IIR_SOURCE_IN1		= 2
+_IIR_SOURCE_IN2		= 3
+_IIR_SOURCE_EXT		= 4
+
+# Input mux selects for Oscilloscope
+_IIR_OSC_SOURCES = {
+	'a' : _IIR_SOURCE_A,
+	'b' : _IIR_SOURCE_B,
+	'in1' : _IIR_SOURCE_IN1,
+	'in2' : _IIR_SOURCE_IN2,
+	'ext' : _IIR_SOURCE_EXT
+}
+
 _IIR_COEFFWIDTH = 48
 
 _IIR_INPUT_SMPS = ADC_SMP_RATE/4
@@ -92,8 +118,8 @@ class IIRFilterBox(_CoreOscilloscope):
 		self._chn_buffer_len = _IIR_CHN_BUFLEN
 
 		# Remembers monitor source choice
-		self.monitor_a = None
-		self.monitor_b = None
+		self.monitor_a = 'none'
+		self.monitor_b = 'none'
 
 		self._decfilter1 = DecFilter(self, 103)
 		self._decfilter2 = DecFilter(self, 107)
@@ -122,6 +148,10 @@ class IIRFilterBox(_CoreOscilloscope):
 	def set_defaults(self):
 		""" Reset the IIR to sane defaults. """
 		super(IIRFilterBox, self).set_defaults()
+
+		# We only allow looking at the monitor signals in the embedded scope
+		self._set_source(1, _IIR_SOURCE_A)
+		self._set_source(2, _IIR_SOURCE_B)
 
 		# Default values
 		self.input_en1 = True
@@ -370,7 +400,7 @@ class IIRFilterBox(_CoreOscilloscope):
 		self._output_offset2 = self.output_offset2
 
 	@needs_commit
-	def set_monitor(self, ch, source):
+	def set_monitor(self, monitor_ch, source):
 		"""
 		Configures the specified monitor channel to view the desired IIR Filter Box signal.
 
@@ -386,112 +416,114 @@ class IIRFilterBox(_CoreOscilloscope):
 			- **in2**	: Filter Channel 2 input (after mixing, offset and scaling)
 			- **out2**	: Filter Channel 2 output
 
-		:type ch: str; {'a','b'}
-		:param ch: Monitor channel
+		:type monitor_ch: str; {'a','b'}
+		:param monitor_ch: Monitor channel
 
 		:type source: str; {'adc1', 'in1', 'out1', 'adc2', 'in2', 'out2'}
 		:param source: Signal to connect to the monitor channel
-
 		"""
-		_utils.check_parameter_valid('string', ch, desc="monitor channel")
+		_utils.check_parameter_valid('string', monitor_ch, desc="monitor channel")
 		_utils.check_parameter_valid('string', source, desc="monitor signal")
 
-		_utils.check_parameter_valid('set', ch, allowed=['a','b'], desc="monitor channel")
-		_utils.check_parameter_valid('set', source, allowed=['adc1', 'in1', 'out1', 'adc2', 'in2', 'out2'], desc="monitor source")
-
-		sources = {
+		monitor_sources = {
 			'none': _IIR_MON_NONE,
 			'adc1': _IIR_MON_ADC1,
 			'in1':	_IIR_MON_IN1,
 			'out1': _IIR_MON_OUT1,
 			'adc2': _IIR_MON_ADC2,
 			'in2':	_IIR_MON_IN2,
-			'out2':	_IIR_MON_OUT2,
+			'out2':	_IIR_MON_OUT2
 		}
-
-		ch = ch.lower()
+		monitor_ch = monitor_ch.lower()
 		source = source.lower()
 
-		if ch == 'a':
-			self.mon1_source = sources[source]
+		_utils.check_parameter_valid('set', monitor_ch, allowed=['a','b'], desc="monitor channel")
+		_utils.check_parameter_valid('set', source, allowed=['none', 'adc1', 'in1', 'out1', 'adc2', 'in2', 'out2'], desc="monitor source")
+
+		if monitor_ch == 'a':
+			self.monitor_a = source
+			self.mon1_source = monitor_sources[source]
+		elif monitor_ch == 'b':
+			self.monitor_b = source
+			self.mon2_source = monitor_sources[source]
 		else:
-			self.mon2_source = sources[source]
+			raise ValueOutOfRangeException("Invalid channel %d", monitor_ch)
 
 	@needs_commit
-	def set_trigger(self, source, edge, level, hysteresis=False, hf_reject=False, mode='auto'):
+	def set_trigger(self, source, edge, level, minwidth=None, maxwidth=None, hysteresis=10e-3, hf_reject=False, mode='auto'):
+		""" 
+		Set the trigger source for the monitor channel signals. This can be either of the input or
+		monitor signals, or the external input.
+
+		:type source: string, {'in1','in2','A','B','ext'}
+		:param source: Trigger Source. May be either an input or monitor channel (as set by 
+				:py:meth:`~pymoku.instruments.IIRFilterBox.set_monitor`), or external. External refers 
+				to the back-panel connector of the same	name, allowing triggering from an 
+				externally-generated digital [LV]TTL or CMOS signal.
+
+		:type edge: string, {'rising','falling','both'}
+		:param edge: Which edge to trigger on. In Pulse Width modes this specifies whether the pulse is positive (rising)
+				or negative (falling), with the 'both' option being invalid.
+
+		:type level: float, [-10.0, 10.0] volts
+		:param level: Trigger level
+
+		:type minwidth: float, seconds
+		:param minwidth: Minimum Pulse Width. 0 <= minwidth < (2^32/samplerate). Can't be used with maxwidth.
+
+		:type maxwidth: float, seconds
+		:param maxwidth: Maximum Pulse Width. 0 <= maxwidth < (2^32/samplerate). Can't be used with minwidth.
+
+		:type hysteresis: float, [100e-6, 1.0] volts
+		:param hysteresis: Hysteresis around trigger point.
+
+		:type hf_reject: bool
+		:param hf_reject: Enable high-frequency noise rejection
+
+		:type mode: string, {'auto', 'normal'}
+		:param mode: Trigger mode.
 		"""
-			Set the trigger for the monitor signals. This can be either of the input channel signals
-			or monitor channel signals.
+		# Define the trigger sources appropriate to the LockInAmp instrument
+		source = _utils.str_to_val(_IIR_OSC_SOURCES, source, 'trigger source')
 
-			:type source: string; {'in1','in2','A','B','ext'}
-			:param source: Trigger channel
+		# This function is the portion of set_trigger shared among instruments with embedded scopes. 
+		self._set_trigger(source, edge, level, minwidth, maxwidth, hysteresis, hf_reject, mode)
 
-			:type edge: string, {'rising','falling','both'}
-			:param edge: Which edge to trigger on.
-
-			:type level: float, [-10.0, 10.0] volts
-			:param level: Trigger level
-
-			:type hysteresis: bool
-			:param hysteresis: Enable Hysteresis around trigger point.
-
-			:type hf_reject: bool
-			:param hf_reject: Enable high-frequency noise rejection
-
-			:type mode: string, {'auto', 'normal'}
-			:param mode: Trigger mode.
+	def _signal_source_volts_per_bit(self, source, scales, trigger=False):
 		"""
-		_utils.check_parameter_valid('string', source, desc="trigger source")
-		source = source.lower()
-		_utils.check_parameter_valid('set', source, allowed=['in1','in2','a','b','ext'], desc="trigger source")
+			Converts volts to bits depending on the signal source
+		"""
+		# Decimation gain is applied only when using precision mode data
+		if (not trigger and self.is_precision_mode()) or (trigger and self.trig_precision):
+			deci_gain = self._deci_gain()
+		else:
+			deci_gain = 1.0
 
-		# Translate the IIR trigger sources to Oscilloscope sources
-		_str_to_osc_trig_source = {
-			'a' : 'in1',
-			'b' : 'in2',
-			'in1' : 'out1',
-			'in2' : 'out2',
-			'ext' : 'ext'
-		}
+		if (source == _IIR_SOURCE_A):
+			level = self._monitor_source_volts_per_bit(self.monitor_a, scales)/deci_gain
+		elif (source == _IIR_SOURCE_B):
+			level = self._monitor_source_volts_per_bit(self.monitor_b, scales)/deci_gain
+		elif (source == _IIR_SOURCE_IN1):
+			level = scales['gain_adc1']*(10.0 if scales['atten_ch1'] else 1.0)/deci_gain
+		elif (source == _IIR_SOURCE_IN2):
+			level = scales['gain_adc2']*(10.0 if scales['atten_ch2'] else 1.0)/deci_gain
+		else:
+			level = 1.0
+		return level
 
-		source = _utils.str_to_val(_str_to_osc_trig_source, source, 'trigger source')
-
-		super(IIRFilterBox, self).set_trigger(source=source, edge=edge, level=level, hysteresis=hysteresis, hf_reject=hf_reject, mode=mode)
-
-	def _calculate_scales(self):
-		# This calculates scaling factors for the internal Oscilloscope frames
-		scales = super(IIRFilterBox, self)._calculate_scales()
-
-		atten_ch1 = scales['atten_ch1']
-		atten_ch2 = scales['atten_ch2']
-		gain_adc1 = scales['gain_adc1'] / (10.0 if atten_ch1 else 1.0) # Volts/bit
-		gain_adc2 = scales['gain_adc2'] / (10.0 if atten_ch2 else 1.0) # Volts/bit
-		gain_dac1 = scales['gain_dac1']
-		gain_dac2 = scales['gain_dac2']
+	def _monitor_source_volts_per_bit(self, source, scales):
+		# Calculates the volts to bits conversion for the given monitor port signal
 
 		monitor_source_gains = {
-			str(_IIR_MON_NONE) 	: 1.0,
-			str(_IIR_MON_ADC1) 	: gain_adc1, 
-			str(_IIR_MON_IN1) 	: 1.0 / (_ADC_DEFAULT_CALIBRATION), 
-			str(_IIR_MON_OUT1) 	: gain_dac1 * 2.0**4,
-			str(_IIR_MON_ADC2) 	: gain_adc2,
-			str(_IIR_MON_IN2) 	: 1.0 / (_ADC_DEFAULT_CALIBRATION),
-			str(_IIR_MON_OUT2)	: gain_dac2 * 2.0**4,
+			'none': 1.0,
+			'adc1': scales['gain_adc1']/(10.0 if scales['atten_ch1'] else 1.0),
+			'in1':	1.0/_ADC_DEFAULT_CALIBRATION/(10.0 if scales['atten_ch1'] else 1.0),
+			'out1': scales['gain_dac1']*(2.0**4),
+			'adc2': scales['gain_adc2']/(10.0 if scales['atten_ch2'] else 1.0),
+			'in2':	1.0/_ADC_DEFAULT_CALIBRATION/(10.0 if scales['atten_ch2'] else 1.0),
+			'out2':	scales['gain_dac2']*(2.0**4)
 		}
-
-		# Scales for frame channel data
-		scale_ch1 = monitor_source_gains[str(self.mon1_source)] # Y1 * scale_ch1
-		scale_ch2 = monitor_source_gains[str(self.mon2_source)] # Y2 * scale_ch2
-
-		# Account for decimation gain in precision mode
-		if self.is_precision_mode():
-			scale_ch1 /= self._deci_gain()
-			scale_ch2 /= self._deci_gain()
-
-		scales['scale_ch1'] = scale_ch1
-		scales['scale_ch2'] = scale_ch2
-
-		return scales
+		return monitor_source_gains[source]
 
 	def _update_dependent_regs(self, scales):
 		super(IIRFilterBox, self)._update_dependent_regs(scales)

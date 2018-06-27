@@ -25,6 +25,15 @@ _OSC_SOURCE_DA1		= 2
 _OSC_SOURCE_DA2		= 3
 _OSC_SOURCE_EXT		= 4
 
+# Input mux selects for Oscilloscope
+_OSC_SOURCES = {
+	'in1' : _OSC_SOURCE_CH1,
+	'in2' : _OSC_SOURCE_CH2,
+	'out1' : _OSC_SOURCE_DA1,
+	'out2' : _OSC_SOURCE_DA2,
+	'ext' : _OSC_SOURCE_EXT
+}
+
 _OSC_ROLL			= ROLL
 _OSC_SWEEP			= SWEEP
 _OSC_FULL_FRAME		= FULL_FRAME
@@ -76,6 +85,11 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		self.fmtstr = ''
 		self.hdrstr = ''
 		self.timestep = 1
+
+		# Initialise any local user config variables
+		self._trig_hysteresis = 0
+		self._trig_level = 0
+		self._trig_duration = 0
 
 	def _calculate_decimation(self, t1, t2):
 
@@ -176,22 +190,6 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		self.pretrigger = buffer_offset
 		self.offset = frame_offset
 
-	def _source_volts_per_bit(self, source, scales):
-		"""
-			Converts volts to bits depending on the source (ADC1/2, DAC1/2)
-		"""
-		if (source == _OSC_SOURCE_CH1):
-			level = scales['gain_adc1']
-		elif (source == _OSC_SOURCE_CH2):
-			level = scales['gain_adc2']
-		elif (source == _OSC_SOURCE_DA1):
-			level = (scales['gain_dac1'])*16
-		elif (source == _OSC_SOURCE_DA2):
-			level = (scales['gain_dac2'])*16
-		else:
-			level = 1.0
-		return level
-
 	@needs_commit
 	def set_samplerate(self, samplerate, trigger_offset=0):
 		""" Manually set the sample rate of the instrument.
@@ -255,73 +253,35 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		Precision mode, a.k.a Decimation, samples at full rate and applies a low-pass filter to the data. This improves
 		precision. Normal mode works by direct downsampling, throwing away points it doesn't need.
 
-		Precision mode canot be enabled if the trigger hysteresis has been explicitly set to an explicit, non-zero voltage.
-		See :any:`set_trigger <pymoku.instruments.Oscilloscope.set_trigger`.
-
 		:param state: Select Precision Mode
 		:type state: bool
 		"""
 		_utils.check_parameter_valid('bool', state, desc='precision mode enable')
-		#if state and self.hysteresis > 0 :
-		#	raise InvalidConfigurationException("Precision mode and Hysteresis can't be set at the same time.")
 		self.ain_mode = _OSC_AIN_DECI if state else _OSC_AIN_DDS
 
 	def is_precision_mode(self):
 		return self.ain_mode is _OSC_AIN_DECI
 
-	@needs_commit
-	def set_trigger(self, source, edge, level, minwidth=None, maxwidth=None, hysteresis=False, hf_reject=False, mode='auto'):
-		""" Sets trigger source and parameters.
+	def _set_trigger(self, source, edge, level, minwidth, maxwidth, hysteresis, hf_reject, mode):
+		if (self._moku.get_hw_version() == 1.0) and source == _OSC_SOURCE_EXT:
+			raise InvalidConfigurationException('External trigger source is not available on your hardware.')
 
-		:type source: string, {'in1','in2','out1','out2','ext'}
-		:param source: Trigger Source. May be either an input or output channel, or external. The output options allow
-				triggering off an internally-generated waveform. External refers to the back-panel connector of the same
-				name, allowing triggering from an externally-generated digital [LV]TTL or CMOS signal.
-
-		:type edge: string, {'rising','falling','both'}
-		:param edge: Which edge to trigger on. In Pulse Width modes this specifies whether the pulse is positive (rising)
-				or negative (falling), with the 'both' option being invalid.
-
-		:type level: float, [-10.0, 10.0] volts
-		:param level: Trigger level
-
-		:type minwidth: float, seconds
-		:param minwidth: Minimum Pulse Width. 0 <= minwidth < (2^32/samplerate). Can't be used with maxwidth.
-
-		:type maxwidth: float, seconds
-		:param maxwidth: Maximum Pulse Width. 0 <= maxwidth < (2^32/samplerate). Can't be used with minwidth.
-
-		:type hysteresis: bool
-		:param hysteresis: Enable Hysteresis around trigger point.
-
-		:type hf_reject: bool
-		:param hf_reject: Enable high-frequency noise rejection
-
-		:type mode: string, {'auto', 'normal'}
-		:param mode: Trigger mode.
-
-		.. note::
-			Traditional Oscilloscopes have a "Single Trigger" mode that captures an event then
-			pauses the instrument. In pymoku, there is no need to pause the instrument as you
-			can simply choose to continue using the last captured frame.  That is, set trigger
-			``mode='normal'`` then retrieve a single frame using :any:`get_data <pymoku.instruments.Oscilloscope.get_data>`
-			or :any:`get_realtime_data <pymoku.instruments.Oscilloscope.get_realtime_data>`
-			with ``wait=True``.
-
-		"""
 		# Convert the input parameter strings to bit-value mappings
-		_utils.check_parameter_valid('bool', hysteresis, desc="enable hysteresis")
 		_utils.check_parameter_valid('range', level, [_OSC_TRIGLVL_MIN, _OSC_TRIGLVL_MAX], 'trigger level', 'Volts')
 		_utils.check_parameter_valid('bool', hf_reject, 'High-frequency reject enable')
 		_utils.check_parameter_valid('set', mode, ['auto', 'normal'], desc='mode')
+		_utils.check_parameter_valid('range', hysteresis, [100e-6, 1.0], 'hysteresis', 'Volts')
 		if not (maxwidth is None or minwidth is None):
 			raise InvalidConfigurationException("Can't set both 'minwidth' and 'maxwidth' for Pulse Width trigger mode. Choose one.")
 		if (maxwidth or minwidth) and (edge is 'both'):
 			raise InvalidConfigurationException("Can't set trigger edge type 'both' in Pulse Width trigger mode. Choose one of {'rising','falling'}.")
 
-		# External trigger source is only available on Moku 20
-		if (self._moku.get_hw_version() == 1.0) and source == 'ext':
-			raise ValueOutOfRangeException('External trigger source is not available on your hardware.')
+		_str_to_edge = {
+			'rising' : Trigger.EDGE_RISING,
+			'falling' : Trigger.EDGE_FALLING,
+			'both'	: Trigger.EDGE_BOTH
+		}
+		edge = _utils.str_to_val(_str_to_edge, edge, 'edge type')
 
 		self.hf_reject = hf_reject
 
@@ -332,24 +292,11 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 			self._trigger.timer = 0.0
 			self._trigger.auto_holdoff = 0
 
-		_str_to_trigger_source = {
-			'in1' : _OSC_SOURCE_CH1,
-			'in2' : _OSC_SOURCE_CH2,
-			'out1' : _OSC_SOURCE_DA1,
-			'out2' : _OSC_SOURCE_DA2,
-			'ext' : _OSC_SOURCE_EXT
-		}
-		_str_to_edge = {
-			'rising' : Trigger.EDGE_RISING,
-			'falling' : Trigger.EDGE_FALLING,
-			'both'	: Trigger.EDGE_BOTH
-		}
-		source = _utils.str_to_val(_str_to_trigger_source, source, 'trigger source')
-		edge = _utils.str_to_val(_str_to_edge, edge, 'edge type')
-
 		self.trig_ch = source
-		self.trig_level = level
-		self.trig_duration = minwidth or maxwidth or 0.0
+		# Locally store user settings and calculate regs at commit-time
+		self._trig_level = level
+		self._trig_duration = minwidth or maxwidth or 0.0
+		self._trig_hysteresis = hysteresis
 
 		self._trigger.edge = edge
 		self._trigger.mode = mode
@@ -362,46 +309,16 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		else:
 			self._trigger.trigtype = Trigger.TYPE_EDGE
 
-		# TODO: Enable setting hysteresis level. For now we use the iPad LSB values for ON/OFF.
-		self._trigger.hysteresis = 25 if hysteresis else 5
-
-	@needs_commit
-	def set_source(self, ch, source, lmode='round'):
+	def _set_source(self, ch, source):
 		""" Sets the source of the channel data to either the analog input or internally looped-back digital output.
-
-		This feature allows the user to preview the Waveform Generator outputs.
-
-		:type ch: int; {1,2}
-		:param ch: Channel Number
-
-		:type source: string, {'in1','in2','out1','out2','ext'}
-		:param source: Where the specified channel should source data from (either the input or internally looped back output)
-
-		:type lmode: string, {'clip','round'}
-		:param lmode: DAC Loopback mode (ignored 'in' sources)
 		"""
+		# TODO: Add loopback mode parameter
 		_utils.check_parameter_valid('set', ch, [1,2], 'channel')
-		_str_to_lmode = {
-			'round' : _OSC_LB_ROUND,
-			'clip' : _OSC_LB_CLIP
-		}
-		_str_to_channel_data_source = {
-			'in1' : _OSC_SOURCE_CH1,
-			'in2' : _OSC_SOURCE_CH2,
-			'out1' : _OSC_SOURCE_DA1,
-			'out2' : _OSC_SOURCE_DA2,
-			'ext' : _OSC_SOURCE_EXT
-		}
-		source = _utils.str_to_val(_str_to_channel_data_source, source, 'channel data source')
-		lmode = _utils.str_to_val(_str_to_lmode, lmode, 'DAC loopback mode')
+
 		if ch == 1:
 			self.source_ch1 = source
-			if source in [_OSC_SOURCE_DA1, _OSC_SOURCE_DA2]:
-				self.loopback_mode_ch1 = lmode
 		elif ch == 2:
 			self.source_ch2 = source
-			if source in [_OSC_SOURCE_DA1, _OSC_SOURCE_DA2]:
-				self.loopback_mode_ch2 = lmode
 		else:
 			raise ValueOutOfRangeException("Incorrect channel number %d", ch)
 
@@ -409,10 +326,8 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 	def set_defaults(self):
 		""" Reset the Oscilloscope to sane defaults. """
 		super(_CoreOscilloscope, self).set_defaults()
-		self.set_source(1,'in1')
-		self.set_source(2,'in2')
-		self.set_trigger('in1','rising', 0)
-		self.set_precision_mode(False)
+		self.set_precision_mode(True)
+		self.trig_precision = True # Set to always trigger off precision data
 		self.set_timebase(-1, 1)
 		self._set_pause(False)
 
@@ -430,13 +345,6 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		d1, d2 = self._dac_gains()
 		a1 = self.get_frontend(1)[1]
 		a2 = self.get_frontend(2)[1]
-		gains = [g1, g2, d1, d2, 2.0**-11]
-
-		l1 = self.loopback_mode_ch1
-		l2 = self.loopback_mode_ch2
-
-		s1 = self.source_ch1
-		s2 = self.source_ch2
 
 		if(self.decimation_rate == 0 or self.render_deci == 0):
 			log.warning("ADCs appear to be turned off or decimation unset")
@@ -450,37 +358,37 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 			bt1 = self._calculate_buffer_start_time(self.decimation_rate, self.pretrigger)
 			bts = self._calculate_buffer_timestep(self.decimation_rate)
 
-		scale_ch1 = gains[s1]
-		scale_ch2 = gains[s2]
-
-		if self.ain_mode == _OSC_AIN_DECI:
-			scale_ch1 /= self._deci_gain()
-			scale_ch2 /= self._deci_gain()
-
-		scale_ch1 *= 16.0 if s1 in [_OSC_SOURCE_DA1, _OSC_SOURCE_DA2] and l1 != _OSC_LB_CLIP else 1.0
-		scale_ch2 *= 16.0 if s2 in [_OSC_SOURCE_DA1, _OSC_SOURCE_DA2] and l2 != _OSC_LB_CLIP else 1.0
-
-		return {'scale_ch1': scale_ch1,
-				'scale_ch2': scale_ch2,
+		scales = {
 				'gain_adc1': g1,
 				'gain_adc2': g2,
 				'gain_dac1': d1,
 				'gain_dac2': d2,
 				'atten_ch1': a1,
 				'atten_ch2': a2,
-				'source_ch1': s1,
-				'source_ch2': s2,
-				'gain_loopback1': l1,
-				'gain_loopback2': l2,
 				'time_min': t1,
 				'time_step': ts,
 				'buff_time_min': bt1,
-				'buff_time_step': bts}
+				'buff_time_step': bts
+				}
+
+		# Replace scaling factors depending on the monitor signal source
+		scales['scale_ch1'] = self._signal_source_volts_per_bit(self.source_ch1, scales)
+		scales['scale_ch2'] = self._signal_source_volts_per_bit(self.source_ch2, scales)
+
+		return scales 
 
 	def _update_dependent_regs(self, scales):
 		# Update trigger level and duration settings based on current trigger source and timebase
-		self._trigger.duration = self.trig_duration * self._input_samplerate / (self.decimation_rate if self.is_precision_mode() else 1.0)
-		self._trigger.level = int(round(self.trig_level / self._source_volts_per_bit(self.trig_ch, scales)))
+		self._trigger.duration = self._trig_duration * self._input_samplerate / (self.decimation_rate if self.is_precision_mode() else 1.0)
+		self._trigger.level = int(round(self._trig_level/self._signal_source_volts_per_bit(self.trig_ch, scales, trigger=True)))
+
+		# Notify the user if hysteresis has been clamped
+		max_hysteresis = 2**16 - 1
+		hysteresis = int(round(self._trig_hysteresis/self._signal_source_volts_per_bit(self.trig_ch, scales, trigger=True)))
+		if hysteresis > max_hysteresis:
+			hysteresis = max_hysteresis
+			log.info("Hysteresis set to maximum value.")
+		self._trigger.hysteresis = hysteresis
 
 	def _update_datalogger_params(self):
 		scales = self._calculate_scales()
@@ -537,8 +445,9 @@ class _CoreOscilloscope(_frame_instrument.FrameBasedInstrument):
 		self.scales[self._stateid] = scales
 
 		# Read back trigger settings into local variables
-		self.trig_duration = self._trigger.duration * (self.decimation_rate if self.is_precision_mode() else 1.0) / self._input_samplerate
-		self.trig_level = self._trigger.level * self._source_volts_per_bit(self.trig_ch, scales)
+		self._trig_duration = self._trigger.duration * (self.decimation_rate if self.is_precision_mode() else 1.0) / self._input_samplerate
+		self._trig_level = self._trigger.level * self._signal_source_volts_per_bit(self.trig_ch, scales, trigger=True)
+		self._trig_hysteresis = self._trigger.hysteresis * self._signal_source_volts_per_bit(self.trig_ch, scales, trigger=True)
 
 		self._update_datalogger_params()
 
@@ -581,8 +490,97 @@ class Oscilloscope(_CoreOscilloscope, _waveform_generator.BasicWaveformGenerator
 	"""
 	# The Oscilloscope core is split out without the siggen so it can be used as embedded in other instruments,
 	# e.g. lockin, pid etc.
-	pass
 
+	@needs_commit
+	def set_defaults(self):
+		super(Oscilloscope, self).set_defaults()
+		self.set_source(1,'in1')
+		self.set_source(2,'in2')
+		self.set_trigger('in1','rising', 0)
+	
+	@needs_commit
+	def set_trigger(self, source, edge, level, minwidth=None, maxwidth=None, hysteresis=10e-3, hf_reject=False, mode='auto'):
+		""" Sets trigger source and parameters.
+
+		:type source: string, {'in1','in2','out1','out2','ext'}
+		:param source: Trigger Source. May be either an input or output channel, or external. The output options allow
+				triggering off an internally-generated waveform. External refers to the back-panel connector of the same
+				name, allowing triggering from an externally-generated digital [LV]TTL or CMOS signal.
+
+		:type edge: string, {'rising','falling','both'}
+		:param edge: Which edge to trigger on. In Pulse Width modes this specifies whether the pulse is positive (rising)
+				or negative (falling), with the 'both' option being invalid.
+
+		:type level: float, [-10.0, 10.0] volts
+		:param level: Trigger level
+
+		:type minwidth: float, seconds
+		:param minwidth: Minimum Pulse Width. 0 <= minwidth < (2^32/samplerate). Can't be used with maxwidth.
+
+		:type maxwidth: float, seconds
+		:param maxwidth: Maximum Pulse Width. 0 <= maxwidth < (2^32/samplerate). Can't be used with minwidth.
+
+		:type hysteresis: float, [100e-6, 1.0] volts
+		:param hysteresis: Hysteresis around trigger point.
+
+		:type hf_reject: bool
+		:param hf_reject: Enable high-frequency noise rejection
+
+		:type mode: string, {'auto', 'normal'}
+		:param mode: Trigger mode.
+
+		.. note::
+			Traditional Oscilloscopes have a "Single Trigger" mode that captures an event then
+			pauses the instrument. In pymoku, there is no need to pause the instrument as you
+			can simply choose to continue using the last captured frame.  That is, set trigger
+			``mode='normal'`` then retrieve a single frame using :any:`get_data <pymoku.instruments.Oscilloscope.get_data>`
+			or :any:`get_realtime_data <pymoku.instruments.Oscilloscope.get_realtime_data>`
+			with ``wait=True``.
+
+		"""
+		source = _utils.str_to_val(_OSC_SOURCES, source, 'trigger source')
+		self._set_trigger(source, edge, level, minwidth, maxwidth, hysteresis, hf_reject, mode)
+
+	@needs_commit
+	def set_source(self, ch, source, lmode='round'):
+		""" Sets the source of the channel data to either the analog input or internally looped-back digital output.
+
+		This feature allows the user to preview the Waveform Generator outputs.
+
+		:type ch: int; {1,2}
+		:param ch: Channel Number
+
+		:type source: string, {'in1','in2','out1','out2','ext'}
+		:param source: Where the specified channel should source data from (either the input or internally looped back output)
+
+		:type lmode: string, {'clip','round'}
+		:param lmode: DAC Loopback mode (ignored 'in' sources)
+		"""
+		# TODO: Add loopback mode functionality
+		source = _utils.str_to_val(_OSC_SOURCES, source, 'channel data source')
+		self._set_source(ch, source)
+
+	def _signal_source_volts_per_bit(self, source, scales, trigger=False):
+		"""
+			Converts volts to bits depending on the signal source
+		"""
+		if (not trigger and self.is_precision_mode()) or (trigger and self.trig_precision):
+			deci_gain = self._deci_gain()
+		else:
+			deci_gain = 1.0
+
+		if (source == _OSC_SOURCE_CH1):
+			level = scales['gain_adc1']/deci_gain
+		elif (source == _OSC_SOURCE_CH2):
+			level = scales['gain_adc2']/deci_gain
+		elif (source == _OSC_SOURCE_DA1):
+			level = (scales['gain_dac1'])*16/deci_gain
+		elif (source == _OSC_SOURCE_DA2):
+			level = (scales['gain_dac2'])*16/deci_gain
+		else:
+			level = 1.0
+
+		return level
 
 _osc_reg_handlers = {
 	'source_ch1':		(REG_OSC_OUTSEL,	to_reg_unsigned(0, 8, allow_set=[_OSC_SOURCE_CH1, _OSC_SOURCE_CH2, _OSC_SOURCE_DA1, _OSC_SOURCE_DA2, _OSC_SOURCE_EXT]),
@@ -602,5 +600,8 @@ _osc_reg_handlers = {
 											from_reg_unsigned(1, 1)),
 	'ain_mode':			(REG_OSC_ACTL,		to_reg_unsigned(16,2, allow_set=[_OSC_AIN_DDS, _OSC_AIN_DECI]),
 											from_reg_unsigned(16,2)),
+
+	'trig_precision': 	(REG_OSC_ACTL, 		to_reg_bool(18), 		from_reg_bool(18)),
+
 	'decimation_rate':	(REG_OSC_DECIMATION,to_reg_unsigned(0, 32),	from_reg_unsigned(0, 32))
 }
