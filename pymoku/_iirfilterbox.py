@@ -427,7 +427,7 @@ class IIRFilterBox(_CoreOscilloscope):
 		source = source.lower()
 
 		_utils.check_parameter_valid('set', monitor_ch, allowed=['a','b'], desc="monitor channel")
-		_utils.check_parameter_valid('set', source, allowed=monitor_sources.keys(), desc="monitor source")
+		_utils.check_parameter_valid('set', source, allowed=['none', 'adc1', 'in1', 'out1', 'adc2', 'in2', 'out2'], desc="monitor source")
 
 		if monitor_ch == 'a':
 			self.monitor_a = source
