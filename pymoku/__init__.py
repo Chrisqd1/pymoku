@@ -145,8 +145,8 @@ class Moku(object):
 		if not force:
 			if cp.firmware_is_compatible(self) == False: # Might be None = unknown, don't print that.
 				raise MokuException("Moku:Lab firmware {} incompatible with Pymoku v{}. "
-					"Please update using\n moku --ip={} update fetch\n moku --ip={} update install"
-					.format(self.get_firmware_build(), PYMOKU_VERSION, self.get_ip(), self.get_ip()))
+					"Please update using\n moku update fetch\n moku --ip={} update install"
+					.format(self.get_firmware_build(), PYMOKU_VERSION, self.get_ip()))
 
 		self.load_instruments = load_instruments if load_instruments is not None else self.get_bootmode() == 'normal'
 
@@ -229,7 +229,7 @@ class Moku(object):
 
 		:raises *MokuNotFound*: if no such Moku:Lab is found within the timeout period.
 		"""
-		try: 
+		try:
 			serial_num = int(serial)
 		except ValueError:
 			raise InvalidParameterException("Moku:Lab serial number must be an integer e.g. '000231'. See base plate of your device.")

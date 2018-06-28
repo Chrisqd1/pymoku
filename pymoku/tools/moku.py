@@ -108,10 +108,13 @@ def update(args):
 		if firmware_reboot:
 			serial_num = int(moku.get_serial())
 			moku._trigger_fwload()
-			log.info("Successfully started firmware update. Your Moku:Lab will shut down automatically when complete. " 
-						"This process can take up to 30-minutes. Please run `moku --serial=%d update install` a second time to ensure all updates are installed correctly." % (serial_num))
+			log.info("Successfully started firmware update.\n"
+			         "Your Moku:Lab will shut down automatically when complete. "
+			         "This process can take up to 30 minutes.\n"
+			         "Please run `moku --serial=%d update install` "
+			         "a second time to ensure all updates are installed correctly." % (serial_num))
 			return
-		
+
 		# Applying patches
 		logging.info('Checking for updates.')
 
@@ -119,7 +122,7 @@ def update(args):
 			logging.info('Applying updates...')
 			patch_reboot |= _load_patches()
 		else:
-			logging.info('Moku:Lab already up to date.')		
+			logging.info('Moku:Lab already up to date.')
 
 		if patch_reboot:
 			moku._restart_board()
