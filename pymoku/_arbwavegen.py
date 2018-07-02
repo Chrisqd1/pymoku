@@ -524,7 +524,6 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		"""
 		if (source == _ARB_TRIG_SRC_CH1):
 			level = scales['gain_adc1']
-			print(level)
 		elif (source == _ARB_TRIG_SRC_CH2):
 			level = scales['gain_adc2']
 		elif (source == _ARB_TRIG_SRC_EXT):
