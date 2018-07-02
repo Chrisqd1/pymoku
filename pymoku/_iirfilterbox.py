@@ -181,8 +181,8 @@ class IIRFilterBox(_CoreOscilloscope):
 		self.set_monitor('a', 'in1')
 		self.set_monitor('b', 'in2')
 		self.set_trigger('a', 'rising', 0)
-		self.set_filter(1, sample_rate='high', filter_coefficients=[[1.0],b,b,b,b])
-		self.set_filter(2, sample_rate='high', filter_coefficients=[[1.0],b,b,b,b])
+		self._decfilter1.set_samplerate(8)
+		self._decfilter2.set_samplerate(8)
 		self.set_timebase(-1e-3, 1e-3)
 
 	@needs_commit

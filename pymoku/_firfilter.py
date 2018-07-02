@@ -261,8 +261,8 @@ class FIRFilter(_CoreOscilloscope):
 
 		self.set_trigger('a', 'rising', 0, mode='auto')
 		self.set_timebase(-1e-3, 1e-3)
-		self.set_filter(1, decimation_factor = 3, filter_coefficients = [1.0])
-		self.set_filter(2, decimation_factor = 3, filter_coefficients = [1.0])
+		self._set_samplerate(1, 8)
+		self._set_samplerate(2, 8)
 
 	@needs_commit
 	def set_control_matrix(self, ch, scale_in1, scale_in2):
