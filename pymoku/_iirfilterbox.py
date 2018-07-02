@@ -162,9 +162,6 @@ class IIRFilterBox(_CoreOscilloscope):
 		self.set_control_matrix(1, 1.0, 0.0)
 		self.set_control_matrix(2, 0.0, 1.0)
 
-		self.ch1_sampling_freq = 0
-		self.ch2_sampling_freq = 0
-
 		self.filter_reset = 0
 
 		# initialize filter coefficient arrays as all pass filters
@@ -179,6 +176,14 @@ class IIRFilterBox(_CoreOscilloscope):
 		# Default unity gain, zero offset, identity mixing matrix.
 		self.set_gains_offsets(1)
 		self.set_gains_offsets(2)
+
+		# Set default settings to plotting script values that have been tested thoroughly
+		self.set_monitor('a', 'in1')
+		self.set_monitor('b', 'in2')
+		self.set_trigger('a', 'rising', 0)
+		self.set_filter(1, sample_rate='high', filter_coefficients=[[1.0],b,b,b,b])
+		self.set_filter(2, sample_rate='high', filter_coefficients=[[1.0],b,b,b,b])
+		self.set_timebase(-1e-3, 1e-3)
 
 	@needs_commit
 	def set_control_matrix(self, ch, scale_in1, scale_in2):
