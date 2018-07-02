@@ -139,21 +139,23 @@ class PIDController(_CoreOscilloscope):
 		self._set_source(1, _PID_SOURCE_A)
 		self._set_source(2, _PID_SOURCE_B)
 
+
 		self.set_monitor('a','out1')
 		self.set_monitor('b','out2')
 
 		self.set_trigger('a', 'rising', 0, mode='auto')
-
-		# Enable inputs/outputs
-		self.ch1_input_en = True
-		self.ch1_output_en = True
-		self.ch2_input_en = True
-		self.ch2_output_en = True
+		self.set_timebase(-1e-3, 1e-3)
+		
 
 		self.set_control_matrix(1, 1, 0)
 		self.set_control_matrix(2, 1, 0)
-		self.set_by_gain(1, 1, 0)
-		self.set_by_gain(2, 1, 0)
+		self.set_by_gain(1, 1, 1)
+		self.set_by_gain(2, 1, 1)
+		# Enable inputs/outputs
+		self.ch1_input_en = True
+		self.ch1_output_en = False
+		self.ch2_input_en = True
+		self.ch2_output_en = False
 
 	def _calculate_gains_by_frequency(self, kp, i_xover, d_xover, ii_xover, si, sd):
 		# Particularly high or low I or D crossover frequencies (<1Hz, >1MHz) require that some of their gain is
