@@ -84,6 +84,9 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		"""
 		super(ArbitraryWaveGen, self).set_defaults()
 
+		self.set_frontend(1, fiftyr=True, atten=True, ac=False)
+		self.set_frontend(1, fiftyr=True, atten=True, ac=False)
+
 		self.gen_waveform(1, 1, 0, en=False)
 		self.gen_waveform(2, 1, 0, en=False)
 
@@ -436,8 +439,8 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 
 	def _update_dependent_regs(self, scales):
 		super(ArbitraryWaveGen, self)._update_dependent_regs(scales)
-		self._trigger1.level = int(round(self.trig_level1 / self._source_volts_per_bit(self.trig_source1, scales)))
-		self._trigger2.level = int(round(self.trig_level2 / self._source_volts_per_bit(self.trig_source2, scales)))
+		self._trigger1.level = int(round(self.trig_level1 / self._signal_source_volts_per_bit(self.trig_source1, scales)))
+		self._trigger2.level = int(round(self.trig_level2 / self._signal_source_volts_per_bit(self.trig_source2, scales)))
 
 	@needs_commit
 	def sync_phase(self):
@@ -513,6 +516,23 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 			self.enable1 = en
 		if not ch or ch==2:
 			self.enable2 = en
+
+	def _signal_source_volts_per_bit(self, source, scales, trigger=False):
+		"""
+			Converts volts to bits depending on the signal source. 
+			To do: complete this function when osc functionality added to awg, stubbed for now.
+		"""
+		if (source == _ARB_TRIG_SRC_CH1):
+			level = scales['gain_adc1']
+			print(level)
+		elif (source == _ARB_TRIG_SRC_CH2):
+			level = scales['gain_adc2']
+		elif (source == _ARB_TRIG_SRC_EXT):
+			level = 1.0
+		else:
+			level = 1.0
+
+		return level
 
 
 _arb_reg_handlers = {
