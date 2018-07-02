@@ -7,8 +7,8 @@ compat_fw = [474]
 compat_patch = [1]
 
 # List of compatible packs
-compat_packs = [('python-pymoku',	'898FEC789F1666B19FBC57DD384C79AEC5D2BB00'),
-				('mercury',			'898FEC789F1666B19FBC57DD384C79AEC5D2BB00')]
+compat_packs = [('python-pymoku',	'28D72BBEFCB076F772ACCB25C7D698A2DA843054'),
+				('mercury',			'28D72BBEFCB076F772ACCB25C7D698A2DA843054')]
 
 # Compatible network protocol version
 protocol_version = '7'
