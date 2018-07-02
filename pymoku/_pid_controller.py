@@ -147,9 +147,9 @@ class PIDController(_CoreOscilloscope):
 		self.set_timebase(-1e-3, 1e-3)
 		# Enable inputs/outputs
 		self.ch1_input_en = True
-		self.ch1_output_en = True
+		self.ch1_output_en = False
 		self.ch2_input_en = True
-		self.ch2_output_en = True
+		self.ch2_output_en = False
 
 		self.set_control_matrix(1, 1, 0)
 		self.set_control_matrix(2, 1, 0)
