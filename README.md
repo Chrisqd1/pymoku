@@ -3,7 +3,7 @@ A Python library for the command, control and monitoring of the [Liquid Instrume
 API documentation can be found at [ReadTheDocs](http://pymoku.readthedocs.org).
 # Getting Started
 Ready to control your Moku:Lab with *pymoku*? To begin, ensure you have
-- The latest [Python](https://www.python.org) distribution installed.  We support Python **2.7** and **3.6**.
+- [Python](https://www.python.org) installed.  We support Python **2.7** and **3.6**.
 - Bonjour services installed. See [Installing Bonjour Libraries](#installing-bonjour-libraries).
 - Your Moku:Lab connected to the same network as your PC.
 - Internet access.
@@ -14,7 +14,7 @@ Install *pymoku* with pip (distributed with Python by default) and retrieve the 
     $ moku update fetch
 
 ### 2. Update your Moku:Lab
-Check your Moku:Lab is running the latest firmware with
+Update your Moku:Lab with the latest firmware
 
     $ moku --serial=123456 update install
 The serial number can be found on the underside of the Moku:Lab.  If this command fails to discover your Moku:Lab, run it with the `--ip` option as follows 
@@ -48,7 +48,7 @@ m.close()
 To automatically discover Moku:Lab on your network (i.e. by *name* or *serial*) you must have Bonjour installed.
 Without Bonjour, your Moku:Lab will still be accessible by IP address, you just won't be able to automatically connect by name or serial number, or find it using `moku list`.
 To install Bonjour:
-- **Windows** install the [Apple Bonjour Printer Services](https://support.apple.com/kb/DL999). Note that you can choose not to install this service, and
+- **Windows** install the [Bonjour Printer Services](https://support.apple.com/kb/DL999). Note that you can choose not to install this service, and
 - **Linux** install the dnssd compatibility libraries. For Ubuntu, this is
 
         $ sudo apt-get install libavahi-compat-libdnssd1
