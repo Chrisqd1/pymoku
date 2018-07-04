@@ -4,9 +4,9 @@ API documentation can be found at [ReadTheDocs](http://pymoku.readthedocs.org).
 # Getting Started
 Ready to control your Moku:Lab with *pymoku*? To begin, ensure you have
 - The latest [Python](https://www.python.org) distribution installed.  We support Python **2.7** and **3.6**.
-- Bonjour services installed. See [Installing Bonjour Libraries](#Installing-Bonjour-Libraries).
-- Your Moku:Lab connected to the same network as your PC
-- Internet access
+- Bonjour services installed. See [Installing Bonjour Libraries](#installing-bonjour-libraries).
+- Your Moku:Lab connected to the same network as your PC.
+- Internet access.
 ### 1. Install Pymoku
 Install *pymoku* with pip (distributed with Python by default) and retrieve the latest software updates
 
@@ -57,7 +57,7 @@ To install Bonjour:
 Search your local network for running Moku:Labs with
 
     $ moku list
-If you do not see your Moku:Lab, confirm that your Moku:Lab is powered ON, and that you have Bonjour installed on your operating system [Installing Bonjour Libraries](#Installing-Bonjour-Libraries).
+If you do not see your Moku:Lab, confirm that your Moku:Lab is powered ON, and that you have Bonjour installed on your operating system [Installing Bonjour Libraries](#installing-bonjour-libraries).
 
 If you are connecting over
 - **Access Point Mode** Ensure your computer is connected to the Moku:Lab's WiFi network.  The Moku:Lab will default to the IP address `192.168.73.1`.
