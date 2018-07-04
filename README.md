@@ -1,31 +1,34 @@
-# PyMoku
+# Pymoku
 A Python library for the command, control and monitoring of the [Liquid Instruments Moku:Lab](http://www.liquidinstruments.com).
 API documentation can be found at [ReadTheDocs](http://pymoku.readthedocs.org).
 # Getting Started
 Ready to control your Moku:Lab with *pymoku*? To begin, ensure you have
 - [Python](https://www.python.org) installed.  We support Python **2.7** and **3.6**.
+- pip installed (`pip` for Python 2.7 or `pip3` for Python 3)
 - Bonjour services installed. See [Installing Bonjour Libraries](#installing-bonjour-libraries).
-- Your Moku:Lab connected to the same network as your PC.
+- Your Moku:Lab connected to the same network as your computer.
 - Internet access.
 ### 1. Install Pymoku
-Install *pymoku* with pip (distributed with Python by default) and retrieve the latest software updates
+Open a command-line terminal and type
 
     $ pip install --upgrade pymoku
     $ moku update fetch
 
 ### 2. Update your Moku:Lab
-Update your Moku:Lab with the latest firmware
+Ensure your Moku:Lab is up to date with pymoku. Update your Moku:Lab with the latest firmware by typing the following in your terminal
 
     $ moku --serial=123456 update install
-The serial number can be found on the underside of the Moku:Lab.  If this command fails to discover your Moku:Lab, run it with the `--ip` option as follows 
+The serial number is the middle six digits found on the underside of the Moku:Lab. For example: XXX-123456-X. 
+
+You can also update the Moku:Lab using its IP address by typing the following command 
 
     $ moku --ip=192.168.0.1 update install
 The IP address of your Moku:Lab device can be found by following the methods described [here](https://github.com/liquidinstruments/pymoku/wiki/Connecting-to-your-Moku:Lab).
 
 **NOTE:** The update process is indicated by alternating orange and white lights, or a pulsing orange light. This process can take up to 30 minutes.
 ### 3. Start scripting
-You can find a few example scripts in the **examples/** folder.
-Here is a basic example of how to connect to a Moku:Lab, deploy the Oscilloscope and fetch a single hi-res data trace.
+You are now ready to control your Moku:Lab using Python! You can find a few example scripts in the **examples/** folder.
+Here is a basic example of how to connect to a Moku:Lab, deploy the Oscilloscope and fetch a single hi-res data trace. Open python and run the following code
 
 ```python
 from pymoku import *
