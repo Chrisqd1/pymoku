@@ -54,6 +54,9 @@ try:
 	i.set_timebase(-1e-3, 1e-3)
 	i.set_trigger('a', 'rising', 0)
 
+	i.enable_output(1, True)
+	i.enable_output(2, True)
+
 	# Get initial data frame to set up plotting parameters. This can be done once
 	# if we know that the axes aren't going to change (otherwise we'd do
 	# this in the loop)

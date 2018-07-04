@@ -26,10 +26,10 @@ app = QtGui.QApplication([])
 
 try:
 	# Trigger on input Channel 1, rising edge, 0V with 0.1V hysteresis
-	i.set_trigger('in1', 'rising', 0, hysteresis=True)
+	i.set_trigger('in1', 'rising', 0, hysteresis = 0.1)
 
 	 # View +- 1 second, i.e. trigger in the centre
-	i.set_timebase(-1,1)
+	i.set_timebase(-1, 1)
 
 	# Generate an output sinewave on Channel 2, 500mVpp, 10Hz, 0V offset
 	i.gen_sinewave(2, 0.5, 5, 0)
