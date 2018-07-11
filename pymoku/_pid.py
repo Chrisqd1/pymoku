@@ -100,6 +100,7 @@ class PID(object):
 		r = self.reg_base + PID._REG_OUT_OFFSET
 		return self._instr._accessor_set(r, to_reg_unsigned(0, 16, value))
 
+	@needs_commit
 	def set_reg_by_gain(self, g, kp, ki, kd, si, sd):
 		# calculates the device registers ased on the gain values given. 
 		# Note that additional scaling due to external gain such as

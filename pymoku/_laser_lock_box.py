@@ -7,6 +7,7 @@ from pymoku._oscilloscope import _CoreOscilloscope, VoltsData
 from . import _instrument
 from ._pid import PID
 from ._sweep import SweepGenerator
+from ._iir_block import IIRBlock
 log = logging.getLogger(__name__)
 
 REGBASE_LLB_DEMOD			= 23
@@ -14,6 +15,8 @@ REGBASE_LLB_SCAN			= 32
 REGBASE_LLB_AUX_SINE		= 41
 
 REG_LLB_RATE_SEL			= 76
+
+REGBASE_LLB_IIR				= 77
 
 REGBASE_LLB_PID1			= 106
 REGBASE_LLB_PID2			= 117
@@ -67,6 +70,9 @@ class LaserLockBox(_CoreOscilloscope):
 		self.aux_sine_sweep.start = 0
 		self.aux_sine_sweep.wait_for_trig = False
 		self.aux_sine_sweep.hold_last = False
+
+		self.iir_filter = IIRBlock(self, reg_base=77, use_mmap = False)
+		self.iir_filter.write_coeffs([1,1,0,0,0,0])
 
 	@needs_commit
 	def set_pid_by_gain(self, pid_block, g=1, kp=1, ki=0, kd=0, si=None, sd=None):
@@ -284,37 +290,6 @@ class LaserLockBox(_CoreOscilloscope):
 
 		# Manually commit the above register settings as @needs_commit is not used in this function
 		self.commit()
-
-
-	def _write_coeffs(self, ch, coeffs):
-		assert ch in [1,2], "Invalid channel"
-		assert len(coeffs) <= _FIR_NUM_BLOCKS * _FIR_BLOCK_SIZE, "Invalid number of filter coefficients."
-
-		coeffs = list(coeffs)
-
-		# Create a list of coefficients in each FIR block
-		n = int(math.ceil(len(coeffs)/float(_FIR_NUM_BLOCKS)))
-		blocks = [coeffs[x:x+n] for x in range(0, len(coeffs), n)]
-		blocks += [[]] * (_FIR_NUM_BLOCKS - len(blocks))
-
-		# Construct a bytearray from the FIR block contents
-		coeff_bytes = bytearray()
-		for b in blocks:
-			b.reverse()
-			coeff_bytes += bytearray(struct.pack('<I', len(b)))
-			coeff_bytes += bytearray(struct.pack('<' + 'i'*len(b), *[int(round((2.0**24-1) * c)) for c in b]))
-			coeff_bytes += bytearray(b'\x00'*4*(_FIR_BLOCK_SIZE-len(b)))
-
-		# Sanity check the coefficient byte array length
-		assert len(coeff_bytes) == (_FIR_BLOCK_SIZE+1) * _FIR_NUM_BLOCKS * 4, "Invalid length for FIR coefficient memory map."
-
-		# Write the coefficients to the FIR coefficient memory map
-		self._set_mmap_access(True)
-		self._moku._send_file_bytes('j', '', coeff_bytes, offset=_FIR_MMAP_BLOCK_SIZE*(ch-1))
-		self._set_mmap_access(False)
-
-		# Release the memory map "file" to other resources
-		self._moku._fs_finalise('j', '', _FIR_MMAP_BLOCK_SIZE*2)
 
 
 _llb_reg_hdl = {
