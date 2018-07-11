@@ -43,13 +43,30 @@ class LaserLockBox(_CoreOscilloscope):
 		self.demod_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_DEMOD)
 		self.scan_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_SCAN)
 		self.aux_sine_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_AUX_SINE)
-		SweepGenerator.step = 0
-		SweepGenerator.stop = 2**64 -1
-		SweepGenerator.duration = 0
-		SweepGenerator.waveform = 2
-		SweepGenerator.start = 0
-		SweepGenerator.wait_for_trig = False
-		SweepGenerator.hold_last = False
+
+		self.demod_sweep.step = 0
+		self.demod_sweep.stop = 2**64 -1
+		self.demod_sweep.duration = 0
+		self.demod_sweep.waveform = 2
+		self.demod_sweep.start = 0
+		self.demod_sweep.wait_for_trig = False
+		self.demod_sweep.hold_last = False
+
+		self.scan_sweep.step = 0
+		self.scan_sweep.stop = 2**64 -1
+		self.scan_sweep.duration = 0
+		self.scan_sweep.waveform = 2
+		self.scan_sweep.start = 0
+		self.scan_sweep.wait_for_trig = False
+		self.scan_sweep.hold_last = False
+
+		self.aux_sine_sweep.step = 0
+		self.aux_sine_sweep.stop = 2**64 -1
+		self.aux_sine_sweep.duration = 0
+		self.aux_sine_sweep.waveform = 2
+		self.aux_sine_sweep.start = 0
+		self.aux_sine_sweep.wait_for_trig = False
+		self.aux_sine_sweep.hold_last = False
 
 	@needs_commit
 	def set_pid_by_gain(self, pid_block, g=1, kp=1, ki=0, kd=0, si=None, sd=None):
