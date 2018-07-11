@@ -136,7 +136,7 @@ class LaserLockBox(_CoreOscilloscope):
 		pid_array[pid_block -1].set_reg_by_frequency(kp, i_xover, d_xover, si, sd)
 
 	@needs_commit
-	def set_demodulation(self, frequency, phase):
+	def set_local_oscillator(self, frequency, phase):
 		"""
 		Configure the demodulation stage.
 
