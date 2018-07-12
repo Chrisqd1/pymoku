@@ -27,6 +27,7 @@ class PID(object):
 		return self._instr._accessor_get(r, from_reg_unsigned(0, 32))
 
 	@gain.setter
+	def gain(self, value):
 		r = self.reg_base + PID._REG_GAIN
 		self._instr._accessor_set(r, to_reg_unsigned(0, 32, value))
 
@@ -35,50 +36,50 @@ class PID(object):
 		r =  self.reg_base + PID._REG_I_GAIN
 		return self._instr._accessor_get(r, from_reg_unsigned(0, 24, xform=lambda obj, x: x / (2.0**24-1)))
 
-	@int_i_gain.setter
-	def i_gain(self,value):
+	@i_gain.setter
+	def i_gain(self, value):
 		r = self.reg_base + PID._REG_I_GAIN
-		self._instr._accessor_set(r, to_reg_unsigned(0, 24, xform=lambda obj, x: x * (2.0**24-1), value))
+		self._instr._accessor_set(r, to_reg_unsigned(0, 24, value, xform=lambda obj, x: x * (2.0**24-1)))
 
 	@property
 	def i_fb(self):
 		r = self.reg_base + PID._REG_INT_FB
 		return self._instr._accessor_get(r, from_reg_signed(0, 24, xform=lambda obj, x: x / (2.0**24 -1)))
 
-	@int_ifb.setter
+	@i_fb.setter
 	def i_fb(self, value):
 		r = self.reg_base + PID_REG_INT_FB
-		self._instr._accessor_set(r, to_reg_signed(0, 24, xform=lambda obj, x: x * (2.0**24 - 1), value))
+		self._instr._accessor_set(r, to_reg_signed(0, 24, value, xform=lambda obj, x: x * (2.0**24 - 1)))
 	
 	@property
 	def p_gain(self):
 		r = self.reg_base + PID._REG_INT_P_GAIN
 		return self._instr._accessor_get(r, from_reg_unsigned(0, 24, xform=lambda obj, x: x / (2.0**24 - 1)))
 
-	@pgain.setter
-	def p_gain(self. value):
+	@p_gain.setter
+	def p_gain(self, value):
 		r = self.reg_base + PID._REG_INT_P_GAIN
-		self._instr._accessor_set(r, to_reg_unsigned(0, 24, xform=lambda obj, x: x * (2.0**24 - 1), value))
+		self._instr._accessor_set(r, to_reg_unsigned(0, 24, value, xform=lambda obj, x: x * (2.0**24 - 1)))
 
 	@property
 	def d_gain(self):
 		r = self.reg_base + PID._REG_DIFF_GAIN
 		return self._instr._accessor_get(r, from_reg_unsigned(0, 24, xform=lambda obj, x: x / (2.0**24 -1)))
 
-	@diff_i_gain.setter
-	def d_gain(self, value)
+	@d_gain.setter
+	def d_gain(self, value):
 		r = self.reg_base + PID._REG_DIFF_GAIN
-		return self._instr._accessor_set(r, to_reg_unsigned(0, 24, xform=lambda obj, x: x * (2.0**24-1), value))
+		return self._instr._accessor_set(r, to_reg_unsigned(0, 24, value, xform=lambda obj, x: x * (2.0**24-1)))
 
 	@property
 	def d_fb(self):
 		r = self.reg_base + PID._REG_DIFF_FB
 		return self._instr._accessor_get(r, from_reg_unsigned(0, 24, xform=lambda obj, x: x / (2.0**24 -1)))
 
-	@diff_ifb.setter
-	def d_fb(self, value)
+	@d_fb.setter
+	def d_fb(self, value):
 		r = self.reg_base + PID._REG_DIFF_FB
-		return self._instr._accessor_set(r, to_reg_unsigned(0, 24, xform=lambda obj, x: x * (2.0**24-1), value))
+		return self._instr._accessor_set(r, to_reg_unsigned(0, 24, value, xform=lambda obj, x: x * (2.0**24-1)))
 
 	@property
 	def input_offset(self):
@@ -86,7 +87,7 @@ class PID(object):
 		return self._instr._accessor_get(r, from_reg_signed(0, 16))
 
 	@input_offset.setter
-	def input_offset(self, value)
+	def input_offset(self, value):
 		r = self.reg_base + PID._REG_IN_OFFSET
 		return self._instr._accessor_set(r, to_reg_unsigned(0, 16, value))
 
@@ -96,7 +97,7 @@ class PID(object):
 		return self._instr._accessor_get(r, from_reg_signed(0, 16))
 
 	@output_offset.setter
-	def output_offset(self, value)
+	def output_offset(self, value):
 		r = self.reg_base + PID._REG_OUT_OFFSET
 		return self._instr._accessor_set(r, to_reg_unsigned(0, 16, value))
 

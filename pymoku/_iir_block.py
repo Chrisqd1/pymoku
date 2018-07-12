@@ -1,5 +1,6 @@
 from ._instrument import *
 from . import _utils
+from copy import deepcopy
 import math
 import os
 
@@ -13,12 +14,11 @@ class IIRBlock(object):
 		self._gain_frac_width = gain_frac_width
 		self.use_mmap = use_mmap
 
-	def _convert_coeffs(self, coeffs):
+	def _convert_coeffs(self, filt_coeffs):
 
-		intermediate_filter = deepcopy(filter_coefficients)
+		intermediate_filter = deepcopy(filt_coeffs)
 
-		intermediate_filter[self.num_stages][0] = intermediate_filter[0][0]
-		intermediate_filter = intermediate_filter[1:5]
+
 
 		for stage in range(1, self.num_stages + 1):
 			intermediate_filter[stage][1] *= intermediate_filter[stage][0]
@@ -26,34 +26,38 @@ class IIRBlock(object):
 			intermediate_filter[stage][3] *= intermediate_filter[stage][0]
 			intermediate_filter[stage][0] = 1.0
 
+		intermediate_filter[self.num_stages][0] = intermediate_filter[0][0]
+		intermediate_filter = intermediate_filter[1:5]
+
+		coeff_list = [ [0 for coeff_elements in range(6)] for stage in range(self.num_stages) ]
+
 		for stage in range(self.num_stages):
 			for coeff in range(6):
-				if coeffs in range(6)
+				if coeff in range(6):
 					if coeff == 0:
-						coeff_list[stage][coeffs] = int(round( 2**(self._gain_frac_width) * intermediate_filter[stage][coeff]))
+						coeff_list[stage][coeff] = int(round( 2**(self._gain_frac_width) * intermediate_filter[stage][coeff]))
 					else:
-						coeff_list[stage][coeffs] = int(round( 2**(self._coeff_frac_width) * intermediate_filter[stage][coeff]))
+						coeff_list[stage][coeff] = int(round( 2**(self._coeff_frac_width) * intermediate_filter[stage][coeff]))
 		return coeff_list
 
 
-	def _coeff_dimenension_checks(self, coeffs):	
-		
-		_utils.check_paramter_valid('set', len(coeffs[0]), [1], 'number of coefficients in coefficient gain')
+	def _coeff_dimenension_checks(self, filt_coeffs):	
+		_utils.check_parameter_valid('set', len(filt_coeffs[0]), [1], 'number of coefficients in coefficient gain')
 		
 		for stage in range(1, self.num_stages + 1):
-			if len(coeffs[stage]) != 6:
-				_utils.check_parameter_valid('set', len(filter_coefficients[stage]), [6],("number of coefficients in stage %s"%(stage)))
+			if len(filt_coeffs[stage]) != 6:
+				_utils.check_parameter_valid('set', len(filt_coeffs[stage]), [6],("number of coefficients in stage %s"%(stage)))
 
 		for stage in range(1, self.num_stages + 1):
 			for coeff_element in range(6):
-				_utils.check_parameter_valid('range', filter_coefficients[stage][coeff_element], [-4.0,4.0 - 2**(-45)],("coefficient array entry at stage = %s, coefficient = %s"%(0,0)))
+				_utils.check_parameter_valid('range', filt_coeffs[stage][coeff_element], [-4.0,4.0 - 2**(-45)],("coefficient array entry at stage = %s, coefficient = %s"%(0,0)))
 		
-	def write_coeffs(self, coeffs):
+	def write_coeffs(self, filt_coeffs):
 
-		self._coeff_dimenension_checks(coeffs)
-		reg_coeffs = self._convert_coeffs(coeffs)
+		self._coeff_dimenension_checks(filt_coeffs)
+		reg_coeffs = self._convert_coeffs(filt_coeffs)
 
-		if use_mmap:
+		if self.use_mmap:
 			self._write_to_mmap(reg_coeffs)
 		else:
 			self._write_to_reg(reg_coeffs)
@@ -69,7 +73,6 @@ class IIRBlock(object):
 		self._instr._set_mmap_access(False)
 		os.remove('.data.dat')
 
-	@needs_commit
 	def _write_to_reg(self, coeffs_converted):
 		for stage in range(self.num_stages):
 			for coeff in range(6):

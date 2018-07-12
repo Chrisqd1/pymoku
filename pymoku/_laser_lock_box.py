@@ -5,9 +5,13 @@ import logging
 from pymoku._instrument import *
 from pymoku._oscilloscope import _CoreOscilloscope, VoltsData
 from . import _instrument
+from . import _frame_instrument
 from ._pid import PID
-from ._sweep import SweepGenerator
+from ._sweep_generator import SweepGenerator
 from ._iir_block import IIRBlock
+from . import _instrument
+from . import _utils
+
 log = logging.getLogger(__name__)
 
 REGBASE_LLB_DEMOD			= 23
@@ -28,20 +32,23 @@ _LLB_LOW_RATE				= 1
 
 _LLB_COEFFICIENT_WIDTH		= 24
 
+_LLB_TRIG_SRC_CH1			= 0
+_LLB_TRIG_SRC_CH2			= 1
+_LLB_TRIG_SRC_EXT			= 2
 
-class LaserLockBox(_CoreOscilloscope):
+class LaserLockBox(_frame_instrument.FrameBasedInstrument):
 	def __init__(self):
-		super(LaserLockBox).__init__()
+		super(LaserLockBox, self).__init__()
 		self._register_accessors(_llb_reg_hdl)
 
 		self.id = 16
 		self.type = "laserlockbox"
 
 		self.fast_fs = 31.25e6
-		seld.slow_fs = 31.25e6
+		self.slow_fs = 31.25e6
 
-		self.fast_pid = PID(self, reg_base = REGBASE_LLB_PID1, self.fast_fs)
-		self.slow_pid = PID(self, reg_base = REGBASE_LLB_PID2, self.slow_fs)
+		self.fast_pid = PID(self, reg_base = REGBASE_LLB_PID1, fs=self.fast_fs)
+		self.slow_pid = PID(self, reg_base = REGBASE_LLB_PID2, fs=self.slow_fs)
 
 		self.demod_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_DEMOD)
 		self.scan_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_SCAN)
@@ -72,7 +79,30 @@ class LaserLockBox(_CoreOscilloscope):
 		self.aux_sine_sweep.hold_last = False
 
 		self.iir_filter = IIRBlock(self, reg_base=77, use_mmap = False)
-		self.iir_filter.write_coeffs([1,1,0,0,0,0])
+
+		default_filt_coeff = 	[[1.0],
+						[1.0, 0.0, 0.0, 0.0, 0.0, 0.0]]
+		self.set_filter_coeffs(default_filt_coeff)
+
+	def _signal_source_volts_per_bit(self, source, scales, trigger=False):
+		"""
+			Converts volts to bits depending on the signal source. 
+			To do: complete this function when osc functionality added to awg, stubbed for now.
+		"""
+		if (source == _LLB_TRIG_SRC_CH1):
+			level = scales['gain_adc1']
+		elif (source == _LLB_TRIG_SRC_CH2):
+			level = scales['gain_adc2']
+		elif (source == _LLB_TRIG_SRC_EXT):
+			level = 1.0
+		else:
+			level = 1.0
+
+		return level
+
+	@needs_commit
+	def set_filter_coeffs(self, filt_coeffs):
+		self.iir_filter.write_coeffs(filt_coeffs)
 
 	@needs_commit
 	def set_pid_by_gain(self, pid_block, g=1, kp=1, ki=0, kd=0, si=None, sd=None):
