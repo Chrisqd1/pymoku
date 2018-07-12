@@ -1,5 +1,6 @@
 from ._instrument import *
 from . import _utils
+from pymoku import *
 from copy import deepcopy
 import math
 import os
@@ -58,22 +59,25 @@ class IIRBlock(object):
 		reg_coeffs = self._convert_coeffs(filt_coeffs)
 
 		if self.use_mmap:
-			self._write_to_mmap(reg_coeffs)
+			# self._write_to_mmap(reg_coeffs)
+			self._write_to_reg(reg_coeffs)
 		else:
 			self._write_to_reg(reg_coeffs)
 
-	def _write_to_mmap(self, coeffs_converted):
-		with open('.data.dat', 'wb') as f:
-			for coeff in range(6):
-				for stage in range(self.num_stages):
-					f.write(struct.pack('<i', coeff_list[stage][coeff]))
+	# def _write_to_mmap(self, coeffs_converted):
+	# 	with open('.data.dat', 'wb') as f:
+	# 		for coeff in range(6):
+	# 			for stage in range(self.num_stages):
+	# 				f.write(struct.pack('<i', coeff_list[stage][coeff]))
 
-		self._instr._set_mmap_access(True)
-		self._instr._moku._send_file('j', '.data.dat')
-		self._instr._set_mmap_access(False)
-		os.remove('.data.dat')
+	# 	self._instr._set_mmap_access(True)
+	# 	self._instr._moku._send_file('j', '.data.dat')
+	# 	self._instr._set_mmap_access(False)
+	# 	os.remove('.data.dat')
 
 	def _write_to_reg(self, coeffs_converted):
+
 		for stage in range(self.num_stages):
 			for coeff in range(6):
-				self._instr._accessor_set(r, to_reg_unsigned(0, 18, coeffs_converted[stage][coeff]))
+				r = self.reg_base + 6*stage + coeff
+				self._instr._accessor_set(r, to_reg_unsigned(0, 18), coeffs_converted[stage][coeff])

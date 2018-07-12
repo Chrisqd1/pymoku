@@ -10,10 +10,11 @@ from pymoku import Moku
 from pymoku.instruments import LaserLockBox
 
 # Use Moku.get_by_serial() or get_by_name() if you don't know the IP
-m = Moku.get_by_name('Moku')
+m = Moku.get_by_name('TomBombadill', force = True)
 i = m.deploy_instrument(LaserLockBox)
 
 try:
-    i.set_local_oscillator(1e6, 0)
+    # i.set_local_oscillator(1e6, 0)
+    i.set_sample_rate('low')
 finally:
     m.close()
