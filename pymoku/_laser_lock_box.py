@@ -52,7 +52,7 @@ class LaserLockBox(_frame_instrument.FrameBasedInstrument):
 		self.demod_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_DEMOD)
 		self.scan_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_SCAN)
 		self.aux_sine_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_AUX_SINE)		
-		self.iir_filter = IIRBlock(self, reg_base=77, use_mmap = False)
+		self.iir_filter = IIRBlock(self, reg_base=REGBASE_LLB_IIR, use_mmap = False)
 
 	@needs_commit
 	def set_defaults(self):
@@ -147,6 +147,16 @@ class LaserLockBox(_frame_instrument.FrameBasedInstrument):
 		"""
 		pid_array = [self.fast_pid, self.slow_pid]
 		pid_array[pid_block -1].set_reg_by_gain(g, kp, ki, kd, si, sd)
+
+	@needs_commit
+	def set_pid_enable(self, pid_block, en=True):
+		pid_array = [self.fast_pid, self.slow_pid]
+		pid_array[pid_block-1].enable = en
+
+	@needs_commit
+	def set_pid_bypass(self, pid_block, bypass = False):
+		pid_array = [self.fast_pid, self.slow_pid]
+		pid_array[pid_block-1].bypass = bypass
 
 	@needs_commit
 	def set_pid_by_freq(self, pid_block, kp=1, i_xover=None, d_xover=None, si=None, sd=None):
