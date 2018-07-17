@@ -4,26 +4,123 @@ import math
 
 class PID(object):
 	_REG_EN 			= 0
-	_REG_BYPASS 		= 1
-	_REG_GAIN 			= 2
-	_REG_I_GAIN			= 3
-	_REG_I_FB			= 4
-	_REG_P_GAIN			= 5
-	_REG_D_GAIN			= 6
-	_REG_D_FB			= 7
-	_REG_IN_OFFSET		= 8
-	_REG_OUT_OFFSET		= 9
+	_REG_GAIN 			= 1
+	_REG_I_GAIN			= 2
+	_REG_I_FB			= 3
+	_REG_P_GAIN			= 4
+	_REG_D_GAIN			= 5
+	_REG_D_FB			= 6
+	_REG_IN_OFFSET		= 7
+	_REG_OUT_OFFSET		= 8
 
 	def __init__(self, instr, reg_base, fs):
 		self._instr = instr
 		self.reg_base = reg_base
 		self.fs = fs
 		self.ang_freq = fs / ( 2 * math.pi)
+		self.enable = True
+		self.bypass = True
+		self.int_en = True
+		self.dc_pole = False
+		self.p_en = True
+		self.d_en = True
+		self.d_p_en = True
+		self.d_i_en = True
+		self.input_en = True
 
+	@property
+	def enable(self):
+		r = self.reg_base + PID._REG_EN
+		return self._instr._accessor_get(r, from_reg_bool(0))
+
+	@enable.setter
+	def enable(self, value):
+		r = self.reg_base + PID._REG_EN
+		return self._instr._accessor_set(r, to_reg_bool(0), value)
+
+	@property
+	def bypass(self):
+		r = self.reg_base + PID._REG_EN
+		return self._instr._accessor_get(r, from_reg_bool(1))
+
+	@bypass.setter
+	def bypass(self, value):
+		r = self.reg_base + PID._REG_EN
+		return self._instr._accessor_set(r, to_reg_bool(1), value)
+	
+	@property
+	def int_en(self):
+		r = self.reg_base + PID._REG_EN
+		return self._instr._accessor_get(r, from_reg_bool(2))
+
+	@int_en.setter
+	def int_en(self, value):
+		r = self.reg_base + PID._REG_EN
+		return self._instr._accessor_set(r, to_reg_bool(2), value)
+
+	@property
+	def dc_pole(self):
+		r = self.reg_base + PID._REG_EN
+		return self._instr._accessor_get(r, from_reg_bool(3))
+
+	@dc_pole.setter
+	def dc_pole(self, value):
+		r = self.reg_base + PID._REG_EN
+		return self._instr._accessor_set(r, to_reg_bool(3), value)
+
+	@property
+	def p_en(self):
+		r = self.reg_base + PID._REG_EN
+		return self._instr._accessor_get(r, from_reg_bool(4))
+
+	@p_en.setter
+	def p_en(self, value):
+		r = self.reg_base + PID._REG_EN
+		return self._instr._accessor_set(r, to_reg_bool(4), value)
+
+	@property
+	def d_en(self):
+		r = self.reg_base + PID._REG_EN
+		return self._instr._accessor_get(r, from_reg_bool(5))
+
+	@d_en.setter
+	def d_en(self, value):
+		r = self.reg_base + PID._REG_EN
+		return self._instr._accessor_set(r, to_reg_bool(5), value)
+
+	@property
+	def d_p_en(self):
+		r = self.reg_base + PID._REG_EN
+		return self._instr._accessor_get(r, from_reg_bool(6))
+
+	@d_p_en.setter
+	def d_p_en(self, value):
+		r = self.reg_base + PID._REG_EN
+		return self._instr._accessor_set(r, to_reg_bool(6), value)
+
+	@property
+	def d_i_en(self):
+		r = self.reg_base + PID._REG_EN
+		return self._instr._accessor_get(r, from_reg_bool(7))
+
+	@d_i_en.setter
+	def d_i_en(self, value):
+		r = self.reg_base + PID._REG_EN
+		return self._instr._accessor_set(r, to_reg_bool(7), value)
+
+	@property
+	def input_en(self):
+		r = self.reg_base + PID._REG_EN
+		return self._instr._accessor_get(r, from_reg_bool(8))
+
+	@input_en.setter
+	def input_en(self, value):
+		r = self.reg_base + PID._REG_EN
+		return self._instr._accessor_set(r, to_reg_bool(8), value)
 
 	@property
 	def gain(self):
-		r = self.reg_bae + PID._REG_GAIN
+		r = self.reg_base + PID._REG_GAIN
 		return self._instr._accessor_get(r, from_reg_unsigned(0, 32))
 
 	@gain.setter
@@ -54,12 +151,12 @@ class PID(object):
 	@property
 	def p_gain(self):
 		r = self.reg_base + PID._REG_P_GAIN
-		return self._instr._accessor_get(r, from_reg_unsigned(0, 25, xform=lambda obj, x: x / (2.0**24 - 1)))
+		return self._instr._accessor_get(r, from_reg_unsigned(0, 25, xform=lambda obj, x: x / (2.0**11)))
 
 	@p_gain.setter
 	def p_gain(self, value):
 		r = self.reg_base + PID._REG_P_GAIN
-		self._instr._accessor_set(r, to_reg_unsigned(0, 25, xform=lambda obj, x: x * (2.0**24 - 1)), value)
+		self._instr._accessor_set(r, to_reg_unsigned(0, 25, xform=lambda obj, x: x * (2.0**11)), value)
 
 	@property
 	def d_gain(self):
