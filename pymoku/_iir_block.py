@@ -7,7 +7,7 @@ import os
 
 class IIRBlock(object):
 
-	def __init__(self, instr, reg_base, num_stages = 1, gain_frac_width = 9, coeff_frac_width = 15, use_mmap = True):
+	def __init__(self, instr, reg_base, num_stages = 1, gain_frac_width = 9, coeff_frac_width = 16, use_mmap = True):
 		self._instr = instr
 		self.reg_base = reg_base
 		self.num_stages = num_stages
@@ -80,4 +80,6 @@ class IIRBlock(object):
 		for stage in range(self.num_stages):
 			for coeff in range(6):
 				r = self.reg_base + 6*stage + coeff
-				self._instr._accessor_set(r, to_reg_unsigned(0, 18), coeffs_converted[stage][coeff])
+				print(r)
+				print(coeffs_converted[stage][coeff])
+				self._instr._accessor_set(r, to_reg_signed(0, 18), coeffs_converted[stage][coeff])
