@@ -81,15 +81,17 @@ class LaserLockBox(_frame_instrument.FrameBasedInstrument):
 		# self.aux_sine_sweep.start = 0
 		# self.aux_sine_sweep.wait_for_trig = False
 		# self.aux_sine_sweep.hold_last = False
-		self.set_pid_by_gain(1)
-
-
+		# self.set_pid_by_gain(1)
 
 		default_filt_coeff = 	[[1.0],
 						[1.0, 0.0346271318590754, -0.0466073336600009, 0.0346271318590754, 1.81922686243757, -0.844637126033068]]
 						# [1.0, 1.0, 0.0, 0.0, 0.0, 0.0]]
 		self.set_filter_coeffs(default_filt_coeff)
 		self.set_local_oscillator(10e6 ,0)
+
+		self.MuxDec = 1
+		self.MuxFast = 0
+		self.MuxInt = 2
 
 	def _signal_source_volts_per_bit(self, source, scales, trigger=False):
 		"""
@@ -256,4 +258,13 @@ class LaserLockBox(_frame_instrument.FrameBasedInstrument):
 _llb_reg_hdl = {
 	'rate_sel':		(REG_LLB_RATE_SEL,	to_reg_unsigned(0, 1),
 										from_reg_unsigned(0, 1)),
+
+	'MuxDec':		(REG_LLB_RATE_SEL,	to_reg_unsigned(1, 1),
+										from_reg_unsigned(1, 1)),
+
+	'MuxFast':		(REG_LLB_RATE_SEL,	to_reg_unsigned(2, 1),
+										from_reg_unsigned(2, 1)),
+
+	'MuxInt':		(REG_LLB_RATE_SEL,	to_reg_unsigned(3, 2),
+										from_reg_unsigned(3, 2))
 }
