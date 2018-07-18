@@ -26,6 +26,8 @@ REGBASE_LLB_PID2			= 117
 
 _LLB_PHASESCALE				= 2**64 / 360.0
 _LLB_FREQSCALE				= 2**64 / 1e9
+_LLB_SWEEP_WTYPE_SAWTOOTH	= 2
+_LLB_SWEEP_MAX_STOP			= 2**64 - 1
 _LLB_HIGH_RATE				= 0
 _LLB_LOW_RATE				= 1
 
@@ -205,6 +207,8 @@ class LaserLockBox(_frame_instrument.FrameBasedInstrument):
 		"""
 		self.demod_sweep.step = frequency * _LLB_FREQSCALE
 		self.demod_sweep.start = phase * _LLB_PHASESCALE
+		self.demod_sweep.stop = _LLB_SWEEP_MAX_STOP
+		self.demod_sweep.waveform = _LLB_SWEEP_WTYPE_SAWTOOTH
 
 	@needs_commit
 	def set_scan(self, frequency, phase):
