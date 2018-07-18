@@ -150,7 +150,7 @@ class LaserLockBox(_frame_instrument.FrameBasedInstrument):
 		:raises InvalidConfigurationException: if the configuration of PID gains is not possible.
 		"""
 		pid_array = [self.fast_pid, self.slow_pid]
-		scaled_gain = g / self._dac_gains()[pid_block-1] / 4
+		scaled_gain = g / self._dac_gains()[pid_block-1]
 		pid_array[pid_block -1].set_reg_by_gain(scaled_gain, kp, ki, kd, si, sd)
 
 	@needs_commit
