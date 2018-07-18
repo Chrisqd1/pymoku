@@ -91,7 +91,7 @@ class LaserLockBox(_frame_instrument.FrameBasedInstrument):
 		self.set_filter_coeffs(default_filt_coeff)
 		self.set_local_oscillator(10e6 ,0)
 
-		self.MuxDec = 1
+		self.MuxDec = 0
 		self.MuxFast = 0
 		self.MuxInt = 2
 
@@ -124,7 +124,6 @@ class LaserLockBox(_frame_instrument.FrameBasedInstrument):
 	@needs_commit
 	def set_pid_by_gain(self, pid_block, g=1, kp=1, ki=0, kd=0, si=None, sd=None):
 		"""
-
 		Configure the selected PID controller using gain coefficients.
 
 		:type ch: int; [1,2]
