@@ -60,13 +60,7 @@ class LaserLockBox(_frame_instrument.FrameBasedInstrument):
 	def set_defaults(self):
 		self.set_sample_rate('high')
 
-		# self.demod_sweep.step = 0
-		# self.demod_sweep.stop = 2**64 -1
-		# self.demod_sweep.duration = 0
-		# self.demod_sweep.waveform = 2
-		# self.demod_sweep.start = 0
-		# self.demod_sweep.wait_for_trig = False
-		# self.demod_sweep.hold_last = False
+		self.set_local_oscillator(10e6, 0)
 
 		# self.scan_sweep.step = 0
 		# self.scan_sweep.stop = 2**64 -1
@@ -206,9 +200,12 @@ class LaserLockBox(_frame_instrument.FrameBasedInstrument):
 
 		"""
 		self.demod_sweep.step = frequency * _LLB_FREQSCALE
+		self.demod_sweep.stop = 2**64 -1
+		self.demod_sweep.duration = 0
+		self.demod_sweep.waveform = 2
 		self.demod_sweep.start = phase * _LLB_PHASESCALE
-		self.demod_sweep.stop = _LLB_SWEEP_MAX_STOP
-		self.demod_sweep.waveform = _LLB_SWEEP_WTYPE_SAWTOOTH
+		self.demod_sweep.wait_for_trig = False
+		self.demod_sweep.hold_last = False
 
 	@needs_commit
 	def set_scan(self, frequency, phase):
