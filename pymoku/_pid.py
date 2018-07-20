@@ -23,8 +23,6 @@ class PID(object):
 		self.int_en = True
 		self.dc_pole = False
 		self.p_en = True
-		self.d_en = True
-		self.d_p_en = True
 		self.d_i_en = True
 		self.input_en = True
 
@@ -79,44 +77,24 @@ class PID(object):
 		return self._instr._accessor_set(r, to_reg_bool(4), value)
 
 	@property
-	def d_en(self):
-		r = self.reg_base + PID._REG_EN
-		return self._instr._accessor_get(r, from_reg_bool(5))
-
-	@d_en.setter
-	def d_en(self, value):
-		r = self.reg_base + PID._REG_EN
-		return self._instr._accessor_set(r, to_reg_bool(5), value)
-
-	@property
-	def d_p_en(self):
-		r = self.reg_base + PID._REG_EN
-		return self._instr._accessor_get(r, from_reg_bool(6))
-
-	@d_p_en.setter
-	def d_p_en(self, value):
-		r = self.reg_base + PID._REG_EN
-		return self._instr._accessor_set(r, to_reg_bool(6), value)
-
-	@property
 	def d_i_en(self):
 		r = self.reg_base + PID._REG_EN
-		return self._instr._accessor_get(r, from_reg_bool(7))
+		return self._instr._accessor_get(r, from_reg_bool(5))
 
 	@d_i_en.setter
 	def d_i_en(self, value):
 		r = self.reg_base + PID._REG_EN
-		return self._instr._accessor_set(r, to_reg_bool(7), value)
+		return self._instr._accessor_set(r, to_reg_bool(5), value)
 
 	@property
 	def input_en(self):
 		r = self.reg_base + PID._REG_EN
-		return self._instr._accessor_get(r, from_reg_bool(8))
+		return self._instr._accessor_get(r, from_reg_bool(6))
 
 	@input_en.setter
 	def input_en(self, value):
 		r = self.reg_base + PID._REG_EN
-		return self._instr._accessor_set(r, to_reg_bool(8), value)
+		return self._instr._accessor_set(r, to_reg_bool(6), value)
 
 	@property
 	def gain(self):
@@ -205,13 +183,13 @@ class PID(object):
 
 		self.gain = g
 		self.p_gain = kp
-		self.i_gain = ki
+		self.i_gain = ki / self.ang_freq
 		self.diff_gain = 4 * sd if sd else kd * self.ang_freq
 
 		if si is None:
 			i_c  = 0
 		else:
-			i_c = math.sqrt(ki * kii / si) if kii else ki / si
+			i_c = ki / si
 			if i_c  < self.ang_freq / (2**24-1) :
 				si_max = (g * ki / ( 2 * self.ang_freq / (2**24 -1 )))
 				raise InvalidConfigurationException("Integrator corner below minimum. Decrease integrator saturation below %.3f dB." % (20*math.log(si_max,10)))

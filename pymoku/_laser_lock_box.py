@@ -21,8 +21,8 @@ REG_LLB_RATE_SEL			= 76
 
 REGBASE_LLB_IIR				= 28
 
-REGBASE_LLB_PID1			= 106
-REGBASE_LLB_PID2			= 117
+REGBASE_LLB_PID1			= 110
+REGBASE_LLB_PID2			= 119
 
 _LLB_PHASESCALE				= 2**64 / 360.0
 _LLB_FREQSCALE				= 2**64 / 1e9
@@ -80,12 +80,12 @@ class LaserLockBox(_frame_instrument.FrameBasedInstrument):
 		# self.set_pid_by_gain(1)
 
 		default_filt_coeff = 	[[1.0],
-						[1.0, 0.0346271318590754, -0.0466073336600009, 0.0346271318590754, 1.81922686243757, -0.844637126033068]]
-						# [1.0, 1.0, 0.0, 0.0, 0.0, 0.0]]
+						# [1.0, 0.0346271318590754, -0.0466073336600009, 0.0346271318590754, 1.81922686243757, -0.844637126033068]]
+						[1, 1, 0, 0, 0, 0]]
 		self.set_filter_coeffs(default_filt_coeff)
 		self.set_local_oscillator(10e6 ,0)
 
-		self.MuxDec = 1
+		self.MuxDec = 0
 		self.MuxFast = 0
 		self.MuxInt = 2
 
@@ -118,7 +118,6 @@ class LaserLockBox(_frame_instrument.FrameBasedInstrument):
 	@needs_commit
 	def set_pid_by_gain(self, pid_block, g=1, kp=1, ki=0, kd=0, si=None, sd=None):
 		"""
-
 		Configure the selected PID controller using gain coefficients.
 
 		:type ch: int; [1,2]
@@ -145,9 +144,9 @@ class LaserLockBox(_frame_instrument.FrameBasedInstrument):
 		:raises InvalidConfigurationException: if the configuration of PID gains is not possible.
 		"""
 		pid_array = [self.fast_pid, self.slow_pid]
-		scaled_gain = g / self._dac_gains()[pid_block-1] / 4
-		pid_array[pid_block -1].set_reg_by_gain(scaled_gain, kp, ki, kd, si, sd)
 
+		pid_array[pid_block -1].set_reg_by_gain(g, kp, ki, kd, si, sd)
+		pid_array[pid_block -1].gain = pid_array[pid_block -1].gain / self._dac_gains()[pid_block-1]
 	@needs_commit
 	def set_pid_enable(self, pid_block, en=True):
 		pid_array = [self.fast_pid, self.slow_pid]
@@ -185,7 +184,8 @@ class LaserLockBox(_frame_instrument.FrameBasedInstrument):
 		:raises InvalidConfigurationException: if the configuration of PID gains is not possible.
 		"""
 		pid_array = [self.fast_pid, self.slow_pid]
-		pid_array[pid_block -1].set_reg_by_frequency(kp, i_xover, d_xover, si, sd)
+		pid_array[pid_block -1].set_reg_by_frequency(scaled_kp, i_xover, d_xover, si, sd)
+		pid_array[pid_block -1].gain = pid_array[pid_block -1].gain / self._dac_gains()[pid_block-1]
 
 	@needs_commit
 	def set_local_oscillator(self, frequency, phase):
