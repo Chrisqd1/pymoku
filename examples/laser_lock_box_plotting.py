@@ -9,6 +9,10 @@
 from pymoku import Moku
 from pymoku.instruments import LaserLockBox
 
+import matplotlib
+import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter
+
 # Use Moku.get_by_serial() or get_by_name() if you don't know the IP
 m = Moku.get_by_name('PeregrinTook', force = True)
 i = m.deploy_instrument(LaserLockBox)
