@@ -58,6 +58,7 @@ class LaserLockBox(_frame_instrument.FrameBasedInstrument):
 
 	@needs_commit
 	def set_defaults(self):
+		super(LaserLockBox, self).set_defaults()
 		self.set_sample_rate('high')
 
 		self.set_local_oscillator(10e6, 0)
