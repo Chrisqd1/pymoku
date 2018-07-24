@@ -17,6 +17,7 @@ REGBASE_LLB_DEMOD			= 79
 REGBASE_LLB_SCAN			= 88
 REGBASE_LLB_AUX_SINE		= 97
 
+REG_LLB_MON_SEL				= 75
 REG_LLB_RATE_SEL			= 76
 
 REGBASE_LLB_IIR				= 28
@@ -37,7 +38,29 @@ _LLB_TRIG_SRC_CH1			= 0
 _LLB_TRIG_SRC_CH2			= 1
 _LLB_TRIG_SRC_EXT			= 2
 
-class LaserLockBox(_frame_instrument.FrameBasedInstrument):
+_LLB_MON_ERROR 				= 0
+_LLB_MON_PID_FAST			= 1
+_LLB_MON_PID_SLOW			= 2
+_LLB_MON_IN1				= 3
+_LLB_MON_IN2				= 4
+_LLB_MON_OUT1				= 5
+_LLB_MON_OUT2				= 6
+_LLB_MON_SCAN				= 7
+_LLB_MON_LO 				= 8
+_LLB_MON_AUX				= 9
+_LLB_MON_SLOW_SCAN			= 10
+
+_LLB_SOURCE_A		= 0
+_LLB_SOURCE_B		= 1
+_LLB_SOURCE_IN1		= 2
+_LLB_SOURCE_IN2		= 3
+_LLB_SOURCE_EXT		= 4
+
+
+_ADC_DEFAULT_CALIBRATION = 3750.0
+_DAC_DEFAULT_CALIBRATION = _ADC_DEFAULT_CALIBRATION * 2.0**3
+
+class LaserLockBox(_CoreOscilloscope):
 	def __init__(self):
 		super(LaserLockBox, self).__init__()
 		self._register_accessors(_llb_reg_hdl)
@@ -58,6 +81,8 @@ class LaserLockBox(_frame_instrument.FrameBasedInstrument):
 
 	@needs_commit
 	def set_defaults(self):
+
+		super(LaserLockBox, self).set_defaults()
 		self.set_sample_rate('high')
 
 		self.set_local_oscillator(10e6, 0)
@@ -89,21 +114,7 @@ class LaserLockBox(_frame_instrument.FrameBasedInstrument):
 		self.MuxFast = 0
 		self.MuxInt = 2
 
-	def _signal_source_volts_per_bit(self, source, scales, trigger=False):
-		"""
-			Converts volts to bits depending on the signal source. 
-			To do: complete this function when osc functionality added to awg, stubbed for now.
-		"""
-		if (source == _LLB_TRIG_SRC_CH1):
-			level = scales['gain_adc1']
-		elif (source == _LLB_TRIG_SRC_CH2):
-			level = scales['gain_adc2']
-		elif (source == _LLB_TRIG_SRC_EXT):
-			level = 1.0
-		else:
-			level = 1.0
 
-		return level
 
 	@needs_commit
 	def set_filter_coeffs(self, filt_coeffs):
@@ -147,6 +158,7 @@ class LaserLockBox(_frame_instrument.FrameBasedInstrument):
 
 		pid_array[pid_block -1].set_reg_by_gain(g, kp, ki, kd, si, sd)
 		pid_array[pid_block -1].gain = pid_array[pid_block -1].gain / self._dac_gains()[pid_block-1]
+
 	@needs_commit
 	def set_pid_enable(self, pid_block, en=True):
 		pid_array = [self.fast_pid, self.slow_pid]
@@ -256,7 +268,104 @@ class LaserLockBox(_frame_instrument.FrameBasedInstrument):
 		}
 		self.rate_sel = _utils.str_to_val(_str_to_rate, rate, 'sampling rate')
 
+	def _signal_source_volts_per_bit(self, source, scales, trigger=False):
+		"""
+			Converts volts to bits depending on the signal source. 
+			To do: complete this function when osc functionality added to awg, stubbed for now.
+		"""
+		if (source == _LLB_SOURCE_A):
+			level = self._monitor_source_volts_per_bit(self.monitor_a, scales)/deci_gain
+		elif (source == _LLB_SOURCE_B):
+			level = self._monitor_source_volts_per_bit(self.monitor_b, scales)/deci_gain
+		elif (source == _LLB_TRIG_SRC_EXT):
+			level = 1.0
+		else:
+			level = 1.0
+
+		return level
+
+	@needs_commit
+	def _monitor_source_volts_per_bit(self, source, scales):
+		monitor_source_gains = {
+			'error'		: scales['gain_adc1'] / (4.0 if self.rate_sel else 2.0),
+			'pid_fast'	: scales['gain_adc1'] / (4.0 if self.rate_sel else 2.0),
+			'pid_slow'	: scales['gain_adc1'] / (4.0 if self.rate_sel else 2.0),
+			'in1' 		: scales['gain_adc1'] / (10.0 if scales['atten_ch1'] else 1.0),
+			'in2' 		: scales['gain_adc2'] / (10.0 if scales['atten_ch2'] else 1.0),
+			'out1'		: scales['gain_dac1'] / 2**4,
+			'out2'		: scales['gain_dac2'] / 2**4,
+			'scan'		: scales['gain_dac1'] / 2**4, # TODO need to account for where the scan is going
+			'lo'		: scales['gain_dac2'] / 2**4,
+			'aux'		: scales['gain_dac2'] / 2**4,
+			'slow_scan'	: scales['gain_dac2'] / 2**4
+		}
+
+	@needs_commit
+	def set_monitor(self, monitor_ch, source):
+		"""
+		Select the point inside the lockin amplifier to monitor.
+
+		There are two monitoring channels available, 'A' and 'B'; you can mux any of the internal
+		monitoring points to either of these channels.
+
+		The source is one of:
+			- **none**: Disable monitor channel
+			- **in1**, **in2**: Input Channel 1/2
+			- **error_signal**: error signal (before fast PID controller)
+			- **pid_fast**: output of the fast pid
+			- **pid_slow**: output of the slow pid
+			- **lo**: local oscillator to the demodulation
+			- **sine**: sine output
+			- **out1**: output 1
+			- **out2**: output 2
+			- **scan**: scan signal
+
+		:type monitor_ch: string; {'A','B'}
+		:param monitor_ch: Monitor channel
+		:type source: string; {'none','in1','in2','main','aux','demod','i','q'}
+		:param source: Signal to monitor
+		"""
+		_utils.check_parameter_valid('string', monitor_ch, desc="monitor channel")
+		_utils.check_parameter_valid('string', source, desc="monitor signal")
+
+		monitor_ch = monitor_ch.lower()
+		source = source.lower()
+
+		_utils.check_parameter_valid('set', monitor_ch, allowed=['a','b'], desc="monitor channel")
+		_utils.check_parameter_valid('set', source, allowed=['none', 'in1', 'in2', 'main', 'aux', 'demod', 'i','q'], desc="monitor source")
+
+		monitor_sources = {
+			'error'			: _LLB_MON_ERROR,
+			'pid_fast'		: _LLB_MON_PID_FAST,
+			'pid_slow'		: _LLB_MON_PID_SLOW,
+			'in1'			: _LLB_MON_IN1,
+			'in2'			: _LLB_MON_IN2,
+			'out1'			: _LLB_MON_OUT1,
+			'out2'			: _LLB_MON_OUT2,
+			'interp'		: _LLB_MON_INTERP,
+			'scan'			: _LLB_MON_SCAN,
+			'lo'			: _LLB_MON_LO,
+			'aux'			: _LLB_MON_AUX,
+			'slow_scan'		: _LLB_MON_SLOW_SCAN
+		}
+
+		if monitor_ch == 'a':
+			self.monitor_a = source
+			self.monitor_select0 = monitor_sources[source]
+		elif monitor_ch == 'b':
+			self.monitor_b = source
+			self.monitor_select1 = monitor_sources[source]
+		else:
+			raise ValueOutOfRangeException("Invalid channel %d", monitor_ch)
+
+
 _llb_reg_hdl = {
+	'monitor_select1' :	(REG_LLB_MON_SEL, 	to_reg_unsigned(0, 4),
+											from_reg_unsigned(0,4)),
+
+	'monitor_select2' : (REG_LLB_MON_SEL,	to_reg_unsigned(4, 4),
+											from_reg_unsigned(0, 4)),
+
 	'rate_sel':		(REG_LLB_RATE_SEL,	to_reg_unsigned(0, 1),
 										from_reg_unsigned(0, 1)),
 
