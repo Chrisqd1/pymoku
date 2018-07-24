@@ -297,7 +297,7 @@ class LaserLockBox(_CoreOscilloscope):
 		elif (source == _LLB_TRIG_SRC_EXT):
 			level = 1.0
 		else:
-			level = 1.0
+			level = 0.0
 
 		return level
 
@@ -319,7 +319,7 @@ class LaserLockBox(_CoreOscilloscope):
 		return monitor_source_gains[source]
 
 	@needs_commit
-	def set_trigger(self, source, edge, level, minwidth=None, maxwidth=None, hysteresis=10e-3, hf_reject=False, mode='auto'):
+	def set_trigger(self, source, edge, level, minwidth=None, maxwidth=None, hysteresis=10e-2, hf_reject=False, mode='auto'):
 		""" 
 		Set the trigger source for the monitor channel signals. This can be either of the input or
 		monitor signals, or the external input.
@@ -354,7 +354,7 @@ class LaserLockBox(_CoreOscilloscope):
 		"""
 		# Define the trigger sources appropriate to the LockInAmp instrument
 		source = _utils.str_to_val(_LLB_OSC_SOURCES, source, 'trigger source')
-
+		print source
 		# This function is the portion of set_trigger shared among instruments with embedded scopes. 
 		self._set_trigger(source, edge, level, minwidth, maxwidth, hysteresis, hf_reject, mode)
 
@@ -408,10 +408,10 @@ class LaserLockBox(_CoreOscilloscope):
 
 		if monitor_ch == 'a':
 			self.monitor_a = source
-			self.monitor_select0 = monitor_sources[source]
+			self.monitor_select1 = monitor_sources[source]
 		elif monitor_ch == 'b':
 			self.monitor_b = source
-			self.monitor_select1 = monitor_sources[source]
+			self.monitor_select2 = monitor_sources[source]
 		else:
 			raise ValueOutOfRangeException("Invalid channel %d", monitor_ch)
 
@@ -421,7 +421,7 @@ _llb_reg_hdl = {
 											from_reg_unsigned(0,4)),
 
 	'monitor_select2' : (REG_LLB_MON_SEL,	to_reg_unsigned(4, 4),
-											from_reg_unsigned(0, 4)),
+											from_reg_unsigned(4, 4)),
 
 	'rate_sel':		(REG_LLB_RATE_SEL,	to_reg_unsigned(0, 1),
 										from_reg_unsigned(0, 1)),
