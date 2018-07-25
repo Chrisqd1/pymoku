@@ -75,6 +75,9 @@ class LaserLockBox(_CoreOscilloscope):
 		self.id = 16
 		self.type = "laserlockbox"
 
+		self._set_source(1, _LLB_SOURCE_A)
+		self._set_source(2, _LLB_SOURCE_B)
+
 		self.monitor_a = 'in1'
 		self.monitor_b = 'in2'
 
@@ -390,7 +393,7 @@ class LaserLockBox(_CoreOscilloscope):
 		source = source.lower()
 
 		_utils.check_parameter_valid('set', monitor_ch, allowed=['a','b'], desc="monitor channel")
-		_utils.check_parameter_valid('set', source, allowed=['none', 'in1', 'in2', 'main', 'aux', 'demod', 'i','q'], desc="monitor source")
+		_utils.check_parameter_valid('set', source, allowed=['error', 'pid_fast', 'pid_slow', 'in1', 'in2', 'out1', 'out2', 'scan', 'lo', 'aux', 'slow_scan'], desc="monitor source")
 
 		monitor_sources = {
 			'error'			: _LLB_MON_ERROR,
