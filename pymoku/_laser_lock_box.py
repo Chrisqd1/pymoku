@@ -94,7 +94,6 @@ class LaserLockBox(_CoreOscilloscope):
 
 	@needs_commit
 	def set_defaults(self):
-
 		super(LaserLockBox, self).set_defaults()
 		self.set_sample_rate('high')
 
