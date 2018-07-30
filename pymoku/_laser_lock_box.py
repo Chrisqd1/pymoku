@@ -19,6 +19,7 @@ REGBASE_LLB_AUX_SINE		= 97
 
 REG_LLB_MON_SEL				= 75
 REG_LLB_RATE_SEL			= 76
+REG_LLB_SCALE				= 77
 
 REGBASE_LLB_IIR				= 28
 
@@ -122,10 +123,16 @@ class LaserLockBox(_CoreOscilloscope):
 		self.set_filter_coeffs(default_filt_coeff)
 		self.set_local_oscillator(10e6 ,0)
 
+		self._set_scale()
 		self.MuxDec = 0
 		self.MuxFast = 0
 		self.MuxInt = 2
 
+	@needs_commit
+	def _set_scale(self):
+		
+		self._fast_scale = self._adc_gains()[0] / self._dac_gains()[0] / 2**3
+		self._slow_scale = self._adc_gains()[0] / self._dac_gains()[1] / 2**3
 
 
 	@needs_commit
@@ -419,6 +426,12 @@ class LaserLockBox(_CoreOscilloscope):
 
 
 _llb_reg_hdl = {
+	'_fast_scale' :		(REG_LLB_SCALE, to_reg_signed(0, 16, xform = lambda obj,  x : x * 2**14),
+										from_reg_signed(0, 16, xform = lambda obj, x : x / 2**14)),
+
+	'_slow_scale' : 	(REG_LLB_SCALE, to_reg_signed(16, 16, xform = lambda obj, x : x * 2**14),
+										from_reg_signed(16, 16, xform = lambda obj, x : x / 2**14)),
+
 	'monitor_select1' :	(REG_LLB_MON_SEL, 	to_reg_unsigned(0, 4),
 											from_reg_unsigned(0,4)),
 
