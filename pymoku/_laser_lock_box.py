@@ -128,6 +128,11 @@ class LaserLockBox(_CoreOscilloscope):
 		self.MuxFast = 0
 		self.MuxInt = 2
 
+
+	def _update_dependent_regs(self, scales):
+		super(LaserLockBox, self)._update_dependent_regs(scales)
+		self._set_scale()
+		
 	@needs_commit
 	def _set_scale(self):
 		
