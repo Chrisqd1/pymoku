@@ -80,4 +80,4 @@ class IIRBlock(object):
 		for stage in range(self.num_stages):
 			for coeff in range(6):
 				r = self.reg_base + 6*stage + coeff
-				self._instr._accessor_set(r, to_reg_signed(0, 18), coeffs_converted[stage][coeff])
+				self._instr._accessor_set(r, to_reg_signed(0, self._coeff_frac_width + 2), coeffs_converted[stage][coeff])

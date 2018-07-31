@@ -39,17 +39,17 @@ _LLB_TRIG_SRC_CH1			= 0
 _LLB_TRIG_SRC_CH2			= 1
 _LLB_TRIG_SRC_EXT			= 2
 
-_LLB_MON_ERROR 				= 0
-_LLB_MON_PID_FAST			= 1
-_LLB_MON_PID_SLOW			= 2
-_LLB_MON_IN1				= 3
-_LLB_MON_IN2				= 4
-_LLB_MON_OUT1				= 5
-_LLB_MON_OUT2				= 6
-_LLB_MON_SCAN				= 7
-_LLB_MON_LO 				= 8
-_LLB_MON_AUX				= 9
-_LLB_MON_SLOW_SCAN			= 10
+_LLB_MON_ERROR 				= 1
+_LLB_MON_PID_FAST			= 2
+_LLB_MON_PID_SLOW			= 3
+_LLB_MON_IN1				= 4
+_LLB_MON_IN2				= 5
+_LLB_MON_OUT1				= 6
+_LLB_MON_OUT2				= 7
+_LLB_MON_SCAN				= 8
+_LLB_MON_LO 				= 9
+_LLB_MON_AUX				= 10
+_LLB_MON_SLOW_SCAN			= 11
 
 _LLB_SOURCE_A		= 0
 _LLB_SOURCE_B		= 1
@@ -91,7 +91,7 @@ class LaserLockBox(_CoreOscilloscope):
 		self.demod_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_DEMOD)
 		self.scan_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_SCAN)
 		self.aux_sine_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_AUX_SINE)		
-		self.iir_filter = IIRBlock(self, reg_base=REGBASE_LLB_IIR, use_mmap = False)
+		self.iir_filter = IIRBlock(self, reg_base=REGBASE_LLB_IIR, num_stages = 1, gain_frac_width = 9, coeff_frac_width = 23, use_mmap = False)
 
 	@needs_commit
 	def set_defaults(self):
@@ -422,10 +422,10 @@ class LaserLockBox(_CoreOscilloscope):
 
 		if monitor_ch == 'a':
 			self.monitor_a = source
-			self.monitor_select1 = monitor_sources[source]
+			self.monitor_select0 = monitor_sources[source]
 		elif monitor_ch == 'b':
 			self.monitor_b = source
-			self.monitor_select2 = monitor_sources[source]
+			self.monitor_select1 = monitor_sources[source]
 		else:
 			raise ValueOutOfRangeException("Invalid channel %d", monitor_ch)
 
@@ -437,10 +437,10 @@ _llb_reg_hdl = {
 	'_slow_scale' : 	(REG_LLB_SCALE, to_reg_signed(16, 16, xform = lambda obj, x : x * 2**14),
 										from_reg_signed(16, 16, xform = lambda obj, x : x / 2**14)),
 
-	'monitor_select1' :	(REG_LLB_MON_SEL, 	to_reg_unsigned(0, 4),
+	'monitor_select0' :	(REG_LLB_MON_SEL, 	to_reg_unsigned(0, 4),
 											from_reg_unsigned(0,4)),
 
-	'monitor_select2' : (REG_LLB_MON_SEL,	to_reg_unsigned(4, 4),
+	'monitor_select1' : (REG_LLB_MON_SEL,	to_reg_unsigned(4, 4),
 											from_reg_unsigned(4, 4)),
 
 	'rate_sel':		(REG_LLB_RATE_SEL,	to_reg_unsigned(0, 1),
