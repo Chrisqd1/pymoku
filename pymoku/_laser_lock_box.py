@@ -306,7 +306,7 @@ class LaserLockBox(_CoreOscilloscope):
 
 		"""
 		self.aux_sine_sweep.step = frequency * _LLB_FREQSCALE
-		seld.aux_sine_sweep.start = phase * _LLB_PHASESCALE
+		self.aux_sine_sweep.start = phase * _LLB_PHASESCALE
 
 	@needs_commit
 	def set_sample_rate(self, rate):
@@ -482,10 +482,10 @@ _llb_reg_hdl = {
 										from_reg_signed(0, 16, xform = lambda obj, x : x / 2**14)),
 
 	'fast_scan_enable': (REG_LLB_SCANSCALE, to_reg_unsigned(16, 1),
-											from_reg_unsigned(17, 1)),
+											from_reg_unsigned(16, 1)),
 
 	'slow_scan_enable': (REG_LLB_SCANSCALE, to_reg_unsigned(17, 1),
-											from_reg_unsigned(18, 1)),
+											from_reg_unsigned(17, 1)),
 
 	'monitor_select0' :	(REG_LLB_MON_SEL, 	to_reg_unsigned(0, 4),
 											from_reg_unsigned(0,4)),
