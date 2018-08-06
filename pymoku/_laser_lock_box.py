@@ -247,15 +247,22 @@ class LaserLockBox(_CoreOscilloscope):
 		self.demod_sweep.hold_last = False
 
 	@needs_commit
-	def set_scan(self, frequency, phase, pid, amplitude):
+	def set_scan(self, frequency, phase,  amplitude, output = 1,):
 		"""
 		Configure the scanning generator
 
 		:type frequency : float; [0, 200e6] Hz
-		:param frequency : Internal demodulation frequency
+		:param frequency : scan frequency
 
 		:type phase : float; [0, 360] degrees
-		:param phase : float; Internal demodulation phase
+		:param phase : scan phase
+
+		:type amplitude : float; [0, 2]
+		:param amplitude : scan amplitude
+
+		:type output : int; [1, 2]
+		:param output : selects which output the scan linked to.
+
 
 		"""
 		self.scan_sweep.step = frequency * _LLB_FREQSCALE
@@ -266,9 +273,9 @@ class LaserLockBox(_CoreOscilloscope):
 		self.scan_sweep.wait_for_trig = False
 		self.scan_sweep.hold_last = False
 
-		self.scan_amplitude = amplitude
+		self.scan_amplitude = amplitude / 2.0
 
-		if pid == 'fast':
+		if output == 1:
 			self.fast_scan_enable = True
 			self.slow_scan_enable = False
 		else:
