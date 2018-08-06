@@ -24,6 +24,6 @@ try:
     i.set_pid_enable(2, True)
     i.set_pid_bypass(2, False)
 
-    i.set_scan(frequency=100, phase=0.0, pid ='fast', amplitude=0.25)
+    i.set_scan(frequency=1, phase=0.0, output = 1, amplitude=0.25, waveform='triangle')
 finally:
     m.close()

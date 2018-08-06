@@ -40,6 +40,9 @@ _LLB_TRIG_SRC_CH1			= 0
 _LLB_TRIG_SRC_CH2			= 1
 _LLB_TRIG_SRC_EXT			= 2
 
+_LLB_SCAN_SAWTOOTH			= 2
+_LLB_SCAN_TRIANGLE			= 3
+
 _LLB_MON_ERROR 				= 1
 _LLB_MON_PID_FAST			= 2
 _LLB_MON_PID_SLOW			= 3
@@ -247,7 +250,7 @@ class LaserLockBox(_CoreOscilloscope):
 		self.demod_sweep.hold_last = False
 
 	@needs_commit
-	def set_scan(self, frequency, phase,  amplitude, output = 1,):
+	def set_scan(self, frequency, phase,  amplitude, waveform, output = 1):
 		"""
 		Configure the scanning generator
 
@@ -265,10 +268,16 @@ class LaserLockBox(_CoreOscilloscope):
 
 
 		"""
-		self.scan_sweep.step = frequency * _LLB_FREQSCALE
+		_str_to_waveform = {
+			'sawtooth' 	: _LLB_SCAN_SAWTOOTH,
+			'triangle'	: _LLB_SCAN_TRIANGLE
+		}
+		waveform = _str_to_waveform[waveform]
+
+		self.scan_sweep.step = frequency * _LLB_FREQSCALE if waveform == _LLB_SCAN_SAWTOOTH else frequency * _LLB_FREQSCALE * 2
 		self.scan_sweep.stop = 2**64 -1
 		self.scan_sweep.duration = 0
-		self.scan_sweep.waveform = 2
+		self.scan_sweep.waveform = waveform
 		self.scan_sweep.start = phase * _LLB_PHASESCALE
 		self.scan_sweep.wait_for_trig = False
 		self.scan_sweep.hold_last = False
