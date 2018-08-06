@@ -58,12 +58,14 @@ _LLB_MON_SLOW_SCAN			= 11
 _LLB_SOURCE_A		= 0
 _LLB_SOURCE_B		= 1
 _LLB_SOURCE_IN1		= 2
+_LLB_SOURCE_SCAN	= 3
 _LLB_SOURCE_IN2		= 3
 _LLB_SOURCE_EXT		= 4
 
 _LLB_OSC_SOURCES = {
 	'a' : _LLB_SOURCE_A,
 	'b' : _LLB_SOURCE_B,
+	'scan': _LLB_SOURCE_SCAN,
 	'in1' : _LLB_SOURCE_IN1,
 	'in2' : _LLB_SOURCE_IN2,
 	'ext' : _LLB_SOURCE_EXT
@@ -133,7 +135,7 @@ class LaserLockBox(_CoreOscilloscope):
 		self.MuxDec = 0
 		self.MuxFast = 0
 		self.MuxInt = 2
-
+	
 
 	def _update_dependent_regs(self, scales):
 		super(LaserLockBox, self)._update_dependent_regs(scales)
@@ -344,7 +346,7 @@ class LaserLockBox(_CoreOscilloscope):
 		elif (source == _LLB_TRIG_SRC_EXT):
 			level = 1.0
 		else:
-			level = 0.0
+			level = 1.0 #used to be 0.0. Gave divide by zero error when triggering on in2
 
 		return level
 
@@ -399,9 +401,15 @@ class LaserLockBox(_CoreOscilloscope):
 		:type mode: string, {'auto', 'normal'}
 		:param mode: Trigger mode.
 		"""
+
+		if source == 'scan':
+			self.trig_aux = 1
+		else:
+			self.trig_aux = 0
+
+		print self.trig_aux
 		# Define the trigger sources appropriate to the LockInAmp instrument
 		source = _utils.str_to_val(_LLB_OSC_SOURCES, source, 'trigger source')
-		print source
 		# This function is the portion of set_trigger shared among instruments with embedded scopes. 
 		self._set_trigger(source, edge, level, minwidth, maxwidth, hysteresis, hf_reject, mode)
 
@@ -495,5 +503,8 @@ _llb_reg_hdl = {
 										from_reg_unsigned(2, 1)),
 
 	'MuxInt':		(REG_LLB_RATE_SEL,	to_reg_unsigned(3, 2),
-										from_reg_unsigned(3, 2))
+										from_reg_unsigned(3, 2)),
+
+	'trig_aux':		(REG_LLB_MON_SEL,	to_reg_unsigned(8, 1),
+										from_reg_unsigned(8, 1)) 
 }
