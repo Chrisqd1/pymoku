@@ -127,6 +127,7 @@ class LaserLockBox(_CoreOscilloscope):
 		self.MuxDec = 0
 		self.MuxFast = 0
 		self.MuxInt = 2
+		self.TrigPort2 = 0
 
 
 	def _update_dependent_regs(self, scales):
@@ -311,7 +312,7 @@ class LaserLockBox(_CoreOscilloscope):
 		elif (source == _LLB_TRIG_SRC_EXT):
 			level = 1.0
 		else:
-			level = 0.0
+			level = 1.0 #used to be 0.0. Gave divide by zero error when triggering on in2
 
 		return level
 
@@ -453,5 +454,8 @@ _llb_reg_hdl = {
 										from_reg_unsigned(2, 1)),
 
 	'MuxInt':		(REG_LLB_RATE_SEL,	to_reg_unsigned(3, 2),
-										from_reg_unsigned(3, 2))
+										from_reg_unsigned(3, 2)),
+
+	'TrigPort2':		(REG_LLB_MON_SEL,	to_reg_unsigned(8, 1),
+										from_reg_unsigned(8, 1)) 
 }
