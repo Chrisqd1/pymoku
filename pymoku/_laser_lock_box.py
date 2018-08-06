@@ -20,6 +20,7 @@ REGBASE_LLB_AUX_SINE		= 97
 REG_LLB_MON_SEL				= 75
 REG_LLB_RATE_SEL			= 76
 REG_LLB_SCALE				= 77
+REG_LLB_SCANSCALE			= 78
 
 REGBASE_LLB_IIR				= 28
 
@@ -124,6 +125,8 @@ class LaserLockBox(_CoreOscilloscope):
 						[1, 1, 0, 0, 0, 0]]
 		self.set_filter_coeffs(default_filt_coeff)
 		self.set_local_oscillator(10e6 ,0)
+		# self.set_scan(0, 0, 'fast', 0)
+		# self.set_scan(frequency=0.0, phase=0.0, pid='slow', amplitude=0.0)
 
 		self._set_scale()
 		self.MuxDec = 0
@@ -246,19 +249,40 @@ class LaserLockBox(_CoreOscilloscope):
 		self.demod_sweep.hold_last = False
 
 	@needs_commit
-	def set_scan(self, frequency, phase):
+	def set_scan(self, frequency, phase,  amplitude, output = 1,):
 		"""
-		Configure the scan signal.
+		Configure the scanning generator
 
 		:type frequency : float; [0, 200e6] Hz
-		:param frequency : Internal demodulation frequency
+		:param frequency : scan frequency
 
 		:type phase : float; [0, 360] degrees
-		:param phase : float; Internal demodulation phase
+		:param phase : scan phase
+
+		:type amplitude : float; [0, 2]
+		:param amplitude : scan amplitude
+
+		:type output : int; [1, 2]
+		:param output : selects which output the scan linked to.
+
 
 		"""
 		self.scan_sweep.step = frequency * _LLB_FREQSCALE
-		seld.scan_sweep.start = phase * _LLB_PHASESCALE
+		self.scan_sweep.stop = 2**64 -1
+		self.scan_sweep.duration = 0
+		self.scan_sweep.waveform = 2
+		self.scan_sweep.start = phase * _LLB_PHASESCALE
+		self.scan_sweep.wait_for_trig = False
+		self.scan_sweep.hold_last = False
+
+		self.scan_amplitude = amplitude / 2.0
+
+		if output == 1:
+			self.fast_scan_enable = True
+			self.slow_scan_enable = False
+		else:
+			self.fast_scan_enable = False
+			self.slow_scan_enable = True
 
 	@needs_commit
 	def set_aux_sine(self, frequency, phase):
@@ -443,6 +467,15 @@ _llb_reg_hdl = {
 
 	'_slow_scale' : 	(REG_LLB_SCALE, to_reg_signed(16, 16, xform = lambda obj, x : x * 2**14),
 										from_reg_signed(16, 16, xform = lambda obj, x : x / 2**14)),
+
+	'scan_amplitude' :	(REG_LLB_SCANSCALE, to_reg_signed(0, 16, xform = lambda obj,  x : x * 2**14),
+										from_reg_signed(0, 16, xform = lambda obj, x : x / 2**14)),
+
+	'fast_scan_enable': (REG_LLB_SCANSCALE, to_reg_unsigned(16, 1),
+											from_reg_unsigned(17, 1)),
+
+	'slow_scan_enable': (REG_LLB_SCANSCALE, to_reg_unsigned(17, 1),
+											from_reg_unsigned(18, 1)),
 
 	'monitor_select0' :	(REG_LLB_MON_SEL, 	to_reg_unsigned(0, 4),
 											from_reg_unsigned(0,4)),
