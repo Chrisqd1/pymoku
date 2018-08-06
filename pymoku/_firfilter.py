@@ -388,7 +388,7 @@ class FIRFilter(_CoreOscilloscope):
 		"""
 		_utils.check_parameter_valid('set', ch, [1, 2],'filter channel')
 		_utils.check_parameter_valid('set', decimation_factor, range(3,11), 'decimation factor')
-		_utils.check_parameter_valid('range', len(filter_coefficients), [0, _FIR_NUM_BLOCKS * min(2**decimation_factor - 1, 2**9 - 1)], 'filter coefficient array length')
+		_utils.check_parameter_valid('range', len(filter_coefficients), [0, _FIR_NUM_BLOCKS * min(2**decimation_factor, 2**9 - 1)], 'filter coefficient array length')
 		# Check that all coefficients are between -1.0 and 1.0
 		if not all(map(lambda x: abs(x) <= 1.0, filter_coefficients)):
 			raise ValueOutOfRangeException("set_filter filter coefficients must be in the range [-1.0, 1.0].")
