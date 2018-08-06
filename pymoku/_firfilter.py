@@ -249,16 +249,20 @@ class FIRFilter(_CoreOscilloscope):
 		self.set_gains_offsets(1)
 		self.set_gains_offsets(2)
 
+		self.input_en1 = True
+		self.input_en2 = True
+
+		# Plotting script defaults:
 		self.set_control_matrix(1, 1.0, 0.0)
 		self.set_control_matrix(2, 0.0, 1.0)
 
-		self.set_monitor('a','out1')
-		self.set_monitor('b','out2')
+		self.set_monitor('a','in1')
+		self.set_monitor('b','in2')
 
 		self.set_trigger('a', 'rising', 0, mode='auto')
-
-		self.input_en1 = True
-		self.input_en2 = True
+		self.set_timebase(-1e-3, 1e-3)
+		self._set_samplerate(1, 8)
+		self._set_samplerate(2, 8)
 
 	@needs_commit
 	def set_control_matrix(self, ch, scale_in1, scale_in2):

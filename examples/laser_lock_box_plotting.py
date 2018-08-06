@@ -1,38 +1,39 @@
 #
-# pymoku example: Plotting Oscilloscope
+# pymoku example: Basic Lock-in Amplifier
 #
-# This example demonstrates how you can configure the Oscilloscope instrument,
-# and view triggered time-voltage data frames in real-time.
+# This example demonstrates how you can configure the lock-in amplifier
+# instrument
 #
 # (c) 2017 Liquid Instruments Pty. Ltd.
 #
-from pymoku import *
-from pymoku.instruments import Oscilloscope
+from pymoku import Moku
+from pymoku.instruments import LaserLockBox
 
 import matplotlib
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 
-# Connect to your Moku by its device name
-# Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
-m = Moku.get_by_name('Moku')
-i = m.deploy_or_connect(Oscilloscope)
+# Use Moku.get_by_serial() or get_by_name() if you don't know the IP
+m = Moku.get_by_name('PeregrinTook', force = True)
+i = m.deploy_instrument(LaserLockBox)
 
 try:
-	# Trigger on input Channel 1, rising edge, 0V with 0.1V hysteresis
-	i.set_trigger('in1', 'rising', 0, hysteresis = 0.1)
+    # i.set_local_oscillator(1e6, 0)
+	i.set_sample_rate('high')
+	i.set_local_oscillator(1, 0)
+	i.set_pid_by_gain(1, 1, 1)
+	i.set_pid_enable(1, True)
+	i.set_pid_bypass(1, False)
 
-	 # View +-5usec, i.e. trigger in the centre
-	i.set_timebase(-5e-6, 5e-6)
+	# Monitor the I and Q signals from the mixer, before filtering
+	i.set_monitor('A', 'in1')
+	i.set_monitor('B', 'in2')
 
-	# Generate an output sinewave on Channel 2, 500mVpp, 1MHz, 0V offset
-	i.gen_sinewave(2, 0.5, 1e6, 0)
+	# Trigger on Monitor 'B' ('Q' signal), rising edge, 0V with 0.1V hysteresis
+	i.set_trigger('B', 'rising', 0)
 
-	# Set the data source of Channel 1 to be Input 1
-	i.set_source(1, 'in1')
-
-	# Set the data source of Channel 2 to the generated output sinewave
-	i.set_source(2, 'out2')
+	 # View +- 0.1 second, i.e. trigger in the centre
+	i.set_timebase(-1e-6, 1e-6)
 
 	# Get initial data frame to set up plotting parameters. This can be done once
 	# if we know that the axes aren't going to change (otherwise we'd do
@@ -67,8 +68,8 @@ try:
 		line1.set_xdata(data.time)
 		line2.set_xdata(data.time)
 		plt.pause(0.001)
-
 finally:
 	# Close the connection to the Moku device
 	# This ensures network resources and released correctly
 	m.close()
+

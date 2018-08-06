@@ -133,16 +133,18 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		self._set_source(1, _LIA_SOURCE_A)
 		self._set_source(2, _LIA_SOURCE_B)
 
-		# Configure the low-pass filter
 		self.set_filter(1e3, 1)
 		self.set_gain('aux',1.0)
 		self.set_pid_by_gain('main',1.0)
 		self.set_lo_output(0.5,1e6,0)
+		self.set_demodulation('internal', 0)
+		self.set_outputs('x','sine')
+		self.set_input_gain(0)
+
 		self.set_monitor('a', 'in1')
 		self.set_monitor('b', 'main')
-		self.set_demodulation('internal', 0)
-		self.set_outputs('none','none')
-		self.set_input_gain(0)
+		self.set_trigger('b', 'rising', 0)
+		self.set_timebase(-1e-6, 1e-6)
 
 	@needs_commit
 	def set_input_gain(self, gain=0):
@@ -306,9 +308,6 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 
 		:type kd: float;
 		:param kd: Differentiator gain factor
-
-		:type kii: float;
-		:param kii: Second integrator gain factor
 
 		:type si: float; float; [-1e3,1e3]
 		:param si: Integrator gain saturation

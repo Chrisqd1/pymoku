@@ -15,7 +15,7 @@ from . import _input_instrument
 from . import _pid_controller
 from . import _iirfilterbox
 from . import _firfilter
-
+from . import _laser_lock_box
 ''' Preferred import point. Aggregates the separate instruments and helper classes
     to flatten the import heirarchy (e.g. pymoku.instruments.Oscilloscope rather
     than pymoku.instruments._oscilloscope.Oscilloscope)
@@ -39,6 +39,7 @@ PIDController = _pid_controller.PIDController
 ArbitraryWaveGen = _arbwavegen.ArbitraryWaveGen
 IIRFilterBox = _iirfilterbox.IIRFilterBox
 FIRFilter = _firfilter.FIRFilter
+LaserLockBox = _laser_lock_box.LaserLockBox
 
 id_table = {
 	1: Oscilloscope,
@@ -55,5 +56,6 @@ id_table = {
 	12: None,
 	13: None,
 	14: None,
-	15: ArbitraryWaveGen
+	15: ArbitraryWaveGen,
+	16: LaserLockBox
 }
