@@ -55,7 +55,7 @@ _LLB_MON_SLOW_SCAN			= 11
 _LLB_SOURCE_A		= 0
 _LLB_SOURCE_B		= 1
 _LLB_SOURCE_IN1		= 2
-_LLB_SOURCE_SCAN	= 2
+_LLB_SOURCE_SCAN	= 3
 _LLB_SOURCE_IN2		= 3
 _LLB_SOURCE_EXT		= 4
 
@@ -398,6 +398,7 @@ class LaserLockBox(_CoreOscilloscope):
 		else:
 			self.trig_aux = 0
 
+		print self.trig_aux
 		# Define the trigger sources appropriate to the LockInAmp instrument
 		source = _utils.str_to_val(_LLB_OSC_SOURCES, source, 'trigger source')
 		# This function is the portion of set_trigger shared among instruments with embedded scopes. 
