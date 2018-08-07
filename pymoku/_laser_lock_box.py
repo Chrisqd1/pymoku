@@ -43,6 +43,10 @@ _LLB_TRIG_SRC_EXT			= 2
 _LLB_SCAN_SAWTOOTH			= 2
 _LLB_SCAN_TRIANGLE			= 3
 
+_LLB_SCANSOURCE_DAC0		= 0
+_LLB_SCANSOURCE_DAC1		= 1
+_LLB_SCANSOURCE_NONE		= 2
+
 _LLB_MON_ERROR 				= 1
 _LLB_MON_PID_FAST			= 2
 _LLB_MON_PID_SLOW			= 3
@@ -276,6 +280,13 @@ class LaserLockBox(_CoreOscilloscope):
 		}
 		waveform = _str_to_waveform[waveform]
 
+		_str_to_scansource = {
+			'dac0' 	: _LLB_SCANSOURCE_DAC0,
+			'dac1'	: _LLB_SCANSOURCE_DAC1,
+			'none'	: _LLB_SCANSOURCE_NONE
+		}
+		output = _str_to_scansource[output]
+
 		self.scan_sweep.step = frequency * _LLB_FREQSCALE if waveform == _LLB_SCAN_SAWTOOTH else frequency * _LLB_FREQSCALE * 2
 		self.scan_sweep.stop = 2**64 -1
 		self.scan_sweep.duration = 0
@@ -286,12 +297,15 @@ class LaserLockBox(_CoreOscilloscope):
 
 		self.scan_amplitude = amplitude / 2.0
 
-		if output == 1:
+		if output == _LLB_SCANSOURCE_DAC0:
 			self.fast_scan_enable = True
 			self.slow_scan_enable = False
-		else:
+		elif output == _LLB_SCANSOURCE_DAC1:
 			self.fast_scan_enable = False
 			self.slow_scan_enable = True
+		else:
+			self.fast_scan_enable = False
+			self.slow_scan_enable = False
 
 	@needs_commit
 	def set_aux_sine(self, frequency, phase):
@@ -373,7 +387,7 @@ class LaserLockBox(_CoreOscilloscope):
 		Set the trigger source for the monitor channel signals. This can be either of the input or
 		monitor signals, or the external input.
 
-		:type source: string, {'in1','in2','A','B','ext'}
+		:type source: string, {'in1','in2','scan','A','B','ext'}
 		:param source: Trigger Source. May be either an input or monitor channel (as set by 
 				:py:meth:`~pymoku.instruments.LockInAmp.set_monitor`), or external. External refers 
 				to the back-panel connector of the same	name, allowing triggering from an 
