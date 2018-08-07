@@ -43,8 +43,8 @@ _LLB_TRIG_SRC_EXT			= 2
 _LLB_SCAN_SAWTOOTH			= 2
 _LLB_SCAN_TRIANGLE			= 3
 
-_LLB_SCANSOURCE_DAC0		= 0
-_LLB_SCANSOURCE_DAC1		= 1
+_LLB_SCANSOURCE_DAC1		= 0
+_LLB_SCANSOURCE_DAC2		= 1
 _LLB_SCANSOURCE_NONE		= 2
 
 _LLB_MON_ERROR 				= 1
@@ -256,7 +256,7 @@ class LaserLockBox(_CoreOscilloscope):
 		self.demod_sweep.hold_last = False
 
 	@needs_commit
-	def set_scan(self, frequency, phase,  amplitude, waveform, output = 1):
+	def set_scan(self, frequency, phase,  amplitude, waveform = 'triangle', output = 'out1'):
 		"""
 		Configure the scanning generator
 
@@ -281,8 +281,8 @@ class LaserLockBox(_CoreOscilloscope):
 		waveform = _str_to_waveform[waveform]
 
 		_str_to_scansource = {
-			'dac0' 	: _LLB_SCANSOURCE_DAC0,
-			'dac1'	: _LLB_SCANSOURCE_DAC1,
+			'out1' 	: _LLB_SCANSOURCE_DAC1,
+			'out2'	: _LLB_SCANSOURCE_DAC2,
 			'none'	: _LLB_SCANSOURCE_NONE
 		}
 		output = _str_to_scansource[output]
@@ -295,14 +295,16 @@ class LaserLockBox(_CoreOscilloscope):
 		self.scan_sweep.wait_for_trig = False
 		self.scan_sweep.hold_last = False
 
-		self.scan_amplitude = amplitude / 2.0
 
-		if output == _LLB_SCANSOURCE_DAC0:
+
+		if output == _LLB_SCANSOURCE_DAC1:
 			self.fast_scan_enable = True
 			self.slow_scan_enable = False
-		elif output == _LLB_SCANSOURCE_DAC1:
+			self.scan_amplitude = (amplitude / 2.0) * self._dac_gains()[output-1] * 2**15
+		elif output == _LLB_SCANSOURCE_DAC2:
 			self.fast_scan_enable = False
 			self.slow_scan_enable = True
+			self.scan_amplitude = (amplitude / 2.0) * self._dac_gains()[output-1] * 2**15
 		else:
 			self.fast_scan_enable = False
 			self.slow_scan_enable = False
@@ -421,7 +423,6 @@ class LaserLockBox(_CoreOscilloscope):
 		else:
 			self.trig_aux = 0
 
-		print self.trig_aux
 		# Define the trigger sources appropriate to the LockInAmp instrument
 		source = _utils.str_to_val(_LLB_OSC_SOURCES, source, 'trigger source')
 		# This function is the portion of set_trigger shared among instruments with embedded scopes. 
