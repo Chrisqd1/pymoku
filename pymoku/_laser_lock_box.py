@@ -193,7 +193,7 @@ class LaserLockBox(_CoreOscilloscope):
 		pid_array = [self.fast_pid, self.slow_pid]
 
 		pid_array[pid_block -1].set_reg_by_gain(g, kp, ki, kd, si, sd)
-		pid_array[pid_block -1].gain = pid_array[pid_block -1].gain / self._dac_gains()[pid_block-1]
+		pid_array[pid_block -1].gain = pid_array[pid_block -1].gain * 2**15
 
 	@needs_commit
 	def set_pid_enable(self, pid_block, en=True):
@@ -233,7 +233,7 @@ class LaserLockBox(_CoreOscilloscope):
 		"""
 		pid_array = [self.fast_pid, self.slow_pid]
 		pid_array[pid_block -1].set_reg_by_frequency(scaled_kp, i_xover, d_xover, si, sd)
-		pid_array[pid_block -1].gain = pid_array[pid_block -1].gain / self._dac_gains()[pid_block-1]
+		pid_array[pid_block -1].gain = pid_array[pid_block -1].gain * 2**15
 
 	@needs_commit
 	def set_local_oscillator(self, frequency, phase):
@@ -300,14 +300,15 @@ class LaserLockBox(_CoreOscilloscope):
 		if output == _LLB_SCANSOURCE_DAC1:
 			self.fast_scan_enable = True
 			self.slow_scan_enable = False
-			self.scan_amplitude = (amplitude / 2.0) * self._dac_gains()[output-1] * 2**15
+			self.scan_amplitude = (amplitude / 2.0) / self._dac_gains()[0] / 2**15
 		elif output == _LLB_SCANSOURCE_DAC2:
 			self.fast_scan_enable = False
 			self.slow_scan_enable = True
-			self.scan_amplitude = (amplitude / 2.0) * self._dac_gains()[output-1] * 2**15
+			self.scan_amplitude = (amplitude / 2.0) / self._dac_gains()[1] / 2**15
 		else:
 			self.fast_scan_enable = False
 			self.slow_scan_enable = False
+			self.scan_amplitude = (amplitude / 2.0) / self._dac_gains()[0] / 2**15 # default to out 1 scale 
 
 	@needs_commit
 	def set_aux_sine(self, frequency, phase):
@@ -369,17 +370,17 @@ class LaserLockBox(_CoreOscilloscope):
 	@needs_commit
 	def _monitor_source_volts_per_bit(self, source, scales):
 		monitor_source_gains = {
-			'error'		: scales['gain_adc1'] / (4.0 if self.rate_sel else 2.0),
-			'pid_fast'	: scales['gain_adc1'] / (4.0 if self.rate_sel else 2.0),
-			'pid_slow'	: scales['gain_adc1'] / (4.0 if self.rate_sel else 2.0),
+			'error'		: scales['gain_adc1'] * 2.0,
+			'pid_fast'	: scales['gain_adc1'] * 2.0,
+			'pid_slow'	: scales['gain_adc1'] * 2.0,
 			'in1' 		: scales['gain_adc1'] / (10.0 if scales['atten_ch1'] else 1.0),
 			'in2' 		: scales['gain_adc2'] / (10.0 if scales['atten_ch2'] else 1.0),
-			'out1'		: scales['gain_dac1'] / 2**4,
-			'out2'		: scales['gain_dac2'] / 2**4,
-			'scan'		: scales['gain_dac1'] / 2**4, # TODO need to account for where the scan is going
-			'lo'		: scales['gain_dac2'] / 2**4,
-			'aux'		: scales['gain_dac2'] / 2**4,
-			'slow_scan'	: scales['gain_dac2'] / 2**4
+			'out1'		: scales['gain_dac1'] * 2**4,
+			'out2'		: scales['gain_dac2'] * 2**4,
+			'scan'		: scales['gain_dac1'] * 2**4, #change to be either dac1 or dac2
+			'lo'		: 1.0 / 2**11, # no scaling applied
+			'aux'		: scales['gain_dac2'] / 2**4, # havent added in hdl yet
+			'slow_scan'	: scales['gain_dac2'] * 2**4 
 		}
 		return monitor_source_gains[source]
 
