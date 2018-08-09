@@ -101,7 +101,7 @@ class LaserLockBox(_CoreOscilloscope):
 		self.demod_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_DEMOD)
 		self.scan_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_SCAN)
 		self.aux_sine_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_AUX_SINE)		
-		self.iir_filter = IIRBlock(self, reg_base=REGBASE_LLB_IIR, num_stages = 1, gain_frac_width = 9, coeff_frac_width = 23, use_mmap = False)
+		self.iir_filter = IIRBlock(self, reg_base=REGBASE_LLB_IIR, num_stages = 1, gain_frac_width = 9, coeff_frac_width = 16, use_mmap = False)
 
 	@needs_commit
 	def set_defaults(self):
@@ -128,8 +128,8 @@ class LaserLockBox(_CoreOscilloscope):
 		# self.set_pid_by_gain(1)
 
 		default_filt_coeff = 	[[1.0],
-						# [1.0, 0.0346271318590754, -0.0466073336600009, 0.0346271318590754, 1.81922686243757, -0.844637126033068]]
-						[1, 1, 0, 0, 0, 0]]
+						[1.0, 0.0346271318590754, -0.0466073336600009, 0.0346271318590754, 1.81922686243757, -0.844637126033068]]
+						# [1, 1, 0, 0, 0, 0]]
 		self.set_filter_coeffs(default_filt_coeff)
 		self.set_local_oscillator(10e6 ,0)
 		# self.set_scan(0, 0, 'fast', 0)
