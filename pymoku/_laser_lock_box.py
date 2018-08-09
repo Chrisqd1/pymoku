@@ -24,6 +24,13 @@ REG_LLB_SCANSCALE			= 78
 
 REGBASE_LLB_IIR				= 28
 
+REG_LLB_PM_BW1 			= 106
+REG_LLB_PM_AUTOA1 		= 107
+REG_LLB_PM_REACQ		= 108
+REG_LLB_PM_RESET		= 109
+# REG_LLB_PM_OUTDEC 	= 94
+# REG_LLB_PM_OUTSHIFT 	= 94
+
 REGBASE_LLB_PID1			= 110
 REGBASE_LLB_PID2			= 119
 
@@ -136,7 +143,7 @@ class LaserLockBox(_CoreOscilloscope):
 		# self.set_scan(frequency=0.0, phase=0.0, pid='slow', amplitude=0.0)
 
 		self._set_scale()
-		self.MuxDec = 0
+		self.MuxDec = 1
 		self.MuxFast = 0
 		self.MuxInt = 2
 	
@@ -309,6 +316,24 @@ class LaserLockBox(_CoreOscilloscope):
 			self.fast_scan_enable = False
 			self.slow_scan_enable = False
 			self.scan_amplitude = (amplitude / 2.0) / self._dac_gains()[0] / 2**15 # default to out 1 scale 
+
+	@needs_commit
+	def set_demodulation(self, mode):
+
+		self.autoacquire = 1
+		self.bandwidth = 0
+		self.lo_PLL_reset = 0
+		self.lo_reacquire = 0
+
+		if mode == 'internal':
+			a = 1
+		elif mode == 'external':
+			a = 1
+		elif mode == 'external_pll':
+			self.lo_reacquire = 1
+		else:
+			#shouldn't happen
+			raise ValueOutOfRangeException('Demodulation mode must be one of "internal", "external" or "external_pll", not %s', mode)
 
 	@needs_commit
 	def set_aux_sine(self, frequency, phase):
@@ -522,5 +547,23 @@ _llb_reg_hdl = {
 										from_reg_unsigned(3, 2)),
 
 	'trig_aux':		(REG_LLB_MON_SEL,	to_reg_unsigned(8, 1),
-										from_reg_unsigned(8, 1)) 
+										from_reg_unsigned(8, 1)),
+
+	'bandwidth':		(REG_LLB_PM_BW1, 	to_reg_signed(0,5, xform=lambda obj, b: b),
+											from_reg_signed(0,5, xform=lambda obj, b: b)),
+
+	'lo_PLL_reset':		(REG_LLB_PM_RESET, 	to_reg_bool(31),
+											from_reg_bool(31)),
+
+	'lo_reacquire':		(REG_LLB_PM_REACQ, 	to_reg_bool(0),
+											from_reg_bool(0)),
+
+	# 'output_decimation':	(REG_LLB_PM_OUTDEC,	to_reg_unsigned(0,17),
+	# 											from_reg_unsigned(0,17)),
+
+	# 'output_shift':			(REG_LLB_PM_OUTSHIFT, 	to_reg_unsigned(17,5),
+	# 												from_reg_unsigned(17,5)),
+
+	'autoacquire':		(REG_LLB_PM_AUTOA1, to_reg_bool(0),
+											from_reg_bool(0))
 }

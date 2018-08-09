@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 
 # Use Moku.get_by_serial() or get_by_name() if you don't know the IP
-m = Moku.get_by_name('PeregrinTook', force = True)
+m = Moku.get_by_name('Bilbo', force = True)
 i = m.deploy_instrument(LaserLockBox)
 
 try:
@@ -29,11 +29,14 @@ try:
 	i.set_monitor('A', 'in1')
 	i.set_monitor('B', 'in2')
 
+	i.set_scan(frequency=1e4, phase=0.0, output = 'none', amplitude=0.25, waveform='sawtooth')
+	# i.set_demodulation('external_pll')
+
 	# Trigger on Monitor 'B' ('Q' signal), rising edge, 0V with 0.1V hysteresis
 	i.set_trigger('B', 'rising', 0)
 
 	 # View +- 0.1 second, i.e. trigger in the centre
-	i.set_timebase(-1e-6, 1e-6)
+	i.set_timebase(-1e-3, 1e-3)
 
 	# Get initial data frame to set up plotting parameters. This can be done once
 	# if we know that the axes aren't going to change (otherwise we'd do
