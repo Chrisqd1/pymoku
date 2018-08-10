@@ -10,12 +10,14 @@ from . import _utils
 from ._pid import PID
 from ._sweep_generator import SweepGenerator
 from ._iir_block import IIRBlock
+from ._embedded_pll import EmbeddedPLL
 
 log = logging.getLogger(__name__)
 
 REGBASE_LLB_DEMOD			= 79
 REGBASE_LLB_SCAN			= 88
 REGBASE_LLB_AUX_SINE		= 97
+REGBASE_LLB_PLL				= 106
 
 REG_LLB_MON_SEL				= 75
 REG_LLB_RATE_SEL			= 76
@@ -23,13 +25,6 @@ REG_LLB_SCALE				= 77
 REG_LLB_SCANSCALE			= 78
 
 REGBASE_LLB_IIR				= 28
-
-REG_LLB_PM_BW1 			= 106
-REG_LLB_PM_AUTOA1 		= 107
-REG_LLB_PM_REACQ		= 108
-REG_LLB_PM_RESET		= 109
-# REG_LLB_PM_OUTDEC 	= 94
-# REG_LLB_PM_OUTSHIFT 	= 94
 
 REGBASE_LLB_PID1			= 110
 REGBASE_LLB_PID2			= 119
@@ -108,37 +103,19 @@ class LaserLockBox(_CoreOscilloscope):
 		self.demod_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_DEMOD)
 		self.scan_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_SCAN)
 		self.aux_sine_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_AUX_SINE)		
-		self.iir_filter = IIRBlock(self, reg_base=REGBASE_LLB_IIR, num_stages = 1, gain_frac_width = 9, coeff_frac_width = 16, use_mmap = False)
+		self.iir_filter = IIRBlock(self, reg_base=REGBASE_LLB_IIR, num_stages = 1, gain_frac_width = 9, coeff_frac_width = 23, use_mmap = False)
+		self.embedded_pll = EmbeddedPLL(self, reg_base=REGBASE_LLB_PLL)
 
 	@needs_commit
 	def set_defaults(self):
 		super(LaserLockBox, self).set_defaults()
 		self.set_sample_rate('high')
 
-		self.set_local_oscillator(10e6, 0)
-
-		# self.scan_sweep.step = 0
-		# self.scan_sweep.stop = 2**64 -1
-		# self.scan_sweep.duration = 0
-		# self.scan_sweep.waveform = 2
-		# self.scan_sweep.start = 0
-		# self.scan_sweep.wait_for_trig = False
-		# self.scan_sweep.hold_last = False
-
-		# self.aux_sine_sweep.step = 0
-		# self.aux_sine_sweep.stop = 2**64 -1
-		# self.aux_sine_sweep.duration = 0
-		# self.aux_sine_sweep.waveform = 2
-		# self.aux_sine_sweep.start = 0
-		# self.aux_sine_sweep.wait_for_trig = False
-		# self.aux_sine_sweep.hold_last = False
-		# self.set_pid_by_gain(1)
-
 		default_filt_coeff = 	[[1.0],
-						[1.0, 0.0346271318590754, -0.0466073336600009, 0.0346271318590754, 1.81922686243757, -0.844637126033068]]
-						# [1, 1, 0, 0, 0, 0]]
+						# [1.0, 0.0346271318590754, -0.0466073336600009, 0.0346271318590754, 1.81922686243757, -0.844637126033068]]
+						[1, 1, 0, 0, 0, 0]]
 		self.set_filter_coeffs(default_filt_coeff)
-		self.set_local_oscillator(10e6 ,0)
+		self.set_local_oscillator('internal', 0 ,0)
 		# self.set_scan(0, 0, 'fast', 0)
 		# self.set_scan(frequency=0.0, phase=0.0, pid='slow', amplitude=0.0)
 
@@ -243,15 +220,21 @@ class LaserLockBox(_CoreOscilloscope):
 		pid_array[pid_block -1].gain = pid_array[pid_block -1].gain * 2**15
 
 	@needs_commit
-	def set_local_oscillator(self, frequency, phase):
+	def set_local_oscillator(self, source, frequency, phase, pll_auto_acq = True):
 		"""
 		Configure the demodulation stage.
+
+		:type source : list; ['internal', 'external', 'pll']
+		:param source : Local Oscillator Source
 
 		:type frequency : float; [0, 200e6] Hz
 		:param frequency : Internal demodulation frequency
 
 		:type phase : float; [0, 360] degrees
 		:param phase : float; Internal demodulation phase
+
+		:type pll_auto_acq : bool
+		:param pll_auto_acq : Enable PLL Auto Acquire
 
 		"""
 		self.demod_sweep.step = frequency * _LLB_FREQSCALE
@@ -261,6 +244,23 @@ class LaserLockBox(_CoreOscilloscope):
 		self.demod_sweep.start = phase * _LLB_PHASESCALE
 		self.demod_sweep.wait_for_trig = False
 		self.demod_sweep.hold_last = False
+
+		self.embedded_pll.bandwidth = 0
+		self.embedded_pll.pllreset = 0
+		self.embedded_pll.autoacquire = 1 if pll_auto_acq == True else False
+		self.embedded_pll.reacquire = 0
+
+		if source == 'internal':
+			self.MuxLOPhase = 0
+		elif source == 'external':
+			self.MuxLOPhase = 0
+			#stubbed for now
+		elif source == 'external_pll':
+			self.embedded_pll.reacquire = 1
+			self.MuxLOPhase = 1
+		else:
+			#shouldn't happen
+			raise ValueOutOfRangeException('Demodulation mode must be one of "internal", "external" or "external_pll", not %s', mode)	
 
 	@needs_commit
 	def set_scan(self, frequency, phase,  amplitude, waveform = 'triangle', output = 'out1'):
@@ -316,24 +316,6 @@ class LaserLockBox(_CoreOscilloscope):
 			self.fast_scan_enable = False
 			self.slow_scan_enable = False
 			self.scan_amplitude = (amplitude / 2.0) / self._dac_gains()[0] / 2**15 # default to out 1 scale 
-
-	@needs_commit
-	def set_demodulation(self, mode):
-
-		self.autoacquire = 1
-		self.bandwidth = 0
-		self.lo_PLL_reset = 0
-		self.lo_reacquire = 0
-
-		if mode == 'internal':
-			a = 1
-		elif mode == 'external':
-			a = 1
-		elif mode == 'external_pll':
-			self.lo_reacquire = 1
-		else:
-			#shouldn't happen
-			raise ValueOutOfRangeException('Demodulation mode must be one of "internal", "external" or "external_pll", not %s', mode)
 
 	@needs_commit
 	def set_aux_sine(self, frequency, phase):
@@ -546,17 +528,20 @@ _llb_reg_hdl = {
 	'MuxInt':		(REG_LLB_RATE_SEL,	to_reg_unsigned(3, 2),
 										from_reg_unsigned(3, 2)),
 
+	'MuxLOPhase':	(REG_LLB_RATE_SEL,	to_reg_unsigned(5, 1),
+										from_reg_unsigned(5, 1)),
+
 	'trig_aux':		(REG_LLB_MON_SEL,	to_reg_unsigned(8, 1),
-										from_reg_unsigned(8, 1)),
+										from_reg_unsigned(8, 1))
 
-	'bandwidth':		(REG_LLB_PM_BW1, 	to_reg_signed(0,5, xform=lambda obj, b: b),
-											from_reg_signed(0,5, xform=lambda obj, b: b)),
+	# 'bandwidth':		(REG_LLB_PM_BW1, 	to_reg_signed(0,5, xform=lambda obj, b: b),
+	# 										from_reg_signed(0,5, xform=lambda obj, b: b)),
 
-	'lo_PLL_reset':		(REG_LLB_PM_RESET, 	to_reg_bool(31),
-											from_reg_bool(31)),
+	# 'lo_PLL_reset':		(REG_LLB_PM_RESET, 	to_reg_bool(31),
+	# 										from_reg_bool(31)),
 
-	'lo_reacquire':		(REG_LLB_PM_REACQ, 	to_reg_bool(0),
-											from_reg_bool(0)),
+	# 'lo_reacquire':		(REG_LLB_PM_REACQ, 	to_reg_bool(0),
+	# 										from_reg_bool(0)),
 
 	# 'output_decimation':	(REG_LLB_PM_OUTDEC,	to_reg_unsigned(0,17),
 	# 											from_reg_unsigned(0,17)),
@@ -564,6 +549,6 @@ _llb_reg_hdl = {
 	# 'output_shift':			(REG_LLB_PM_OUTSHIFT, 	to_reg_unsigned(17,5),
 	# 												from_reg_unsigned(17,5)),
 
-	'autoacquire':		(REG_LLB_PM_AUTOA1, to_reg_bool(0),
-											from_reg_bool(0))
+	# 'autoacquire':		(REG_LLB_PM_AUTOA1, to_reg_bool(0),
+	# 										from_reg_bool(0))
 }
