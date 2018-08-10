@@ -131,10 +131,11 @@ class LaserLockBox(_CoreOscilloscope):
 		
 	@needs_commit
 	def _set_scale(self):
+		# incorporate adc2 scaling if local oscillator source is set to 'external'
+		lo_scale_factor = 1.0 if self.MuxLOSignal == '0' else self._adc_gains()[1] * 2**12
 		
-		self._fast_scale = self._adc_gains()[0] / self._dac_gains()[0] / 2**3
-		self._slow_scale = self._adc_gains()[0] / self._dac_gains()[1] / 2**3
-
+		self._fast_scale = self._adc_gains()[0] / self._dac_gains()[0] / 2**3 * lo_scale_factor
+		self._slow_scale = self._adc_gains()[0] / self._dac_gains()[1] / 2**3 * lo_scale_factor
 
 	@needs_commit
 	def set_filter_coeffs(self, filt_coeffs):
@@ -252,12 +253,15 @@ class LaserLockBox(_CoreOscilloscope):
 
 		if source == 'internal':
 			self.MuxLOPhase = 0
+			self.MuxLOSignal = 0
 		elif source == 'external':
 			self.MuxLOPhase = 0
+			self.MuxLOSignal = 1
 			#stubbed for now
 		elif source == 'external_pll':
 			self.embedded_pll.reacquire = 1
 			self.MuxLOPhase = 1
+			self.MuxLOSignal = 0
 		else:
 			#shouldn't happen
 			raise ValueOutOfRangeException('Demodulation mode must be one of "internal", "external" or "external_pll", not %s', mode)	
@@ -531,24 +535,9 @@ _llb_reg_hdl = {
 	'MuxLOPhase':	(REG_LLB_RATE_SEL,	to_reg_unsigned(5, 1),
 										from_reg_unsigned(5, 1)),
 
+	'MuxLOSignal':	(REG_LLB_RATE_SEL,	to_reg_unsigned(6, 1),
+										from_reg_unsigned(6, 1)),
+
 	'trig_aux':		(REG_LLB_MON_SEL,	to_reg_unsigned(8, 1),
 										from_reg_unsigned(8, 1))
-
-	# 'bandwidth':		(REG_LLB_PM_BW1, 	to_reg_signed(0,5, xform=lambda obj, b: b),
-	# 										from_reg_signed(0,5, xform=lambda obj, b: b)),
-
-	# 'lo_PLL_reset':		(REG_LLB_PM_RESET, 	to_reg_bool(31),
-	# 										from_reg_bool(31)),
-
-	# 'lo_reacquire':		(REG_LLB_PM_REACQ, 	to_reg_bool(0),
-	# 										from_reg_bool(0)),
-
-	# 'output_decimation':	(REG_LLB_PM_OUTDEC,	to_reg_unsigned(0,17),
-	# 											from_reg_unsigned(0,17)),
-
-	# 'output_shift':			(REG_LLB_PM_OUTSHIFT, 	to_reg_unsigned(17,5),
-	# 												from_reg_unsigned(17,5)),
-
-	# 'autoacquire':		(REG_LLB_PM_AUTOA1, to_reg_bool(0),
-	# 										from_reg_bool(0))
 }
