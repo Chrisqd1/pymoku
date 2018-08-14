@@ -115,7 +115,7 @@ class LaserLockBox(_CoreOscilloscope):
 						# [1.0, 0.0346271318590754, -0.0466073336600009, 0.0346271318590754, 1.81922686243757, -0.844637126033068]]
 						[1, 1, 0, 0, 0, 0]]
 		self.set_filter_coeffs(default_filt_coeff)
-		self.set_local_oscillator('internal', 0 ,0)
+		self.set_local_oscillator()
 		# self.set_scan(0, 0, 'fast', 0)
 		# self.set_scan(frequency=0.0, phase=0.0, pid='slow', amplitude=0.0)
 
@@ -221,7 +221,7 @@ class LaserLockBox(_CoreOscilloscope):
 		pid_array[pid_block -1].gain = pid_array[pid_block -1].gain * 2**15
 
 	@needs_commit
-	def set_local_oscillator(self, source, frequency, phase, pll_auto_acq = True):
+	def set_local_oscillator(self, frequency=0.0, phase=0.0, source = 'internal', pll_auto_acq = True):
 		"""
 		Configure the demodulation stage.
 
