@@ -18,22 +18,26 @@ m = Moku.get_by_name('Bilbo', force = True)
 i = m.deploy_instrument(LaserLockBox)
 
 try:
-    # i.set_local_oscillator(1e6, 0)
-	i.set_sample_rate('high')
-	i.set_local_oscillator(1, 0)
-	i.set_pid_by_gain(1, 1, 1)
+	i.set_frontend(1, fiftyr = True, atten = False, ac = False)
+	i.set_local_oscillator(source='internal', frequency=4e3, phase=0, pll_auto_acq = True)
+	i.set_aux_sine(amplitude = 1.0, frequency = 2e3, phase=0, sync_to_lo = True)
+	i.set_pid_by_gain(1, g=1, kp=1)
 	i.set_pid_enable(1, True)
 	i.set_pid_bypass(1, False)
+	i.set_pid_by_gain(2, g=1, kp=1)
+	i.set_pid_enable(2, True)
+	i.set_pid_bypass(2, False)
+	i.set_scan(frequency=1e4, phase=0.0, output = 'none', amplitude=0.25, waveform='sawtooth')
 
 	# Monitor the I and Q signals from the mixer, before filtering
-	i.set_monitor('A', 'in1')
-	i.set_monitor('B', 'in2')
+	i.set_monitor('A', 'lo')
+	i.set_monitor('B', 'aux') #green
 
 	i.set_scan(frequency=1e4, phase=0.0, output = 'none', amplitude=0.25, waveform='sawtooth')
 	# i.set_demodulation('external_pll')
 
 	# Trigger on Monitor 'B' ('Q' signal), rising edge, 0V with 0.1V hysteresis
-	i.set_trigger('B', 'rising', 0)
+	i.set_trigger('A', 'rising', 0)
 
 	 # View +- 0.1 second, i.e. trigger in the centre
 	i.set_timebase(-1e-3, 1e-3)

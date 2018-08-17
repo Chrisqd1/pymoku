@@ -23,6 +23,7 @@ REG_LLB_MON_SEL				= 75
 REG_LLB_RATE_SEL			= 76
 REG_LLB_SCALE				= 77
 REG_LLB_SCANSCALE			= 78
+REG_LLB_AUX_SCALE			= 34
 
 REGBASE_LLB_IIR				= 28
 
@@ -120,7 +121,7 @@ class LaserLockBox(_CoreOscilloscope):
 		# self.set_scan(frequency=0.0, phase=0.0, pid='slow', amplitude=0.0)
 
 		self._set_scale()
-		self.MuxDec = 1
+		self.MuxDec = 0
 		self.MuxFast = 0
 		self.MuxInt = 2
 	
@@ -132,8 +133,8 @@ class LaserLockBox(_CoreOscilloscope):
 	@needs_commit
 	def _set_scale(self):
 		# incorporate adc2 scaling if local oscillator source is set to 'external'
-		lo_scale_factor = 1.0 if self.MuxLOSignal == '0' else self._adc_gains()[1] * 2**12
-		
+		lo_scale_factor = 1.0 if self.MuxLOSignal == 0 else self._adc_gains()[1] * 2**12
+
 		self._fast_scale = self._adc_gains()[0] / self._dac_gains()[0] / 2**3 * lo_scale_factor
 		self._slow_scale = self._adc_gains()[0] / self._dac_gains()[1] / 2**3 * lo_scale_factor
 
@@ -264,7 +265,37 @@ class LaserLockBox(_CoreOscilloscope):
 			self.MuxLOSignal = 0
 		else:
 			#shouldn't happen
-			raise ValueOutOfRangeException('Demodulation mode must be one of "internal", "external" or "external_pll", not %s', mode)	
+			raise ValueOutOfRangeException('Demodulation mode must be one of "internal", "external" or "external_pll", not %s', mode)
+
+		# update scales
+		self._set_scale()
+
+	@needs_commit
+	def set_aux_sine(self, amplitude = 2.0, frequency = 0.0, phase = 0.0, sync_to_lo = False):
+		"""
+		Configure the aux sine signal.
+
+		:type frequency : float; [0, 200e6] Hz
+		:param frequency : Internal demodulation frequency
+
+		:type phase : float; [0, 360] degrees
+		:param phase : float; Internal demodulation phase
+
+		"""
+		self.aux_sine_sweep.step = frequency * _LLB_FREQSCALE
+		self.aux_sine_sweep.stop = 2**64 -1
+		self.aux_sine_sweep.duration = 0
+		self.aux_sine_sweep.waveform = 2
+		self.aux_sine_sweep.start = phase * _LLB_PHASESCALE
+		self.aux_sine_sweep.wait_for_trig = False
+		self.aux_sine_sweep.hold_last = False
+
+		self._aux_scale = (amplitude / 2.0) / self._dac_gains()[1] / 2**15
+
+		if sync_to_lo == True:
+			self.MuxAuxPhase = 1
+		else:
+			self.MuxAuxPhase = 0
 
 	@needs_commit
 	def set_scan(self, frequency, phase,  amplitude, waveform = 'triangle', output = 'out1'):
@@ -319,22 +350,7 @@ class LaserLockBox(_CoreOscilloscope):
 		else:
 			self.fast_scan_enable = False
 			self.slow_scan_enable = False
-			self.scan_amplitude = (amplitude / 2.0) / self._dac_gains()[0] / 2**15 # default to out 1 scale 
-
-	@needs_commit
-	def set_aux_sine(self, frequency, phase):
-		"""
-		Configure the aux sine signal.
-
-		:type frequency : float; [0, 200e6] Hz
-		:param frequency : Internal demodulation frequency
-
-		:type phase : float; [0, 360] degrees
-		:param phase : float; Internal demodulation phase
-
-		"""
-		self.aux_sine_sweep.step = frequency * _LLB_FREQSCALE
-		self.aux_sine_sweep.start = phase * _LLB_PHASESCALE
+			self.scan_amplitude = (amplitude / 2.0) / self._dac_gains()[0] / 2**15 # default to out 1 scale
 
 	@needs_commit
 	def set_sample_rate(self, rate):
@@ -382,15 +398,15 @@ class LaserLockBox(_CoreOscilloscope):
 	def _monitor_source_volts_per_bit(self, source, scales):
 		monitor_source_gains = {
 			'error'		: scales['gain_adc1'] * 2.0,
-			'pid_fast'	: scales['gain_adc1'] * 2.0,
-			'pid_slow'	: scales['gain_adc1'] * 2.0,
+			'pid_fast'	: scales['gain_dac1'] * 2**4,
+			'pid_slow'	: scales['gain_dac2'] * 2**4,
 			'in1' 		: scales['gain_adc1'] / (10.0 if scales['atten_ch1'] else 1.0),
 			'in2' 		: scales['gain_adc2'] / (10.0 if scales['atten_ch2'] else 1.0),
 			'out1'		: scales['gain_dac1'] * 2**4,
 			'out2'		: scales['gain_dac2'] * 2**4,
-			'scan'		: scales['gain_dac1'] * 2**4, #change to be either dac1 or dac2
-			'lo'		: 1.0 / 2**11, # no scaling applied
-			'aux'		: scales['gain_dac2'] / 2**4, # havent added in hdl yet
+			'scan'		: scales['gain_dac1'] * 2**4,
+			'lo'		: 2**-11 if self.MuxLOSignal == 0 else scales['gain_adc2'] * 2.0,
+			'aux'		: scales['gain_dac2'] * 2**4,
 			'slow_scan'	: scales['gain_dac2'] * 2**4 
 		}
 		return monitor_source_gains[source]
@@ -505,6 +521,9 @@ _llb_reg_hdl = {
 	'_slow_scale' : 	(REG_LLB_SCALE, to_reg_signed(16, 16, xform = lambda obj, x : x * 2**14),
 										from_reg_signed(16, 16, xform = lambda obj, x : x / 2**14)),
 
+	'_aux_scale' : 	(REG_LLB_AUX_SCALE, to_reg_signed(0, 16, xform = lambda obj, x : x * 2**14),
+										from_reg_signed(0, 16, xform = lambda obj, x : x / 2**14)),
+
 	'scan_amplitude' :	(REG_LLB_SCANSCALE, to_reg_signed(0, 16, xform = lambda obj,  x : x * 2**14),
 										from_reg_signed(0, 16, xform = lambda obj, x : x / 2**14)),
 
@@ -537,6 +556,9 @@ _llb_reg_hdl = {
 
 	'MuxLOSignal':	(REG_LLB_RATE_SEL,	to_reg_unsigned(6, 1),
 										from_reg_unsigned(6, 1)),
+
+	'MuxAuxPhase':	(REG_LLB_RATE_SEL,	to_reg_unsigned(7, 1),
+										from_reg_unsigned(7, 1)),
 
 	'trig_aux':		(REG_LLB_MON_SEL,	to_reg_unsigned(8, 1),
 										from_reg_unsigned(8, 1))
