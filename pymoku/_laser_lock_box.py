@@ -52,14 +52,15 @@ _LLB_SCANSOURCE_NONE		= 2
 _LLB_MON_ERROR 				= 1
 _LLB_MON_PID_FAST			= 2
 _LLB_MON_PID_SLOW			= 3
-_LLB_MON_IN1				= 4
-_LLB_MON_IN2				= 5
-_LLB_MON_OUT1				= 6
-_LLB_MON_OUT2				= 7
-_LLB_MON_SCAN				= 8
-_LLB_MON_LO 				= 9
-_LLB_MON_AUX				= 10
-_LLB_MON_SLOW_SCAN			= 11
+_LLB_FAST_OFFSET			= 4
+_LLB_SLOW_OFFSET			= 5
+_LLB_MON_IN1				= 6
+_LLB_MON_IN2				= 7
+_LLB_MON_OUT1				= 8
+_LLB_MON_OUT2				= 9
+_LLB_MON_SCAN				= 10
+_LLB_MON_LO 				= 11
+_LLB_MON_AUX				= 12
 
 _LLB_SOURCE_A		= 0
 _LLB_SOURCE_B		= 1
@@ -103,7 +104,7 @@ class LaserLockBox(_CoreOscilloscope):
 		self.demod_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_DEMOD)
 		self.scan_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_SCAN)
 		self.aux_sine_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_AUX_SINE)		
-		self.iir_filter = IIRBlock(self, reg_base=REGBASE_LLB_IIR, num_stages = 1, gain_frac_width = 9, coeff_frac_width = 23, use_mmap = False)
+		self.iir_filter = IIRBlock(self, reg_base=REGBASE_LLB_IIR, num_stages = 1, gain_frac_width = 9, coeff_frac_width = 16, use_mmap = False)
 		self.embedded_pll = EmbeddedPLL(self, reg_base=REGBASE_LLB_PLL)
 
 	@needs_commit
@@ -384,14 +385,16 @@ class LaserLockBox(_CoreOscilloscope):
 			'error'		: scales['gain_adc1'] * 2.0,
 			'pid_fast'	: scales['gain_adc1'] * 2.0,
 			'pid_slow'	: scales['gain_adc1'] * 2.0,
+			'fast_offset': scales['gain_adc1'] * 2.0,
+			'slow_offset': scales['gain_adc1'] * 2.0,
 			'in1' 		: scales['gain_adc1'] / (10.0 if scales['atten_ch1'] else 1.0),
 			'in2' 		: scales['gain_adc2'] / (10.0 if scales['atten_ch2'] else 1.0),
 			'out1'		: scales['gain_dac1'] * 2**4,
 			'out2'		: scales['gain_dac2'] * 2**4,
 			'scan'		: scales['gain_dac1'] * 2**4, #change to be either dac1 or dac2
 			'lo'		: 1.0 / 2**11, # no scaling applied
-			'aux'		: scales['gain_dac2'] / 2**4, # havent added in hdl yet
-			'slow_scan'	: scales['gain_dac2'] * 2**4 
+			'aux'		: scales['gain_dac2'] / 2**4 # havent added in hdl yet
+
 		}
 		return monitor_source_gains[source]
 
@@ -478,14 +481,15 @@ class LaserLockBox(_CoreOscilloscope):
 			'error'			: _LLB_MON_ERROR,
 			'pid_fast'		: _LLB_MON_PID_FAST,
 			'pid_slow'		: _LLB_MON_PID_SLOW,
+			'fast_offset'	: _LLB_FAST_OFFSET,
+			'slow_offset'	: _LLB_SLOW_OFFSET,
 			'in1'			: _LLB_MON_IN1,
 			'in2'			: _LLB_MON_IN2,
 			'out1'			: _LLB_MON_OUT1,
 			'out2'			: _LLB_MON_OUT2,
 			'scan'			: _LLB_MON_SCAN,
 			'lo'			: _LLB_MON_LO,
-			'aux'			: _LLB_MON_AUX,
-			'slow_scan'		: _LLB_MON_SLOW_SCAN
+			'aux'			: _LLB_MON_AUX
 		}
 
 		if monitor_ch == 'a':

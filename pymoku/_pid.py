@@ -19,7 +19,7 @@ class PID(object):
 		self.fs = fs
 		self.ang_freq = fs / ( 2 * math.pi)
 		self.enable = True
-		self.bypass = True
+		self.bypass = False
 		self.int_en = True
 		self.dc_pole = False
 		self.p_en = True
@@ -139,12 +139,12 @@ class PID(object):
 	@property
 	def d_gain(self):
 		r = self.reg_base + PID._REG_D_GAIN
-		return self._instr._accessor_get(r, from_reg_unsigned(0, 25, xform=lambda obj, x: x / (2.0**24 -1)))
+		return self._instr._accessor_get(r, from_reg_unsigned(0, 25))
 
 	@d_gain.setter
 	def d_gain(self, value):
 		r = self.reg_base + PID._REG_D_GAIN
-		return self._instr._accessor_set(r, to_reg_unsigned(0, 25, xform=lambda obj, x: x * (2.0**24-1)), value)
+		return self._instr._accessor_set(r, to_reg_unsigned(0, 25), value)
 
 	@property
 	def d_fb(self):
@@ -184,7 +184,11 @@ class PID(object):
 		self.gain = g
 		self.p_gain = kp
 		self.i_gain = ki / self.ang_freq
-		self.diff_gain = 4 * sd if sd else kd * self.ang_freq
+
+		if kd == 0:
+			self.d_gain = 0
+		else:
+			self.d_gain = 4 * sd if sd else self.ang_freq / float(kd)
 
 		if si is None:
 			i_c  = 0
@@ -197,13 +201,13 @@ class PID(object):
 
 		if sd :
 			if kd > 0 :
-				fc_coeff = sd / (kd * self.ang_freq)
+				fc_coeff = sd / ( self.ang_freq / float(kd)) / 2
 			else:
 				fc_coeff = 1
 		else:
-			fc_coeff = math.pi / 20 # default differentiator roll off to a 10th of the nyquist
+			fc_coeff = (math.pi / 20) # default differentiator roll off to a 10th of the nyquist
 
-		if fc_coeff > (math.pi / 20):
+		if fc_coeff > (math.pi / 10):
 			raise InvalidConfigurationException("Differentiator saturation corner above maximum. Reduce differentiator saturation below %.3f." % (fc_coeff * kd * self.ang_freq))
 
 		self.d_fb = 1.0 - fc_coeff
