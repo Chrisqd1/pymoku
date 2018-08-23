@@ -14,33 +14,33 @@ import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
 
 # Use Moku.get_by_serial() or get_by_name() if you don't know the IP
-m = Moku.get_by_name('Bilbo', force = True)
+m = Moku.get_by_name('PeregrinTook', force = True)
 i = m.deploy_instrument(LaserLockBox)
 
 try:
 	i.set_frontend(1, fiftyr = True, atten = False, ac = False)
-	i.set_local_oscillator(source='internal', frequency=4e3, phase=0, pll_auto_acq = True)
+	i.set_local_oscillator(source='external', frequency=4e3, phase=0, pll_auto_acq = True)
 	i.set_aux_sine(amplitude = 0.0, frequency = 2e3, phase=0, sync_to_lo = True)
-	i.set_pid_by_gain(1, g=1, kp=1, input_offset = 1.0)
+	i.set_pid_by_gain(1, g=1, kp=1, input_offset = 0.0)
 	i.set_pid_enable(1, True)
 	i.set_pid_bypass(1, False)
-	i.set_pid_by_gain(2, g=1, kp=1, input_offset = -0.6)
+	i.set_pid_by_gain(2, g=0, kp=1, input_offset = 0.0)
 	i.set_pid_enable(2, True)
 	i.set_pid_bypass(2, False)
-	i.set_scan(frequency=1e4, phase=0.0, output = 'none', amplitude=0.25, waveform='sawtooth')
+	i.set_scan(frequency=1e4, phase=0.0, output = 'out2', amplitude=1.0, waveform='triangle')
 
 	# Monitor the I and Q signals from the mixer, before filtering
-	i.set_monitor('A', 'pid_fast')
-	i.set_monitor('B', 'out1') #green
+	i.set_monitor('A', 'error')
+	i.set_monitor('B', 'scan') #green
 
-	i.set_scan(frequency=1e4, phase=0.0, output = 'none', amplitude=0.25, waveform='sawtooth')
+	# i.set_scan(frequency=1e4, phase=0.0, output = 'none', amplitude=0.25, waveform='sawtooth')
 	# i.set_demodulation('external_pll')
 
 	# Trigger on Monitor 'B' ('Q' signal), rising edge, 0V with 0.1V hysteresis
-	i.set_trigger('A', 'rising', 0)
+	i.set_trigger('A', 'rising', 0, trig_on_scan_rising = True)
 
 	 # View +- 0.1 second, i.e. trigger in the centre
-	i.set_timebase(-1e-3, 1e-3)
+	i.set_timebase(-2e-4, 2e-4)
 
 	# Get initial data frame to set up plotting parameters. This can be done once
 	# if we know that the axes aren't going to change (otherwise we'd do

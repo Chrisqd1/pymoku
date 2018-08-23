@@ -425,12 +425,12 @@ class LaserLockBox(_CoreOscilloscope):
 		return monitor_source_gains[source]
 
 	@needs_commit
-	def set_trigger(self, source, edge, level, minwidth=None, maxwidth=None, hysteresis=10e-2, hf_reject=False, mode='auto'):
+	def set_trigger(self, source, edge, level, minwidth=None, maxwidth=None, hysteresis=10e-2, hf_reject=False, mode='auto', trig_on_scan_rising = False):
 		""" 
 		Set the trigger source for the monitor channel signals. This can be either of the input or
 		monitor signals, or the external input.
 
-		:type source: string, {'in1','in2','scan','A','B','ext'}
+		:type source: string, {'in1','in2','scan','error_rising','A','B','ext'}
 		:param source: Trigger Source. May be either an input or monitor channel (as set by 
 				:py:meth:`~pymoku.instruments.LockInAmp.set_monitor`), or external. External refers 
 				to the back-panel connector of the same	name, allowing triggering from an 
@@ -459,10 +459,17 @@ class LaserLockBox(_CoreOscilloscope):
 		:param mode: Trigger mode.
 		"""
 
+		# TODO: decide whether trig_on_scan_rising can be set independently of source
+
 		if source == 'scan':
 			self.trig_aux = 1
 		else:
 			self.trig_aux = 0
+
+		if trig_on_scan_rising:
+			self.cond_trig = 1
+		else:
+			self.cond_trig = 0
 
 		# Define the trigger sources appropriate to the LockInAmp instrument
 		source = _utils.str_to_val(_LLB_OSC_SOURCES, source, 'trigger source')
@@ -581,5 +588,8 @@ _llb_reg_hdl = {
 										from_reg_unsigned(7, 1)),
 
 	'trig_aux':		(REG_LLB_MON_SEL,	to_reg_unsigned(8, 1),
-										from_reg_unsigned(8, 1))
+										from_reg_unsigned(8, 1)),
+
+	'cond_trig': (REG_LLB_MON_SEL, 	to_reg_unsigned(9, 1),
+									from_reg_unsigned(9, 1))
 }
