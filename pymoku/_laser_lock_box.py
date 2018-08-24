@@ -11,6 +11,7 @@ from ._pid import PID
 from ._sweep_generator import SweepGenerator
 from ._iir_block import IIRBlock
 from ._embedded_pll import EmbeddedPLL
+from scipy import signal
 
 log = logging.getLogger(__name__)
 
@@ -117,15 +118,10 @@ class LaserLockBox(_CoreOscilloscope):
 		default_filt_coeff = 	[[1.0],
 						# [1.0, 0.0346271318590754, -0.0466073336600009, 0.0346271318590754, 1.81922686243757, -0.844637126033068]]
 						[1, 1, 0, 0, 0, 0]]
-		self.set_filter_coeffs(default_filt_coeff)
+		self.set_custom_filter(default_filt_coeff)
 		self.set_local_oscillator()
-		# self.set_scan(0, 0, 'fast', 0)
-		# self.set_scan(frequency=0.0, phase=0.0, pid='slow', amplitude=0.0)
 
 		self._set_scale()
-		self.MuxDec = 0
-		self.MuxFast = 0
-		self.MuxInt = 2
 	
 
 	def _update_dependent_regs(self, scales):
@@ -141,7 +137,24 @@ class LaserLockBox(_CoreOscilloscope):
 		self._slow_scale = self._adc_gains()[0] / self._dac_gains()[1] / 2**3 * self.lo_scale_factor
 
 	@needs_commit
-	def set_filter_coeffs(self, filt_coeffs):
+	def set_butterworth(self, corner_frequency):
+		"""
+		Configure the filter coefficients in the IIR filter.
+
+		:type filt_coeffs: array;
+		:param filt_coeffs: array containg SOS filter coefficients.
+		"""
+
+		# TODO: limit corner frequency, settle on limit when we move to 25 bit coefficients
+
+		normalised_corner = corner_frequency / (62.5e6 / 2)
+		b, a = signal.butter(2, normalised_corner, 'low', analog = False)
+		coefficient_array = [[1.0], [1.0, b[0], b[1], b[2], -a[1], -a[2]]]
+
+		self.iir_filter.write_coeffs(coefficient_array)
+
+	@needs_commit
+	def set_custom_filter(self, filt_coeffs):
 		"""
 		Configure the filter coefficients in the IIR filter.
 
@@ -561,15 +574,6 @@ _llb_reg_hdl = {
 
 	'rate_sel':		(REG_LLB_RATE_SEL,	to_reg_unsigned(0, 1),
 										from_reg_unsigned(0, 1)),
-
-	'MuxDec':		(REG_LLB_RATE_SEL,	to_reg_unsigned(1, 1),
-										from_reg_unsigned(1, 1)),
-
-	'MuxFast':		(REG_LLB_RATE_SEL,	to_reg_unsigned(2, 1),
-										from_reg_unsigned(2, 1)),
-
-	'MuxInt':		(REG_LLB_RATE_SEL,	to_reg_unsigned(3, 2),
-										from_reg_unsigned(3, 2)),
 
 	'MuxLOPhase':	(REG_LLB_RATE_SEL,	to_reg_unsigned(5, 1),
 										from_reg_unsigned(5, 1)),

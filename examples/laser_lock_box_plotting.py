@@ -29,6 +29,8 @@ try:
 	i.set_pid_bypass(2, False)
 	i.set_scan(frequency=1e4, phase=0.0, output = 'none', amplitude=0.25, waveform='sawtooth')
 
+	i.set_butterworth(1e6)
+
 	# Monitor the I and Q signals from the mixer, before filtering
 	i.set_monitor('A', 'pid_fast')
 	i.set_monitor('B', 'out1') #green
