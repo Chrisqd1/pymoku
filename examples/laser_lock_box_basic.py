@@ -15,7 +15,7 @@ i = m.deploy_instrument(LaserLockBox)
 
 try:
     i.set_frontend(1, fiftyr = True, atten = False, ac = False)
-    i.set_local_oscillator(source='external', frequency=50e3, phase=0, pll_auto_acq = True)
+    i.set_local_oscillator(source='internal', frequency=0, phase=90, pll_auto_acq = True)
     i.set_aux_sine(amplitude = 0.0, frequency = 2e3, phase=0, sync_to_lo = False)
     i.set_scan(frequency=1e4, phase=0.0, output = 'none', amplitude=0.25, waveform='sawtooth')
     i.set_pid_by_gain(1, g=1, kp=1)
@@ -25,7 +25,7 @@ try:
     i.set_pid_enable(2, True)
     i.set_pid_bypass(2, True)
 
-    i.set_butterworth(5e6)
+    i.set_butterworth(1e3)
 
 finally:
 	m.close()

@@ -107,7 +107,7 @@ class LaserLockBox(_CoreOscilloscope):
 		self.demod_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_DEMOD)
 		self.scan_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_SCAN)
 		self.aux_sine_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_AUX_SINE)		
-		self.iir_filter = IIRBlock(self, reg_base=REGBASE_LLB_IIR, num_stages = 1, gain_frac_width = 9, coeff_frac_width = 16, use_mmap = False)
+		self.iir_filter = IIRBlock(self, reg_base=REGBASE_LLB_IIR, num_stages = 1, gain_frac_width = 9, coeff_frac_width = 30, use_mmap = False)
 		self.embedded_pll = EmbeddedPLL(self, reg_base=REGBASE_LLB_PLL)
 
 	@needs_commit
