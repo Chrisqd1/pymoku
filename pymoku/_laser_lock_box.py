@@ -400,9 +400,9 @@ class LaserLockBox(_CoreOscilloscope):
 		_utils.check_parameter_valid('range', offset, allowed=[-1, 1], desc="output offset (V)")
 
 		if ch == 1:
-			self.output_offset_ch1 = offset
+			self.output_offset_ch1 = offset / (self._adc_gains()[0] * 2**12) / self.lo_scale_factor # / atten ?
 		else:
-			self.output_offset_ch2 = offset
+			self.output_offset_ch2 = offset / (self._adc_gains()[0] * 2**12) / self.lo_scale_factor
 
 	def _signal_source_volts_per_bit(self, source, scales, trigger=False):
 		"""
@@ -431,9 +431,9 @@ class LaserLockBox(_CoreOscilloscope):
 	def _monitor_source_volts_per_bit(self, source, scales):
 		monitor_source_gains = {
 			'error'			: scales['gain_adc1'] * 2.0,
-			'pid_fast'		: scales['gain_dac1'] * 2**4,
-			'pid_slow'		: scales['gain_dac2'] * 2**4,
-			'offset_fast'	: scales['gain_dac1'] * 2**4,
+			'pid_fast'		: scales['gain_adc1'] * 2.0, #scales['gain_dac1'] * 2**4,
+			'pid_slow'		: scales['gain_adc1'] * 2.0, #scales['gain_dac2'] * 2**4,
+			'offset_fast'	: scales['gain_adc1'] * 2.0, #scales['gain_dac1'] * 2**4,
 			'offset_slow'	: scales['gain_dac2'] * 2**4,
 			'in1' 			: scales['gain_adc1'] / (10.0 if scales['atten_ch1'] else 1.0),
 			'in2' 			: scales['gain_adc2'] / (10.0 if scales['atten_ch2'] else 1.0),
