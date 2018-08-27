@@ -19,17 +19,19 @@ REGBASE_LLB_SCAN			= 88
 REGBASE_LLB_AUX_SINE		= 97
 REGBASE_LLB_PLL				= 106
 
-REG_LLB_MON_SEL				= 75
-REG_LLB_RATE_SEL			= 76
-REG_LLB_SCALE				= 77
-REG_LLB_SCANSCALE			= 78
-REG_LLB_AUX_SCALE			= 34 # TODO find better reg
-REG_LLB_PID_OFFSETS			= 35 # TODO find better reg
-
 REGBASE_LLB_IIR				= 28
 
 REGBASE_LLB_PID1			= 110
 REGBASE_LLB_PID2			= 119
+
+REG_LLB_MON_SEL				= 75
+REG_LLB_RATE_SEL			= 76
+REG_LLB_SCALE				= 77
+REG_LLB_SCANSCALE			= 78
+REG_LLB_OUTPUT_OFFSET_CH1	= REGBASE_LLB_PID1 + 8
+REG_LLB_OUTPUT_OFFSET_CH2	= REGBASE_LLB_PID2 + 8
+REG_LLB_AUX_SCALE			= 34 # TODO find better reg
+REG_LLB_PID_OFFSETS			= 35 # TODO find better reg
 
 _LLB_PHASESCALE				= 2**64 / 360.0
 _LLB_FREQSCALE				= 2**64 / 1e9
@@ -126,7 +128,9 @@ class LaserLockBox(_CoreOscilloscope):
 		self.MuxDec = 0
 		self.MuxFast = 0
 		self.MuxInt = 2
-	
+
+		self.set_output_offset(1, 0)
+		self.set_output_offset(2, 0)
 
 	def _update_dependent_regs(self, scales):
 		super(LaserLockBox, self)._update_dependent_regs(scales)
@@ -382,6 +386,24 @@ class LaserLockBox(_CoreOscilloscope):
 		}
 		self.rate_sel = _utils.str_to_val(_str_to_rate, rate, 'sampling rate')
 
+	@needs_commit
+	def set_output_offset(self, ch, offset):
+		"""
+		Add an output offset to either DAC channel. 
+
+		:type ch
+
+		:type offset: float; [-1, 1] Volts
+		:param offset: output offset
+		"""
+		_utils.check_parameter_valid('set', ch, [1,2],'filter channel')
+		_utils.check_parameter_valid('range', offset, allowed=[-1, 1], desc="output offset (V)")
+
+		if ch == 1:
+			self.output_offset_ch1 = offset
+		else:
+			self.output_offset_ch2 = offset
+
 	def _signal_source_volts_per_bit(self, source, scales, trigger=False):
 		"""
 			Converts volts to bits depending on the signal source. 
@@ -552,6 +574,12 @@ _llb_reg_hdl = {
 
 	'slow_offset':	(REG_LLB_PID_OFFSETS, to_reg_signed(16, 16, xform = lambda obj, x : x * 2**15),
 											from_reg_signed(16, 16, xform = lambda obj, x : x / 2**15)),
+
+	'output_offset_ch1': (REG_LLB_OUTPUT_OFFSET_CH1, to_reg_signed(0, 16, xform = lambda obj, x : x * (2**15 - 1)),
+														from_reg_signed(0, 16, xform = lambda obj, x : x / (2**15 - 1))),
+
+	'output_offset_ch2': (REG_LLB_OUTPUT_OFFSET_CH2, to_reg_signed(0, 16, xform = lambda obj, x : x * (2**15 - 1)),
+														from_reg_signed(0, 16, xform = lambda obj, x : x / (2**15 - 1))),
 
 	'monitor_select0' :	(REG_LLB_MON_SEL, 	to_reg_unsigned(0, 4),
 											from_reg_unsigned(0,4)),
