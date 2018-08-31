@@ -77,6 +77,8 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		self._chn_buffer_len	= _ARB_CHN_BUFLEN
 
 		self.data = [[0],[0]]
+		self.steps = [8,8]
+		self.stepsize = [8192,8192]
 
 	@needs_commit
 	def set_defaults(self):
@@ -189,6 +191,8 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 		steps, stepsize = [(8, 8192), (4, 8192 * 2), (2, 8192 * 4), (1, 8192 * 8)][mode]
 
 		self.data[ch - 1] = data
+		self.steps[ch - 1] = steps
+		self.stepsize[ch - 1] = stepsize
 
 		with open('.lutdata.dat', 'w+b') as f:
 			#first check and make the file the right size
@@ -199,12 +203,12 @@ class ArbitraryWaveGen(_CoreOscilloscope):
 
 			#Leave the previous data file so we just rewite the new part,
 			#as we have to upload both channels at once.
-			for step in range(steps):
-				f.seek(step * stepsize * 4)
+			for step in range(self.steps[0]):
+				f.seek(step * self.stepsize[0] * 4)
 				f.write(b''.join([struct.pack('<hh', math.ceil((2.0**15-1) * d),0) for d in self.data[0]]))
 
-			for step in range(steps):
-				f.seek((_ARB_LUT_LENGTH * 8 * 4) + (step * stepsize * 4))
+			for step in range(self.steps[1]):
+				f.seek((_ARB_LUT_LENGTH * 8 * 4) + (step * self.stepsize[1] * 4))
 				f.write(b''.join([struct.pack('<hh', math.ceil((2.0**15-1) * d),0) for d in self.data[1]]))
 
 			f.flush()
