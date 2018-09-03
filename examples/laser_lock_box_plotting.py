@@ -19,12 +19,12 @@ i = m.deploy_instrument(LaserLockBox)
 
 try:
 	i.set_frontend(1, fiftyr = True, atten = False, ac = False)
-	i.set_local_oscillator(source='external', frequency=4e3, phase=0, pll_auto_acq = True)
+	i.set_local_oscillator(source='internal', frequency=40e6, phase=0, pll_auto_acq = True)
 	i.set_aux_sine(amplitude = 0.0, frequency = 2e3, phase=0, sync_to_lo = True)
 	i.set_pid_by_gain(1, g=1, kp=1, input_offset = 0.0)
 	i.set_pid_enable(1, True)
 	i.set_pid_bypass(1, False)
-	i.set_pid_by_gain(2, g=0, kp=1, input_offset = 0.0)
+	i.set_pid_by_gain(2, g=1, kp=1, input_offset = 0.0)
 	i.set_pid_enable(2, True)
 	i.set_pid_bypass(2, False)
 	i.set_scan(frequency=1e4, phase=0.0, output = 'out2', amplitude=1.0, waveform='triangle')
@@ -32,11 +32,8 @@ try:
 	i.set_butterworth(1e6)
 
 	# Monitor the I and Q signals from the mixer, before filtering
-	i.set_monitor('A', 'error')
-	i.set_monitor('B', 'scan') #green
-
-	# i.set_scan(frequency=1e4, phase=0.0, output = 'none', amplitude=0.25, waveform='sawtooth')
-	# i.set_demodulation('external_pll')
+	i.set_monitor('A', 'offset_fast')
+	i.set_monitor('B', 'pid_fast') #green
 
 	# Trigger on Monitor 'B' ('Q' signal), rising edge, 0V with 0.1V hysteresis
 	i.set_trigger('A', 'rising', 0, trig_on_scan_rising = True)

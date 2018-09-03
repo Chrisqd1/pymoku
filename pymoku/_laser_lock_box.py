@@ -25,7 +25,7 @@ REG_LLB_RATE_SEL			= 76
 REG_LLB_SCALE				= 77
 REG_LLB_SCANSCALE			= 78
 REG_LLB_AUX_SCALE			= 34 # TODO find better reg
-REG_LLB_PID_OFFSETS			= 35 # TODO find better reg
+REG_LLB_FAST_OFFSET			= 117 # TODO find better reg
 
 REGBASE_LLB_IIR				= 28
 
@@ -56,14 +56,13 @@ _LLB_MON_ERROR 				= 1
 _LLB_MON_PID_FAST			= 2
 _LLB_MON_PID_SLOW			= 3
 _LLB_MON_OFFSET_FAST		= 4
-_LLB_MON_OFFSET_SLOW		= 5
-_LLB_MON_IN1				= 6
-_LLB_MON_IN2				= 7
-_LLB_MON_OUT1				= 8
-_LLB_MON_OUT2				= 9
-_LLB_MON_SCAN				= 10
-_LLB_MON_LO 				= 11
-_LLB_MON_AUX				= 12
+_LLB_MON_IN1				= 5
+_LLB_MON_IN2				= 6
+_LLB_MON_OUT1				= 7
+_LLB_MON_OUT2				= 8
+_LLB_MON_SCAN				= 9
+_LLB_MON_LO 				= 10
+_LLB_MON_AUX				= 11
 
 _LLB_SOURCE_A		= 0
 _LLB_SOURCE_B		= 1
@@ -243,7 +242,8 @@ class LaserLockBox(_CoreOscilloscope):
 		if pid_block == 1:
 			self.fast_offset = input_offset / (self._adc_gains()[0] * 2**12) / self.lo_scale_factor
 		else:
-			self.slow_offset = input_offset / (self._adc_gains()[0] * 2**12) / self.lo_scale_factor
+			# raise error as we don't have input offset for the slow pid
+			return
 
 	@needs_commit
 	def set_local_oscillator(self, frequency=0.0, phase=0.0, source = 'internal', pll_auto_acq = True):
@@ -425,7 +425,6 @@ class LaserLockBox(_CoreOscilloscope):
 			'pid_fast'		: scales['gain_dac1'] * 2**4,
 			'pid_slow'		: scales['gain_dac2'] * 2**4,
 			'offset_fast'	: scales['gain_dac1'] * 2**4,
-			'offset_slow'	: scales['gain_dac2'] * 2**4,
 			'in1' 			: scales['gain_adc1'] / (10.0 if scales['atten_ch1'] else 1.0),
 			'in2' 			: scales['gain_adc2'] / (10.0 if scales['atten_ch2'] else 1.0),
 			'out1'			: scales['gain_dac1'] * 2**4,
@@ -433,7 +432,6 @@ class LaserLockBox(_CoreOscilloscope):
 			'scan'			: scales['gain_dac1'] * 2**4,
 			'lo'			: 2**-11 if self.MuxLOSignal == 0 else scales['gain_adc2'] * 2.0,
 			'aux'			: scales['gain_dac2'] * 2**4
-			# 'slow_scan'		: scales['gain_dac2'] * 2**4
 		}
 		return monitor_source_gains[source]
 
@@ -528,7 +526,6 @@ class LaserLockBox(_CoreOscilloscope):
 			'pid_fast'		: _LLB_MON_PID_FAST,
 			'pid_slow'		: _LLB_MON_PID_SLOW,
 			'offset_fast'	: _LLB_MON_OFFSET_FAST,
-			'offset_slow'	: _LLB_MON_OFFSET_SLOW,
 			'in1'			: _LLB_MON_IN1,
 			'in2'			: _LLB_MON_IN2,
 			'out1'			: _LLB_MON_OUT1,
@@ -567,11 +564,8 @@ _llb_reg_hdl = {
 	'slow_scan_enable': (REG_LLB_SCANSCALE, to_reg_unsigned(17, 1),
 											from_reg_unsigned(17, 1)),
 
-	'fast_offset':	(REG_LLB_PID_OFFSETS, to_reg_signed(0, 16, xform = lambda obj, x : x * 2**15),
+	'fast_offset':	(REG_LLB_FAST_OFFSET, to_reg_signed(0, 16, xform = lambda obj, x : x * 2**15),
 											from_reg_signed(0, 16, xform = lambda obj, x : x / 2**15)),
-
-	'slow_offset':	(REG_LLB_PID_OFFSETS, to_reg_signed(16, 16, xform = lambda obj, x : x * 2**15),
-											from_reg_signed(16, 16, xform = lambda obj, x : x / 2**15)),
 
 	'monitor_select0' :	(REG_LLB_MON_SEL, 	to_reg_unsigned(0, 4),
 											from_reg_unsigned(0,4)),
