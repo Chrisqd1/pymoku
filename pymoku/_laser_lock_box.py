@@ -21,7 +21,7 @@ REGBASE_LLB_AUX_SINE		= 97
 REGBASE_LLB_PLL				= 106
 
 REG_LLB_MON_SEL				= 75
-REG_LLB_RATE_SEL			= 76
+REG_LLB_MUX_SEL				= 76
 REG_LLB_SCALE				= 77
 REG_LLB_SCANSCALE			= 78
 REG_LLB_AUX_SCALE			= 34 # TODO find better reg
@@ -113,6 +113,7 @@ class LaserLockBox(_CoreOscilloscope):
 	def set_defaults(self):
 		super(LaserLockBox, self).set_defaults()
 		self.set_sample_rate('high')
+		self.set_input_gain(0)
 
 		default_filt_coeff = 	[[1.0],
 						# [1.0, 0.0346271318590754, -0.0466073336600009, 0.0346271318590754, 1.81922686243757, -0.844637126033068]]
@@ -134,6 +135,33 @@ class LaserLockBox(_CoreOscilloscope):
 
 		self._fast_scale = self._adc_gains()[0] / self._dac_gains()[0] / 2**3 * self.lo_scale_factor
 		self._slow_scale = self._adc_gains()[0] / self._dac_gains()[1] / 2**3 * self.lo_scale_factor
+
+	@needs_commit
+	def set_input_gain(self, gain=0):
+		"""
+		Set the main input gain (Input Channel 1).
+
+		:type gain: int; {-20, 0, 24, 48} dB
+		:param gain: Input gain
+
+		"""
+		_utils.check_parameter_valid('set', gain, allowed=[-20,0,24,48], desc="main input gain", units="dB")
+		front_end_setting = self.get_frontend(1)
+
+		if gain == 0:
+			self.input_gain_select = 0
+			self.set_frontend(1, fiftyr = front_end_setting[0], atten=False, ac = front_end_setting[2])
+		elif gain == 24:
+			self.input_gain_select = 1
+			self.set_frontend(1, fiftyr = front_end_setting[0], atten=False, ac = front_end_setting[2])
+		elif gain == 48:
+			self.input_gain_select = 2
+			self.set_frontend(1, fiftyr = front_end_setting[0], atten=False, ac = front_end_setting[2])
+		elif gain == -20:
+			self.input_gain_select = 0
+			self.set_frontend(1, fiftyr = front_end_setting[0], atten=True, ac = front_end_setting[2])
+		else:
+			raise Exception("Invalid input gain value.")
 
 	@needs_commit
 	def set_butterworth(self, corner_frequency):
@@ -573,16 +601,16 @@ _llb_reg_hdl = {
 	'monitor_select1' : (REG_LLB_MON_SEL,	to_reg_unsigned(4, 4),
 											from_reg_unsigned(4, 4)),
 
-	'rate_sel':		(REG_LLB_RATE_SEL,	to_reg_unsigned(0, 1),
-										from_reg_unsigned(0, 1)),
+	'input_gain_select': (REG_LLB_MUX_SEL,	to_reg_unsigned(0, 2),
+										from_reg_unsigned(0, 2)),
 
-	'MuxLOPhase':	(REG_LLB_RATE_SEL,	to_reg_unsigned(5, 1),
+	'MuxLOPhase':	(REG_LLB_MUX_SEL,	to_reg_unsigned(5, 1),
 										from_reg_unsigned(5, 1)),
 
-	'MuxLOSignal':	(REG_LLB_RATE_SEL,	to_reg_unsigned(6, 1),
+	'MuxLOSignal':	(REG_LLB_MUX_SEL,	to_reg_unsigned(6, 1),
 										from_reg_unsigned(6, 1)),
 
-	'MuxAuxPhase':	(REG_LLB_RATE_SEL,	to_reg_unsigned(7, 1),
+	'MuxAuxPhase':	(REG_LLB_MUX_SEL,	to_reg_unsigned(7, 1),
 										from_reg_unsigned(7, 1)),
 
 	'trig_aux':		(REG_LLB_MON_SEL,	to_reg_unsigned(8, 1),
