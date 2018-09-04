@@ -569,7 +569,7 @@ _llb_reg_hdl = {
 	'slow_scan_enable': (REG_LLB_SCANSCALE, to_reg_unsigned(17, 1),
 											from_reg_unsigned(17, 1)),
 
-	'fast_offset':	(REG_LLB_PID_OFFSETS, to_reg_signed(0, 17, xform = lambda obj, x : x * 2**15),
+	'fast_offset':	(REG_LLB_PID_OFFSETS, to_reg_signed(0, 16, xform = lambda obj, x : x * 2**15),
 											from_reg_signed(0, 16, xform = lambda obj, x : x / 2**15)),
 
 	'slow_offset':	(REG_LLB_PID_OFFSETS, to_reg_signed(16, 16, xform = lambda obj, x : x * 2**15),
@@ -578,8 +578,8 @@ _llb_reg_hdl = {
 	'output_offset_ch1': (REG_LLB_OUTPUT_OFFSET_CH1, to_reg_signed(0, 17, xform = lambda obj, x : x * (2**15)),
 														from_reg_signed(0, 17, xform = lambda obj, x : x / (2**15))),
 
-	'output_offset_ch2': (REG_LLB_OUTPUT_OFFSET_CH2, to_reg_signed(0, 16, xform = lambda obj, x : x * (2**15 - 1)),
-														from_reg_signed(0, 16, xform = lambda obj, x : x / (2**15 - 1))),
+	'output_offset_ch2': (REG_LLB_OUTPUT_OFFSET_CH2, to_reg_signed(0, 17, xform = lambda obj, x : x * (2**15)),
+														from_reg_signed(0, 17, xform = lambda obj, x : x / (2**15))),
 
 	'monitor_select0' :	(REG_LLB_MON_SEL, 	to_reg_unsigned(0, 4),
 											from_reg_unsigned(0,4)),
