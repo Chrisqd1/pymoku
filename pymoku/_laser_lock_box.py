@@ -33,9 +33,10 @@ REG_LLB_OUTPUT_OFFSET_CH1	= REGBASE_LLB_PID1 + 8
 REG_LLB_OUTPUT_OFFSET_CH2	= REGBASE_LLB_PID2 + 8
 REG_LLB_AUX_SCALE			= 34 # TODO find better reg
 REG_LLB_FAST_OFFSET			= 117 # TODO find better reg
-REG_LLB_PLL_PHASE_OFFSET	= 126
+REG_LLB_LO_PHASE_OFFSET		= 35
+REG_LLB_AUX_PHASE_OFFSET	= 36
 
-_LLB_PHASESCALE				= 2**64 / 360.0
+_LLB_PHASESCALE				= 2**28 / 360.0
 _LLB_FREQSCALE				= 2**64 / 1e9
 _LLB_SWEEP_WTYPE_SAWTOOTH	= 2
 _LLB_SWEEP_MAX_STOP			= 2**64 - 1
@@ -297,17 +298,12 @@ class LaserLockBox(_CoreOscilloscope):
 		#TODO limit argument sizes
 
 		self.demod_sweep.step = frequency * _LLB_FREQSCALE
-		self.demod_sweep.stop = 2**64 -1
-		self.demod_sweep.duration = 0
-		self.demod_sweep.waveform = 2
-		self.demod_sweep.start = phase * _LLB_PHASESCALE
-		self.demod_sweep.wait_for_trig = False
-		self.demod_sweep.hold_last = False
 
 		self.embedded_pll.bandwidth = 0
 		self.embedded_pll.pllreset = 0
 		self.embedded_pll.autoacquire = 1 if pll_auto_acq == True else False
 		self.embedded_pll.reacquire = 0
+		self.lo_phase_offset = (phase/360.0) * (2**28-1)
 
 		if source == 'internal':
 			self.MuxLOPhase = 0
@@ -320,7 +316,7 @@ class LaserLockBox(_CoreOscilloscope):
 			self.embedded_pll.reacquire = 1
 			self.MuxLOPhase = 1
 			self.MuxLOSignal = 0
-			self.pll_phase_offset = (phase/360.0) * (2**28-1)
+
 		else:
 			#shouldn't happen
 			raise ValueOutOfRangeException('Demodulation mode must be one of "internal", "external" or "external_pll", not %s', mode)
@@ -347,6 +343,8 @@ class LaserLockBox(_CoreOscilloscope):
 		self.aux_sine_sweep.start = phase * _LLB_PHASESCALE
 		self.aux_sine_sweep.wait_for_trig = False
 		self.aux_sine_sweep.hold_last = False
+
+		self.aux_phase_offset = phase * _LLB_PHASESCALE
 
 		self._aux_scale = (amplitude / 2.0) / self._dac_gains()[1] / 2**15
 
@@ -616,11 +614,14 @@ _llb_reg_hdl = {
 	'slow_scan_enable': (REG_LLB_SCANSCALE, to_reg_unsigned(17, 1),
 											from_reg_unsigned(17, 1)),
 
-	'pll_phase_offset': (REG_LLB_PLL_PHASE_OFFSET, to_reg_unsigned(0, 28),
+	'lo_phase_offset': (REG_LLB_LO_PHASE_OFFSET, to_reg_unsigned(0, 28),
 													from_reg_unsigned(0, 28)),
 
-	'fast_offset':	(REG_LLB_FAST_OFFSET, to_reg_signed(0, 16, xform = lambda obj, x : x * 2**15),
-											from_reg_signed(0, 16, xform = lambda obj, x : x / 2**15)),
+	'aux_phase_offset': (REG_LLB_AUX_PHASE_OFFSET, to_reg_unsigned(0, 28),
+													from_reg_unsigned(0, 28)),
+
+	'fast_offset':	(REG_LLB_FAST_OFFSET, to_reg_signed(0, 17, xform = lambda obj, x : x * 2**15),
+											from_reg_signed(0, 17, xform = lambda obj, x : x / 2**15)),
 
 	'output_offset_ch1': (REG_LLB_OUTPUT_OFFSET_CH1, to_reg_signed(0, 17, xform = lambda obj, x : x * (2**15)),
 														from_reg_signed(0, 17, xform = lambda obj, x : x / (2**15))),
