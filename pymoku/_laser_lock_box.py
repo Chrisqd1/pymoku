@@ -26,6 +26,7 @@ REG_LLB_SCALE				= 77
 REG_LLB_SCANSCALE			= 78
 REG_LLB_AUX_SCALE			= 34 # TODO find better reg
 REG_LLB_FAST_OFFSET			= 117 # TODO find better reg
+REG_LLB_PLL_PHASE_OFFSET	= 126
 
 REGBASE_LLB_IIR				= 28
 
@@ -291,6 +292,9 @@ class LaserLockBox(_CoreOscilloscope):
 		:param pll_auto_acq : Enable PLL Auto Acquire
 
 		"""
+
+		#TODO limit argument sizes
+
 		self.demod_sweep.step = frequency * _LLB_FREQSCALE
 		self.demod_sweep.stop = 2**64 -1
 		self.demod_sweep.duration = 0
@@ -315,6 +319,7 @@ class LaserLockBox(_CoreOscilloscope):
 			self.embedded_pll.reacquire = 1
 			self.MuxLOPhase = 1
 			self.MuxLOSignal = 0
+			self.pll_phase_offset = (phase/360.0) * (2**28-1)
 		else:
 			#shouldn't happen
 			raise ValueOutOfRangeException('Demodulation mode must be one of "internal", "external" or "external_pll", not %s', mode)
@@ -591,6 +596,9 @@ _llb_reg_hdl = {
 
 	'slow_scan_enable': (REG_LLB_SCANSCALE, to_reg_unsigned(17, 1),
 											from_reg_unsigned(17, 1)),
+
+	'pll_phase_offset': (REG_LLB_PLL_PHASE_OFFSET, to_reg_unsigned(0, 28),
+													from_reg_unsigned(0, 28)),
 
 	'fast_offset':	(REG_LLB_FAST_OFFSET, to_reg_signed(0, 16, xform = lambda obj, x : x * 2**15),
 											from_reg_signed(0, 16, xform = lambda obj, x : x / 2**15)),
