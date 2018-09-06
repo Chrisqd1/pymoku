@@ -193,8 +193,30 @@ class LaserLockBox(_CoreOscilloscope):
 		"""
 		self.iir_filter.write_coeffs(filt_coeffs)
 
+
 	@needs_commit
-	def set_pid_by_gain(self, pid_block, g=1, kp=1, ki=0, kd=0, si=None, sd=None, input_offset = 0):
+	def set_offsets(self, position, offset):
+		"""
+		Set offsets throughout the laser locker.
+
+		:type position : list; ['pid_input', 'out1', 'out2']
+		:param position : The desired point to add an offset
+
+
+		"""
+		_utils.check_parameter_valid('set', position, ['pid_input', 'out1', 'out2'],'position')
+
+		if position == 'pid_input':
+			self.fast_offset =offset / (self._adc_gains()[0] * 2**12) / self.lo_scale_factor
+		elif position == 'out1':
+			self.output_offset_ch1 = offset / (self._adc_gains()[0] * 2**12) / self.lo_scale_factor
+		else:
+			self.output_offset_ch2 = offset / (self._adc_gains()[0] * 2**12) / self.lo_scale_factor
+
+
+
+	@needs_commit
+	def set_pid_by_gain(self, pid_block, g=1, kp=1, ki=0, kd=0, si=None, sd=None):
 		"""
 		Configure the selected PID controller using gain coefficients.
 
@@ -225,11 +247,6 @@ class LaserLockBox(_CoreOscilloscope):
 		pid_array[pid_block -1].set_reg_by_gain(g, kp, ki, kd, si, sd)
 		pid_array[pid_block -1].gain = pid_array[pid_block -1].gain * 2**15
 
-		if pid_block == 1:
-			self.fast_offset = input_offset / (self._adc_gains()[0] * 2**12) / self.lo_scale_factor
-		else:
-			self.slow_offset = input_offset / (self._adc_gains()[0] * 2**12) / self.lo_scale_factor
-
 	@needs_commit
 	def set_pid_enable(self, pid_block, en=True):
 		pid_array = [self.fast_pid, self.slow_pid]
@@ -241,7 +258,7 @@ class LaserLockBox(_CoreOscilloscope):
 		pid_array[pid_block-1].bypass = bypass
 
 	@needs_commit
-	def set_pid_by_freq(self, pid_block, kp=1, i_xover=None, d_xover=None, si=None, sd=None, input_offset = 0):
+	def set_pid_by_freq(self, pid_block, kp=1, i_xover=None, d_xover=None, si=None, sd=None):
 		"""
 
 		Configure the selected PID controller using crossover frequencies.
@@ -269,12 +286,6 @@ class LaserLockBox(_CoreOscilloscope):
 		pid_array = [self.fast_pid, self.slow_pid]
 		pid_array[pid_block -1].set_reg_by_frequency(scaled_kp, i_xover, d_xover, si, sd)
 		pid_array[pid_block -1].gain = pid_array[pid_block -1].gain * 2**15
-
-		if pid_block == 1:
-			self.fast_offset = input_offset / (self._adc_gains()[0] * 2**12) / self.lo_scale_factor
-		else:
-			# raise error as we don't have input offset for the slow pid
-			return
 
 	@needs_commit
 	def set_local_oscillator(self, frequency=0.0, phase=0.0, source = 'internal', pll_auto_acq = True):
