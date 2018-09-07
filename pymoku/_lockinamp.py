@@ -309,9 +309,6 @@ class LockInAmp(PIDController, _CoreOscilloscope):
 		:type kd: float;
 		:param kd: Differentiator gain factor
 
-		:type kii: float;
-		:param kii: Second integrator gain factor
-
 		:type si: float; float; [-1e3,1e3]
 		:param si: Integrator gain saturation
 

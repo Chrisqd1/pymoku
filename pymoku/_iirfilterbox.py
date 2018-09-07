@@ -94,8 +94,11 @@ class IIRFilterBox(_CoreOscilloscope):
 	| s4       | b0.4 | b1.4 | b2.4 | a1.4 |  a2.4 |
 	+----------+------+------+------+------+-------+
 
-	Each coefficient must be in the range [-4.0, +4.0). Internally, these are represented as signed 48-bit fixed-point numbers, with 45 fractional bits.
-	The output scaling can be up to 8,000,000. Filter coefficients can be computed using signal processing toolboxes in e.g. MATLAB or SciPy.
+	Each 'a' coefficient must be a float in the range [-4.0, +4.0). 's' coefficients are multiplied into each 'b' coefficient before being sent to the device. These products (sN x b0.N, sN x b1.N, sN x b2.N) 
+	must also fall in the range [-4.0, +4.0). Internally, the 'a' and 'b' coefficients are represented as signed 48-bit fixed-point numbers, with 45 fractional bits. The gain coefficient G must 
+	be a float in the range [-8e6, 8e6 - 2^-24]. It is represented internally as a signed 48-bit fixed-point with 24 fractional bits. 
+	
+	Filter coefficients can be computed using signal processing toolboxes in e.g. MATLAB or SciPy.
 
 	.. note::
 		The overall output gain of the instrument is the product of the gain of the filter, set in the coefficient matrix, and the output stage
