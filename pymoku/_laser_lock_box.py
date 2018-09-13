@@ -29,6 +29,9 @@ REG_LLB_MON_SEL				= 75
 REG_LLB_MUX_SEL				= 76
 REG_LLB_SCALE				= 77
 REG_LLB_SCANSCALE			= 78
+REG_LLB_DAC1_RANGECLIP		= 79
+REG_LLB_DAC2_RANGECLIP		= 80
+REG_LLB_ADD_AUX				= 81
 REG_LLB_OUTPUT_OFFSET_CH1	= REGBASE_LLB_PID1 + 8
 REG_LLB_OUTPUT_OFFSET_CH2	= REGBASE_LLB_PID2 + 8
 REG_LLB_AUX_SCALE			= 34 # TODO find better reg
@@ -55,6 +58,10 @@ _LLB_SCAN_TRIANGLE			= 3
 _LLB_SCANSOURCE_DAC1		= 0
 _LLB_SCANSOURCE_DAC2		= 1
 _LLB_SCANSOURCE_NONE		= 2
+
+_LLB_AUXSOURCE_DAC1		= 0
+_LLB_AUXSOURCE_DAC2		= 1
+_LLB_AUXSOURCE_NONE		= 2
 
 _LLB_MON_ERROR 				= 1
 _LLB_MON_PID_FAST			= 2
@@ -193,6 +200,18 @@ class LaserLockBox(_CoreOscilloscope):
 		"""
 		self.iir_filter.write_coeffs(filt_coeffs)
 
+	@needs_commit
+	def set_output_range(self, ch, maximum, minimum):
+		"""
+		Set upper and lower bounds for the signal on each DAC channel.  
+		"""
+
+		if ch == 1:
+			self.cliprange_upper_ch1 = maximum / self._dac_gains()[0] / 2**15
+			self.cliprange_lower_ch1 = minimum / self._dac_gains()[0] / 2**15
+		else:
+			self.cliprange_upper_ch2 = maximum / self._dac_gains()[1] / 2**15
+			self.cliprange_lower_ch2 = minimum / self._dac_gains()[1] / 2**15
 
 	@needs_commit
 	def set_offsets(self, position, offset):
@@ -336,7 +355,7 @@ class LaserLockBox(_CoreOscilloscope):
 		self._set_scale()
 
 	@needs_commit
-	def set_aux_sine(self, amplitude = 2.0, frequency = 0.0, phase = 0.0, sync_to_lo = False):
+	def set_aux_sine(self, amplitude = 2.0, frequency = 0.0, phase = 0.0, sync_to_lo = False, output = 'out2'):
 		"""
 		Configure the aux sine signal.
 
@@ -347,6 +366,14 @@ class LaserLockBox(_CoreOscilloscope):
 		:param phase : float; Internal demodulation phase
 
 		"""
+
+		_str_to_scansource = {
+			'out1' 	: _LLB_AUXSOURCE_DAC1,
+			'out2'	: _LLB_AUXSOURCE_DAC2,
+			'none'	: _LLB_AUXSOURCE_NONE
+		}
+		output = _str_to_scansource[output]
+
 		self.aux_sine_sweep.step = frequency * _LLB_FREQSCALE
 		self.aux_sine_sweep.stop = 2**64 -1
 		self.aux_sine_sweep.duration = 0
@@ -357,12 +384,23 @@ class LaserLockBox(_CoreOscilloscope):
 
 		self.aux_phase_offset = phase * _LLB_PHASESCALE
 
-		self._aux_scale = (amplitude / 2.0) / self._dac_gains()[1] / 2**15
-
 		if sync_to_lo == True:
 			self.MuxAuxPhase = 1
 		else:
 			self.MuxAuxPhase = 0
+
+		if output == _LLB_AUXSOURCE_DAC1:
+			self.fast_aux_enable = True
+			self.slow_aux_enable = False
+			self._aux_scale = (amplitude / 2.0) / self._dac_gains()[0] / 2**15
+		elif output == _LLB_AUXSOURCE_DAC2:
+			self.fast_aux_enable = False
+			self.slow_aux_enable = True
+			self._aux_scale = (amplitude / 2.0) / self._dac_gains()[1] / 2**15
+		else:
+			self.fast_aux_enable = False
+			self.slow_aux_enable = False
+			self._aux_scale = 0
 
 	@needs_commit
 	def set_scan(self, frequency, phase,  amplitude, waveform = 'triangle', output = 'out1'):
@@ -403,8 +441,6 @@ class LaserLockBox(_CoreOscilloscope):
 		self.scan_sweep.start = phase * _LLB_PHASESCALE
 		self.scan_sweep.wait_for_trig = False
 		self.scan_sweep.hold_last = False
-
-
 
 		if output == _LLB_SCANSOURCE_DAC1:
 			self.fast_scan_enable = True
@@ -662,5 +698,21 @@ _llb_reg_hdl = {
 										from_reg_unsigned(8, 1)),
 
 	'cond_trig': (REG_LLB_MON_SEL, 	to_reg_unsigned(9, 1),
-									from_reg_unsigned(9, 1))
+									from_reg_unsigned(9, 1)),
+
+	'cliprange_lower_ch1':		(REG_LLB_DAC1_RANGECLIP, to_reg_signed(0, 16, xform = lambda obj, x : x * 2**15 - 1),
+									from_reg_signed(0, 16, xform = lambda obj, x : x / (2**14 - 1))),
+
+	'cliprange_upper_ch1':		(REG_LLB_DAC1_RANGECLIP, to_reg_signed(16, 16, xform = lambda obj, x : x * 2**15 - 1),
+									from_reg_signed(16, 16, xform = lambda obj, x : x / (2**14 - 1))),
+
+	'cliprange_lower_ch2':		(REG_LLB_DAC2_RANGECLIP, to_reg_signed(0, 16, xform = lambda obj, x : x * 2**15 - 1),
+									from_reg_signed(0, 16, xform = lambda obj, x : x / (2**14 - 1))),
+
+	'cliprange_upper_ch2':		(REG_LLB_DAC2_RANGECLIP, to_reg_signed(16, 16, xform = lambda obj, x : x * 2**15 - 1),
+									from_reg_signed(16, 16, xform = lambda obj, x : x / (2**14 - 1))),
+
+	'fast_aux_enable':			(REG_LLB_ADD_AUX, to_reg_bool(0), from_reg_bool(0)),
+
+	'slow_aux_enable':			(REG_LLB_ADD_AUX, to_reg_bool(1), from_reg_bool(1))
 }
