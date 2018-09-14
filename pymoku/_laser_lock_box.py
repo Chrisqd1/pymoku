@@ -20,7 +20,8 @@ REGBASE_LLB_SCAN			= 88
 REGBASE_LLB_AUX_SINE		= 97
 REGBASE_LLB_PLL				= 106
 
-REGBASE_LLB_IIR				= 28
+REGBASE_LLB_IIR1			= 28
+REGBASE_LLB_IIR2			= 37
 
 REGBASE_LLB_PID1			= 110
 REGBASE_LLB_PID2			= 119
@@ -117,7 +118,8 @@ class LaserLockBox(_CoreOscilloscope):
 		self.demod_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_DEMOD)
 		self.scan_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_SCAN)
 		self.aux_sine_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_AUX_SINE)		
-		self.iir_filter = IIRBlock(self, reg_base=REGBASE_LLB_IIR, num_stages = 1, gain_frac_width = 9, coeff_frac_width = 30, use_mmap = False)
+		self.iir_filter1 = IIRBlock(self, reg_base=REGBASE_LLB_IIR1, num_stages = 1, gain_frac_width = 9, coeff_frac_width = 30, use_mmap = False)
+		self.iir_filter2 = IIRBlock(self, reg_base=REGBASE_LLB_IIR2, num_stages = 1, gain_frac_width = 9, coeff_frac_width = 30, use_mmap = False)
 		self.embedded_pll = EmbeddedPLL(self, reg_base=REGBASE_LLB_PLL)
 
 	@needs_commit
@@ -188,7 +190,8 @@ class LaserLockBox(_CoreOscilloscope):
 		b, a = signal.butter(2, normalised_corner, 'low', analog = False)
 		coefficient_array = [[1.0], [1.0, b[0], b[1], b[2], -a[1], -a[2]]]
 
-		self.iir_filter.write_coeffs(coefficient_array)
+		self.iir_filter1.write_coeffs(coefficient_array)
+		self.iir_filter2.write_coeffs(coefficient_array)
 
 	@needs_commit
 	def set_custom_filter(self, filt_coeffs):
@@ -198,7 +201,9 @@ class LaserLockBox(_CoreOscilloscope):
 		:type filt_coeffs: array;
 		:param filt_coeffs: array containg SOS filter coefficients.
 		"""
-		self.iir_filter.write_coeffs(filt_coeffs)
+		self.iir_filter1.write_coeffs(filt_coeffs)
+		self.iir_filter2.write_coeffs(filt_coeffs)
+
 
 	@needs_commit
 	def set_output_range(self, ch, maximum, minimum):
