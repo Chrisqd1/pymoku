@@ -16,51 +16,37 @@ from scipy import signal
 log = logging.getLogger(__name__)
 
 REGBASE_LLB_IIR1			= 28
-REGBASE_LLB_IIR2			= 37
+REGBASE_LLB_IIR2			= 34
 
-REGBASE_LLB_AUX_SINE		= 40
+REGBASE_LLB_AUX				= 40
 REG_LLB_AUX_SCALE			= 49
 REG_LLB_AUX_CTRL			= 50
-# REG_LLB_MUX_SEL				= 76
-# REG_LLB_ADD_AUX				= 81
 REG_LLB_AUX_PHASE_OFFSET	= 51
 
 REG_LLB_MON_SEL				= 75
 
 REGBASE_LLB_LO				= 76
-# REGBASE_LLB_DEMOD			= 79
 REG_LLB_LO_PHASE_OFFSET		= 85
 REG_LLB_LO_CTRL				= 86
-# REG_LLB_MUX_SEL				= 76
 
-REGBASE_LLB_SCAN			= 88
+REGBASE_LLB_SCAN			= 87
+REG_LLB_SCAN_SCALE			= 96
+REG_LLB_SCAN_CTRL			= 97
 
+REG_LLB_GAINS_INPUT			= 98
+REG_LLB_GAINS_SCALING		= 99
 
+REG_LLB_OFFSETS_FASTINPUT	= 100
+REG_LLB_OFFSETS_FASTOUTPUT	= 101
+REG_LLB_OFFSETS_SLOWOUTPUT	= 102
 
-REGBASE_LLB_DEMOD			= 79
-REGBASE_LLB_SCAN			= 88
-REGBASE_LLB_AUX_SINE		= 97
-REGBASE_LLB_PLL				= 106
+REG_LLB_CLIP_FAST			= 103
+REG_LLB_CLIP_SLOW			= 104
 
-REGBASE_LLB_IIR1			= 28
-REGBASE_LLB_IIR2			= 37
+REGBASE_LLB_PLL				= 105
 
-REGBASE_LLB_PID1			= 110
-REGBASE_LLB_PID2			= 119
-
-REG_LLB_MON_SEL				= 75
-REG_LLB_MUX_SEL				= 76
-REG_LLB_SCALE				= 77
-REG_LLB_SCANSCALE			= 78
-REG_LLB_DAC1_RANGECLIP		= 79
-REG_LLB_DAC2_RANGECLIP		= 80
-REG_LLB_ADD_AUX				= 81
-REG_LLB_OUTPUT_OFFSET_CH1	= REGBASE_LLB_PID1 + 8
-REG_LLB_OUTPUT_OFFSET_CH2	= REGBASE_LLB_PID2 + 8
-REG_LLB_AUX_SCALE			= 34 # TODO find better reg
-REG_LLB_FAST_OFFSET			= 117 # TODO find better reg
-REG_LLB_LO_PHASE_OFFSET		= 35
-REG_LLB_AUX_PHASE_OFFSET	= 36
+REGBASE_LLB_PID1			= 109
+REGBASE_LLB_PID2			= 118
 
 _LLB_PHASESCALE				= 2**28 / 360.0
 _LLB_FREQSCALE				= 2**64 / 1e9
@@ -137,9 +123,9 @@ class LaserLockBox(_CoreOscilloscope):
 		self.fast_pid = PID(self, reg_base = REGBASE_LLB_PID1, fs=self.fast_fs)
 		self.slow_pid = PID(self, reg_base = REGBASE_LLB_PID2, fs=self.slow_fs)
 
-		self.demod_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_DEMOD)
+		self.demod_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_LO)
 		self.scan_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_SCAN)
-		self.aux_sine_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_AUX_SINE)		
+		self.aux_sine_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_AUX)		
 		self.iir_filter1 = IIRBlock(self, reg_base=REGBASE_LLB_IIR1, num_stages = 1, gain_frac_width = 9, coeff_frac_width = 30, use_mmap = False)
 		self.iir_filter2 = IIRBlock(self, reg_base=REGBASE_LLB_IIR2, num_stages = 1, gain_frac_width = 9, coeff_frac_width = 30, use_mmap = False)
 		self.embedded_pll = EmbeddedPLL(self, reg_base=REGBASE_LLB_PLL)
@@ -670,23 +656,23 @@ class LaserLockBox(_CoreOscilloscope):
 
 
 _llb_reg_hdl = {
-	'_fast_scale' :		(REG_LLB_SCALE, to_reg_signed(0, 16, xform = lambda obj,  x : x * 2**14),
+	'_fast_scale' :		(REG_LLB_GAINS_SCALING, to_reg_signed(0, 16, xform = lambda obj,  x : x * 2**14),
 										from_reg_signed(0, 16, xform = lambda obj, x : x / 2**14)),
 
-	'_slow_scale' : 	(REG_LLB_SCALE, to_reg_signed(16, 16, xform = lambda obj, x : x * 2**14),
+	'_slow_scale' : 	(REG_LLB_GAINS_SCALING, to_reg_signed(16, 16, xform = lambda obj, x : x * 2**14),
 										from_reg_signed(16, 16, xform = lambda obj, x : x / 2**14)),
 
 	'_aux_scale' : 	(REG_LLB_AUX_SCALE, to_reg_signed(0, 16, xform = lambda obj, x : x * 2**14),
 										from_reg_signed(0, 16, xform = lambda obj, x : x / 2**14)),
 
-	'scan_amplitude' :	(REG_LLB_SCANSCALE, to_reg_signed(0, 16, xform = lambda obj,  x : x * 2**14),
+	'scan_amplitude' :	(REG_LLB_SCAN_SCALE, to_reg_signed(0, 16, xform = lambda obj,  x : x * 2**14),
 										from_reg_signed(0, 16, xform = lambda obj, x : x / 2**14)),
 
-	'fast_scan_enable': (REG_LLB_SCANSCALE, to_reg_unsigned(16, 1),
-											from_reg_unsigned(16, 1)),
+	'fast_scan_enable': (REG_LLB_SCAN_CTRL, to_reg_unsigned(0, 1),
+											from_reg_unsigned(0, 1)),
 
-	'slow_scan_enable': (REG_LLB_SCANSCALE, to_reg_unsigned(17, 1),
-											from_reg_unsigned(17, 1)),
+	'slow_scan_enable': (REG_LLB_SCAN_CTRL, to_reg_unsigned(1, 1),
+											from_reg_unsigned(1, 1)),
 
 	'lo_phase_offset': (REG_LLB_LO_PHASE_OFFSET, to_reg_unsigned(0, 28),
 													from_reg_unsigned(0, 28)),
@@ -694,13 +680,13 @@ _llb_reg_hdl = {
 	'aux_phase_offset': (REG_LLB_AUX_PHASE_OFFSET, to_reg_unsigned(0, 28),
 													from_reg_unsigned(0, 28)),
 
-	'fast_offset':	(REG_LLB_FAST_OFFSET, to_reg_signed(0, 17, xform = lambda obj, x : x * 2**15),
+	'fast_offset':	(REG_LLB_OFFSETS_FASTINPUT, to_reg_signed(0, 17, xform = lambda obj, x : x * 2**15),
 											from_reg_signed(0, 17, xform = lambda obj, x : x / 2**15)),
 
-	'output_offset_ch1': (REG_LLB_OUTPUT_OFFSET_CH1, to_reg_signed(0, 17, xform = lambda obj, x : x * (2**15)),
+	'output_offset_ch1': (REG_LLB_OFFSETS_FASTOUTPUT, to_reg_signed(0, 17, xform = lambda obj, x : x * (2**15)),
 														from_reg_signed(0, 17, xform = lambda obj, x : x / (2**15))),
 
-	'output_offset_ch2': (REG_LLB_OUTPUT_OFFSET_CH2, to_reg_signed(0, 17, xform = lambda obj, x : x * (2**15)),
+	'output_offset_ch2': (REG_LLB_OFFSETS_SLOWOUTPUT, to_reg_signed(0, 17, xform = lambda obj, x : x * (2**15)),
 														from_reg_signed(0, 17, xform = lambda obj, x : x / (2**15))),
 
 	'monitor_select0' :	(REG_LLB_MON_SEL, 	to_reg_unsigned(0, 4),
@@ -709,17 +695,17 @@ _llb_reg_hdl = {
 	'monitor_select1' : (REG_LLB_MON_SEL,	to_reg_unsigned(4, 4),
 											from_reg_unsigned(4, 4)),
 
-	'input_gain_select': (REG_LLB_MUX_SEL,	to_reg_unsigned(0, 2),
+	'input_gain_select': (REG_LLB_GAINS_INPUT,	to_reg_unsigned(0, 2),
 										from_reg_unsigned(0, 2)),
 
-	'MuxLOPhase':	(REG_LLB_MUX_SEL,	to_reg_unsigned(5, 1),
-										from_reg_unsigned(5, 1)),
+	'MuxLOPhase':	(REG_LLB_LO_CTRL,	to_reg_unsigned(0, 1),
+										from_reg_unsigned(0, 1)),
 
-	'MuxLOSignal':	(REG_LLB_MUX_SEL,	to_reg_unsigned(6, 1),
-										from_reg_unsigned(6, 1)),
+	'MuxLOSignal':	(REG_LLB_LO_CTRL,	to_reg_unsigned(1, 1),
+										from_reg_unsigned(1, 1)),
 
-	'MuxAuxPhase':	(REG_LLB_MUX_SEL,	to_reg_unsigned(7, 1),
-										from_reg_unsigned(7, 1)),
+	'MuxAuxPhase':	(REG_LLB_AUX_CTRL,	to_reg_unsigned(0, 1),
+										from_reg_unsigned(0, 1)),
 
 	'trig_aux':		(REG_LLB_MON_SEL,	to_reg_unsigned(8, 1),
 										from_reg_unsigned(8, 1)),
@@ -727,19 +713,19 @@ _llb_reg_hdl = {
 	'cond_trig': (REG_LLB_MON_SEL, 	to_reg_unsigned(9, 1),
 									from_reg_unsigned(9, 1)),
 
-	'cliprange_lower_ch1':		(REG_LLB_DAC1_RANGECLIP, to_reg_signed(0, 16, xform = lambda obj, x : x * 2**15 - 1),
+	'cliprange_lower_ch1':		(REG_LLB_CLIP_FAST, to_reg_signed(0, 16, xform = lambda obj, x : x * 2**15 - 1),
 									from_reg_signed(0, 16, xform = lambda obj, x : x / (2**14 - 1))),
 
-	'cliprange_upper_ch1':		(REG_LLB_DAC1_RANGECLIP, to_reg_signed(16, 16, xform = lambda obj, x : x * 2**15 - 1),
+	'cliprange_upper_ch1':		(REG_LLB_CLIP_FAST, to_reg_signed(16, 16, xform = lambda obj, x : x * 2**15 - 1),
 									from_reg_signed(16, 16, xform = lambda obj, x : x / (2**14 - 1))),
 
-	'cliprange_lower_ch2':		(REG_LLB_DAC2_RANGECLIP, to_reg_signed(0, 16, xform = lambda obj, x : x * 2**15 - 1),
+	'cliprange_lower_ch2':		(REG_LLB_CLIP_SLOW, to_reg_signed(0, 16, xform = lambda obj, x : x * 2**15 - 1),
 									from_reg_signed(0, 16, xform = lambda obj, x : x / (2**14 - 1))),
 
-	'cliprange_upper_ch2':		(REG_LLB_DAC2_RANGECLIP, to_reg_signed(16, 16, xform = lambda obj, x : x * 2**15 - 1),
+	'cliprange_upper_ch2':		(REG_LLB_CLIP_SLOW, to_reg_signed(16, 16, xform = lambda obj, x : x * 2**15 - 1),
 									from_reg_signed(16, 16, xform = lambda obj, x : x / (2**14 - 1))),
 
-	'fast_aux_enable':			(REG_LLB_ADD_AUX, to_reg_bool(0), from_reg_bool(0)),
+	'fast_aux_enable':			(REG_LLB_AUX_CTRL, to_reg_bool(1), from_reg_bool(1)),
 
-	'slow_aux_enable':			(REG_LLB_ADD_AUX, to_reg_bool(1), from_reg_bool(1))
+	'slow_aux_enable':			(REG_LLB_AUX_CTRL, to_reg_bool(2), from_reg_bool(2))
 }
