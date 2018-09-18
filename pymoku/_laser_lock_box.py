@@ -147,10 +147,10 @@ class LaserLockBox(_CoreOscilloscope):
 	@needs_commit
 	def _set_scale(self):
 		# incorporate adc2 scaling if local oscillator source is set to 'external'. Move this global to set_lo?
-		self.lo_scale_factor = 1.0 if self.MuxLOSignal == 0 else self._adc_gains()[1] * 2**12
+		self.lo_scale_factor = 1.0 if self.MuxLOSignal == 0 else self._adc_gains()[1] * 2**12  / (10.0 if self.get_frontend(2)[1] else 1.0)
 
-		self._fast_scale = self._adc_gains()[0] / self._dac_gains()[0] / 2**3 * self.lo_scale_factor
-		self._slow_scale = self._adc_gains()[0] / self._dac_gains()[1] / 2**3 * self.lo_scale_factor
+		self._fast_scale = self._adc_gains()[0] / self._dac_gains()[0] / 2**3 * self.lo_scale_factor / (10.0 if self.get_frontend(1)[1] else 1.0)
+		self._slow_scale = self._adc_gains()[0] / self._dac_gains()[1] / 2**3 * self.lo_scale_factor / (10.0 if self.get_frontend(1)[1] else 1.0)
 
 	@needs_commit
 	def set_input_gain(self, gain=0):
@@ -523,7 +523,7 @@ class LaserLockBox(_CoreOscilloscope):
 		else:
 			self.fast_scan_enable = False
 			self.slow_scan_enable = False
-			self.scan_amplitude = (amplitude / 2.0) / self._dac_gains()[1] / 2**15 # default to out 1 scale
+			self.scan_amplitude = (amplitude / 2.0) / self._dac_gains()[0] / 2**15 # default to out 1 scale
 
 	def _signal_source_volts_per_bit(self, source, scales, trigger=False):
 		"""
@@ -551,17 +551,17 @@ class LaserLockBox(_CoreOscilloscope):
 	@needs_commit
 	def _monitor_source_volts_per_bit(self, source, scales):
 		monitor_source_gains = {
-			'error'			: scales['gain_adc1'] * 2.0,
-			'pid_fast'		: scales['gain_dac1'] * 2**4,
-			'pid_slow'		: scales['gain_dac2'] * 2**4,
-			'offset_fast'	: scales['gain_dac1'] * 2**4,
+			'error'			: scales['gain_adc1'] * 2.0 / (10.0 if scales['atten_ch1'] else 1.0) * self.lo_scale_factor,
+			'pid_fast'		: scales['gain_adc1'] * 2.0 / (10.0 if scales['atten_ch1'] else 1.0) * self.lo_scale_factor,
+			'pid_slow'		: scales['gain_adc1'] * 2.0 / (10.0 if scales['atten_ch1'] else 1.0) * self.lo_scale_factor,
+			'offset_fast'	: scales['gain_adc1'] * 2.0 / (10.0 if scales['atten_ch1'] else 1.0) * self.lo_scale_factor,
 			'in1' 			: scales['gain_adc1'] / (10.0 if scales['atten_ch1'] else 1.0),
 			'in2' 			: scales['gain_adc2'] / (10.0 if scales['atten_ch2'] else 1.0),
 			'out1'			: scales['gain_dac1'] * 2**4,
 			'out2'			: scales['gain_dac2'] * 2**4,
-			'scan'			: scales['gain_dac1'] * 2**4,
-			'lo'			: 2**-11 if self.MuxLOSignal == 0 else scales['gain_adc2'] * 2.0,
-			'aux'			: scales['gain_dac2'] * 2**4 #TODO CHANGE THIS TO EITHER DAC
+			'scan'			: 2**4 * (scales['gain_dac2'] if self.slow_scan_enable== True else scales['gain_dac1']),
+			'lo'			: 2**-11 if self.MuxLOSignal == 0 else (scales['gain_adc2'] * 2.0 / (10.0 if scales['atten_ch2'] else 1.0)),
+			'aux'			: 2**4 * (scales['gain_dac1'] if self.fast_aux_enable == True else scales['gain_dac2'])
 		}
 		return monitor_source_gains[source]
 
