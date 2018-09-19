@@ -132,8 +132,7 @@ class LaserLockBox(_CoreOscilloscope):
 		super(LaserLockBox, self).set_defaults()
 		self.set_input_gain(0)
 
-		default_filt_coeff = 	[[1.0],
-						[1, 1, 0, 0, 0, 0],
+		default_filt_coeff = [[1, 1, 0, 0, 0, 0],
 						[1, 1, 0, 0, 0, 0]]
 		self.set_custom_filter(default_filt_coeff)
 		self.set_local_oscillator()
@@ -185,11 +184,45 @@ class LaserLockBox(_CoreOscilloscope):
 		Configure the filter coefficients in the IIR filter.
 
 		:type filt_coeffs: array;
-		:param filt_coeffs: array containg SOS filter coefficients.
+		:param filt_coeffs: array containg SOS filter coefficients in the following format:
+
+		+-----+------+------+------+------+-------+
+		| s1  | b0.1 | b1.1 | b2.1 | a1.1 |  a2.1 |
+		+-----+------+------+------+------+-------+
+		| s2  | b0.2 | b1.2 | b2.2 | a1.2 |  a2.2 |
+		+-----+------+------+------+------+-------+
+
+		Each 'a' coefficient must be a float in the range [-2.0, +2.0). 's' coefficients are multiplied into each 'b' coefficient before being sent to the device. 
+		These products (sN x b0.N, sN x b1.N, sN x b2.N) must also fall in the range [-2.0, +2.0). Internally, the 'a' and 'b' coefficients are represented as 
+		signed 32-bit fixed-point numbers, with 30 fractional bits. 
+
+		Filter coefficients can be computed using signal processing toolboxes in e.g. MATLAB or SciPy.
+
 		"""
-		# TODO: either check params correctly here or modify __iir_block to check
-		# utils.check_parameter_valid('set', len(filt_coeffs), [3], desc='number of filter array elements')
-		# utils.check_parameter_valid('set', len(filt_coeffs[0]), [1], desc=' of filter array elements')
+		# check array format
+		_utils.check_parameter_valid('set', len(filt_coeffs), [2], desc='number of a/b filter array rows')
+		_utils.check_parameter_valid('set', len(filt_coeffs[0]), [6], desc='number of coefficients in first filter array row')
+		_utils.check_parameter_valid('set', len(filt_coeffs[1]), [6], desc='number of coefficients in second filter array row')
+
+		print(filt_coeffs[0][1])
+
+		# multiply s coefs into b coefs and set s coefs = 1.0
+		for row in range(0, 2):
+			for bcoef in range(1, 4):
+				filt_coeffs[row][bcoef] *= filt_coeffs[row][0]
+				_utils.check_parameter_valid('range', filt_coeffs[row][bcoef], [-2.0, 2.0], desc='product of b{}.{} and s{}'.format(row + 1, bcoef, row + 1), units='linear scalar')
+		filt_coeffs[0][0] = 1.0
+		filt_coeffs[1][0] = 1.0
+
+		print(filt_coeffs[0][1])
+
+		# check value of a coefs
+		for row in range(0, 2):
+			for coef in range(0, 6):
+				_utils.check_parameter_valid('range', filt_coeffs[row][coef], [-2.0, 2.0], desc='coefficient value', units='linear scalar')
+
+		# add G of 1.0 to array 
+		filt_coeffs = [[1.0], filt_coeffs[0], filt_coeffs[1]]
 
 		self.iir_filter.write_coeffs(filt_coeffs)
 
@@ -253,10 +286,12 @@ class LaserLockBox(_CoreOscilloscope):
 		:type kp: float; [-1e3,1e3]
 		:param kp: Proportional gain factor
 
-		:type ki: float;
-		:param ki: Integrator gain factor
+		:type ki: float; 
+			[0, 31.25e6] with a resolution of 31.25e6 / 2^24-1 when pid_block = 1
+			[0, 488.28e3] with a resolution of 488.28 / 2^24-1 when pid_block = 2.
+		:param ki: Integrator gain factor. 
 
-		:type kd: float;
+		:type kd: float; [0, 31.25e6] when pid_block = 1, [0, 488.28e3] when pid_block = 2
 		:param kd: Differentiator gain factor
 
 		:type si: float; float; [-1e3,1e3]
@@ -267,12 +302,17 @@ class LaserLockBox(_CoreOscilloscope):
 
 		:raises InvalidConfigurationException: if the configuration of PID gains is not possible.
 		"""
-		#TODO: ask paul about I and D gain factor ranges.
 		_utils.check_parameter_valid('set', pid_block, [1,2],'filter channel')
 		_utils.check_parameter_valid('range', g, [0, 2**16 - 1], desc='Gain', units='linear scalar')
 		_utils.check_parameter_valid('range', kp, [-1e3, 1e3], desc='proportional gain', units='linear scalar')
-		# _utils.check_parameter_valid('range', ki, [-1e3, 1e3], desc='integrator gain', units='linear scalar')
-		# _utils.check_parameter_valid('range', kd, [-1e3, 1e3], desc='differentiator gain', units='linear scalar')
+
+		if pid_block == 1:
+			_utils.check_parameter_valid('range', ki, [0, 31.25e6], desc='integrator gain', units='linear scalar')
+			_utils.check_parameter_valid('range', kd, [0, 31.25e6], desc='differentiator gain', units='linear scalar')
+		else:
+			_utils.check_parameter_valid('range', ki, [0, 488.28e3], desc='integrator gain', units='linear scalar')
+			_utils.check_parameter_valid('range', kd, [0, 488.28e3], desc='differentiator gain', units='linear scalar')
+
 		if si != None:
 			_utils.check_parameter_valid('range', si, [-1e3, 1e3], desc='integrator gain saturation', units='linear scalar')
 		if sd != None:
@@ -527,8 +567,7 @@ class LaserLockBox(_CoreOscilloscope):
 
 	def _signal_source_volts_per_bit(self, source, scales, trigger=False):
 		"""
-			Converts volts to bits depending on the signal source. 
-			To do: complete this function when osc functionality added to awg, stubbed for now.
+			Converts volts to bits depending on the signal source.
 		"""
 
 		# Decimation gain is applied only when using precision mode data
@@ -550,11 +589,14 @@ class LaserLockBox(_CoreOscilloscope):
 
 	@needs_commit
 	def _monitor_source_volts_per_bit(self, source, scales):
+
+		lo_scale_factor = 1.0 if self.MuxLOSignal == 0 else self._adc_gains()[1] * 2**12  / (10.0 if self.get_frontend(2)[1] else 1.0)
+
 		monitor_source_gains = {
-			'error'			: scales['gain_adc1'] * 2.0 / (10.0 if scales['atten_ch1'] else 1.0) * self.lo_scale_factor,
-			'pid_fast'		: scales['gain_adc1'] * 2.0 / (10.0 if scales['atten_ch1'] else 1.0) * self.lo_scale_factor,
-			'pid_slow'		: scales['gain_adc1'] * 2.0 / (10.0 if scales['atten_ch1'] else 1.0) * self.lo_scale_factor,
-			'offset_fast'	: scales['gain_adc1'] * 2.0 / (10.0 if scales['atten_ch1'] else 1.0) * self.lo_scale_factor,
+			'error'			: scales['gain_adc1'] * 2.0 / (10.0 if scales['atten_ch1'] else 1.0) * lo_scale_factor,
+			'pid_fast'		: scales['gain_adc1'] * 2.0 / (10.0 if scales['atten_ch1'] else 1.0) * lo_scale_factor,
+			'pid_slow'		: scales['gain_adc1'] * 2.0 / (10.0 if scales['atten_ch1'] else 1.0) * lo_scale_factor,
+			'offset_fast'	: scales['gain_adc1'] * 2.0 / (10.0 if scales['atten_ch1'] else 1.0) * lo_scale_factor,
 			'in1' 			: scales['gain_adc1'] / (10.0 if scales['atten_ch1'] else 1.0),
 			'in2' 			: scales['gain_adc2'] / (10.0 if scales['atten_ch2'] else 1.0),
 			'out1'			: scales['gain_dac1'] * 2**4,
@@ -599,8 +641,6 @@ class LaserLockBox(_CoreOscilloscope):
 		:type mode: string, {'auto', 'normal'}
 		:param mode: Trigger mode.
 		"""
-
-		# TODO: decide whether trig_on_scan_rising can be set independently of source
 
 		if source == 'scan':
 			self.trig_aux = 1
@@ -700,14 +740,14 @@ _llb_reg_hdl = {
 	'aux_phase_offset': (REG_LLB_AUX_PHASE_OFFSET, to_reg_unsigned(0, 28),
 													from_reg_unsigned(0, 28)),
 
-	'fast_offset':	(REG_LLB_OFFSETS_FASTINPUT, to_reg_signed(0, 17, xform = lambda obj, x : x * 2**15),
-											from_reg_signed(0, 17, xform = lambda obj, x : x / 2**15)),
+	'fast_offset':	(REG_LLB_OFFSETS_FASTINPUT, to_reg_signed(0, 18, xform = lambda obj, x : x * 2**15),
+											from_reg_signed(0, 18, xform = lambda obj, x : x / 2**15)),
 
-	'output_offset_ch1': (REG_LLB_OFFSETS_FASTOUTPUT, to_reg_signed(0, 17, xform = lambda obj, x : x * (2**15)),
-														from_reg_signed(0, 17, xform = lambda obj, x : x / (2**15))),
+	'output_offset_ch1': (REG_LLB_OFFSETS_FASTOUTPUT, to_reg_signed(0, 18, xform = lambda obj, x : x * (2**15)),
+														from_reg_signed(0, 18, xform = lambda obj, x : x / (2**15))),
 
-	'output_offset_ch2': (REG_LLB_OFFSETS_SLOWOUTPUT, to_reg_signed(0, 17, xform = lambda obj, x : x * (2**15)),
-														from_reg_signed(0, 17, xform = lambda obj, x : x / (2**15))),
+	'output_offset_ch2': (REG_LLB_OFFSETS_SLOWOUTPUT, to_reg_signed(0, 18, xform = lambda obj, x : x * (2**15)),
+														from_reg_signed(0, 18, xform = lambda obj, x : x / (2**15))),
 
 	'monitor_select0' :	(REG_LLB_MON_SEL, 	to_reg_unsigned(0, 4),
 											from_reg_unsigned(0,4)),
