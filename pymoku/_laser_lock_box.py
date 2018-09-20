@@ -14,30 +14,37 @@ from ._embedded_pll import EmbeddedPLL
 
 log = logging.getLogger(__name__)
 
-REGBASE_LLB_DEMOD			= 79
-REGBASE_LLB_SCAN			= 88
-REGBASE_LLB_AUX_SINE		= 97
-REGBASE_LLB_PLL				= 106
+REGBASE_LLB_IIR				= 28
 
-REGBASE_LLB_IIR1			= 28
-REGBASE_LLB_IIR2			= 37
-
-REGBASE_LLB_PID1			= 110
-REGBASE_LLB_PID2			= 119
+REGBASE_LLB_AUX				= 40
+REG_LLB_AUX_SCALE			= 49
+REG_LLB_AUX_CTRL			= 50
+REG_LLB_AUX_PHASE_OFFSET	= 51
 
 REG_LLB_MON_SEL				= 75
-REG_LLB_MUX_SEL				= 76
-REG_LLB_SCALE				= 77
-REG_LLB_SCANSCALE			= 78
-REG_LLB_DAC1_RANGECLIP		= 79
-REG_LLB_DAC2_RANGECLIP		= 80
-REG_LLB_ADD_AUX				= 81
-REG_LLB_OUTPUT_OFFSET_CH1	= REGBASE_LLB_PID1 + 8
-REG_LLB_OUTPUT_OFFSET_CH2	= REGBASE_LLB_PID2 + 8
-REG_LLB_AUX_SCALE			= 34 # TODO find better reg
-REG_LLB_FAST_OFFSET			= 117 # TODO find better reg
-REG_LLB_LO_PHASE_OFFSET		= 35
-REG_LLB_AUX_PHASE_OFFSET	= 36
+
+REGBASE_LLB_LO				= 76
+REG_LLB_LO_PHASE_OFFSET		= 85
+REG_LLB_LO_CTRL				= 86
+
+REGBASE_LLB_SCAN			= 87
+REG_LLB_SCAN_SCALE			= 96
+REG_LLB_SCAN_CTRL			= 97
+
+REG_LLB_GAINS_INPUT			= 98
+REG_LLB_GAINS_SCALING		= 99
+
+REG_LLB_OFFSETS_FASTINPUT	= 100
+REG_LLB_OFFSETS_FASTOUTPUT	= 101
+REG_LLB_OFFSETS_SLOWOUTPUT	= 102
+
+REG_LLB_CLIP_FAST			= 103
+REG_LLB_CLIP_SLOW			= 104
+
+REGBASE_LLB_PLL				= 105
+
+REGBASE_LLB_PID1			= 109
+REGBASE_LLB_PID2			= 118
 
 _LLB_PHASESCALE				= 2**28 / 360.0
 _LLB_FREQSCALE				= 2**64 / 1e9
@@ -114,21 +121,18 @@ class LaserLockBox(_CoreOscilloscope):
 		self.fast_pid = PID(self, reg_base = REGBASE_LLB_PID1, fs=self.fast_fs)
 		self.slow_pid = PID(self, reg_base = REGBASE_LLB_PID2, fs=self.slow_fs)
 
-		self.demod_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_DEMOD)
+		self.demod_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_LO)
 		self.scan_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_SCAN)
-		self.aux_sine_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_AUX_SINE)		
-		self.iir_filter1 = IIRBlock(self, reg_base=REGBASE_LLB_IIR1, num_stages = 1, gain_frac_width = 9, coeff_frac_width = 30, use_mmap = False)
-		self.iir_filter2 = IIRBlock(self, reg_base=REGBASE_LLB_IIR2, num_stages = 1, gain_frac_width = 9, coeff_frac_width = 30, use_mmap = False)
+		self.aux_sine_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_AUX)
+		self.iir_filter = IIRBlock(self, reg_base=REGBASE_LLB_IIR, num_stages = 2, gain_frac_width = 9, coeff_frac_width = 30, use_mmap = False)
 		self.embedded_pll = EmbeddedPLL(self, reg_base=REGBASE_LLB_PLL)
 
 	@needs_commit
 	def set_defaults(self):
 		super(LaserLockBox, self).set_defaults()
-		self.set_sample_rate('high')
 		self.set_input_gain(0)
 
-		default_filt_coeff = 	[[1.0],
-						# [1.0, 0.0346271318590754, -0.0466073336600009, 0.0346271318590754, 1.81922686243757, -0.844637126033068]]
+		default_filt_coeff = [[1, 1, 0, 0, 0, 0],
 						[1, 1, 0, 0, 0, 0]]
 		self.set_custom_filter(default_filt_coeff)
 		self.set_local_oscillator()
@@ -142,10 +146,10 @@ class LaserLockBox(_CoreOscilloscope):
 	@needs_commit
 	def _set_scale(self):
 		# incorporate adc2 scaling if local oscillator source is set to 'external'. Move this global to set_lo?
-		self.lo_scale_factor = 1.0 if self.MuxLOSignal == 0 else self._adc_gains()[1] * 2**12
+		self.lo_scale_factor = 1.0 if self.MuxLOSignal == 0 else self._adc_gains()[1] * 2**12  / (10.0 if self.get_frontend(2)[1] else 1.0)
 
-		self._fast_scale = self._adc_gains()[0] / self._dac_gains()[0] / 2**3 * self.lo_scale_factor
-		self._slow_scale = self._adc_gains()[0] / self._dac_gains()[1] / 2**3 * self.lo_scale_factor
+		self._fast_scale = self._adc_gains()[0] / self._dac_gains()[0] / 2**3 * self.lo_scale_factor / (10.0 if self.get_frontend(1)[1] else 1.0)
+		self._slow_scale = self._adc_gains()[0] / self._dac_gains()[1] / 2**3 * self.lo_scale_factor / (10.0 if self.get_frontend(1)[1] else 1.0)
 
 	@needs_commit
 	def set_input_gain(self, gain=0):
@@ -176,21 +180,69 @@ class LaserLockBox(_CoreOscilloscope):
 
 	@needs_commit
 	def set_custom_filter(self, filt_coeffs):
+
 		"""
 		Configure the filter coefficients in the IIR filter.
 
 		:type filt_coeffs: array;
-		:param filt_coeffs: array containg SOS filter coefficients.
-		"""
-		self.iir_filter1.write_coeffs(filt_coeffs)
-		self.iir_filter2.write_coeffs(filt_coeffs)
+		:param filt_coeffs: array containg SOS filter coefficients in the following format:
 
+		+-----+------+------+------+------+-------+
+		| s1  | b0.1 | b1.1 | b2.1 | a1.1 |  a2.1 |
+		+-----+------+------+------+------+-------+
+		| s2  | b0.2 | b1.2 | b2.2 | a1.2 |  a2.2 |
+		+-----+------+------+------+------+-------+
+
+		Each 'a' coefficient must be a float in the range [-2.0, +2.0). 's' coefficients are multiplied into each 'b' coefficient before being sent to the device. 
+		These products (sN x b0.N, sN x b1.N, sN x b2.N) must also fall in the range [-2.0, +2.0). Internally, the 'a' and 'b' coefficients are represented as 
+		signed 32-bit fixed-point numbers, with 30 fractional bits. 
+
+		Filter coefficients can be computed using signal processing toolboxes in e.g. MATLAB or SciPy.
+
+
+		"""
+		# check array format
+		_utils.check_parameter_valid('set', len(filt_coeffs), [2], desc='number of a/b filter array rows')
+		_utils.check_parameter_valid('set', len(filt_coeffs[0]), [6], desc='number of coefficients in first filter array row')
+		_utils.check_parameter_valid('set', len(filt_coeffs[1]), [6], desc='number of coefficients in second filter array row')
+
+		print(filt_coeffs[0][1])
+
+		# multiply s coefs into b coefs and set s coefs = 1.0
+		for row in range(0, 2):
+			for bcoef in range(1, 4):
+				filt_coeffs[row][bcoef] *= filt_coeffs[row][0]
+				_utils.check_parameter_valid('range', filt_coeffs[row][bcoef], [-2.0, 2.0], desc='product of b{}.{} and s{}'.format(row + 1, bcoef, row + 1), units='linear scalar')
+		filt_coeffs[0][0] = 1.0
+		filt_coeffs[1][0] = 1.0
+
+		print(filt_coeffs[0][1])
+
+		# check value of a coefs
+		for row in range(0, 2):
+			for coef in range(0, 6):
+				_utils.check_parameter_valid('range', filt_coeffs[row][coef], [-2.0, 2.0], desc='coefficient value', units='linear scalar')
+
+		# add G of 1.0 to array 
+		filt_coeffs = [[1.0], filt_coeffs[0], filt_coeffs[1]]
+
+		self.iir_filter.write_coeffs(filt_coeffs)
 
 	@needs_commit
 	def set_output_range(self, ch, maximum, minimum):
 		"""
 		Set upper and lower bounds for the signal on each DAC channel.  
+
+		:type maximum: float, [-1.0, 1.0] Volts;
+		:param maximum: maximum value the output signal can be before clipping occurs.
+
+		:type minimum: float, [-1.0, 1.0] Volts;
+		:param maximum: maximum value the output signal can be before clipping occurs.
 		"""
+		_utils.check_parameter_valid('range', maximum, [-1.0, 1.0], desc='maximum', units='Volts')
+		_utils.check_parameter_valid('range', minimum, [-1.0, 1.0], desc='minimum', units='Volts')
+		if minimum > maximum:
+			raise ValueOutOfRangeException("Maximum range value must be greater than minimum.")
 
 		if ch == 1:
 			self.cliprange_upper_ch1 = maximum / self._dac_gains()[0] / 2**15
@@ -207,9 +259,11 @@ class LaserLockBox(_CoreOscilloscope):
 		:type position : list; ['pid_input', 'out1', 'out2']
 		:param position : The desired point to add an offset
 
-
+		:type offset : float, [-2.0, 2.0] Volts.
+		:param offset : voltage offset. 
 		"""
 		_utils.check_parameter_valid('set', position, ['pid_input', 'out1', 'out2'],'position')
+		_utils.check_parameter_valid('range', offset, [-2.0, 2.0], desc='offset', units='Volts')
 
 		if position == 'pid_input':
 			self.fast_offset =offset / (self._adc_gains()[0] * 2**12) / self.lo_scale_factor
@@ -225,8 +279,8 @@ class LaserLockBox(_CoreOscilloscope):
 		"""
 		Configure the selected PID controller using gain coefficients.
 
-		:type ch: int; [1,2]
-		:param ch: Channel of the PID controller to be configured.
+		:type pid_block : int; [1,2]
+		:param pid_block : PID controller - 1 = Fast, 2 = Slow 
 
 		:type g: float; [0,2^16 - 1]
 		:param g: Gain
@@ -234,10 +288,12 @@ class LaserLockBox(_CoreOscilloscope):
 		:type kp: float; [-1e3,1e3]
 		:param kp: Proportional gain factor
 
-		:type ki: float;
-		:param ki: Integrator gain factor
+		:type ki: float; 
+			[0, 31.25e6] with a resolution of 31.25e6 / 2^24-1 when pid_block = 1
+			[0, 488.28e3] with a resolution of 488.28 / 2^24-1 when pid_block = 2.
+		:param ki: Integrator gain factor. 
 
-		:type kd: float;
+		:type kd: float; [0, 31.25e6] when pid_block = 1, [0, 488.28e3] when pid_block = 2
 		:param kd: Differentiator gain factor
 
 		:type si: float; float; [-1e3,1e3]
@@ -248,17 +304,57 @@ class LaserLockBox(_CoreOscilloscope):
 
 		:raises InvalidConfigurationException: if the configuration of PID gains is not possible.
 		"""
+		_utils.check_parameter_valid('set', pid_block, [1,2],'filter channel')
+		_utils.check_parameter_valid('range', g, [0, 2**16 - 1], desc='Gain', units='linear scalar')
+		_utils.check_parameter_valid('range', kp, [-1e3, 1e3], desc='proportional gain', units='linear scalar')
+
+		if pid_block == 1:
+			_utils.check_parameter_valid('range', ki, [0, 31.25e6], desc='integrator gain', units='linear scalar')
+			_utils.check_parameter_valid('range', kd, [0, 31.25e6], desc='differentiator gain', units='linear scalar')
+		else:
+			_utils.check_parameter_valid('range', ki, [0, 488.28e3], desc='integrator gain', units='linear scalar')
+			_utils.check_parameter_valid('range', kd, [0, 488.28e3], desc='differentiator gain', units='linear scalar')
+
+		if si != None:
+			_utils.check_parameter_valid('range', si, [-1e3, 1e3], desc='integrator gain saturation', units='linear scalar')
+		if sd != None:
+			_utils.check_parameter_valid('range', sd, [-1e3, 1e3], desc='differentiator gain saturation', units='linear scalar')
+
 		pid_array = [self.fast_pid, self.slow_pid]
 		pid_array[pid_block -1].set_reg_by_gain(g, kp, ki, kd, si, sd)
 		pid_array[pid_block -1].gain = pid_array[pid_block -1].gain * 2**15
 
 	@needs_commit
 	def set_pid_enable(self, pid_block, en=True):
+		"""
+		Enable or disable the selected PID controller.
+
+		:type pid_block : int; [1, 2]
+		:param pid_block : PID controller - 1 = Fast, 2 = Slow 
+
+		:type en : bool;
+		:param en : enable or disable PID controller described in pid_block.
+		"""
+		_utils.check_parameter_valid('set', pid_block, [1, 2], 'PID controller')
+		_utils.check_parameter_valid('set', en, [True, False], 'enable')
+
 		pid_array = [self.fast_pid, self.slow_pid]
 		pid_array[pid_block-1].enable = en
 
 	@needs_commit
 	def set_pid_bypass(self, pid_block, bypass = False):
+		"""
+		Enable or disable bypassing of the selected PID controller.
+
+		:type pid_block : int; [1, 2]
+		:param pid_block : PID controller - 1 = Fast, 2 = Slow 
+
+		:type bypass : bool;
+		:param en : enable or disable bypassing.
+		"""
+		_utils.check_parameter_valid('set', pid_block, [1, 2], 'PID controller')
+		_utils.check_parameter_valid('set', bypass, [True, False], 'enable')
+
 		pid_array = [self.fast_pid, self.slow_pid]
 		pid_array[pid_block-1].bypass = bypass
 
@@ -288,6 +384,17 @@ class LaserLockBox(_CoreOscilloscope):
 
 		:raises InvalidConfigurationException: if the configuration of PID gains is not possible.
 		"""
+		_utils.check_parameter_valid('set', pid_block, [1,2],'filter channel')
+		_utils.check_parameter_valid('range', kp, [-1e3, 1e3], desc='proportional gain', units='linear scalar')
+		if i_xover != None:
+			_utils.check_parameter_valid('range', i_xover, [1e-3, 1e6], desc='integrator cross over frequency', units='hertz')
+		if d_xover != None:
+			_utils.check_parameter_valid('range', d_xover, [1, 10e6], desc='differentiator cross over frequency', units='hertz')
+		if si != None:
+			_utils.check_parameter_valid('range', si, [-1e3, 1e3], desc='integrator gain saturation', units='linear scalar')
+		if sd != None:
+			_utils.check_parameter_valid('range', sd, [-1e3, 1e3], desc='differentiator gain saturation', units='linear scalar')
+
 		pid_array = [self.fast_pid, self.slow_pid]
 		pid_array[pid_block -1].set_reg_by_frequency(kp, i_xover, d_xover, si, sd)
 		pid_array[pid_block -1].gain = pid_array[pid_block -1].gain * 2**15
@@ -297,21 +404,23 @@ class LaserLockBox(_CoreOscilloscope):
 		"""
 		Configure the demodulation stage.
 
-		:type source : list; ['internal', 'external', 'pll']
-		:param source : Local Oscillator Source
-
 		:type frequency : float; [0, 200e6] Hz
 		:param frequency : Internal demodulation frequency
 
 		:type phase : float; [0, 360] degrees
 		:param phase : float; Internal demodulation phase
 
+		:type source : list; ['internal', 'external', 'external_pll']
+		:param source : Local Oscillator Source
+
 		:type pll_auto_acq : bool
 		:param pll_auto_acq : Enable PLL Auto Acquire
 
 		"""
-
-		#TODO limit argument sizes
+		_utils.check_parameter_valid('range', frequency, [0, 200e6], desc='local oscillator frequency', units='hertz')
+		_utils.check_parameter_valid('range', phase, [0, 360], desc='local oscillator phase offset', units='degrees')
+		_utils.check_parameter_valid('set', source, ['internal', 'external', 'external_pll'], 'local oscillator source')
+		_utils.check_parameter_valid('set', pll_auto_acq, [True, False], 'enable pll auto acquire')
 
 		self.demod_sweep.step = frequency * _LLB_FREQSCALE
 
@@ -327,15 +436,10 @@ class LaserLockBox(_CoreOscilloscope):
 		elif source == 'external':
 			self.MuxLOPhase = 0
 			self.MuxLOSignal = 1
-			#stubbed for now
 		elif source == 'external_pll':
 			self.embedded_pll.reacquire = 1
 			self.MuxLOPhase = 1
 			self.MuxLOSignal = 0
-
-		else:
-			#shouldn't happen
-			raise ValueOutOfRangeException('Demodulation mode must be one of "internal", "external" or "external_pll", not %s', mode)
 
 		# update scales
 		self._set_scale()
@@ -345,13 +449,27 @@ class LaserLockBox(_CoreOscilloscope):
 		"""
 		Configure the aux sine signal.
 
+		:type amplitude : float; [0, 2.0] Vpp
+		:param amplitude : Auxiliary sine wave amplitude
+
 		:type frequency : float; [0, 200e6] Hz
-		:param frequency : Internal demodulation frequency
+		:param frequency : Auxiliary sine wave frequency
 
 		:type phase : float; [0, 360] degrees
-		:param phase : float; Internal demodulation phase
+		:param phase : float; Auxiliary sine wave phase offset
+
+		:type sync_to_lo : bool
+		:param sync_to_lo : True = enable phase synchronisation to local oscillator, False = use auxiliary frequency and phase values. 
+
+		:type output : list; ['out1', 'out2', 'none']
+		:param output : select which channel to output the auxiliary signal on. 
 
 		"""
+		_utils.check_parameter_valid('range', amplitude, [0, 2.0], desc='aux amplitude', units='volts peak-to-peak')
+		_utils.check_parameter_valid('range', frequency, [0, 200e6], desc='aux frequency', units='hertz')
+		_utils.check_parameter_valid('range', phase, [0, 360], desc='aux phase offset', units='degrees')
+		_utils.check_parameter_valid('set', sync_to_lo, [True, False], 'sync phase to local oscillator')
+		_utils.check_parameter_valid('set', output, ['out1', 'out2', 'none'], 'aux output channel')
 
 		_str_to_scansource = {
 			'out1' 	: _LLB_AUXSOURCE_DAC1,
@@ -386,27 +504,35 @@ class LaserLockBox(_CoreOscilloscope):
 		else:
 			self.fast_aux_enable = False
 			self.slow_aux_enable = False
-			self._aux_scale = 0
+			self._aux_scale = (amplitude / 2.0) / self._dac_gains()[1] / 2**15
 
 	@needs_commit
-	def set_scan(self, frequency, phase,  amplitude, waveform = 'triangle', output = 'out1'):
+	def set_scan(self, amplitude = 2.0, frequency = 0.0, phase = 0.0, waveform = 'triangle', output = 'out1'):
 		"""
 		Configure the scanning generator
 
-		:type frequency : float; [0, 200e6] Hz
-		:param frequency : scan frequency
+		:type amplitude : float; [0, 2.0] Vpp
+		:param amplitude : Scan amplitude
+
+		:type frequency : float; [0, 1e6] Hz
+		:param frequency : Scan frequency
 
 		:type phase : float; [0, 360] degrees
-		:param phase : scan phase
+		:param phase : float; Scan phase offset
 
-		:type amplitude : float; [0, 2]
-		:param amplitude : scan amplitude
+		:type waveform : List; ['sawtooth', 'triangle']
+		:param sync_to_lo : Scan waveform type. 
 
-		:type output : int; [1, 2]
-		:param output : selects which output the scan linked to.
-
+		:type output : list; ['out1', 'out2', 'none']
+		:param output : select which channel to output the scan signal on. 
 
 		"""
+		_utils.check_parameter_valid('range', amplitude, [0, 2.0], desc='scan amplitude', units='volts peak-to-peak')
+		_utils.check_parameter_valid('range', frequency, [0, 1e6], desc='scan frequency', units='hertz')
+		_utils.check_parameter_valid('range', phase, [0, 360], desc='scan phase offset', units='degrees')
+		_utils.check_parameter_valid('set', waveform, ['sawtooth', 'triangle'], 'scan waveform type')
+		_utils.check_parameter_valid('set', output, ['out1', 'out2', 'none'], 'scan output channel')
+
 		_str_to_waveform = {
 			'sawtooth' 	: _LLB_SCAN_SAWTOOTH,
 			'triangle'	: _LLB_SCAN_TRIANGLE
@@ -441,47 +567,9 @@ class LaserLockBox(_CoreOscilloscope):
 			self.slow_scan_enable = False
 			self.scan_amplitude = (amplitude / 2.0) / self._dac_gains()[0] / 2**15 # default to out 1 scale
 
-	@needs_commit
-	def set_sample_rate(self, rate):
-		"""
-		Configure the sample rate of the filters and pid controllers of the laser locker.
-		
-		selectable rates:
-			-**high** : 62.5 MHz
-			-**low**  : 31.25 MHz
-		
-		:type rate : string; {'high', 'low'}
-		:param rate: sample rate
-
-		"""
-		_str_to_rate = {
-			'high' 	: _LLB_HIGH_RATE,
-			'low'	: _LLB_LOW_RATE
-		}
-		self.rate_sel = _utils.str_to_val(_str_to_rate, rate, 'sampling rate')
-
-	@needs_commit
-	def set_output_offset(self, ch, offset):
-		"""
-		Add an output offset to either DAC channel. 
-
-		:type ch
-
-		:type offset: float; [-1, 1] Volts
-		:param offset: output offset
-		"""
-		_utils.check_parameter_valid('set', ch, [1,2],'filter channel')
-		_utils.check_parameter_valid('range', offset, allowed=[-1, 1], desc="output offset (V)")
-
-		if ch == 1:
-			self.output_offset_ch1 = offset / (self._adc_gains()[0] * 2**12) / self.lo_scale_factor # / atten ?
-		else:
-			self.output_offset_ch2 = offset / (self._adc_gains()[0] * 2**12) / self.lo_scale_factor
-
 	def _signal_source_volts_per_bit(self, source, scales, trigger=False):
 		"""
-			Converts volts to bits depending on the signal source. 
-			To do: complete this function when osc functionality added to awg, stubbed for now.
+			Converts volts to bits depending on the signal source.
 		"""
 
 		# Decimation gain is applied only when using precision mode data
@@ -503,18 +591,21 @@ class LaserLockBox(_CoreOscilloscope):
 
 	@needs_commit
 	def _monitor_source_volts_per_bit(self, source, scales):
+
+		lo_scale_factor = 1.0 if self.MuxLOSignal == 0 else self._adc_gains()[1] * 2**12  / (10.0 if self.get_frontend(2)[1] else 1.0)
+
 		monitor_source_gains = {
-			'error'			: scales['gain_adc1'] * 2.0,
-			'pid_fast'		: scales['gain_dac1'] * 2**4,
-			'pid_slow'		: scales['gain_dac2'] * 2**4,
-			'offset_fast'	: scales['gain_dac1'] * 2**4,
+			'error'			: scales['gain_adc1'] * 2.0 / (10.0 if scales['atten_ch1'] else 1.0) * lo_scale_factor,
+			'pid_fast'		: scales['gain_adc1'] * 2.0 / (10.0 if scales['atten_ch1'] else 1.0) * lo_scale_factor,
+			'pid_slow'		: scales['gain_adc1'] * 2.0 / (10.0 if scales['atten_ch1'] else 1.0) * lo_scale_factor,
+			'offset_fast'	: scales['gain_adc1'] * 2.0 / (10.0 if scales['atten_ch1'] else 1.0) * lo_scale_factor,
 			'in1' 			: scales['gain_adc1'] / (10.0 if scales['atten_ch1'] else 1.0),
 			'in2' 			: scales['gain_adc2'] / (10.0 if scales['atten_ch2'] else 1.0),
 			'out1'			: scales['gain_dac1'] * 2**4,
 			'out2'			: scales['gain_dac2'] * 2**4,
-			'scan'			: scales['gain_dac1'] * 2**4,
+			'scan'			: 2**4 * (scales['gain_dac2'] if self.slow_scan_enable== True else scales['gain_dac1']),
 			'lo'			: 2**-12,
-			'aux'			: scales['gain_dac2'] * 2**4
+			'aux'			: 2**4 * (scales['gain_dac1'] if self.fast_aux_enable == True else scales['gain_dac2'])
 		}
 		return monitor_source_gains[source]
 
@@ -552,8 +643,6 @@ class LaserLockBox(_CoreOscilloscope):
 		:type mode: string, {'auto', 'normal'}
 		:param mode: Trigger mode.
 		"""
-
-		# TODO: decide whether trig_on_scan_rising can be set independently of source
 
 		if source == 'scan':
 			self.trig_aux = 1
@@ -629,23 +718,23 @@ class LaserLockBox(_CoreOscilloscope):
 
 
 _llb_reg_hdl = {
-	'_fast_scale' :		(REG_LLB_SCALE, to_reg_signed(0, 16, xform = lambda obj,  x : x * 2**14),
+	'_fast_scale' :		(REG_LLB_GAINS_SCALING, to_reg_signed(0, 16, xform = lambda obj,  x : x * 2**14),
 										from_reg_signed(0, 16, xform = lambda obj, x : x / 2**14)),
 
-	'_slow_scale' : 	(REG_LLB_SCALE, to_reg_signed(16, 16, xform = lambda obj, x : x * 2**14),
+	'_slow_scale' : 	(REG_LLB_GAINS_SCALING, to_reg_signed(16, 16, xform = lambda obj, x : x * 2**14),
 										from_reg_signed(16, 16, xform = lambda obj, x : x / 2**14)),
 
 	'_aux_scale' : 	(REG_LLB_AUX_SCALE, to_reg_signed(0, 16, xform = lambda obj, x : x * 2**14),
 										from_reg_signed(0, 16, xform = lambda obj, x : x / 2**14)),
 
-	'scan_amplitude' :	(REG_LLB_SCANSCALE, to_reg_signed(0, 16, xform = lambda obj,  x : x * 2**14),
+	'scan_amplitude' :	(REG_LLB_SCAN_SCALE, to_reg_signed(0, 16, xform = lambda obj,  x : x * 2**14),
 										from_reg_signed(0, 16, xform = lambda obj, x : x / 2**14)),
 
-	'fast_scan_enable': (REG_LLB_SCANSCALE, to_reg_unsigned(16, 1),
-											from_reg_unsigned(16, 1)),
+	'fast_scan_enable': (REG_LLB_SCAN_CTRL, to_reg_unsigned(0, 1),
+											from_reg_unsigned(0, 1)),
 
-	'slow_scan_enable': (REG_LLB_SCANSCALE, to_reg_unsigned(17, 1),
-											from_reg_unsigned(17, 1)),
+	'slow_scan_enable': (REG_LLB_SCAN_CTRL, to_reg_unsigned(1, 1),
+											from_reg_unsigned(1, 1)),
 
 	'lo_phase_offset': (REG_LLB_LO_PHASE_OFFSET, to_reg_unsigned(0, 28),
 													from_reg_unsigned(0, 28)),
@@ -653,14 +742,14 @@ _llb_reg_hdl = {
 	'aux_phase_offset': (REG_LLB_AUX_PHASE_OFFSET, to_reg_unsigned(0, 28),
 													from_reg_unsigned(0, 28)),
 
-	'fast_offset':	(REG_LLB_FAST_OFFSET, to_reg_signed(0, 17, xform = lambda obj, x : x * 2**15),
-											from_reg_signed(0, 17, xform = lambda obj, x : x / 2**15)),
+	'fast_offset':	(REG_LLB_OFFSETS_FASTINPUT, to_reg_signed(0, 18, xform = lambda obj, x : x * 2**15),
+											from_reg_signed(0, 18, xform = lambda obj, x : x / 2**15)),
 
-	'output_offset_ch1': (REG_LLB_OUTPUT_OFFSET_CH1, to_reg_signed(0, 17, xform = lambda obj, x : x * (2**15)),
-														from_reg_signed(0, 17, xform = lambda obj, x : x / (2**15))),
+	'output_offset_ch1': (REG_LLB_OFFSETS_FASTOUTPUT, to_reg_signed(0, 18, xform = lambda obj, x : x * (2**15)),
+														from_reg_signed(0, 18, xform = lambda obj, x : x / (2**15))),
 
-	'output_offset_ch2': (REG_LLB_OUTPUT_OFFSET_CH2, to_reg_signed(0, 17, xform = lambda obj, x : x * (2**15)),
-														from_reg_signed(0, 17, xform = lambda obj, x : x / (2**15))),
+	'output_offset_ch2': (REG_LLB_OFFSETS_SLOWOUTPUT, to_reg_signed(0, 18, xform = lambda obj, x : x * (2**15)),
+														from_reg_signed(0, 18, xform = lambda obj, x : x / (2**15))),
 
 	'monitor_select0' :	(REG_LLB_MON_SEL, 	to_reg_unsigned(0, 4),
 											from_reg_unsigned(0,4)),
@@ -668,17 +757,17 @@ _llb_reg_hdl = {
 	'monitor_select1' : (REG_LLB_MON_SEL,	to_reg_unsigned(4, 4),
 											from_reg_unsigned(4, 4)),
 
-	'input_gain_select': (REG_LLB_MUX_SEL,	to_reg_unsigned(0, 2),
+	'input_gain_select': (REG_LLB_GAINS_INPUT,	to_reg_unsigned(0, 2),
 										from_reg_unsigned(0, 2)),
 
-	'MuxLOPhase':	(REG_LLB_MUX_SEL,	to_reg_unsigned(5, 1),
-										from_reg_unsigned(5, 1)),
+	'MuxLOPhase':	(REG_LLB_LO_CTRL,	to_reg_unsigned(0, 1),
+										from_reg_unsigned(0, 1)),
 
-	'MuxLOSignal':	(REG_LLB_MUX_SEL,	to_reg_unsigned(6, 1),
-										from_reg_unsigned(6, 1)),
+	'MuxLOSignal':	(REG_LLB_LO_CTRL,	to_reg_unsigned(1, 1),
+										from_reg_unsigned(1, 1)),
 
-	'MuxAuxPhase':	(REG_LLB_MUX_SEL,	to_reg_unsigned(7, 1),
-										from_reg_unsigned(7, 1)),
+	'MuxAuxPhase':	(REG_LLB_AUX_CTRL,	to_reg_unsigned(0, 1),
+										from_reg_unsigned(0, 1)),
 
 	'trig_aux':		(REG_LLB_MON_SEL,	to_reg_unsigned(8, 1),
 										from_reg_unsigned(8, 1)),
@@ -686,19 +775,19 @@ _llb_reg_hdl = {
 	'cond_trig': (REG_LLB_MON_SEL, 	to_reg_unsigned(9, 1),
 									from_reg_unsigned(9, 1)),
 
-	'cliprange_lower_ch1':		(REG_LLB_DAC1_RANGECLIP, to_reg_signed(0, 16, xform = lambda obj, x : x * 2**15 - 1),
+	'cliprange_lower_ch1':		(REG_LLB_CLIP_FAST, to_reg_signed(0, 16, xform = lambda obj, x : x * 2**15 - 1),
 									from_reg_signed(0, 16, xform = lambda obj, x : x / (2**14 - 1))),
 
-	'cliprange_upper_ch1':		(REG_LLB_DAC1_RANGECLIP, to_reg_signed(16, 16, xform = lambda obj, x : x * 2**15 - 1),
+	'cliprange_upper_ch1':		(REG_LLB_CLIP_FAST, to_reg_signed(16, 16, xform = lambda obj, x : x * 2**15 - 1),
 									from_reg_signed(16, 16, xform = lambda obj, x : x / (2**14 - 1))),
 
-	'cliprange_lower_ch2':		(REG_LLB_DAC2_RANGECLIP, to_reg_signed(0, 16, xform = lambda obj, x : x * 2**15 - 1),
+	'cliprange_lower_ch2':		(REG_LLB_CLIP_SLOW, to_reg_signed(0, 16, xform = lambda obj, x : x * 2**15 - 1),
 									from_reg_signed(0, 16, xform = lambda obj, x : x / (2**14 - 1))),
 
-	'cliprange_upper_ch2':		(REG_LLB_DAC2_RANGECLIP, to_reg_signed(16, 16, xform = lambda obj, x : x * 2**15 - 1),
+	'cliprange_upper_ch2':		(REG_LLB_CLIP_SLOW, to_reg_signed(16, 16, xform = lambda obj, x : x * 2**15 - 1),
 									from_reg_signed(16, 16, xform = lambda obj, x : x / (2**14 - 1))),
 
-	'fast_aux_enable':			(REG_LLB_ADD_AUX, to_reg_bool(0), from_reg_bool(0)),
+	'fast_aux_enable':			(REG_LLB_AUX_CTRL, to_reg_bool(1), from_reg_bool(1)),
 
-	'slow_aux_enable':			(REG_LLB_ADD_AUX, to_reg_bool(1), from_reg_bool(1))
+	'slow_aux_enable':			(REG_LLB_AUX_CTRL, to_reg_bool(2), from_reg_bool(2))
 }
