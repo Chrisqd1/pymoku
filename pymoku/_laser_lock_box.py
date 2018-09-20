@@ -11,7 +11,6 @@ from ._pid import PID
 from ._sweep_generator import SweepGenerator
 from ._iir_block import IIRBlock
 from ._embedded_pll import EmbeddedPLL
-from scipy import signal
 
 log = logging.getLogger(__name__)
 
@@ -176,24 +175,6 @@ class LaserLockBox(_CoreOscilloscope):
 			raise Exception("Invalid input gain value.")
 
 	@needs_commit
-	def set_butterworth(self, corner_frequency):
-		"""
-		Configure the filter coefficients in the IIR filter.
-
-		:type filt_coeffs: array;
-		:param filt_coeffs: array containg SOS filter coefficients.
-		"""
-
-		# TODO: limit corner frequency, settle on limit when we move to 25 bit coefficients
-
-		normalised_corner = corner_frequency / (62.5e6 / 2)
-		b, a = signal.butter(2, normalised_corner, 'low', analog = False)
-		coefficient_array = [[1.0], [1.0, b[0], b[1], b[2], -a[1], -a[2]]]
-
-		self.iir_filter1.write_coeffs(coefficient_array)
-		self.iir_filter2.write_coeffs(coefficient_array)
-
-	@needs_commit
 	def set_custom_filter(self, filt_coeffs):
 		"""
 		Configure the filter coefficients in the IIR filter.
@@ -308,7 +289,7 @@ class LaserLockBox(_CoreOscilloscope):
 		:raises InvalidConfigurationException: if the configuration of PID gains is not possible.
 		"""
 		pid_array = [self.fast_pid, self.slow_pid]
-		pid_array[pid_block -1].set_reg_by_frequency(scaled_kp, i_xover, d_xover, si, sd)
+		pid_array[pid_block -1].set_reg_by_frequency(kp, i_xover, d_xover, si, sd)
 		pid_array[pid_block -1].gain = pid_array[pid_block -1].gain * 2**15
 
 	@needs_commit
@@ -532,7 +513,7 @@ class LaserLockBox(_CoreOscilloscope):
 			'out1'			: scales['gain_dac1'] * 2**4,
 			'out2'			: scales['gain_dac2'] * 2**4,
 			'scan'			: scales['gain_dac1'] * 2**4,
-			'lo'			: 2**-11 if self.MuxLOSignal == 0 else scales['gain_adc2'] * 2.0,
+			'lo'			: 2**-12,
 			'aux'			: scales['gain_dac2'] * 2**4
 		}
 		return monitor_source_gains[source]

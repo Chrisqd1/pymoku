@@ -218,31 +218,31 @@ class PID(object):
 		# Particularly high or low I or D crossover frequencies (<1Hz, >1MHz) require that some of their gain is
 		# pushed to the overall gain on the end due to dynamic range limitations
 
-		cross_over_gain = kp if kp else 1
+		cross_over_gain = kp if kp else 1.0
 
-		i_gmin = d_gmin = 1
-		i_gmax = d_gmax = 1
+		i_gmin = d_gmin = 1.0
+		i_gmax = d_gmax = 1.0
 		if i_xover:
 			i_unity = i_xover * cross_over_gain
-			i_gmin = min(i_unity, 1)
-			i_gmax = max(i_unity / 1e6, 1)
+			i_gmin = min(i_unity, 1.0)
+			i_gmax = max(i_unity / 1e6, 1.0)
 
 		if d_xover:
 			d_unity = d_xover * (2*math.pi) * self.ang_freq / d_xover
-			d_gmin = sd if sd is not None and sd < 1 else max(1.0e6 / d_unity, 1.0)
-			d_gmax = max(1 / d_unity, 1)
+			d_gmin = sd if sd is not None and sd < 1 else max(10.0e6 / d_unity, 1.0)
+			d_gmax = max(1 / d_unity, 1.0)
 
 		g_min = min(i_gmin, d_gmin)
 		g_max = max(i_gmax, d_gmax)
 
-		if g_min < 1 and g_max == 1:
+		if g_min < 1.0 and g_max == 1.0:
 			best_gain = g_min
-		elif g_max > 1 and g_min == 1:
+		elif g_max > 1.0 and g_min == 1.0:
 			best_gain = g_max
-		elif g_min < 1 and g_max > 1:
+		elif g_min < 1.0 and g_max > 1.0:
 			best_gain = math.sqrt(g_min * g_max)
 		else:
-			best_gain = 1
+			best_gain = 1.0
 
 		cross_over_gain /= best_gain
 
@@ -252,14 +252,13 @@ class PID(object):
 		if i_xover :
 			ki = cross_over_gain * i_xover
 		else:
-			ki = 0
+			ki = 0.0
 
-		kd = cross_over_gain / d_xover if d_xover else 0
+		kd = d_xover/cross_over_gain if d_xover else 0.0
 		si = si / best_gain if si else None
 
 		# if ii_xover :
 		# 	si = math.sqrt(si)
 
 		sd = sd / best_gain if sd else None
-
 		self.set_reg_by_gain(best_gain, kp, ki, kd, si, sd)
