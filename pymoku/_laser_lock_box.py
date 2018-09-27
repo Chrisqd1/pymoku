@@ -32,6 +32,7 @@ REG_LLB_SCAN_SCALE			= 96
 REG_LLB_SCAN_CTRL			= 97
 
 REG_LLB_GAINS_INPUT			= 98
+REG_LLB_ENABLES_LIGHTS		= 98
 REG_LLB_GAINS_SCALING		= 99
 
 REG_LLB_OFFSETS_FASTINPUT	= 100
@@ -126,6 +127,7 @@ class LaserLockBox(_CoreOscilloscope):
 		self.aux_sine_sweep = SweepGenerator(self, reg_base = REGBASE_LLB_AUX)
 		self.iir_filter = IIRBlock(self, reg_base=REGBASE_LLB_IIR, num_stages = 2, gain_frac_width = 9, coeff_frac_width = 30, use_mmap = False)
 		self.embedded_pll = EmbeddedPLL(self, reg_base=REGBASE_LLB_PLL)
+		self.input1_light = True
 
 	@needs_commit
 	def set_defaults(self):
@@ -138,6 +140,13 @@ class LaserLockBox(_CoreOscilloscope):
 		self.set_local_oscillator()
 
 		self._set_scale()
+
+		self.set_output_enables(1, True)
+		self.set_output_enables(2, True)
+		self.set_pid_enables(1, True)
+		self.set_pid_enables(2, False)
+		self.set_channel_pid_enables(1, True)
+		self.set_channel_pid_enables(2, True)
 
 	def _update_dependent_regs(self, scales):
 		super(LaserLockBox, self)._update_dependent_regs(scales)
@@ -275,7 +284,7 @@ class LaserLockBox(_CoreOscilloscope):
 
 
 	@needs_commit
-	def set_pid_by_gain(self, pid_block, g=1, kp=1, ki=0, kd=0, si=None, sd=None):
+	def set_pid_by_gain(self, pid_block, g=1, kp=1, ki=0, kd=0, si=None, sd=None, enable = True):
 		"""
 		Configure the selected PID controller using gain coefficients.
 
@@ -302,8 +311,13 @@ class LaserLockBox(_CoreOscilloscope):
 		:type sd: float; [-1e3,1e3]
 		:param sd: Differentiator gain saturation
 
+		:type enable: bool;
+		:param enable: enables pid outputs
+
 		:raises InvalidConfigurationException: if the configuration of PID gains is not possible.
 		"""
+
+
 		_utils.check_parameter_valid('set', pid_block, [1,2],'filter channel')
 		_utils.check_parameter_valid('range', g, [0, 2**16 - 1], desc='Gain', units='linear scalar')
 		_utils.check_parameter_valid('range', kp, [-1e3, 1e3], desc='proportional gain', units='linear scalar')
@@ -320,26 +334,14 @@ class LaserLockBox(_CoreOscilloscope):
 		if sd != None:
 			_utils.check_parameter_valid('range', sd, [-1e3, 1e3], desc='differentiator gain saturation', units='linear scalar')
 
-		pid_array = [self.fast_pid, self.slow_pid]
-		pid_array[pid_block -1].set_reg_by_gain(g, kp, ki, kd, si, sd)
-		pid_array[pid_block -1].gain = pid_array[pid_block -1].gain * 2**15
-
-	@needs_commit
-	def set_pid_enable(self, pid_block, en=True):
-		"""
-		Enable or disable the selected PID controller.
-
-		:type pid_block : int; [1, 2]
-		:param pid_block : PID controller - 1 = Fast, 2 = Slow 
-
-		:type en : bool;
-		:param en : enable or disable PID controller described in pid_block.
-		"""
-		_utils.check_parameter_valid('set', pid_block, [1, 2], 'PID controller')
-		_utils.check_parameter_valid('set', en, [True, False], 'enable')
-
-		pid_array = [self.fast_pid, self.slow_pid]
-		pid_array[pid_block-1].enable = en
+		if pid_block == 1 :
+			self.fast_pid.set_reg_by_gain(g, kp, ki, kd, si, sd)
+			self.fast_pid.gain = self.fast_pid.gain * 2**15
+			self.fast_pid_en = enable
+		else:
+			self.slow_pid.set_reg_by_gain(g, kp, ki, kd, si, sd)
+			self.slow_pid.gain = self.slow_pid.gain * 2**15
+			self.slow_pid_en = enable
 
 	@needs_commit
 	def set_pid_bypass(self, pid_block, bypass = False):
@@ -359,7 +361,7 @@ class LaserLockBox(_CoreOscilloscope):
 		pid_array[pid_block-1].bypass = bypass
 
 	@needs_commit
-	def set_pid_by_freq(self, pid_block, kp=1, i_xover=None, d_xover=None, si=None, sd=None):
+	def set_pid_by_freq(self, pid_block, kp=1, i_xover=None, d_xover=None, si=None, sd=None, enable = True):
 		"""
 
 		Configure the selected PID controller using crossover frequencies.
@@ -395,9 +397,66 @@ class LaserLockBox(_CoreOscilloscope):
 		if sd != None:
 			_utils.check_parameter_valid('range', sd, [-1e3, 1e3], desc='differentiator gain saturation', units='linear scalar')
 
+		if pid_block == 1:
+			self.fast_pid.set_reg_by_frequency(kp, i_xover, d_xover, si, sd)
+			self.fast_pid.gain = self.fast_pid.gain * 2**15
+		else:
+			self.slow_pid.set_reg_by_frequency(kp, i_xover, d_xover, si, sd)
+			self.slow_pid.gain = self.slow_pid.gain * 2**15
+
+	@needs_commit
+	def set_pid_enables(self, pid_block, en=True):
+		"""
+		Enable or disable the selected PID controller.
+
+		:type pid_block : int; [1, 2]
+		:param pid_block : PID controller - 1 = Fast, 2 = Slow 
+
+		:type en : bool;
+		:param en : enable or disable PID controller described in pid_block.
+		"""
+		_utils.check_parameter_valid('set', pid_block, [1, 2], 'PID controller')
+		_utils.check_parameter_valid('set', en, [True, False], 'enable')
+
 		pid_array = [self.fast_pid, self.slow_pid]
-		pid_array[pid_block -1].set_reg_by_frequency(kp, i_xover, d_xover, si, sd)
-		pid_array[pid_block -1].gain = pid_array[pid_block -1].gain * 2**15
+		pid_array[pid_block-1].enable = en
+
+	@needs_commit
+	def set_output_enables(self, ch, en=True):
+		"""
+		Enable or disable the selected output channel.
+
+		:type ch : int; [1, 2]
+		:param ch : 1 = Output 1, 2 = Output 2 
+
+		:type en : bool;
+		:param en : enable or disable channel.
+		"""
+		_utils.check_parameter_valid('set', ch, [1, 2], 'output channel')
+		_utils.check_parameter_valid('set', en, [True, False], 'enable')
+
+		if ch == 1:
+			self.out1_en = en
+		else:
+			self.out2_en = en
+
+	@needs_commit
+	def set_channel_pid_enables(self, pid_block, en=True):
+		"""
+		Enable or disable connection of the selected PID controller to it's corresponding output channel. Fast = Output 1, Slow = Output 2. 
+
+		:type pid_block : int; [1, 2]
+		:param pid_block : PID controller - 1 = Fast, 2 = Slow 
+
+		:type en : bool;
+		:param en : enable or disable channel.
+		"""
+		_utils.check_parameter_valid('set', pid_block, [1, 2], 'PID controller')
+		_utils.check_parameter_valid('set', en, [True, False], 'enable')
+		if pid_block == 1:
+			self.fast_channel_en = en
+		else:
+			self.slow_channel_en = en
 
 	@needs_commit
 	def set_local_oscillator(self, frequency=0.0, phase=0.0, source = 'internal', pll_auto_acq = True):
@@ -433,13 +492,16 @@ class LaserLockBox(_CoreOscilloscope):
 		if source == 'internal':
 			self.MuxLOPhase = 0
 			self.MuxLOSignal = 0
+			self.input2_light = 0
 		elif source == 'external':
 			self.MuxLOPhase = 0
 			self.MuxLOSignal = 1
+			self.input2_light = 1
 		elif source == 'external_pll':
 			self.embedded_pll.reacquire = 1
 			self.MuxLOPhase = 1
 			self.MuxLOSignal = 0
+			self.input2_light = 1
 
 		# update scales
 		self._set_scale()
@@ -802,5 +864,19 @@ _llb_reg_hdl = {
 
 	'fast_aux_enable':			(REG_LLB_AUX_CTRL, to_reg_bool(1), from_reg_bool(1)),
 
-	'slow_aux_enable':			(REG_LLB_AUX_CTRL, to_reg_bool(2), from_reg_bool(2))
+	'slow_aux_enable':			(REG_LLB_AUX_CTRL, to_reg_bool(2), from_reg_bool(2)),
+
+	'fast_channel_en':				(REG_LLB_ENABLES_LIGHTS, to_reg_bool(2), from_reg_bool(2)),
+
+	'slow_channel_en':				(REG_LLB_ENABLES_LIGHTS, to_reg_bool(3), from_reg_bool(3)),
+
+	'out1_en' :					(REG_LLB_ENABLES_LIGHTS, to_reg_bool(4), from_reg_bool(4)),
+
+	'out2_en':					(REG_LLB_ENABLES_LIGHTS, to_reg_bool(5), from_reg_bool(5)),
+
+	'input1_light':				(REG_LLB_ENABLES_LIGHTS, to_reg_bool(6), from_reg_bool(6)),
+
+	'input2_light':				(REG_LLB_ENABLES_LIGHTS, to_reg_bool(7), from_reg_bool(7))
+
+
 }
