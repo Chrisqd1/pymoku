@@ -141,6 +141,13 @@ class LaserLockBox(_CoreOscilloscope):
 
 		self._set_scale()
 
+		self.set_enables('fast_pid', True)
+		self.set_enables('slow_pid', True)
+		self.set_enables('fast_channel', True)
+		self.set_enables('slow_channel', True)
+		self.set_enables('out1', True)
+		self.set_enables('out2', True)
+
 	def _update_dependent_regs(self, scales):
 		super(LaserLockBox, self)._update_dependent_regs(scales)
 		self._set_scale()
@@ -336,28 +343,6 @@ class LaserLockBox(_CoreOscilloscope):
 			self.slow_pid.gain = self.slow_pid.gain * 2**15
 			self.slow_pid_en = enable
 
-
-
-
-
-
-	@needs_commit
-	def set_pid_enable(self, pid_block, en=True):
-		"""
-		Enable or disable the selected PID controller.
-
-		:type pid_block : int; [1, 2]
-		:param pid_block : PID controller - 1 = Fast, 2 = Slow 
-
-		:type en : bool;
-		:param en : enable or disable PID controller described in pid_block.
-		"""
-		_utils.check_parameter_valid('set', pid_block, [1, 2], 'PID controller')
-		_utils.check_parameter_valid('set', en, [True, False], 'enable')
-
-		pid_array = [self.fast_pid, self.slow_pid]
-		pid_array[pid_block-1].enable = en
-
 	@needs_commit
 	def set_pid_bypass(self, pid_block, bypass = False):
 		"""
@@ -412,40 +397,39 @@ class LaserLockBox(_CoreOscilloscope):
 		if sd != None:
 			_utils.check_parameter_valid('range', sd, [-1e3, 1e3], desc='differentiator gain saturation', units='linear scalar')
 
-		# pid_en = [self.fast_pid_en, self.slow_pid_en]
-		# pid_en[pid_block-1] = enable
-
-		# pid_array = [self.fast_pid, self.slow_pid]
-		# pid_array[pid_block -1].set_reg_by_frequency(kp, i_xover, d_xover, si, sd)
-		# pid_array[pid_block -1].gain = pid_array[pid_block -1].gain * 2**15
-
 		if pid_block == 1:
 			self.fast_pid.set_reg_by_frequency(kp, i_xover, d_xover, si, sd)
 			self.fast_pid.gain = self.fast_pid.gain * 2**15
-			self.fast_pid_en = enable
 		else:
 			self.slow_pid.set_reg_by_frequency(kp, i_xover, d_xover, si, sd)
 			self.slow_pid.gain = self.slow_pid.gain * 2**15
-			self.slow_pid_en = enable
-
 
 	@needs_commit
-	def set_output_enables(self, ch, en):
+	def set_enables(self, source, en):
 		"""
+		Toggle enables at each of the six available points in the instrument - fast PID output, slow PID output, add fast PID to fast channel, add slow PID to slow channel,
+																				output 1, output 2.
 
-		Enables the outputs
-
-		:type ch : int; [1, 2]
+		:type source : list; ['fast_pid', 'slow_pid', 'fast_channel', 'slow_channel', 'out1', 'out2']
 		:param ch : output channel
 
 		:type en : bool
 		"param en : enables output
-
 		"""
+		_utils.check_parameter_valid('set', source, ['fast_pid', 'slow_pid', 'fast_channel', 'slow_channel', 'out1', 'out2'], 'enable source')
+		_utils.check_parameter_valid('set', en, [True, False], 'enable boolean')
 
-		if ch == 1 :
+		if source == 'fast_pid':
+			self.fast_pid.enable = en
+		elif source == 'slow_pid':
+			self.slow_pid.enable = en
+		elif source == 'fast_channel':
+			self.fast_channel_en = en
+		elif source == 'slow_channel':
+			self.slow_channel_en = en
+		elif source == 'out1':
 			self.out1_en = en
-		else :
+		else:
 			self.out2_en = en
 
 
@@ -844,9 +828,9 @@ _llb_reg_hdl = {
 
 	'slow_aux_enable':			(REG_LLB_AUX_CTRL, to_reg_bool(2), from_reg_bool(2)),
 
-	'fast_pid_en':				(REG_LLB_ENABLES_LIGHTS, to_reg_bool(2), from_reg_bool(2)),
+	'fast_channel_en':				(REG_LLB_ENABLES_LIGHTS, to_reg_bool(2), from_reg_bool(2)),
 
-	'slow_pid_en':				(REG_LLB_ENABLES_LIGHTS, to_reg_bool(3), from_reg_bool(3)),
+	'slow_channel_en':				(REG_LLB_ENABLES_LIGHTS, to_reg_bool(3), from_reg_bool(3)),
 
 	'out1_en' :					(REG_LLB_ENABLES_LIGHTS, to_reg_bool(4), from_reg_bool(4)),
 

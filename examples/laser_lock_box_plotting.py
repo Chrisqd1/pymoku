@@ -24,27 +24,32 @@ def gen_butterworth(corner_frequency):
 	normalised_corner = corner_frequency / (sample_rate / 2)
 	b, a = signal.butter(2, normalised_corner, 'low', analog = False)
 
-	coefficient_array = [[1.0],
-						[1.0, b[0], b[1], b[2], -a[1], -a[2]],
+	coefficient_array = [[1.0, b[0], b[1], b[2], -a[1], -a[2]],
 						[1.0, 1.0,	0.0,  0.0,  0.0, 0.0]]
 	return coefficient_array
 
 # Use Moku.get_by_serial() or get_by_name() if you don't know the IP
-m = Moku.get_by_name('PeregrinTook', force = True)
+m = Moku.get_by_name('Zcash', force = True)
 i = m.deploy_instrument(LaserLockBox)
 
 try:
+	# set enables
+	i.set_enables('fast_pid', True)
+	i.set_enables('slow_pid', True)
+	i.set_enables('fast_channel', True)
+	i.set_enables('slow_channel', True)
+	i.set_enables('out1', True)
+	i.set_enables('out2', True)
+
 	# set local oscillator, auxiliary and scan generators
-	i.set_local_oscillator(source='internal', frequency=10e3, phase=0, pll_auto_acq = False)
-	i.set_aux_sine(amplitude = 1.0, frequency = 10e6, phase=0, sync_to_lo = False, output = 'out2')
-	i.set_scan(frequency=1e3, phase=0, output = 'out1', amplitude=1.0, waveform='triangle')
+	i.set_local_oscillator(source='internal', frequency=0, phase=90, pll_auto_acq = False)
+	i.set_aux_sine(amplitude = 1.0, frequency = 10e3, phase=0, sync_to_lo = False, output = 'none')
+	i.set_scan(frequency=1e3, phase=0, output = 'none', amplitude=1.0, waveform='triangle')
 
 	# configure PIDs:
 	i.set_pid_by_gain(1, g=1, kp=1)
-	i.set_pid_enable(1, True)
 	i.set_pid_bypass(1, False)
 	i.set_pid_by_gain(2, g=1, kp=1)
-	i.set_pid_enable(2, True)
 	i.set_pid_bypass(2, False)
 
 	# set offsets
@@ -61,8 +66,8 @@ try:
 	i.set_custom_filter(coef_array)
 
 	# Monitor the error signal and fast pid output signal
-	i.set_monitor('A', 'error')
-	i.set_monitor('B', 'pid_fast') #green
+	i.set_monitor('A', 'out1')
+	i.set_monitor('B', 'out2') #green
 
 	# Trigger on rising edge of the scan signal, 0V threshold level with 0.1V hysteresis
 	i.set_trigger('scan', 'rising', level = 0, hysteresis = 0.1, trig_on_scan_rising = True)
