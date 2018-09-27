@@ -34,17 +34,17 @@ i = m.deploy_instrument(LaserLockBox)
 
 try:
 	# set enables
-	i.set_enables('fast_pid', True)
-	i.set_enables('slow_pid', True)
-	i.set_enables('fast_channel', True)
-	i.set_enables('slow_channel', True)
-	i.set_enables('out1', True)
-	i.set_enables('out2', True)
+	self.set_output_enables(1, True)
+	self.set_output_enables(2, True)
+	self.set_pid_enables(1, True)
+	self.set_pid_enables(2, False)
+	self.set_channel_pid_enables(1, True)
+	self.set_channel_pid_enables(2, True)
 
 	# set local oscillator, auxiliary and scan generators
-	i.set_local_oscillator(source='internal', frequency=0, phase=90, pll_auto_acq = False)
-	i.set_aux_sine(amplitude = 1.0, frequency = 10e3, phase=0, sync_to_lo = False, output = 'none')
-	i.set_scan(frequency=1e3, phase=0, output = 'none', amplitude=1.0, waveform='triangle')
+	i.set_local_oscillator(source='internal', frequency=10e3, phase=0, pll_auto_acq = False)
+	i.set_aux_sine(amplitude = 1.0, frequency = 10e3, phase=0, sync_to_lo = False, output = 'out1')
+	i.set_scan(frequency=1e3, phase=0, output = 'out2', amplitude=1.0, waveform='triangle')
 
 	# configure PIDs:
 	i.set_pid_by_gain(1, g=1, kp=1)
@@ -66,8 +66,8 @@ try:
 	i.set_custom_filter(coef_array)
 
 	# Monitor the error signal and fast pid output signal
-	i.set_monitor('A', 'out1')
-	i.set_monitor('B', 'out2') #green
+	i.set_monitor('A', 'pid_fast')
+	i.set_monitor('B', 'pid_slow') #green
 
 	# Trigger on rising edge of the scan signal, 0V threshold level with 0.1V hysteresis
 	i.set_trigger('scan', 'rising', level = 0, hysteresis = 0.1, trig_on_scan_rising = True)

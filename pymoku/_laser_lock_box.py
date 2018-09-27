@@ -141,12 +141,12 @@ class LaserLockBox(_CoreOscilloscope):
 
 		self._set_scale()
 
-		self.set_enables('fast_pid', True)
-		self.set_enables('slow_pid', True)
-		self.set_enables('fast_channel', True)
-		self.set_enables('slow_channel', True)
-		self.set_enables('out1', True)
-		self.set_enables('out2', True)
+		self.set_output_enables(1, True)
+		self.set_output_enables(2, True)
+		self.set_pid_enables(1, True)
+		self.set_pid_enables(2, False)
+		self.set_channel_pid_enables(1, True)
+		self.set_channel_pid_enables(2, True)
 
 	def _update_dependent_regs(self, scales):
 		super(LaserLockBox, self)._update_dependent_regs(scales)
@@ -405,33 +405,58 @@ class LaserLockBox(_CoreOscilloscope):
 			self.slow_pid.gain = self.slow_pid.gain * 2**15
 
 	@needs_commit
-	def set_enables(self, source, en):
+	def set_pid_enables(self, pid_block, en=True):
 		"""
-		Toggle enables at each of the six available points in the instrument - fast PID output, slow PID output, add fast PID to fast channel, add slow PID to slow channel,
-																				output 1, output 2.
+		Enable or disable the selected PID controller.
 
-		:type source : list; ['fast_pid', 'slow_pid', 'fast_channel', 'slow_channel', 'out1', 'out2']
-		:param ch : output channel
+		:type pid_block : int; [1, 2]
+		:param pid_block : PID controller - 1 = Fast, 2 = Slow 
 
-		:type en : bool
-		"param en : enables output
+		:type en : bool;
+		:param en : enable or disable PID controller described in pid_block.
 		"""
-		_utils.check_parameter_valid('set', source, ['fast_pid', 'slow_pid', 'fast_channel', 'slow_channel', 'out1', 'out2'], 'enable source')
-		_utils.check_parameter_valid('set', en, [True, False], 'enable boolean')
+		_utils.check_parameter_valid('set', pid_block, [1, 2], 'PID controller')
+		_utils.check_parameter_valid('set', en, [True, False], 'enable')
 
-		if source == 'fast_pid':
-			self.fast_pid.enable = en
-		elif source == 'slow_pid':
-			self.slow_pid.enable = en
-		elif source == 'fast_channel':
-			self.fast_channel_en = en
-		elif source == 'slow_channel':
-			self.slow_channel_en = en
-		elif source == 'out1':
+		pid_array = [self.fast_pid, self.slow_pid]
+		pid_array[pid_block-1].enable = en
+
+	@needs_commit
+	def set_output_enables(self, ch, en=True):
+		"""
+		Enable or disable the selected output channel.
+
+		:type ch : int; [1, 2]
+		:param ch : 1 = Output 1, 2 = Output 2 
+
+		:type en : bool;
+		:param en : enable or disable channel.
+		"""
+		_utils.check_parameter_valid('set', ch, [1, 2], 'output channel')
+		_utils.check_parameter_valid('set', en, [True, False], 'enable')
+
+		if ch == 1:
 			self.out1_en = en
 		else:
 			self.out2_en = en
 
+	@needs_commit
+	def set_channel_pid_enables(self, pid_block, en=True):
+		"""
+		Enable or disable connection of the selected PID controller to it's corresponding output channel. Fast = Output 1, Slow = Output 2. 
+
+		:type pid_block : int; [1, 2]
+		:param pid_block : PID controller - 1 = Fast, 2 = Slow 
+
+		:type en : bool;
+		:param en : enable or disable channel.
+		"""
+		_utils.check_parameter_valid('set', pid_block, [1, 2], 'PID controller')
+		_utils.check_parameter_valid('set', en, [True, False], 'enable')
+		if pid_block == 1:
+			self.fast_channel_en = en
+		else:
+			self.slow_channel_en = en
 
 	@needs_commit
 	def set_local_oscillator(self, frequency=0.0, phase=0.0, source = 'internal', pll_auto_acq = True):
