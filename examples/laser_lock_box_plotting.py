@@ -29,17 +29,17 @@ def gen_butterworth(corner_frequency):
 	return coefficient_array
 
 # Use Moku.get_by_serial() or get_by_name() if you don't know the IP
-m = Moku.get_by_name('Zcash', force = True)
+m = Moku.get_by_name('Moku')
 i = m.deploy_instrument(LaserLockBox)
 
 try:
 	# set enables
-	self.set_output_enables(1, True)
-	self.set_output_enables(2, True)
-	self.set_pid_enables(1, True)
-	self.set_pid_enables(2, False)
-	self.set_channel_pid_enables(1, True)
-	self.set_channel_pid_enables(2, True)
+	i.set_output_enables(1, True)
+	i.set_output_enables(2, True)
+	i.set_pid_enables(1, True)
+	i.set_pid_enables(2, False)
+	i.set_channel_pid_enables(1, True)
+	i.set_channel_pid_enables(2, True)
 
 	# set local oscillator, auxiliary and scan generators
 	i.set_local_oscillator(source='internal', frequency=10e3, phase=0, pll_auto_acq = False)

@@ -148,6 +148,9 @@ class LaserLockBox(_CoreOscilloscope):
 		self.set_channel_pid_enables(1, True)
 		self.set_channel_pid_enables(2, True)
 
+		self.set_output_range(1, 1.0, -1.0)
+		self.set_output_range(2, 1.0, -1.0)
+
 	def _update_dependent_regs(self, scales):
 		super(LaserLockBox, self)._update_dependent_regs(scales)
 		self._set_scale()
