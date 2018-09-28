@@ -154,7 +154,7 @@ class LaserLockBox(_CoreOscilloscope):
 		
 	@needs_commit
 	def _set_scale(self):
-		# incorporate adc2 scaling if local oscillator source is set to 'external'. Move this global to set_lo?
+		# incorporate adc2 scaling if local oscillator source is set to 'external'.
 		self.lo_scale_factor = 1.0 if self.MuxLOSignal == 0 else self._adc_gains()[1] * 2**12  / (10.0 if self.get_frontend(2)[1] else 1.0)
 
 		self._fast_scale = self._adc_gains()[0] / self._dac_gains()[0] / 2**3 * self.lo_scale_factor / (10.0 if self.get_frontend(1)[1] else 1.0)
@@ -194,7 +194,7 @@ class LaserLockBox(_CoreOscilloscope):
 		Configure the filter coefficients in the IIR filter.
 
 		:type filt_coeffs: array;
-		:param filt_coeffs: array containg SOS filter coefficients in the following format:
+		:param filt_coeffs: array containg Direct-Form 1 SOS filter coefficients in the following format:
 
 		+-----+------+------+------+------+-------+
 		| s1  | b0.1 | b1.1 | b2.1 | a1.1 |  a2.1 |
@@ -281,8 +281,6 @@ class LaserLockBox(_CoreOscilloscope):
 		else:
 			self.output_offset_ch2 = offset / (self._adc_gains()[0] * 2**12) / self.lo_scale_factor
 
-
-
 	@needs_commit
 	def set_pid_by_gain(self, pid_block, g=1, kp=1, ki=0, kd=0, si=None, sd=None, enable = True):
 		"""
@@ -316,7 +314,6 @@ class LaserLockBox(_CoreOscilloscope):
 
 		:raises InvalidConfigurationException: if the configuration of PID gains is not possible.
 		"""
-
 
 		_utils.check_parameter_valid('set', pid_block, [1,2],'filter channel')
 		_utils.check_parameter_valid('range', g, [0, 2**16 - 1], desc='Gain', units='linear scalar')
@@ -671,7 +668,7 @@ class LaserLockBox(_CoreOscilloscope):
 			'out1'			: scales['gain_dac1'] * 2**4,
 			'out2'			: scales['gain_dac2'] * 2**4,
 			'scan'			: 2**4 * (scales['gain_dac2'] if self.slow_scan_enable== True else scales['gain_dac1']),
-			'lo'			: 2**-12,
+			'lo'			: scales['gain_adc2'] / (10.0 if scales['atten_ch2'] else 1.0) if self.MuxLOSignal == True else 2**-12,
 			'aux'			: 2**4 * (scales['gain_dac1'] if self.fast_aux_enable == True else scales['gain_dac2'])
 		}
 		return monitor_source_gains[source]
@@ -737,26 +734,27 @@ class LaserLockBox(_CoreOscilloscope):
 	@needs_commit
 	def set_monitor(self, monitor_ch, source):
 		"""
-		Select the point inside the lockin amplifier to monitor.
+		Select the point inside the laser lock box to monitor.
 
 		There are two monitoring channels available, 'A' and 'B'; you can mux any of the internal
 		monitoring points to either of these channels.
 
 		The source is one of:
-			- **none**: Disable monitor channel
-			- **in1**, **in2**: Input Channel 1/2
-			- **error_signal**: error signal (before fast PID controller)
+			- **error_signal**: error signal (after low-pass filter_
 			- **pid_fast**: output of the fast pid
 			- **pid_slow**: output of the slow pid
-			- **lo**: local oscillator to the demodulation
-			- **sine**: sine output
-			- **out1**: output 1
-			- **out2**: output 2
+			- **offset_fast**: offset on the input to the fast pid
+			- **in1**: input channel 1
+			- **in2**: input channel 2
+			- **out1**: output channel 1
+			- **out2**: output channel 2
 			- **scan**: scan signal
+			- **lo**: local oscillator signal
+			- **aux**: auxiliary sinewave signal
 
 		:type monitor_ch: string; {'A','B'}
 		:param monitor_ch: Monitor channel
-		:type source: string; {'none','in1','in2','main','aux','demod','i','q'}
+		:type source: string; {'error', 'pid_fast', 'pid_slow', 'offset_fast', 'offset_slow', 'in1', 'in2', 'out1', 'out2', 'scan', 'lo', 'aux', 'slow_scan'}
 		:param source: Signal to monitor
 		"""
 		_utils.check_parameter_valid('string', monitor_ch, desc="monitor channel")
