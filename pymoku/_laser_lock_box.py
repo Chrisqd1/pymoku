@@ -144,9 +144,11 @@ class LaserLockBox(_CoreOscilloscope):
 		self.set_output_enables(1, True)
 		self.set_output_enables(2, True)
 		self.set_pid_enables(1, True)
-		self.set_pid_enables(2, False)
+		self.set_pid_enables(2, True)
 		self.set_channel_pid_enables(1, True)
 		self.set_channel_pid_enables(2, True)
+		self.fast_pid.bypass = False
+		self.slow_pid.bypass = False
 
 		self.set_output_range(1, 1.0, -1.0)
 		self.set_output_range(2, 1.0, -1.0)
@@ -342,23 +344,6 @@ class LaserLockBox(_CoreOscilloscope):
 			self.slow_pid.set_reg_by_gain(g, kp, ki, kd, si, sd)
 			self.slow_pid.gain = self.slow_pid.gain * 2**15
 			self.slow_pid_en = enable
-
-	@needs_commit
-	def set_pid_bypass(self, pid_block, bypass = False):
-		"""
-		Enable or disable bypassing of the selected PID controller.
-
-		:type pid_block : int; [1, 2]
-		:param pid_block : PID controller - 1 = Fast, 2 = Slow 
-
-		:type bypass : bool;
-		:param en : enable or disable bypassing.
-		"""
-		_utils.check_parameter_valid('set', pid_block, [1, 2], 'PID controller')
-		_utils.check_parameter_valid('set', bypass, [True, False], 'enable')
-
-		pid_array = [self.fast_pid, self.slow_pid]
-		pid_array[pid_block-1].bypass = bypass
 
 	@needs_commit
 	def set_pid_by_freq(self, pid_block, kp=1, i_xover=None, d_xover=None, si=None, sd=None, enable = True):
