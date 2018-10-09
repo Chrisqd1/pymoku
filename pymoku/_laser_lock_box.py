@@ -247,12 +247,16 @@ class LaserLockBox(_CoreOscilloscope):
 		"""
 		Set upper and lower bounds for the signal on each DAC channel.  
 
+		:type ch : int; [1, 2]
+		:param ch : 1 = Output 1, 2 = Output 2 
+
 		:type maximum: float, [-1.0, 1.0] Volts;
 		:param maximum: maximum value the output signal can be before clipping occurs.
 
 		:type minimum: float, [-1.0, 1.0] Volts;
 		:param maximum: maximum value the output signal can be before clipping occurs.
 		"""
+		_utils.check_parameter_valid('set', ch, [1, 2], 'output channel')
 		_utils.check_parameter_valid('range', maximum, [-1.0, 1.0], desc='maximum', units='Volts')
 		_utils.check_parameter_valid('range', minimum, [-1.0, 1.0], desc='minimum', units='Volts')
 		if minimum > maximum:
@@ -336,6 +340,8 @@ class LaserLockBox(_CoreOscilloscope):
 		if sd != None:
 			_utils.check_parameter_valid('range', sd, [-1e3, 1e3], desc='differentiator gain saturation', units='linear scalar')
 
+		_utils.check_parameter_valid('set', enable, [True, False],'enable')
+
 		if pid_block == 1 :
 			self.fast_pid.set_reg_by_gain(g, kp, ki, kd, si, sd)
 			self.fast_pid.gain = self.fast_pid.gain * 2**15
@@ -351,8 +357,8 @@ class LaserLockBox(_CoreOscilloscope):
 
 		Configure the selected PID controller using crossover frequencies.
 
-		:type ch: int; [1,2]
-		:param ch: PID controller to  configure
+		:type pid_block : int; [1,2]
+		:param pid_block : PID controller - 1 = Fast, 2 = Slow 
 
 		:type kp: float; [-1e3,1e3]
 		:param kp: Proportional gain factor
@@ -369,6 +375,9 @@ class LaserLockBox(_CoreOscilloscope):
 		:type sd: float; [-1e3,1e3]
 		:param sd: Differentiator gain saturation
 
+		:type enable: bool;
+		:param enable: enables pid outputs
+
 		:raises InvalidConfigurationException: if the configuration of PID gains is not possible.
 		"""
 		_utils.check_parameter_valid('set', pid_block, [1,2],'filter channel')
@@ -382,12 +391,16 @@ class LaserLockBox(_CoreOscilloscope):
 		if sd != None:
 			_utils.check_parameter_valid('range', sd, [-1e3, 1e3], desc='differentiator gain saturation', units='linear scalar')
 
+		_utils.check_parameter_valid('set', enable, [True, False],'enable')
+
 		if pid_block == 1:
 			self.fast_pid.set_reg_by_frequency(kp, i_xover, d_xover, si, sd)
 			self.fast_pid.gain = self.fast_pid.gain * 2**15
+			self.fast_pid_en = enable
 		else:
 			self.slow_pid.set_reg_by_frequency(kp, i_xover, d_xover, si, sd)
 			self.slow_pid.gain = self.slow_pid.gain * 2**15
+			self.slow_pid_en = enable
 
 	@needs_commit
 	def set_pid_enables(self, pid_block, en=True):
@@ -695,14 +708,23 @@ class LaserLockBox(_CoreOscilloscope):
 
 		:type mode: string, {'auto', 'normal'}
 		:param mode: Trigger mode.
+
+		:type trig_on_scan_rising: bool
+		:param trig_on_scan_rising: trigger only during rising portion of scan signal.
 		"""
 		_utils.check_parameter_valid('set', source, ['in1', 'in2', 'scan', 'A', 'B', 'ext'], 'trigger source')
-		_utils.check_parameter_valid('set', trig_on_scan_rising, [True, False], 'trigger only on scan rising edge')
+		_utils.check_parameter_valid('set', edge, ['rising','falling','both'], 'trigger edge')
+		_utils.check_parameter_valid('range', level, [-10.0, 10.0], desc='trigger level', units='volts')
 
 		if minwidth != None:
 			_utils.check_parameter_valid('range', minwidth, [0, 2**32 / 62.5e6], desc='PWM triggering minwidth', units='seconds')
 		if maxwidth != None:
 			_utils.check_parameter_valid('range', minwidth, [0, 2**32 / 62.5e6], desc='PWM triggering maxwidth', units='seconds')
+
+		_utils.check_parameter_valid('range', hysteresis, [100.0e-6, 1.0], desc='hysteresis', units='volts')
+		_utils.check_parameter_valid('set', hf_reject, [True, False], 'hf reject')
+		_utils.check_parameter_valid('set', mode, ['auto', 'normal'], 'trigger mode')
+		_utils.check_parameter_valid('set', trig_on_scan_rising, [True, False], 'trigger only on scan rising edge')
 
 		if source == 'scan':
 			self.trig_aux = 1
