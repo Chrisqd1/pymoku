@@ -117,7 +117,7 @@ class LaserLockBox(_CoreOscilloscope):
 		self.monitor_b = 'in2'
 
 		self.fast_fs = 31.25e6
-		self.slow_fs = 31.25e6
+		self.slow_fs = 488.28e3
 
 		self.fast_pid = PID(self, reg_base = REGBASE_LLB_PID1, fs=self.fast_fs)
 		self.slow_pid = PID(self, reg_base = REGBASE_LLB_PID2, fs=self.slow_fs)
@@ -152,6 +152,12 @@ class LaserLockBox(_CoreOscilloscope):
 
 		self.set_output_range(1, 1.0, -1.0)
 		self.set_output_range(2, 1.0, -1.0)
+
+		self.set_monitor('A', 'in1')
+		self.set_monitor('A', 'in2')
+		self.set_trigger('A', 'rising', 0)
+		self.set_timebase(-1e-6, 1e-6)
+
 
 	def _update_dependent_regs(self, scales):
 		super(LaserLockBox, self)._update_dependent_regs(scales)
