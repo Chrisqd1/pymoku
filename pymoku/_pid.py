@@ -201,13 +201,13 @@ class PID(object):
 
 		if sd :
 			if kd > 0 :
-				fc_coeff = sd / ( self.ang_freq / float(kd)) / 2
+				fc_coeff = sd / ( self.ang_freq / float(kd))
 			else:
 				fc_coeff = 1
 		else:
-			fc_coeff = (math.pi / 20) # default differentiator roll off to a 10th of the nyquist
+			fc_coeff = (math.sqrt(2*math.pi) / 10.0) # default differentiator roll off to a 10th of the nyquist
 
-		if fc_coeff > (math.pi / 10):
+		if fc_coeff > (math.sqrt(2*math.pi) / 10.0):
 			raise InvalidConfigurationException("Differentiator saturation corner above maximum. Reduce differentiator saturation below %.3f." % (fc_coeff * kd * self.ang_freq))
 
 		self.d_fb = 1.0 - fc_coeff

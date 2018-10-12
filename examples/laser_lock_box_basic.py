@@ -20,7 +20,7 @@ def gen_butterworth(corner_frequency):
 
     Corner frequencies for laser lock box second harmonic filtering should be in the range: 1 kHz < corner frequency < 31.25 MHz.
     """
-    sample_rate = 62.5e6
+    sample_rate = 31.25e6
     normalised_corner = corner_frequency / (sample_rate / 2)
     b, a = signal.butter(2, normalised_corner, 'low', analog = False)
 
@@ -40,9 +40,7 @@ try:
 
     # configure PIDs:
     i.set_pid_by_gain(1, g=1, kp=1)
-    i.set_pid_bypass(1, False)
     i.set_pid_by_gain(2, g=1, kp=1)
-    i.set_pid_bypass(2, False)
 
     # configure second harmonic rejection low pass filter
     coef_array = gen_butterworth(1e4)
