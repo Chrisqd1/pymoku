@@ -1,8 +1,8 @@
 #
-# pymoku example: Basic Lock-in Amplifier
+# pymoku example: Plotting - Laser Lock Box
 #
-# This example demonstrates how you can configure the lock-in amplifier
-# instrument
+# This example demonstrates how you can configure the laser lock box
+# instrument and monitor signals at each oscilloscope probe point. 
 #
 # (c) 2017 Liquid Instruments Pty. Ltd.
 #

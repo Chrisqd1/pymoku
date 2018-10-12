@@ -1,7 +1,7 @@
 #
-# pymoku example: Basic Lock-in Amplifier
+# pymoku example: Basic Laser Lock Box
 #
-# This example demonstrates how you can configure the lock-in amplifier
+# This example demonstrates how you can configure the laser lock box
 # instrument
 #
 # (c) 2017 Liquid Instruments Pty. Ltd.

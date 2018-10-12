@@ -250,7 +250,8 @@ class LaserLockBox(_CoreOscilloscope):
 	@needs_commit
 	def set_output_range(self, ch, maximum, minimum):
 		"""
-		Set upper and lower bounds for the signal on each DAC channel.  
+		Set upper and lower bounds for the signal on each DAC channel. The auxilliary waveform is not restricted to these
+		bounds when added to either DAC channel.  
 
 		:type ch : int; [1, 2]
 		:param ch : 1 = Output 1, 2 = Output 2 
@@ -464,7 +465,8 @@ class LaserLockBox(_CoreOscilloscope):
 	@needs_commit
 	def set_local_oscillator(self, frequency=0.0, phase=0.0, source = 'internal', pll_auto_acq = True):
 		"""
-		Configure the demodulation stage.
+		Configure the local oscillator. The local oscillator can be generated internally with configurable frequency and phase offset,
+		externally via ADC 2 or internally with a PLL phase locked to ADC 2 plus an additional phase offset.
 
 		:type frequency : float; [0, 200e6] Hz
 		:param frequency : Internal demodulation frequency
@@ -574,7 +576,7 @@ class LaserLockBox(_CoreOscilloscope):
 	@needs_commit
 	def set_scan(self, amplitude = 2.0, frequency = 0.0, phase = 0.0, waveform = 'triangle', output = 'out1'):
 		"""
-		Configure the scanning generator
+		Configure the scanning generator.
 
 		:type amplitude : float; [0, 2.0] Vpp
 		:param amplitude : Scan amplitude
