@@ -153,6 +153,11 @@ class LaserLockBox(_CoreOscilloscope):
 		self.set_output_range(1, 1.0, -1.0)
 		self.set_output_range(2, 1.0, -1.0)
 
+		self.set_monitor('A', 'error')
+		self.set_monitor('B', 'scan')
+		self.set_trigger('scan', 'rising', level = 0, hysteresis = 0.1, trig_on_scan_rising = True)
+		self.set_timebase(-1e-3, 1e-3)
+
 	def _update_dependent_regs(self, scales):
 		super(LaserLockBox, self)._update_dependent_regs(scales)
 		self._set_scale()

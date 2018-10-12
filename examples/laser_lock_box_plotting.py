@@ -48,9 +48,7 @@ try:
 
 	# configure PIDs:
 	i.set_pid_by_gain(1, g=1, kp=1)
-	i.set_pid_bypass(1, False)
 	i.set_pid_by_gain(2, g=1, kp=1)
-	i.set_pid_bypass(2, False)
 
 	# set offsets
 	i.set_offsets(position = 'pid_input', offset = 0.1)

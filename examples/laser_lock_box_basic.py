@@ -40,9 +40,7 @@ try:
 
     # configure PIDs:
     i.set_pid_by_gain(1, g=1, kp=1)
-    i.set_pid_bypass(1, False)
     i.set_pid_by_gain(2, g=1, kp=1)
-    i.set_pid_bypass(2, False)
 
     # configure second harmonic rejection low pass filter
     coef_array = gen_butterworth(1e4)
