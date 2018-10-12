@@ -25,6 +25,7 @@ Contents
    datalogger
    firfilterbox
    iirfilterbox
+   laserlockbox
    lockin
    oscilloscope
    phasemeter
