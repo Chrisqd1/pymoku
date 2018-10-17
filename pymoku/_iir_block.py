@@ -19,8 +19,6 @@ class IIRBlock(object):
 
 		intermediate_filter = deepcopy(filt_coeffs)
 
-
-
 		for stage in range(1, self.num_stages + 1):
 			intermediate_filter[stage][1] *= intermediate_filter[stage][0]
 			intermediate_filter[stage][2] *= intermediate_filter[stage][0]
@@ -34,22 +32,19 @@ class IIRBlock(object):
 
 		for stage in range(self.num_stages):
 			for coeff in range(6):
-				if coeff in range(6):
-					if coeff == 0:
-						coeff_list[stage][coeff] = int(round( 2**(self._gain_frac_width) * intermediate_filter[stage][coeff]))
-					else:
-						coeff_list[stage][coeff] = int(round( 2**(self._coeff_frac_width) * intermediate_filter[stage][coeff]))
+				if coeff == 0:
+					coeff_list[stage][coeff] = int(round( 2**(self._gain_frac_width)
+					                            * intermediate_filter[stage][coeff]))
+				else:
+					coeff_list[stage][coeff] = int(round( 2**(self._coeff_frac_width)
+					                            * intermediate_filter[stage][coeff]))
 		return coeff_list
-
 
 	def _coeff_dimenension_checks(self, filt_coeffs):	
 		_utils.check_parameter_valid('set', len(filt_coeffs[0]), [1], 'number of coefficients in coefficient gain')
 		
 		for stage in range(1, self.num_stages + 1):
-			if len(filt_coeffs[stage]) != 6:
-				_utils.check_parameter_valid('set', len(filt_coeffs[stage]), [6],("number of coefficients in stage %s"%(stage)))
-
-		for stage in range(1, self.num_stages + 1):
+			_utils.check_parameter_valid('set', len(filt_coeffs[stage]), [6],("number of coefficients in stage %s"%(stage)))
 			for coeff_element in range(6):
 				_utils.check_parameter_valid('range', filt_coeffs[stage][coeff_element], [-4.0,4.0 - 2**(-45)],("coefficient array entry at stage = %s, coefficient = %s"%(0,0)))
 		
@@ -63,18 +58,7 @@ class IIRBlock(object):
 			self._write_to_reg(reg_coeffs)
 		else:
 			self._write_to_reg(reg_coeffs)
-
-	# def _write_to_mmap(self, coeffs_converted):
-	# 	with open('.data.dat', 'wb') as f:
-	# 		for coeff in range(6):
-	# 			for stage in range(self.num_stages):
-	# 				f.write(struct.pack('<i', coeff_list[stage][coeff]))
-
-	# 	self._instr._set_mmap_access(True)
-	# 	self._instr._moku._send_file('j', '.data.dat')
-	# 	self._instr._set_mmap_access(False)
-	# 	os.remove('.data.dat')
-
+			
 	def _write_to_reg(self, coeffs_converted):
 
 		for stage in range(self.num_stages):
