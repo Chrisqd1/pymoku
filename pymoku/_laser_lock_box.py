@@ -99,9 +99,6 @@ _LLB_OSC_SOURCES = {
 	'ext' : _LLB_SOURCE_EXT
 }
 
-_ADC_DEFAULT_CALIBRATION = 3750.0
-_DAC_DEFAULT_CALIBRATION = _ADC_DEFAULT_CALIBRATION * 2.0**3
-
 class LaserLockBox(_CoreOscilloscope):
 	def __init__(self):
 		super(LaserLockBox, self).__init__()
@@ -134,8 +131,7 @@ class LaserLockBox(_CoreOscilloscope):
 		super(LaserLockBox, self).set_defaults()
 		self.set_input_gain(0)
 
-		default_filt_coeff = [[1, 1, 0, 0, 0, 0],
-						[1, 1, 0, 0, 0, 0]]
+		default_filt_coeff = [[1, 1, 0, 0, 0, 0],[1, 1, 0, 0, 0, 0]]
 		self.set_custom_filter(default_filt_coeff)
 		self.set_local_oscillator()
 
@@ -225,8 +221,6 @@ class LaserLockBox(_CoreOscilloscope):
 		_utils.check_parameter_valid('set', len(filt_coeffs[0]), [6], desc='number of coefficients in first filter array row')
 		_utils.check_parameter_valid('set', len(filt_coeffs[1]), [6], desc='number of coefficients in second filter array row')
 
-		print(filt_coeffs[0][1])
-
 		# multiply s coefs into b coefs and set s coefs = 1.0
 		for row in range(0, 2):
 			for bcoef in range(1, 4):
@@ -234,8 +228,6 @@ class LaserLockBox(_CoreOscilloscope):
 				_utils.check_parameter_valid('range', filt_coeffs[row][bcoef], [-2.0, 2.0], desc='product of b{}.{} and s{}'.format(row + 1, bcoef, row + 1), units='linear scalar')
 		filt_coeffs[0][0] = 1.0
 		filt_coeffs[1][0] = 1.0
-
-		print(filt_coeffs[0][1])
 
 		# check value of a coefs
 		for row in range(0, 2):
@@ -269,11 +261,11 @@ class LaserLockBox(_CoreOscilloscope):
 			raise ValueOutOfRangeException("Maximum range value must be greater than minimum.")
 
 		if ch == 1:
-			self.cliprange_upper_ch1 = maximum / self._dac_gains()[0] / 2**15
-			self.cliprange_lower_ch1 = minimum / self._dac_gains()[0] / 2**15
+			self.cliprange_upper_ch1 = maximum / self._dac_gains()[0] / 2.0**15
+			self.cliprange_lower_ch1 = minimum / self._dac_gains()[0] / 2.0**15
 		else:
-			self.cliprange_upper_ch2 = maximum / self._dac_gains()[1] / 2**15
-			self.cliprange_lower_ch2 = minimum / self._dac_gains()[1] / 2**15
+			self.cliprange_upper_ch2 = maximum / self._dac_gains()[1] / 2.0**15
+			self.cliprange_lower_ch2 = minimum / self._dac_gains()[1] / 2.0**15
 
 	@needs_commit
 	def set_offsets(self, position, offset):
@@ -563,15 +555,15 @@ class LaserLockBox(_CoreOscilloscope):
 		if output == _LLB_AUXSOURCE_DAC1:
 			self.fast_aux_enable = True
 			self.slow_aux_enable = False
-			self._aux_scale = (amplitude / 2.0) / self._dac_gains()[0] / 2**15
+			self._aux_scale = (amplitude / 2.0) / self._dac_gains()[0] / 2.0**15
 		elif output == _LLB_AUXSOURCE_DAC2:
 			self.fast_aux_enable = False
 			self.slow_aux_enable = True
-			self._aux_scale = (amplitude / 2.0) / self._dac_gains()[1] / 2**15
+			self._aux_scale = (amplitude / 2.0) / self._dac_gains()[1] / 2.0**15
 		else:
 			self.fast_aux_enable = False
 			self.slow_aux_enable = False
-			self._aux_scale = (amplitude / 2.0) / self._dac_gains()[1] / 2**15
+			self._aux_scale = (amplitude / 2.0) / self._dac_gains()[1] / 2.0**15
 
 	@needs_commit
 	def set_scan(self, amplitude = 2.0, frequency = 0.0, phase = 0.0, waveform = 'triangle', output = 'out1'):
@@ -624,15 +616,15 @@ class LaserLockBox(_CoreOscilloscope):
 		if output == _LLB_SCANSOURCE_DAC1:
 			self.fast_scan_enable = True
 			self.slow_scan_enable = False
-			self.scan_amplitude = (amplitude / 2.0) / self._dac_gains()[0] / 2**15
+			self.scan_amplitude = (amplitude / 2.0) / self._dac_gains()[0] / 2.0**15
 		elif output == _LLB_SCANSOURCE_DAC2:
 			self.fast_scan_enable = False
 			self.slow_scan_enable = True
-			self.scan_amplitude = (amplitude / 2.0) / self._dac_gains()[1] / 2**15
+			self.scan_amplitude = (amplitude / 2.0) / self._dac_gains()[1] / 2.0**15
 		else:
 			self.fast_scan_enable = False
 			self.slow_scan_enable = False
-			self.scan_amplitude = (amplitude / 2.0) / self._dac_gains()[0] / 2**15 # default to out 1 scale
+			self.scan_amplitude = (amplitude / 2.0) / self._dac_gains()[0] / 2.0**15 # default to out 1 scale
 
 	def _signal_source_volts_per_bit(self, source, scales, trigger=False):
 		"""

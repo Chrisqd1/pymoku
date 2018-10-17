@@ -4,7 +4,7 @@
 # This example demonstrates how you can configure the laser lock box
 # instrument
 #
-# (c) 2017 Liquid Instruments Pty. Ltd.
+# (c) 2018 Liquid Instruments Pty. Ltd.
 #
 from pymoku import Moku
 from pymoku.instruments import LaserLockBox
