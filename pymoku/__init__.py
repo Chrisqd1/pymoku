@@ -1168,7 +1168,7 @@ class Moku(object):
 
 		return self._instrument
 
-	def deploy_or_connect(self, instrument, set_default=True, use_external=True):
+	def deploy_or_connect(self, instrument, set_default=True, use_external=False):
 		"""
 		Ensures the Moku:Lab is running the given instrument, either by connecting to an already-running instance, or deploying a new one.
 
