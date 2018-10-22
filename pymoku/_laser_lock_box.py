@@ -48,6 +48,7 @@ REGBASE_LLB_PID1			= 109
 REGBASE_LLB_PID2			= 118
 
 _LLB_PHASESCALE				= 2**28 / 360.0
+_LLB_SCANPHASESCALE			= 2**64 / 360
 _LLB_FREQSCALE				= 2**64 / 1e9
 _LLB_SWEEP_WTYPE_SAWTOOTH	= 2
 _LLB_SWEEP_MAX_STOP			= 2**64 - 1
@@ -609,7 +610,7 @@ class LaserLockBox(_CoreOscilloscope):
 		self.scan_sweep.stop = 2**64 -1
 		self.scan_sweep.duration = 0
 		self.scan_sweep.waveform = waveform
-		self.scan_sweep.start = phase * _LLB_PHASESCALE
+		self.scan_sweep.start = phase * _LLB_SCANPHASESCALE
 		self.scan_sweep.wait_for_trig = False
 		self.scan_sweep.hold_last = False
 
