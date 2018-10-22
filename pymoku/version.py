@@ -4,10 +4,10 @@ import pkg_resources as pkr
 compat_fw = [474]
 
 # List of compatible patches
-compat_patch = [1]
+compat_patch = [2]
 
 # List of compatible packs
-compat_packs = [('python-pymoku',	'28D72BBEFCB076F772ACCB25C7D698A2DA843054'),
+compat_packs = [('python-pymoku',	'EFF3970B35F7D82B501C288A2C92B496AD366CE2'),
 				('mercury',			'28D72BBEFCB076F772ACCB25C7D698A2DA843054')]
 
 # Compatible network protocol version
