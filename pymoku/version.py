@@ -1,14 +1,13 @@
 import pkg_resources as pkr
 
 # List of compatible firmware builds
-compat_fw = [474]
+compat_fw = [501]
 
 # List of compatible patches
-compat_patch = [2]
+compat_patch = [0]
 
 # List of compatible packs
-compat_packs = [('python-pymoku',	'EFF3970B35F7D82B501C288A2C92B496AD366CE2'),
-				('mercury',			'28D72BBEFCB076F772ACCB25C7D698A2DA843054')]
+compat_packs = []
 
 # Compatible network protocol version
 protocol_version = '7'
