@@ -267,6 +267,42 @@ class BodeAnalyzer(_frame_instrument.FrameBasedInstrument):
 			self.channel2_en = amplitude > 0
 
 	@needs_commit
+	def enable_amplitude(self, ch, en = True):
+		""" Enable/disable amplitude on the selected channel.
+
+		:type ch: int; {1, 2}
+		:param ch: Output channel
+
+		:type en: bool
+		:param en: Enable amplitude)
+		"""
+		_utils.check_parameter_valid('set', ch, [1, 2], 'output channel')
+		_utils.check_parameter_valid('set', en, [True, False], 'enable amplitude')
+
+		if ch == 1:
+			self.dac1_en = en
+		else:
+			self.dac2_en = en
+
+	@needs_commit
+	def enable_offset(self, ch, en = True):
+		""" Enable/disable output offset on the selected channel.
+
+		:type ch: int; {1, 2}
+		:param ch: Output channel
+
+		:type en: bool
+		:param en: Enable offset
+		"""
+		_utils.check_parameter_valid('set', ch, [1, 2], 'output channel')
+		_utils.check_parameter_valid('set', en, [True, False], 'enable offset')
+
+		if ch == 1:
+			self.channel1_en = en
+		else:
+			self.channel2_en = en
+
+	@needs_commit
 	def gen_off(self, ch=None):
 		""" Turn off the output sweep.
 
