@@ -1,5 +1,10 @@
+#
+# (c) 2019 Liquid Instruments Pty. Ltd.
+#
+
 import numpy as np
 import warnings
+
 warnings.filterwarnings("ignore")
 
 def calculate_risetime(amplitude_data, time_data):
@@ -27,7 +32,7 @@ def calculate_risetime(amplitude_data, time_data):
 
 def calculate_linewidth(power_data, frequency_data):
 	"""
-		A helper function which calculates an approximation to spectrum 
+		A helper function which calculates an approximation to spectrum
 		line width.
 
 		For demonstration purposes only.

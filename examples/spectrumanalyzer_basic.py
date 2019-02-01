@@ -6,7 +6,7 @@
 #
 # (c) 2017 Liquid Instruments Pty. Ltd.
 #
-from pymoku import *
+from pymoku import Moku
 from pymoku.instruments import SpectrumAnalyzer
 
 # Connect to your Moku by its device name
@@ -14,9 +14,9 @@ from pymoku.instruments import SpectrumAnalyzer
 m = Moku.get_by_name('Moku')
 
 # Deploy the Spectrum Analyzer to your Moku
-i = m.deploy_instrument(SpectrumAnalyzer)
-
 try:
+	i = m.deploy_or_connect(SpectrumAnalyzer)
+
 	# DC to 10MHz span
 	i.set_span(0, 10e6)
 

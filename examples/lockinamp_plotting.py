@@ -4,7 +4,7 @@
 # This example demonstrates how you can configure the lock-in amplifier
 # instrument and monitor the signals in real-time
 #
-# (c) 2017 Liquid Instruments Pty. Ltd.
+# (c) 2019 Liquid Instruments Pty. Ltd.
 #
 from pymoku import Moku
 from pymoku.instruments import LockInAmp
@@ -16,9 +16,10 @@ from matplotlib.ticker import FuncFormatter
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
-i = m.deploy_instrument(LockInAmp)
 
 try:
+	i = m.deploy_or_connect(LockInAmp)
+
 	# Output a 1MHz sine wave but demodulate at a harmonic (2MHz)
 	i.set_demodulation('internal', 2e6)
 	i.set_lo_output(1.0, 1e6, 0)

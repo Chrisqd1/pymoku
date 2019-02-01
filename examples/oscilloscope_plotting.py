@@ -4,9 +4,9 @@
 # This example demonstrates how you can configure the Oscilloscope instrument,
 # and view triggered time-voltage data frames in real-time.
 #
-# (c) 2017 Liquid Instruments Pty. Ltd.
+# (c) 2019 Liquid Instruments Pty. Ltd.
 #
-from pymoku import *
+from pymoku import Moku
 from pymoku.instruments import Oscilloscope
 
 import matplotlib
@@ -16,9 +16,10 @@ from matplotlib.ticker import FuncFormatter
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
-i = m.deploy_or_connect(Oscilloscope)
 
 try:
+	i = m.deploy_or_connect(Oscilloscope)
+
 	# Trigger on input Channel 1, rising edge, 0V with 0.1V hysteresis
 	i.set_trigger('in1', 'rising', 0, hysteresis = 0.1)
 
@@ -43,7 +44,7 @@ try:
 	plt.ion()
 	plt.show()
 	plt.grid(b=True)
-	plt.ylim([-1,1])
+	plt.ylim([-1, 1])
 	plt.xlim([data.time[0], data.time[-1]])
 
 	line1, = plt.plot([])

@@ -4,7 +4,7 @@
 # This example demonstrates how you can generate and output arbitrary
 # waveforms using Moku:AWG
 #
-# (c) 2017 Liquid Instruments Pty. Ltd.
+# (c) 2019 Liquid Instruments Pty. Ltd.
 #
 from pymoku import Moku
 from pymoku.instruments import ArbitraryWaveGen
@@ -29,7 +29,7 @@ not_sq = not_sq / max(not_sq)
 m = Moku.get_by_name('Moku')
 
 # Prepare the ArbitraryWaveGen instrument
-i = m.deploy_instrument(ArbitraryWaveGen)
+i = m.deploy_or_connect(ArbitraryWaveGen)
 
 try:
 	# Load the waveforms to the device. This doesn't yet generate an output as we haven't

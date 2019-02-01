@@ -4,7 +4,7 @@
 # in the PID Controller instrument. Configuration is done by specifying
 # frequency response characteristics of the controller.
 #
-# (c) 2017 Liquid Instruments Pty. Ltd.
+# (c) 2019 Liquid Instruments Pty. Ltd.
 #
 
 from pymoku import Moku
@@ -18,10 +18,8 @@ def from_dB(dB):
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name("Moku")
 
-# Deploy the PID Controller to the Moku:Lab
-i = m.deploy_instrument(PIDController)
-
 try:
+	i = m.deploy_instrument(PIDController)
 
 	# Configure the PID Controller using frequency response characteristics
 	# 	P = -10dB

@@ -15,7 +15,7 @@ import time
 m = Moku.get_by_name('Moku')
 
 try:
-	i = m.deploy_instrument(Datalogger)
+	i = m.deploy_or_connect(Datalogger)
 
 	# 100 samples per second
 	i.set_samplerate(100)

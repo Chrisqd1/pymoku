@@ -8,9 +8,9 @@
 # dependencies (i.e. Qt libraries), but is capable of significantly higher
 # frame rates.
 #
-# (c) 2017 Liquid Instruments Pty. Ltd.
+# (c) 2019 Liquid Instruments Pty. Ltd.
 #
-from pymoku import *
+from pymoku import Moku
 from pymoku.instruments import Oscilloscope
 import time
 import pyqtgraph as pg
@@ -20,11 +20,12 @@ from pyqtgraph.Qt import QtGui, QtCore
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
-i = m.deploy_or_connect(Oscilloscope)
 
 app = QtGui.QApplication([])
 
 try:
+	i = m.deploy_or_connect(Oscilloscope)
+
 	# Trigger on input Channel 1, rising edge, 0V with 0.1V hysteresis
 	i.set_trigger('in1', 'rising', 0, hysteresis = 0.1)
 

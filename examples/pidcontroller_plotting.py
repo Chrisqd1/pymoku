@@ -1,14 +1,14 @@
 # pymoku example: PID Controller Plotting Example
 #
 # This script demonstrates how to configure both PID Controllers
-# in the PID Controller instrument. Configuration on the Channel 1 
+# in the PID Controller instrument. Configuration on the Channel 1
 # PID is done by specifying frequency response characteristics,
 # while Channel 2 specifies the gain characteristics.
 #
 # The output response of each PID Controller channel is plotted
 # in real-time.
 #
-# (c) 2017 Liquid Instruments Pty. Ltd.
+# (c) 2019 Liquid Instruments Pty. Ltd.
 #
 from pymoku import Moku
 from pymoku.instruments import PIDController
@@ -24,10 +24,10 @@ def from_dB(dB):
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
-i = PIDController()
-m.deploy_instrument(i)
 
 try:
+	i = m.deploy_or_connect(PIDController)
+
 	# Configure the Channel 1 PID Controller using frequency response characteristics
 	# 	P = -10dB
 	#	I Crossover = 100Hz

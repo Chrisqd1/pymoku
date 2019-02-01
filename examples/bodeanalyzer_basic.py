@@ -4,20 +4,20 @@
 # This example demonstrates how you can generate output sweeps using the
 # Bode Analyzer instrument, and view transfer function data in real-time.
 #
-# (c) 2017 Liquid Instruments Pty. Ltd.
+# (c) 2019 Liquid Instruments Pty. Ltd.
 #
 from pymoku import Moku
-from pymoku.instruments import *
+from pymoku.instruments import BodeAnalyzer
 import logging
 
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
 
-# Deploy the Bode Analyzer to your Moku
-i = m.deploy_instrument(BodeAnalyzer)
-
 try:
+	# Deploy the Bode Analyzer to your Moku
+	i = m.deploy_or_connect(BodeAnalyzer)
+
 	# Configure output sweep parameters (100Hz-20MHz)
 	i.set_sweep(f_start=100,f_end=20e6,sweep_points=256)
 

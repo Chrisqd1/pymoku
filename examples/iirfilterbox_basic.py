@@ -3,7 +3,7 @@
 # This example demonstrates how you can configure the IIR Filter instrument,
 # configure real-time monitoring of the input and output signals.
 #
-# (c) 2017 Liquid Instruments Pty. Ltd.
+# (c) 2019 Liquid Instruments Pty. Ltd.
 #
 from pymoku import Moku
 from pymoku.instruments import IIRFilterBox
@@ -21,9 +21,10 @@ filt_coeff = 	[[1.0],
 
 
 m = Moku.get_by_name('Moku')
-i = m.deploy_instrument(IIRFilterBox)
 
 try:
+	i = m.deploy_or_connect(IIRFilterBox)
+
 	i.set_frontend(1, fiftyr=True, atten=False, ac=False)
 	i.set_frontend(2, fiftyr=True, atten=False, ac=False)
 

@@ -4,19 +4,19 @@
 # This example demonstrates how you can use the Datalogger to live-stream
 # dual-channel voltage data over the network.
 #
-# (c) 2017 Liquid Instruments Pty. Ltd.
+# (c) 2019 Liquid Instruments Pty. Ltd.
 #
-from pymoku import *
+from pymoku import Moku
 from pymoku.instruments import Datalogger
 
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
 
-# Deploy the Datalogger to your Moku
-i = m.deploy_instrument(Datalogger)
-
 try:
+	# Deploy the Datalogger to your Moku
+	i = m.deploy_or_connect(Datalogger)
+
 	# 10Hz sample rate
 	i.set_samplerate(10)
 

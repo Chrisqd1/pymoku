@@ -4,7 +4,7 @@
 # This example demonstrates how you can configure the laser lock box
 # instrument
 #
-# (c) 2018 Liquid Instruments Pty. Ltd.
+# (c) 2019 Liquid Instruments Pty. Ltd.
 #
 from pymoku import Moku
 from pymoku.instruments import LaserLockBox
@@ -30,9 +30,10 @@ def gen_butterworth(corner_frequency):
 
 # Use Moku.get_by_serial() or get_by_name() if you don't know the IP
 m = Moku.get_by_name('Moku')
-i = m.deploy_instrument(LaserLockBox)
 
 try:
+    i = m.deploy_or_connect(LaserLockBox)
+
     # set local oscillator, auxiliary and scan generators
     i.set_local_oscillator(source='internal', frequency=0, phase=90, pll_auto_acq = False)
     i.set_aux_sine(amplitude = 1.0, frequency = 10e3, phase=0, sync_to_lo = False, output = 'out1')
