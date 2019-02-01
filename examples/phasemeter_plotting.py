@@ -6,9 +6,9 @@
 # The signal amplitude is calculated using these samples, and plotted for
 # real-time viewing.
 #
-# (c) 2017 Liquid Instruments Pty. Ltd.
+# (c) 2019 Liquid Instruments Pty. Ltd.
 #
-from pymoku import *
+from pymoku import Moku
 from pymoku.instruments import Phasemeter
 import math, numpy
 import matplotlib.pyplot as plt
@@ -16,9 +16,10 @@ import matplotlib.pyplot as plt
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
-i = m.deploy_or_connect(Phasemeter)
 
 try:
+	i = m.deploy_or_connect(Phasemeter)
+
 	# Set samplerate to slow mode ~30Hz
 	i.set_samplerate('slow')
 
@@ -91,8 +92,9 @@ try:
 		plt.pause(0.001)
 		plt.draw()
 
+		i.stop_stream_data()
+
 except StreamException as e:
 	print("Error occured: %s" % e)
 finally:
-	i.stop_stream_data()
 	m.close()

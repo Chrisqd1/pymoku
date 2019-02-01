@@ -1,4 +1,8 @@
 # Release Notes
+## 2.6.0
+- Update for Moku:Lab firmware version 1.8 (501)
+- minor bug fixes
+
 ## 2.3.0
 ### Headlines
 - Added **new** instrument support for the **FIR Filter Box**:
@@ -10,7 +14,7 @@
 - Added advanced output triggering options to the Arbitrary Waveform Generator, including:
 	- Trigger type (edge, pulse-width)
 	- Trigger source (ADCs, external)
-	- Triggered output modes (single, continuous) 
+	- Triggered output modes (single, continuous)
 	- Triggered output duration
 - Support for data logging instruments to log directly to MATLAB (`.mat`) and NumPy (`.npy`) file types
 - Simplified pip pymoku installation process
@@ -22,11 +26,11 @@
 	- `moku --serial=123456 update install`
 
 ### API Changes
-- `Moku.deploy_or_connect(...)` and `Moku.deploy_instrument(...)` now have matching API (i.e., input parameters and return value). **Note:** this does not imply identical behaviour (see API documentation).  
+- `Moku.deploy_or_connect(...)` and `Moku.deploy_instrument(...)` now have matching API (i.e., input parameters and return value). **Note:** this does not imply identical behaviour (see API documentation).
 - `IIRFilterBox` instrument class functions have been changed to match `FIRFilter` API.
 	- `set_offset_gain` renamed to `set_gains_offsets` and now only configures the input/output offsets and gains of a specified filter channel.
 	- `set_control_matrix` function added to configure input signal mixing gain coefficients.
-	- Updated various input parameter ranges including +-1.0V input offset, and +-2.0V output offset. 
+	- Updated various input parameter ranges including +-1.0V input offset, and +-2.0V output offset.
 - Class documentation of various instruments updated.
 
 ### Bug Fixes
@@ -92,11 +96,11 @@
 ### API Changes
 - Signal Generator renamed Waveform Generator
 	- This is for consistency with documentation and other releases.  The class name has changed, please update your scripts.
-- Oscilloscope triggering hysteresis cannot be explicitly set in volts. 
+- Oscilloscope triggering hysteresis cannot be explicitly set in volts.
 	- Complexities with the DSP meant this was always buggy. Hysteresis can now just be turned on and off, toggled between values that are used in the iPad and other clients to implement noise rejection.
-- Removed 'upload' parameter from start_data_log. 
+- Removed 'upload' parameter from start_data_log.
 	- This parameter never worked well, the user should call the instrument's upload function after log completion.
-- The meaning of Phasemeter rate flags has been re-defined. 
+- The meaning of Phasemeter rate flags has been re-defined.
 	- 'fast' and 'slow' have been replaced with 'fast', 'medium' and 'slow', representing approximately 1.9ksps, 120sps and 30sps output rate respectively.
 ### Bug Fixes
 

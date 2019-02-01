@@ -6,9 +6,9 @@
 # you can use its embedded signal generator to generate a sweep and single
 # frequency waveform on the output channels.
 #
-# (c) 2017 Liquid Instruments Pty. Ltd.
+# (c) 2019 Liquid Instruments Pty. Ltd.
 #
-from pymoku import *
+from pymoku import Moku
 from pymoku.instruments import SpectrumAnalyzer
 import logging
 
@@ -22,12 +22,13 @@ logging.getLogger('pymoku').setLevel(logging.INFO)
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
-i = m.deploy_or_connect(SpectrumAnalyzer)
 
 # Use dBm scaling on the y-axis
-dbm=True
+dbm = True
 
 try:
+	i = m.deploy_or_connect(SpectrumAnalyzer)
+
 	# Set spectrum analyzer configuration
 	i.set_defaults()
 	i.set_dbmscale(dbm)
@@ -51,7 +52,7 @@ try:
 	if(dbm):
 		plt.ylim([-200, 100])
 	else:
-		plt.ylim([-0.5,1.0])
+		plt.ylim([-0.5, 1.0])
 	plt.autoscale(axis='x',tight=True)
 
 	# Get an initial frame of data to set any frame-specific plot parameters

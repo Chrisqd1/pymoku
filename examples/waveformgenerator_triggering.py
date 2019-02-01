@@ -4,19 +4,18 @@
 # This example demonstrates how you can use the Waveform Generator instrument to
 # generate a triggered sinewave on Channel 1 and 2 using different tigger sources
 #
-# (c) 2017 Liquid Instruments Pty. Ltd.
+# (c) 2019 Liquid Instruments Pty. Ltd.
 #
-from pymoku import *
+from pymoku import Moku
 from pymoku.instruments import WaveformGenerator
 
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
 
-# Deploy the Signal Generator to your Moku
-i = m.deploy_instrument(WaveformGenerator)
-
 try:
+	i = m.deploy_or_connect(WaveformGenerator)
+
 	# Channel 1 generates a 1.0Vpp 5Hz Sinewave
 	i.gen_sinewave(1, 1.0, 5)
 	# Channel 2 generates a Squarewave 2.0Vpp 1Hz

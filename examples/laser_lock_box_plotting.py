@@ -2,9 +2,9 @@
 # pymoku example: Plotting - Laser Lock Box
 #
 # This example demonstrates how you can configure the laser lock box
-# instrument and monitor signals at each oscilloscope probe point. 
+# instrument and monitor signals at each oscilloscope probe point.
 #
-# (c) 2017 Liquid Instruments Pty. Ltd.
+# (c) 2019 Liquid Instruments Pty. Ltd.
 #
 from pymoku import Moku
 from pymoku.instruments import LaserLockBox
@@ -30,9 +30,10 @@ def gen_butterworth(corner_frequency):
 
 # Use Moku.get_by_serial() or get_by_name() if you don't know the IP
 m = Moku.get_by_name('Moku')
-i = m.deploy_instrument(LaserLockBox)
 
 try:
+	i = m.deploy_or_connect(LaserLockBox)
+
 	# set enables
 	i.set_output_enables(1, True)
 	i.set_output_enables(2, True)

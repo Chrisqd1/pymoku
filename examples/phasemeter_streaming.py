@@ -5,18 +5,19 @@
 # it live. The contents of each data sample are printed out, along with the signal amplitude
 # which may be calculated as A = (I^2 + Q^2).
 #
-# (c) 2017 Liquid Instruments Pty. Ltd.
+# (c) 2019 Liquid Instruments Pty. Ltd.
 #
-from pymoku import *
+from pymoku import Moku
 from pymoku.instruments import Phasemeter
 import math
 
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
-i = m.deploy_or_connect(Phasemeter)
 
 try:
+	i = m.deploy_or_connect(Phasemeter)
+
 	# Phasemeter configuration
 	# -------------------------
 	# Set the measurement rate to ~120Hz
@@ -54,14 +55,11 @@ try:
 			# s is of the form [fs, f, count, phase, I, Q]
 			print("Ch1 - fs: %f, f: %f, phase: %f, amplitude: %f" % (s[0],s[1],s[3],math.sqrt(s[4]**2 + s[5]**2)))
 
+	i.stop_stream_data()
 except StreamException as e:
 	print("Error occured: %s" % e)
 except FrameTimeout:
 	print("Logging session timed out")
 finally:
-	# Make sure you stop a network stream to release network resources and
-	# clean up session metadata
-	i.stop_stream_data()
-
 	# Close the connection to the Moku:Lab
 	m.close()

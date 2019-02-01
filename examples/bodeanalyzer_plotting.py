@@ -4,9 +4,9 @@
 # This example demonstrates how you can generate output sweeps using the
 # Bode Analyzer instrument, and view transfer function data in real-time.
 #
-# (c) 2017 Liquid Instruments Pty. Ltd.
+# (c) 2019 Liquid Instruments Pty. Ltd.
 #
-from pymoku import *
+from pymoku import Moku
 from pymoku.instruments import BodeAnalyzer
 import logging
 
@@ -16,10 +16,6 @@ import matplotlib.pyplot as plt
 # Connect to your Moku by its device name
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
-
-# See whether there's already a Bode Analyzer running. If there is, take
-# control of it; if not, deploy a new Bode Analyzer instrument
-i = m.deploy_or_connect(BodeAnalyzer)
 
 # Define output sweep parameters here for readability
 f_start = 10 # Hz
@@ -35,6 +31,10 @@ averaging_cycles = 1
 settling_cycles = 1
 
 try:
+	# See whether there's already a Bode Analyzer running. If there is, take
+	# control of it; if not, deploy a new Bode Analyzer instrument
+	i = m.deploy_or_connect(BodeAnalyzer)
+
 	# Many PCs struggle to plot magnitude and phase for both channels at the default
 	# 10fps, turn it down so it remains smooth, albeit slow. Turn the output to 'sweep'
 	# mode so we can see the in-progress sweep (set to 'full_frame' or leave blank if

@@ -36,8 +36,11 @@ class BonjourFinder(object):
 		if errorCode != pybonjour.kDNSServiceErr_NoError:
 			return
 
-		hw, pver, dummy = hosttarget.split('_')
-		if not hw.startswith('moku') or pver != self.pversion:
+		try:
+			hw, pver, dummy = hosttarget.split('_')
+			if not hw.startswith('moku') or pver != self.pversion:
+				return
+		except:
 			return
 
 		# Parse the txtRecord string for the service

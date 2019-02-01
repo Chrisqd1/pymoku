@@ -4,9 +4,9 @@
 # This example demonstrates use of the Datalogger instrument to log time-series
 # voltage data to a (Binary or CSV) file.
 #
-# (c) 2017 Liquid Instruments Pty. Ltd.
+# (c) 2019 Liquid Instruments Pty. Ltd.
 #
-from pymoku import *
+from pymoku import Moku
 from pymoku.instruments import Datalogger
 import time
 
@@ -14,10 +14,9 @@ import time
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
 
-# Deploy the Datalogger to your Moku
-i = m.deploy_instrument(Datalogger)
-
 try:
+	i = m.deploy_or_connect(Datalogger)
+
 	# 100 samples per second
 	i.set_samplerate(100)
 
@@ -46,5 +45,4 @@ try:
 except StreamException as e:
 	print("Error occured: %s" % e)
 finally:
-	# Close the connection to the Moku
 	m.close()

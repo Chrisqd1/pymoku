@@ -5,9 +5,9 @@
 # generate an amplitude modulated sinewave on Channel 1, and un-modulated
 # squarewave on Channel 2.
 #
-# (c) 2017 Liquid Instruments Pty. Ltd.
+# (c) 2019 Liquid Instruments Pty. Ltd.
 #
-from pymoku import *
+from pymoku import Moku
 from pymoku.instruments import WaveformGenerator
 import time
 
@@ -15,10 +15,9 @@ import time
 # Alternatively, use Moku.get_by_serial('#####') or Moku('192.168.###.###')
 m = Moku.get_by_name('Moku')
 
-# Deploy the Signal Generator to your Moku
-i = m.deploy_instrument(WaveformGenerator)
-
 try:
+	i = m.deploy_or_connect(WaveformGenerator)
+
 	# Generate a 1.0Vpp 1MHz Sinewave on Channel 1
 	i.gen_sinewave(1, 1.0, 1e6)
 

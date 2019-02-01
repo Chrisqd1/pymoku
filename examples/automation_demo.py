@@ -4,10 +4,10 @@
 # This script demonstrates how the Moku could be utilised in an
 # automated test application.
 #
-# (c) 2017 Liquid Instruments Pty. Ltd.
+# (c) 2019 Liquid Instruments Pty. Ltd.
 #
-from pymoku import *
-from pymoku.instruments import *
+from pymoku import Moku
+from pymoku.instruments import Oscilloscope, SpectrumAnalyzer
 from pymoku import _utils
 
 from automation_demo_helpers import calculate_risetime, calculate_linewidth
@@ -38,19 +38,18 @@ def main():
 	# Connect to the Moku device by name
 	moku = Moku.get_by_name('Moku')
 
-	# Run Phase 1 - Rise Times
-	res1, fails1, criteria1 = phase1(moku)
+	try:
+		# Run Phase 1 - Rise Times
+		res1, fails1, criteria1 = phase1(moku)
 
-	# Run Phase 2 - Line Widths
-	res2, fails2, criteria2 = phase2(moku)
+		# Run Phase 2 - Line Widths
+		res2, fails2, criteria2 = phase2(moku)
 
-	# Close connection to the Moku
-	moku.close()
+		generate_results_file(moku, res1, fails1, criteria1, res2, fails2, criteria2)
 
-	# Generate results
-	generate_results_file(moku, res1, fails1, criteria1, res2, fails2, criteria2)
-
-	print("Testing complete")
+		print("Testing complete")
+	finally:
+		moku.close()
 
 #####################################################################
 #
@@ -90,7 +89,7 @@ def phase1(moku):
 	moku.deploy_instrument(osc)
 
 	# Set the data source of Channel 1 to view the generated output sinewave
-	osc.set_source(1, 'in')
+	osc.set_source(1, 'in1')
 	# Set to trigger on Channel 1, rising edge 0V
 	osc.set_trigger('out1', 'rising', 0.0)
 	# Set timebase +- 1usec
@@ -342,7 +341,7 @@ def phase2_plot_update(f, ax1, data, passed, peak, hf1, hf2, progress):
 
 def phase2_plot_setup():
 	# Set up a 1x1 plot
-	f, ax1 = plt.subplots(1,1)
+	f, ax1 = plt.subplots(1, 1)
 	f.suptitle('Phase 2 - Line Width', fontsize=18, fontweight='bold')
 
 	# Choose a colour palette and font size/style
@@ -361,7 +360,5 @@ def phase2_plot_setup():
 
 	return f, ax1
 
-
-main()
-
-
+if __name__=='__main__':
+	main()

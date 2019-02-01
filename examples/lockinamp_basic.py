@@ -4,16 +4,17 @@
 # This example demonstrates how you can configure the lock-in amplifier
 # instrument
 #
-# (c) 2017 Liquid Instruments Pty. Ltd.
+# (c) 2019 Liquid Instruments Pty. Ltd.
 #
 from pymoku import Moku
 from pymoku.instruments import LockInAmp
 
 # Use Moku.get_by_serial() or get_by_name() if you don't know the IP
 m = Moku.get_by_name('Moku')
-i = m.deploy_instrument(LockInAmp)
 
 try:
+    i = m.deploy_or_connect(LockInAmp)
+
     # Configure the two DAC outputs to provide the R (magnitude) and
     # demodulation (local-oscillator in this case, see below) outputs.
     # Give the main ('R') channel 100x gain.
